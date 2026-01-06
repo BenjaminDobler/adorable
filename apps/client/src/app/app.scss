@@ -76,6 +76,32 @@
       }
     }
   }
+
+  .header-actions {
+    display: flex;
+    gap: 0.5rem;
+
+    .icon-btn {
+      background: transparent;
+      border: 1px solid var(--panel-border);
+      color: var(--text-secondary);
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      
+      &:hover:not(:disabled) { 
+        color: var(--text-primary); 
+        border-color: #666;
+        background: rgba(255,255,255,0.05);
+      }
+      &:disabled { opacity: 0.5; cursor: not-allowed; }
+    }
+  }
 }
 
 .chat-section {
