@@ -31,6 +31,12 @@
           (click)="activeTab.set('terminal')">
           Terminal
         </button>
+        <button 
+          class="tab-btn" 
+          [class.active]="activeTab() === 'files'" 
+          (click)="activeTab.set('files')">
+          Files
+        </button>
       </div>
 
       @if (activeTab() === 'chat') {
@@ -110,6 +116,12 @@
           <div class="terminal-window">
             <code>{{ webContainerService.output() }}</code>
           </div>
+        </div>
+      }
+
+      @if (activeTab() === 'files') {
+        <div class="file-explorer-view">
+          <app-file-explorer [files]="allFiles"></app-file-explorer>
         </div>
       }
     </div>

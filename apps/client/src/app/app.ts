@@ -8,6 +8,7 @@ import { BASE_FILES } from './base-project';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { ActivatedRoute, Router } from '@angular/router';
+import { FileExplorerComponent } from './file-explorer/file-explorer';
 
 @Pipe({
   name: 'safeUrl',
@@ -29,7 +30,7 @@ interface ChatMessage {
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, SafeUrlPipe],
+  imports: [CommonModule, FormsModule, SafeUrlPipe, FileExplorerComponent],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -44,12 +45,13 @@ export class AppComponent implements AfterViewChecked {
 
   prompt = '';
   loading = signal(false);
-  activeTab = signal<'chat' | 'terminal'>('chat');
+  activeTab = signal<'chat' | 'terminal' | 'files'>('chat');
   messages = signal<ChatMessage[]>([
     { role: 'assistant', text: 'Hi! I can help you build an Angular app. Describe what you want to create.', timestamp: new Date() }
   ]);
   
   currentFiles: any = null; // Track current state
+  allFiles: any = null; // Track full project state including base files
 
   loadingMessages = [
     'Adorable things take time...',
@@ -304,6 +306,7 @@ export class AppComponent implements AfterViewChecked {
     try {
       this.currentFiles = files;
       const projectFiles = this.mergeFiles(BASE_FILES, this.currentFiles);
+      this.allFiles = projectFiles;
       await this.webContainerService.mount(projectFiles);
       const exitCode = await this.webContainerService.runInstall();
       if (exitCode === 0) {

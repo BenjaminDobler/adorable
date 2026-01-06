@@ -280,6 +280,14 @@
   }
 }
 
+.file-explorer-view {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  background: var(--bg-color);
+  min-height: 0;
+}
+
 .typing-indicator {
   display: flex;
   gap: 4px;
