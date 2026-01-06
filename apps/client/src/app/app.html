@@ -119,40 +119,178 @@
         </div>
       }
 
-      @if (activeTab() === 'files') {
-        <div class="file-explorer-view">
-          <app-file-explorer [files]="allFiles"></app-file-explorer>
-        </div>
-      }
-    </div>
-  </aside>
+            @if (activeTab() === 'files') {
 
-  <main class="preview-area">
-    @if (webContainerService.url()) {
-      <div class="preview-frame-container">
-        <iframe [src]="webContainerService.url() | safeUrl"></iframe>
-      </div>
-    } @else {
-      <div class="placeholder-state">
-        @if (loading()) {
-          <div class="construction">
-            <div class="spinner-large"></div>
-            <h2>Building your app...</h2>
-            <p class="loading-text">{{ currentMessage() }}</p>
+              <div class="file-explorer-view">
+
+                <app-file-explorer [files]="allFiles" (fileSelect)="onFileSelect($event)"></app-file-explorer>
+
+              </div>
+
+            }
+
           </div>
-        } @else {
-          <div class="empty-preview">
-            <div class="logo-large">A</div>
-            <h2>Ready to generate</h2>
-            <p>Describe your app in the sidebar to get started.</p>
+
+        </aside>
+
+      
+
+          <main class="preview-area">
+
+      
+
+            <div class="editor-frame-container" 
+
+      
+
+                 [style.display]="activeTab() === 'files' ? 'flex' : 'none'">
+
+      
+
+               @if (selectedFileName()) {
+
+      
+
+                 <app-editor 
+
+      
+
+                   [content]="selectedFileContent()" 
+
+      
+
+                   [fileName]="selectedFileName()">
+
+      
+
+                 </app-editor>
+
+      
+
+               } @else {
+
+      
+
+                 <div class="placeholder-state">
+
+      
+
+                   <div class="empty-preview">
+
+      
+
+                      <span class="icon" style="font-size: 2rem; color: var(--text-secondary); margin-bottom: 1rem;">
+
+      
+
+                        <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+
+      
+
+                      </span>
+
+      
+
+                      <h2>Select a file</h2>
+
+      
+
+                      <p>Choose a file from the explorer to view its content.</p>
+
+      
+
+                   </div>
+
+      
+
+                 </div>
+
+      
+
+               }
+
+      
+
+            </div>
+
+      
+
+        
+
+      
+
+            <div class="preview-wrapper" 
+
+      
+
+                 [style.display]="activeTab() === 'files' ? 'none' : 'flex'" 
+
+      
+
+                 style="flex: 1; flex-direction: column; height: 100%;">
+
+      
+
+              @if (webContainerService.url()) {
+
+      
+
+        
+
+              <div class="preview-frame-container">
+
+                <iframe [src]="webContainerService.url() | safeUrl"></iframe>
+
+              </div>
+
+            } @else {
+
+              <div class="placeholder-state">
+
+                @if (loading()) {
+
+                  <div class="construction">
+
+                    <div class="spinner-large"></div>
+
+                    <h2>Building your app...</h2>
+
+                    <p class="loading-text">{{ currentMessage() }}</p>
+
+                  </div>
+
+                } @else {
+
+                  <div class="empty-preview">
+
+                    <div class="logo-large">A</div>
+
+                    <h2>Ready to generate</h2>
+
+                    <p>Describe your app in the sidebar to get started.</p>
+
+                  </div>
+
+                }
+
+              </div>
+
+            }
+
           </div>
-        }
+
+          
+
+          <!-- Marquee Overlay -->
+
+          @if (isSelecting && selectionRect) {
+
+            <div class="selection-box" [style.left.px]="selectionRect.x" [style.top.px]="selectionRect.y" [style.width.px]="selectionRect.width" [style.height.px]="selectionRect.height"></div>
+
+          }
+
+        </main>
+
       </div>
-    }
-    
-    <!-- Marquee Overlay -->
-    @if (isSelecting && selectionRect) {
-      <div class="selection-box" [style.left.px]="selectionRect.x" [style.top.px]="selectionRect.y" [style.width.px]="selectionRect.width" [style.height.px]="selectionRect.height"></div>
-    }
-  </main>
-</div>
+
+      

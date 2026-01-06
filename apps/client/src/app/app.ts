@@ -9,6 +9,7 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FileExplorerComponent } from './file-explorer/file-explorer';
+import { EditorComponent } from './editor/editor.component';
 
 @Pipe({
   name: 'safeUrl',
@@ -30,7 +31,7 @@ interface ChatMessage {
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, SafeUrlPipe, FileExplorerComponent],
+  imports: [CommonModule, FormsModule, SafeUrlPipe, FileExplorerComponent, EditorComponent],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -52,6 +53,9 @@ export class AppComponent implements AfterViewChecked {
   
   currentFiles: any = null; // Track current state
   allFiles: any = null; // Track full project state including base files
+  
+  selectedFileContent = signal('');
+  selectedFileName = signal('');
 
   loadingMessages = [
     'Adorable things take time...',
@@ -192,6 +196,11 @@ export class AppComponent implements AfterViewChecked {
       type: 'CAPTURE_REQ',
       rect: { x: relX, y: relY, width: rect.width, height: rect.height }
     }, '*');
+  }
+
+  onFileSelect(event: {name: string, content: string}) {
+    this.selectedFileName.set(event.name);
+    this.selectedFileContent.set(event.content);
   }
 
   // File Upload Handlers

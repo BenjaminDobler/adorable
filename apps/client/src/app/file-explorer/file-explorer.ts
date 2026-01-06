@@ -1,4 +1,4 @@
-import { Component, Input, signal } from '@angular/core';
+import { Component, Input, signal, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 interface FileNode {
@@ -44,7 +44,8 @@ interface FileNode {
             <div class="children">
               <app-file-explorer 
                 [files]="node.originalData" 
-                [level]="level + 1">
+                [level]="level + 1"
+                (fileSelect)="onChildFileSelect($event)">
               </app-file-explorer>
             </div>
           }
@@ -127,6 +128,7 @@ interface FileNode {
 })
 export class FileExplorerComponent {
   @Input() level = 0;
+  @Output() fileSelect = new EventEmitter<{name: string, content: string}>();
   
   nodes = signal<FileNode[]>([]);
   selectedFile = signal<string | null>(null);
@@ -165,6 +167,14 @@ export class FileExplorerComponent {
       // Trigger change detection implicitly via the template binding
     } else {
       this.selectedFile.set(node.name);
+      this.fileSelect.emit({
+        name: node.name,
+        content: node.content || ''
+      });
     }
+  }
+
+  onChildFileSelect(event: {name: string, content: string}) {
+    this.fileSelect.emit(event);
   }
 }
