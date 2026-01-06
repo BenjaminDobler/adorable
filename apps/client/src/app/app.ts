@@ -1,4 +1,4 @@
-import { Component, inject, signal, Pipe, PipeTransform } from '@angular/core';
+import { Component, inject, signal, Pipe, PipeTransform, effect, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer } from '@angular/platform-browser';
@@ -20,6 +20,13 @@ export class SafeUrlPipe implements PipeTransform {
   }
 }
 
+interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  text: string;
+  timestamp: Date;
+  files?: any;
+}
+
 @Component({
   standalone: true,
   imports: [CommonModule, FormsModule, SafeUrlPipe],
@@ -27,15 +34,36 @@ export class SafeUrlPipe implements PipeTransform {
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
-export class AppComponent {
+export class AppComponent implements AfterViewChecked {
   private apiService = inject(ApiService);
   public webContainerService = inject(WebContainerService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
 
+  @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
+
   prompt = '';
   loading = signal(false);
+  activeTab = signal<'chat' | 'terminal'>('chat');
+  messages = signal<ChatMessage[]>([
+    { role: 'assistant', text: 'Hi! I can help you build an Angular app. Describe what you want to create.', timestamp: new Date() }
+  ]);
+  
   currentFiles: any = null; // Track current state
+
+  loadingMessages = [
+    'Adorable things take time...',
+    'Building with love...',
+    'Just taking a break listening to Pearl Jam. I\'ll be right back...',
+    'Counting the number of pixels... it\'s a lot.',
+    'Herding cats into the codebase...',
+    'Reticulating splines...',
+    'Teaching the AI how to love... and code.',
+    'Brewing some digital coffee for the server...',
+    'Wait, did I leave the oven on?',
+  ];
+  currentMessage = signal(this.loadingMessages[0]);
+  private messageInterval: any;
   
   // Project state
   projectId: string | null = null;
@@ -54,6 +82,14 @@ export class AppComponent {
 
   constructor() {
     this.fetchSettings();
+
+    effect(() => {
+      if (this.loading()) {
+        this.startMessageRotation();
+      } else {
+        this.stopMessageRotation();
+      }
+    });
 
     // Handle Route Params
     this.route.params.subscribe(params => {
@@ -80,6 +116,18 @@ export class AppComponent {
         }
       }
     });
+  }
+
+  ngAfterViewChecked() {
+    this.scrollToBottom();
+  }
+
+  scrollToBottom(): void {
+    try {
+      if (this.scrollContainer) {
+        this.scrollContainer.nativeElement.scrollTop = this.scrollContainer.nativeElement.scrollHeight;
+      }
+    } catch(err) { }
   }
 
   fetchSettings() {
@@ -229,19 +277,7 @@ export class AppComponent {
         this.projectName = project.name;
         this.currentFiles = project.files;
         
-        const projectFiles = this.mergeFiles(BASE_FILES, this.currentFiles);
-        
-        try {
-          await this.webContainerService.mount(projectFiles);
-          const exitCode = await this.webContainerService.runInstall();
-          if (exitCode === 0) {
-            this.webContainerService.startDevServer();
-          }
-        } catch (err) {
-          console.error(err);
-        } finally {
-          this.loading.set(false);
-        }
+        await this.reloadPreview(this.currentFiles);
       },
       error: (err) => {
         console.error(err);
@@ -249,6 +285,35 @@ export class AppComponent {
         this.router.navigate(['/dashboard']);
       }
     });
+  }
+
+  async restoreVersion(files: any) {
+    if (!files || this.loading()) return;
+    if (confirm('Are you sure you want to restore this version? Current unsaved changes might be lost.')) {
+      this.loading.set(true);
+      await this.reloadPreview(files);
+      this.messages.update(msgs => [...msgs, {
+        role: 'system',
+        text: 'Restored project to previous version.',
+        timestamp: new Date()
+      }]);
+    }
+  }
+
+  private async reloadPreview(files: any) {
+    try {
+      this.currentFiles = files;
+      const projectFiles = this.mergeFiles(BASE_FILES, this.currentFiles);
+      await this.webContainerService.mount(projectFiles);
+      const exitCode = await this.webContainerService.runInstall();
+      if (exitCode === 0) {
+        this.webContainerService.startDevServer();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      this.loading.set(false);
+    }
   }
 
   async downloadZip() {
@@ -283,10 +348,21 @@ export class AppComponent {
   async generate() {
     if (!this.prompt) return;
 
+    // Add user message with current state snapshot
+    this.messages.update(msgs => [...msgs, {
+      role: 'user',
+      text: this.prompt,
+      timestamp: new Date(),
+      files: this.currentFiles // Snapshot before changes
+    }]);
+
+    const currentPrompt = this.prompt;
+    this.prompt = ''; // Clear input immediately
     this.loading.set(true);
+
     const previousSrc = this.currentFiles?.['src'];
 
-    this.apiService.generate(this.prompt, previousSrc, {
+    this.apiService.generate(currentPrompt, previousSrc, {
       provider: this.appSettings?.provider,
       apiKey: this.appSettings?.apiKey,
       model: this.appSettings?.model,
@@ -295,27 +371,41 @@ export class AppComponent {
       next: async (res) => {
         try {
           this.attachedImage = null;
+          
           let base = BASE_FILES;
           if (this.currentFiles) {
              base = this.mergeFiles(base, this.currentFiles);
           }
           const projectFiles = this.mergeFiles(base, res.files);
-          this.currentFiles = projectFiles;
+          
+          // Add Assistant response with new state snapshot
+          this.messages.update(msgs => [...msgs, {
+            role: 'assistant',
+            text: res.explanation || 'I have updated the project based on your request.',
+            timestamp: new Date(),
+            files: projectFiles // Snapshot after changes
+          }]);
 
-          await this.webContainerService.mount(projectFiles);
-          const exitCode = await this.webContainerService.runInstall(); 
-          if (exitCode === 0) {
-            this.webContainerService.startDevServer();
-          }
+          await this.reloadPreview(projectFiles);
+
         } catch (err) {
           console.error('WebContainer error:', err);
-        } finally {
+          this.messages.update(msgs => [...msgs, {
+            role: 'system',
+            text: 'An error occurred while building the project.',
+            timestamp: new Date()
+          }]);
           this.loading.set(false);
         }
       },
       error: (err) => {
         console.error('API error:', err);
         this.loading.set(false);
+        this.messages.update(msgs => [...msgs, {
+          role: 'system',
+          text: 'Failed to generate code. Please try again.',
+          timestamp: new Date()
+        }]);
       }
     });
   }
@@ -336,5 +426,23 @@ export class AppComponent {
       }
     }
     return result;
+  }
+
+  private startMessageRotation() {
+    this.stopMessageRotation();
+    let index = 0;
+    this.currentMessage.set(this.loadingMessages[0]);
+
+    this.messageInterval = setInterval(() => {
+      index = (index + 1) % this.loadingMessages.length;
+      this.currentMessage.set(this.loadingMessages[index]);
+    }, 4000);
+  }
+
+  private stopMessageRotation() {
+    if (this.messageInterval) {
+      clearInterval(this.messageInterval);
+      this.messageInterval = null;
+    }
   }
 }
