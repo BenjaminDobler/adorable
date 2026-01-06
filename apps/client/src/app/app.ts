@@ -5,10 +5,9 @@ import { DomSanitizer } from '@angular/platform-browser';
 import { ApiService } from './services/api';
 import { WebContainerService } from './services/web-container';
 import { BASE_FILES } from './base-project';
-import { SettingsComponent, AppSettings } from './settings/settings';
-import { ProfileComponent } from './profile/profile';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { ActivatedRoute, Router } from '@angular/router';
 
 @Pipe({
   name: 'safeUrl',
@@ -23,7 +22,7 @@ export class SafeUrlPipe implements PipeTransform {
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, SafeUrlPipe, SettingsComponent, ProfileComponent],
+  imports: [CommonModule, FormsModule, SafeUrlPipe],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -31,60 +30,63 @@ export class SafeUrlPipe implements PipeTransform {
 export class AppComponent {
   private apiService = inject(ApiService);
   public webContainerService = inject(WebContainerService);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
 
   prompt = '';
   loading = signal(false);
   currentFiles: any = null; // Track current state
   
-  // Project persistence state
+  // Project state
+  projectId: string | null = null;
   projectName = '';
-  projects = signal<string[]>([]);
-  showLoadMenu = false;
   
-  // Settings state
-  showSettings = false;
-  appSettings: AppSettings = {
-    provider: 'anthropic',
-    apiKey: '',
-    model: ''
-  };
-
-  // User profile state
-  showProfile = false;
-  userProfile = signal<any>(null);
+  // App settings (retrieved from profile)
+  appSettings: any = null;
 
   // Selection state
   isSelecting = false;
   selectionRect: { x: number, y: number, width: number, height: number } | null = null;
   startPoint: { x: number, y: number } | null = null;
   attachedImage: string | null = null;
+  isDragging = false;
+  private isSavingWithThumbnail = false;
 
   constructor() {
-    this.refreshProjectList();
-    this.fetchProfile();
-    const stored = localStorage.getItem('adorable-settings');
-    if (stored) {
-      this.appSettings = JSON.parse(stored);
-    }
+    this.fetchSettings();
+
+    // Handle Route Params
+    this.route.params.subscribe(params => {
+      this.projectId = params['id'];
+      if (this.projectId && this.projectId !== 'new') {
+        this.loadProject(this.projectId);
+      } else {
+        // New project
+        this.projectName = this.route.snapshot.queryParams['name'] || 'New Project';
+        this.currentFiles = null;
+      }
+    });
 
     // Listen for screenshot response
     window.addEventListener('message', (event) => {
       if (event.data.type === 'CAPTURE_RES') {
-        this.attachedImage = event.data.image;
-        this.isSelecting = false;
-        this.selectionRect = null;
+        if (this.isSavingWithThumbnail) {
+          this.executeSave(event.data.image);
+          this.isSavingWithThumbnail = false;
+        } else {
+          this.attachedImage = event.data.image;
+          this.isSelecting = false;
+          this.selectionRect = null;
+        }
       }
     });
   }
 
-  fetchProfile() {
-    this.apiService.getProfile().subscribe(profile => this.userProfile.set(profile));
-  }
-
-  onProfileSaved(data: { name: string }) {
-    this.apiService.updateProfile(data).subscribe(updated => {
-      this.userProfile.set(updated);
-      this.showProfile = false;
+  fetchSettings() {
+    this.apiService.getProfile().subscribe(user => {
+      if (user.settings) {
+        this.appSettings = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
+      }
     });
   }
   
@@ -129,74 +131,105 @@ export class AppComponent {
   }
 
   captureSelection(rect: { x: number, y: number, width: number, height: number }) {
-    // We need to convert screen coordinates to Iframe-relative coordinates
     const iframe = document.querySelector('iframe');
     if (!iframe) return;
 
     const iframeRect = iframe.getBoundingClientRect();
-    
-    // Calculate relative to iframe
     const relX = rect.x - iframeRect.left;
     const relY = rect.y - iframeRect.top;
     
-    // Send message to iframe to capture
     iframe.contentWindow?.postMessage({
       type: 'CAPTURE_REQ',
       rect: { x: relX, y: relY, width: rect.width, height: rect.height }
     }, '*');
   }
 
+  // File Upload Handlers
+  onFileSelected(event: any) {
+    const file = event.target.files[0];
+    if (file) {
+      this.processFile(file);
+    }
+  }
+
+  onDrop(event: DragEvent) {
+    event.preventDefault();
+    this.isDragging = false;
+    const file = event.dataTransfer?.files[0];
+    if (file && file.type.startsWith('image/')) {
+      this.processFile(file);
+    }
+  }
+
+  onDragOver(event: DragEvent) {
+    event.preventDefault();
+    this.isDragging = true;
+  }
+
+  onDragLeave(event: DragEvent) {
+    event.preventDefault();
+    this.isDragging = false;
+  }
+
+  private processFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      this.attachedImage = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
   removeAttachment() {
     this.attachedImage = null;
-  }
-
-  refreshProjectList() {
-    this.apiService.listProjects().subscribe(list => this.projects.set(list));
-  }
-
-  toggleLoadMenu() {
-    this.showLoadMenu = !this.showLoadMenu;
-    if (this.showLoadMenu) this.refreshProjectList();
-  }
-  
-  toggleSettings() {
-    this.showSettings = !this.showSettings;
-  }
-  
-  onSettingsSaved(newSettings: AppSettings) {
-    this.appSettings = newSettings;
-    this.showSettings = false;
   }
 
   saveProject() {
     if (!this.projectName || !this.currentFiles) return;
     
     this.loading.set(true);
-    this.apiService.saveProject(this.projectName, this.currentFiles).subscribe({
-      next: () => {
+    
+    // Trigger full screenshot for thumbnail
+    const iframe = document.querySelector('iframe');
+    if (iframe) {
+      this.isSavingWithThumbnail = true;
+      iframe.contentWindow?.postMessage({
+        type: 'CAPTURE_REQ',
+        rect: { x: 0, y: 0, width: 1280, height: 800 } // Standard preview size
+      }, '*');
+    } else {
+      this.executeSave();
+    }
+  }
+
+  private executeSave(thumbnail?: string) {
+    this.apiService.saveProject(
+      this.projectName, 
+      this.currentFiles, 
+      (this.projectId && this.projectId !== 'new') ? this.projectId : undefined,
+      thumbnail
+    ).subscribe({
+      next: (project) => {
         alert('Project saved!');
+        this.projectId = project.id;
         this.loading.set(false);
-        this.refreshProjectList();
       },
       error: (err) => {
         console.error(err);
         alert('Failed to save project');
         this.loading.set(false);
+        this.isSavingWithThumbnail = false;
       }
     });
   }
 
-  loadProject(name: string) {
+  loadProject(id: string) {
     this.loading.set(true);
-    this.showLoadMenu = false;
-    this.projectName = name;
-
-    this.apiService.loadProject(name).subscribe({
-      next: async (files) => {
-        this.currentFiles = files;
+    this.apiService.loadProject(id).subscribe({
+      next: async (project) => {
+        this.projectName = project.name;
+        this.currentFiles = project.files;
         
-        // Remount base + loaded files
-        const projectFiles = this.mergeFiles(BASE_FILES, files);
+        const projectFiles = this.mergeFiles(BASE_FILES, this.currentFiles);
         
         try {
           await this.webContainerService.mount(projectFiles);
@@ -213,7 +246,7 @@ export class AppComponent {
       error: (err) => {
         console.error(err);
         alert('Failed to load project');
-        this.loading.set(false);
+        this.router.navigate(['/dashboard']);
       }
     });
   }
@@ -224,11 +257,8 @@ export class AppComponent {
     this.loading.set(true);
     try {
       const zip = new JSZip();
-      
-      // Merge base files with current files to ensure we export a complete project
       const fullProject = this.mergeFiles(BASE_FILES, this.currentFiles);
       
-      // Recursive function to add files to zip
       const addFilesToZip = (files: any, currentPath: string) => {
         for (const key in files) {
           const node = files[key];
@@ -241,12 +271,10 @@ export class AppComponent {
       };
 
       addFilesToZip(fullProject, '');
-
       const content = await zip.generateAsync({ type: 'blob' });
       saveAs(content, `${this.projectName || 'adorable-app'}.zip`);
     } catch (err) {
       console.error('Export failed:', err);
-      alert('Failed to create ZIP file');
     } finally {
       this.loading.set(false);
     }
@@ -256,36 +284,28 @@ export class AppComponent {
     if (!this.prompt) return;
 
     this.loading.set(true);
-    
-    // Send current 'src' directory if it exists, for context
     const previousSrc = this.currentFiles?.['src'];
 
     this.apiService.generate(this.prompt, previousSrc, {
-      provider: this.appSettings.provider,
-      apiKey: this.appSettings.apiKey,
-      model: this.appSettings.model,
+      provider: this.appSettings?.provider,
+      apiKey: this.appSettings?.apiKey,
+      model: this.appSettings?.model,
       images: this.attachedImage ? [this.attachedImage] : undefined
     }).subscribe({
       next: async (res) => {
         try {
-          this.attachedImage = null; // Clear image after sending
-          // Merge generated files into the base project (or current state)
-          // We always start from BASE to ensure config files exist, then overlay previous state, then new changes
+          this.attachedImage = null;
           let base = BASE_FILES;
           if (this.currentFiles) {
              base = this.mergeFiles(base, this.currentFiles);
           }
           const projectFiles = this.mergeFiles(base, res.files);
-
-          this.currentFiles = projectFiles; // Update state
+          this.currentFiles = projectFiles;
 
           await this.webContainerService.mount(projectFiles);
-          // Only install if it's the first run or dependencies changed (optimization: could be refined)
           const exitCode = await this.webContainerService.runInstall(); 
           if (exitCode === 0) {
             this.webContainerService.startDevServer();
-          } else {
-            console.error('Installation failed');
           }
         } catch (err) {
           console.error('WebContainer error:', err);
@@ -300,22 +320,21 @@ export class AppComponent {
     });
   }
 
-  // Helper to deep merge file structures
+  goBack() {
+    this.router.navigate(['/dashboard']);
+  }
+
   private mergeFiles(base: any, generated: any): any {
     const result = { ...base };
-
     for (const key in generated) {
       if (generated[key].directory && result[key]?.directory) {
-        // Recursive merge for directories
         result[key] = {
           directory: this.mergeFiles(result[key].directory, generated[key].directory)
         };
       } else {
-        // Overwrite files
         result[key] = generated[key];
       }
     }
-
     return result;
   }
 }

@@ -1,0 +1,38 @@
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="auth-header">
+      <img src="logo.png" alt="Adorable Logo" class="auth-logo" />
+      <h1>Join Adorable</h1>
+    </div>
+    <p>Start building Angular apps with AI</p>
+
+    <form (ngSubmit)="register()">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" [(ngModel)]="name" name="name" required />
+      </div>
+
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" [(ngModel)]="email" name="email" required />
+      </div>
+
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" [(ngModel)]="password" name="password" required />
+      </div>
+
+      @if (error) {
+        <div class="error-message">{{ error }}</div>
+      }
+
+      <button type="submit" [disabled]="loading">
+        {{ loading ? 'Creating account...' : 'Register' }}
+      </button>
+    </form>
+
+    <div class="footer">
+      Already have an account? <a routerLink="/login">Login here</a>
+    </div>
+  </div>
+</div>

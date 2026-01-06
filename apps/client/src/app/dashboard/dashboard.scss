@@ -1,0 +1,129 @@
+.dashboard-container {
+  min-height: calc(100vh - 70px);
+  width: 100vw;
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2.5rem;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+
+  .brand { font-size: 1.5rem; font-weight: 700; color: #38bdf8; }
+  .user-menu {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.875rem;
+    color: #94a3b8;
+  }
+}
+
+.btn-logout {
+  background: transparent;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  &:hover { color: white; border-color: #475569; }
+}
+
+.content {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 3rem 2rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2.5rem;
+  h1 { margin: 0; font-size: 2rem; }
+}
+
+.btn-create {
+  background: #38bdf8;
+  color: #0f172a;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  &:hover { background: #7dd3fc; }
+}
+
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.project-card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 1rem;
+  overflow: hidden; /* Ensure image corners are clipped */
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s, border-color 0.2s;
+  
+  &:hover {
+    transform: translateY(-4px);
+    border-color: #38bdf8;
+  }
+
+  .project-preview {
+    height: 160px;
+    background: #0f172a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid #334155;
+    
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .no-preview {
+      color: #475569;
+      font-size: 0.875rem;
+      font-style: italic;
+    }
+  }
+
+  .project-card-footer {
+    padding: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  h3 { margin: 0 0 0.5rem; color: #f8fafc; font-size: 1.125rem; }
+  p { margin: 0; font-size: 0.75rem; color: #64748b; }
+}
+
+.btn-delete {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  opacity: 0.5;
+  &:hover { opacity: 1; }
+}
+
+.empty-state {
+  text-align: center;
+  padding: 5rem 0;
+  color: #94a3b8;
+  p { margin-bottom: 1.5rem; }
+}
+
+.loading { text-align: center; color: #94a3b8; padding: 5rem; }

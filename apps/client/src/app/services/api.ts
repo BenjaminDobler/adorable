@@ -9,90 +9,35 @@ export class ApiService {
   private http = inject(HttpClient);
   private apiUrl = 'http://localhost:3333/api';
 
-        generate(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[] }) {
+  generate(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[] }) {
+    return this.http.post<GenerateResponse>(`${this.apiUrl}/generate`, { 
+      prompt, 
+      previousFiles,
+      ...options
+    });
+  }
 
-          return this.http.post<GenerateResponse>(`${this.apiUrl}/generate`, { 
+  saveProject(name: string, files: any, id?: string, thumbnail?: string) {
+    return this.http.post<any>(`${this.apiUrl}/projects`, { name, files, id, thumbnail });
+  }
 
-            prompt, 
+  listProjects() {
+    return this.http.get<any[]>(`${this.apiUrl}/projects`);
+  }
 
-            previousFiles,
+  loadProject(id: string) {
+    return this.http.get<any>(`${this.apiUrl}/projects/${id}`);
+  }
 
-            ...options
+  deleteProject(id: string) {
+    return this.http.delete<any>(`${this.apiUrl}/projects/${id}`);
+  }
 
-          });
+  getProfile() {
+    return this.http.get<any>(`${this.apiUrl}/profile`);
+  }
 
-        }
-
-      
-
-    
-
-  
-
-    saveProject(name: string, files: any) {
-
-      return this.http.post<{ message: string, name: string }>(`${this.apiUrl}/projects`, { name, files });
-
-    }
-
-  
-
-    listProjects() {
-
-      return this.http.get<string[]>(`${this.apiUrl}/projects`);
-
-    }
-
-  
-
-      loadProject(name: string) {
-
-  
-
-        return this.http.get<any>(`${this.apiUrl}/projects/${name}`);
-
-  
-
-      }
-
-  
-
-    
-
-  
-
-      getProfile() {
-
-  
-
-        return this.http.get<any>(`${this.apiUrl}/profile`);
-
-  
-
-      }
-
-  
-
-    
-
-  
-
-      updateProfile(data: { name?: string, settings?: any }) {
-
-  
-
-        return this.http.post<any>(`${this.apiUrl}/profile`, data);
-
-  
-
-      }
-
-  
-
-    }
-
-  
-
-    
-
-  
+  updateProfile(data: { name?: string, settings?: any }) {
+    return this.http.post<any>(`${this.apiUrl}/profile`, data);
+  }
+}

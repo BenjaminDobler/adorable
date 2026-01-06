@@ -1,6 +1,14 @@
-import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ApiService } from '../services/api';
+import { Router } from '@angular/router';
+
+export interface AppSettings {
+  provider: 'anthropic' | 'gemini';
+  apiKey: string;
+  model: string;
+}
 
 @Component({
   selector: 'app-profile',
@@ -10,19 +18,72 @@ import { FormsModule } from '@angular/forms';
   styleUrl: './profile.scss',
 })
 export class ProfileComponent {
-  @Input() user: any;
-  @Output() close = new EventEmitter<void>();
-  @Output() save = new EventEmitter<{ name: string }>();
+  private apiService = inject(ApiService);
+  private router = inject(Router);
 
+  user = signal<any>(null);
   name = signal('');
+  settings = signal<AppSettings>({
+    provider: 'anthropic',
+    apiKey: '',
+    model: ''
+  });
 
-  ngOnInit() {
-    if (this.user) {
-      this.name.set(this.user.name || '');
-    }
+  loading = signal(false);
+
+  anthropicModels = [
+    'claude-sonnet-4-5-20250929',
+    'claude-3-5-sonnet-20241022',
+    'claude-3-5-haiku-20241022'
+  ];
+
+  geminiModels = [
+    'gemini-1.5-pro-latest',
+    'gemini-1.5-flash-latest',
+    'gemini-1.0-pro'
+  ];
+
+  constructor() {
+    this.loadData();
   }
 
-  saveProfile() {
-    this.save.emit({ name: this.name() });
+  loadData() {
+    this.apiService.getProfile().subscribe(user => {
+      this.user.set(user);
+      this.name.set(user.name || '');
+      
+      if (user.settings) {
+        const parsed = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
+        this.settings.set({
+          provider: parsed.provider || 'anthropic',
+          apiKey: parsed.apiKey || '',
+          model: parsed.model || ''
+        });
+      }
+    });
+  }
+
+  save() {
+    this.loading.set(true);
+    const data = {
+      name: this.name(),
+      settings: this.settings()
+    };
+
+    this.apiService.updateProfile(data).subscribe({
+      next: () => {
+        alert('Profile and settings saved!');
+        this.loading.set(false);
+      },
+      error: (err) => {
+        console.error(err);
+        alert('Failed to save profile');
+        this.loading.set(false);
+      }
+    });
+  }
+
+  goBack() {
+    this.router.navigate(['/dashboard']);
   }
 }

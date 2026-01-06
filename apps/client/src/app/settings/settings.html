@@ -41,8 +41,10 @@
     </div>
 
     <div class="actions">
-      <button class="btn-cancel" (click)="close.emit()">Cancel</button>
-      <button class="btn-save" (click)="saveSettings()">Save</button>
+      <button class="btn-cancel" (click)="close.emit()" [disabled]="loading()">Cancel</button>
+      <button class="btn-save" (click)="saveSettings()" [disabled]="loading()">
+        {{ loading() ? 'Saving...' : 'Save' }}
+      </button>
     </div>
   </div>
 </div>

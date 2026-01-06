@@ -1,31 +1,68 @@
-<div class="modal-overlay" (click)="close.emit()">
-  <div class="modal-content" (click)="$event.stopPropagation()">
-    <h2>👤 User Profile</h2>
-    
-    <div class="user-info">
+<div class="profile-container">
+  <div class="profile-card">
+    <div class="header">
+      <button class="btn-back" (click)="goBack()">← Dashboard</button>
+      <h1>Profile & AI Settings</h1>
+    </div>
+
+    <section class="section">
+      <h3>👤 User Information</h3>
       <div class="form-group">
         <label>Email</label>
-        <div class="read-only">{{ user?.email }}</div>
+        <div class="read-only">{{ user()?.email }}</div>
       </div>
 
       <div class="form-group">
         <label>Display Name</label>
-        <input 
-          type="text" 
-          [(ngModel)]="name" 
-          placeholder="Your name"
-        />
+        <input type="text" [(ngModel)]="name" placeholder="Your name" />
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <section class="section">
+      <h3>⚙️ AI Provider Settings</h3>
+      
+      <div class="form-group">
+        <label>AI Provider</label>
+        <select [(ngModel)]="settings().provider">
+          <option value="anthropic">Anthropic (Claude)</option>
+          <option value="gemini">Google (Gemini)</option>
+        </select>
       </div>
 
       <div class="form-group">
-        <label>User ID</label>
-        <div class="read-only id-text">{{ user?.id }}</div>
+        <label>API Key</label>
+        <input 
+          type="password" 
+          [(ngModel)]="settings().apiKey" 
+          placeholder="sk-..."
+        />
+        <small class="hint">
+          Required for custom requests. Stored securely in our database.
+        </small>
       </div>
-    </div>
+
+      <div class="form-group">
+        <label>Default Model</label>
+        <select [(ngModel)]="settings().model">
+          @if (settings().provider === 'anthropic') {
+            @for (model of anthropicModels; track model) {
+              <option [value]="model">{{ model }}</option>
+            }
+          } @else {
+            @for (model of geminiModels; track model) {
+              <option [value]="model">{{ model }}</option>
+            }
+          }
+        </select>
+      </div>
+    </section>
 
     <div class="actions">
-      <button class="btn-cancel" (click)="close.emit()">Close</button>
-      <button class="btn-save" (click)="saveProfile()">Save Changes</button>
+      <button class="btn-save" (click)="save()" [disabled]="loading()">
+        {{ loading() ? 'Saving...' : 'Save All Changes' }}
+      </button>
     </div>
   </div>
 </div>

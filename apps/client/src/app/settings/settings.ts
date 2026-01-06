@@ -1,6 +1,7 @@
-import { Component, EventEmitter, Output, signal } from '@angular/core';
+import { Component, EventEmitter, Output, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ApiService } from '../services/api';
 
 export interface AppSettings {
   provider: 'anthropic' | 'gemini';
@@ -16,6 +17,8 @@ export interface AppSettings {
   styleUrl: './settings.scss',
 })
 export class SettingsComponent {
+  private apiService = inject(ApiService);
+  
   @Output() close = new EventEmitter<void>();
   @Output() save = new EventEmitter<AppSettings>();
 
@@ -24,6 +27,8 @@ export class SettingsComponent {
     apiKey: '',
     model: ''
   });
+
+  loading = signal(false);
 
   anthropicModels = [
     'claude-sonnet-4-5-20250929',
@@ -38,16 +43,35 @@ export class SettingsComponent {
   ];
 
   constructor() {
-    // Load from local storage
-    const stored = localStorage.getItem('adorable-settings');
-    if (stored) {
-      this.settings.set(JSON.parse(stored));
-    }
+    this.loadSettings();
+  }
+
+  loadSettings() {
+    this.apiService.getProfile().subscribe(user => {
+      if (user.settings) {
+        const parsed = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
+        this.settings.set({
+          provider: parsed.provider || 'anthropic',
+          apiKey: parsed.apiKey || '',
+          model: parsed.model || ''
+        });
+      }
+    });
   }
 
   saveSettings() {
-    localStorage.setItem('adorable-settings', JSON.stringify(this.settings()));
-    this.save.emit(this.settings());
-    this.close.emit();
+    this.loading.set(true);
+    this.apiService.updateProfile({ settings: this.settings() }).subscribe({
+      next: (updatedUser) => {
+        const parsed = typeof updatedUser.settings === 'string' ? JSON.parse(updatedUser.settings) : updatedUser.settings;
+        this.save.emit(parsed);
+        this.loading.set(false);
+        this.close.emit();
+      },
+      error: (err) => {
+        console.error('Failed to save settings', err);
+        this.loading.set(false);
+      }
+    });
   }
 }

@@ -1,0 +1,38 @@
+<div class="dashboard-container">
+  <main class="content">
+    <div class="header">
+      <h1>My Projects</h1>
+      <button class="btn-create" (click)="createProject()">+ New Project</button>
+    </div>
+
+    @if (loading()) {
+      <div class="loading">Loading projects...</div>
+    } @else {
+      <div class="project-grid">
+        @for (project of projects(); track project.id) {
+          <div class="project-card" [routerLink]="['/editor', project.id]">
+            <div class="project-preview">
+              @if (project.thumbnail) {
+                <img [src]="project.thumbnail" alt="Project Preview" />
+              } @else {
+                <div class="no-preview">No Preview</div>
+              }
+            </div>
+            <div class="project-card-footer">
+              <div class="project-info">
+                <h3>{{ project.name }}</h3>
+                <p>Last updated: {{ project.updatedAt | date:'short' }}</p>
+              </div>
+              <button class="btn-delete" (click)="deleteProject(project.id, $event)">🗑️</button>
+            </div>
+          </div>
+        } @empty {
+          <div class="empty-state">
+            <p>You haven't created any projects yet.</p>
+            <button class="btn-create" (click)="createProject()">Create your first project</button>
+          </div>
+        }
+      </div>
+    }
+  </main>
+</div>

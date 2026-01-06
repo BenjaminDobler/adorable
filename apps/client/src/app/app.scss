@@ -1,6 +1,6 @@
 .app-container {
   display: flex;
-  height: 100vh;
+  height: calc(100vh - 70px); /* Subtract navbar height */
   width: 100vw;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background: #0f172a;
@@ -24,8 +24,28 @@
 
 .header {
   margin-bottom: 2rem;
+  
+  .header-top {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .btn-back {
+    background: transparent;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    &:hover { color: white; border-color: #475569; }
+  }
+
   h1 { margin: 0; font-size: 1.5rem; color: #38bdf8; }
-  p { margin: 0.5rem 0 0; font-size: 0.875rem; color: #94a3b8; }
+  p { margin: 0; font-size: 0.875rem; color: #94a3b8; }
+  
   .user-badge {
     margin-top: 0.75rem;
     font-size: 0.75rem;
@@ -115,6 +135,13 @@
     border: 1px solid #334155;
     border-radius: 0.5rem;
     padding: 1rem;
+    transition: all 0.2s;
+
+    &.dragging {
+      border-color: #38bdf8;
+      background: #0f172a;
+      box-shadow: inset 0 0 10px rgba(56, 189, 248, 0.2);
+    }
     
     textarea {
       width: 100%;

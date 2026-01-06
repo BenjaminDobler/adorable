@@ -1,0 +1,57 @@
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2.5rem;
+  height: 70px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  color: #f8fafc;
+
+  .brand {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #38bdf8;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+
+    .logo {
+      height: 32px;
+      width: auto;
+    }
+  }
+
+  .user-menu {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    font-size: 0.875rem;
+    color: #94a3b8;
+  }
+
+  .user-link {
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    &:hover {
+      color: #38bdf8;
+    }
+  }
+
+  .btn-logout {
+    background: transparent;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    &:hover {
+      color: white;
+      border-color: #475569;
+      background: #334155;
+    }
+  }
+}

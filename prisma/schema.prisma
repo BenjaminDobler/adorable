@@ -2,17 +2,19 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+  engineType = "library"
 }
 
 datasource db {
   provider = "sqlite"
-  // url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 model User {
   id        String    @id @default(cuid())
   email     String    @unique
+  password  String
   name      String?
   settings  String?   // JSON stringified AppSettings
   projects  Project[]
@@ -21,11 +23,21 @@ model User {
 }
 
 model Project {
+
   id        String   @id @default(cuid())
+
   name      String
+
   files     String   // JSON stringified WebContainerFiles
+
+  thumbnail String?  // Base64 preview image
+
   userId    String
+
   user      User     @relation(fields: [userId], references: [id])
+
   createdAt DateTime @default(now())
+
   updatedAt DateTime @updatedAt
+
 }

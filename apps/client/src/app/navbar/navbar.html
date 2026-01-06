@@ -1,0 +1,15 @@
+@if(authService.isAuthenticated()) {
+
+<nav class="navbar" >
+  <div class="brand" routerLink="/dashboard">
+    <img src="logo.png" alt="Adorable Logo" class="logo" />
+    <span style="margin-left: -7px;">dorable</span>
+  </div>
+  <div class="user-menu">
+    <a class="user-link" routerLink="/profile">
+      <span>Welcome, {{ authService.currentUser()?.name || 'User' }}</span>
+    </a>
+    <button class="btn-logout" (click)="logout()">Logout</button>
+  </div>
+</nav>
+}
