@@ -56,6 +56,7 @@ export class AppComponent implements AfterViewChecked {
   
   selectedFileContent = signal('');
   selectedFileName = signal('');
+  selectedFilePath = signal('');
 
   loadingMessages = [
     'Adorable things take time...',
@@ -198,9 +199,56 @@ export class AppComponent implements AfterViewChecked {
     }, '*');
   }
 
-  onFileSelect(event: {name: string, content: string}) {
+  onFileSelect(event: {name: string, path: string, content: string}) {
     this.selectedFileName.set(event.name);
+    this.selectedFilePath.set(event.path);
     this.selectedFileContent.set(event.content);
+  }
+
+  async onFileContentChange(newContent: string) {
+    const path = this.selectedFilePath();
+    if (path) {
+      // Update allFiles (view state)
+      this.updateFileInTree(this.allFiles, path, newContent);
+      
+      // Update currentFiles (save state)
+      if (!this.currentFiles) this.currentFiles = {};
+      this.updateFileInTree(this.currentFiles, path, newContent, true);
+
+      // Update WebContainer (live preview)
+      try {
+        await this.webContainerService.writeFile(path, newContent);
+      } catch (err) {
+        console.error('Failed to write file to WebContainer', err);
+      }
+    }
+  }
+
+  private updateFileInTree(tree: any, path: string, content: string, createIfMissing = false) {
+    if (!tree) return;
+    const parts = path.split('/');
+    let current = tree;
+    
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!current[part]) {
+        if (createIfMissing) {
+          current[part] = { directory: {} };
+        } else {
+          return;
+        }
+      }
+      if (!current[part].directory) {
+         if (createIfMissing) current[part].directory = {};
+         else return;
+      }
+      current = current[part].directory;
+    }
+    
+    const fileName = parts[parts.length - 1];
+    if (createIfMissing || current[fileName]) {
+      current[fileName] = { file: { contents: content } };
+    }
   }
 
   // File Upload Handlers

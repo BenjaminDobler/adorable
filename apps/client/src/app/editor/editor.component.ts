@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, Input } from '@angular/core';
+import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 declare const monaco: any;
@@ -9,6 +9,11 @@ declare const monaco: any;
   imports: [CommonModule],
   template: `<div #editorContainer class="editor-container"></div>`,
   styles: [`
+    :host {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
     .editor-container {
       width: 100%;
       height: 100%;
@@ -33,6 +38,8 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
       this._fileName = value;
       this.updateLanguage();
   }
+
+  @Output() contentChange = new EventEmitter<string>();
 
   private _content = '';
   private _fileName = '';
@@ -59,8 +66,16 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
       automaticLayout: true,
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
-      fontSize: 13,
-      fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace"
+      fontSize: 14,
+      lineHeight: 24,
+      fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
+      renderWhitespace: 'selection',
+      tabSize: 2
+    });
+    
+    this.editorInstance.onDidChangeModelContent(() => {
+      const value = this.editorInstance.getValue();
+      this.contentChange.emit(value);
     });
     
     this.updateLanguage();

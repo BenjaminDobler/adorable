@@ -45,6 +45,7 @@ interface FileNode {
               <app-file-explorer 
                 [files]="node.originalData" 
                 [level]="level + 1"
+                [path]="path ? path + '/' + node.name : node.name"
                 (fileSelect)="onChildFileSelect($event)">
               </app-file-explorer>
             </div>
@@ -128,7 +129,8 @@ interface FileNode {
 })
 export class FileExplorerComponent {
   @Input() level = 0;
-  @Output() fileSelect = new EventEmitter<{name: string, content: string}>();
+  @Input() path = '';
+  @Output() fileSelect = new EventEmitter<{name: string, path: string, content: string}>();
   
   nodes = signal<FileNode[]>([]);
   selectedFile = signal<string | null>(null);
@@ -167,14 +169,16 @@ export class FileExplorerComponent {
       // Trigger change detection implicitly via the template binding
     } else {
       this.selectedFile.set(node.name);
+      const fullPath = this.path ? `${this.path}/${node.name}` : node.name;
       this.fileSelect.emit({
         name: node.name,
+        path: fullPath,
         content: node.content || ''
       });
     }
   }
 
-  onChildFileSelect(event: {name: string, content: string}) {
+  onChildFileSelect(event: {name: string, path: string, content: string}) {
     this.fileSelect.emit(event);
   }
 }

@@ -147,27 +147,35 @@
 
       
 
-               @if (selectedFileName()) {
+                      @if (selectedFileName()) {
 
       
 
-                 <app-editor 
+                        <app-editor 
 
       
 
-                   [content]="selectedFileContent()" 
+                          [content]="selectedFileContent()" 
 
       
 
-                   [fileName]="selectedFileName()">
+                          [fileName]="selectedFileName()"
 
       
 
-                 </app-editor>
+                          (contentChange)="onFileContentChange($event)">
 
       
 
-               } @else {
+                        </app-editor>
+
+      
+
+                      } @else {
+
+      
+
+               
 
       
 
