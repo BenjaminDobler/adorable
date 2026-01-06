@@ -9,19 +9,21 @@ export class ApiService {
   private http = inject(HttpClient);
   private apiUrl = 'http://localhost:3333/api';
 
-      generate(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string }) {
+        generate(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[] }) {
 
-        return this.http.post<GenerateResponse>(`${this.apiUrl}/generate`, { 
+          return this.http.post<GenerateResponse>(`${this.apiUrl}/generate`, { 
 
-          prompt, 
+            prompt, 
 
-          previousFiles,
+            previousFiles,
 
-          ...options
+            ...options
 
-        });
+          });
 
-      }
+        }
+
+      
 
     
 
@@ -43,12 +45,54 @@ export class ApiService {
 
   
 
-    loadProject(name: string) {
+      loadProject(name: string) {
 
-      return this.http.get<any>(`${this.apiUrl}/projects/${name}`);
+  
+
+        return this.http.get<any>(`${this.apiUrl}/projects/${name}`);
+
+  
+
+      }
+
+  
+
+    
+
+  
+
+      getProfile() {
+
+  
+
+        return this.http.get<any>(`${this.apiUrl}/profile`);
+
+  
+
+      }
+
+  
+
+    
+
+  
+
+      updateProfile(data: { name?: string, settings?: any }) {
+
+  
+
+        return this.http.post<any>(`${this.apiUrl}/profile`, data);
+
+  
+
+      }
+
+  
 
     }
 
-  }
+  
+
+    
 
   

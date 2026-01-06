@@ -61,7 +61,24 @@ export class GeminiProvider implements LLMProvider {
     // Force JSON output structure in the prompt as Gemini sometimes prefers text
     userMessage += "\n\nIMPORTANT: Return only valid JSON. Do not include markdown formatting like ```json.";
 
-    const result = await geminiModel.generateContent(userMessage);
+    const parts: any[] = [{ text: userMessage }];
+
+    // Add images if present
+    if (options.images && options.images.length > 0) {
+      options.images.forEach(img => {
+        const match = img.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
+        if (match) {
+          parts.push({
+            inlineData: {
+              mimeType: `image/${match[1]}`,
+              data: match[2]
+            }
+          });
+        }
+      });
+    }
+
+    const result = await geminiModel.generateContent(parts);
     const response = result.response;
     const text = response.text();
 

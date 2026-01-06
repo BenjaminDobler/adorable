@@ -3,6 +3,7 @@ export interface GenerateOptions {
   previousFiles?: any;
   apiKey: string;
   model: string;
+  images?: string[]; // Base64 data URIs
 }
 
 export interface LLMProvider {

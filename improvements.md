@@ -38,7 +38,25 @@ Currently, we ask Claude to return the changed files. We can optimize this furth
 *   Apply the patch in the Node.js backend or Frontend.
 *   *Benefit:* Extremely low token usage for small changes (e.g., changing a color or fixing a bug).
 
-## 3. Persistent & Shared Sessions
+## 3. User Handling & Authentication
+
+**The Goal:** Transition from a local-only tool to a multi-user platform where settings and projects are securely managed and accessible from anywhere.
+
+### Implementation Strategy:
+1.  **Authentication System:**
+    *   Integrate **OAuth** (Google, GitHub) or **Supabase Auth/Firebase Auth** for easy user onboarding.
+    *   Secure session management using JWTs.
+
+2.  **User Profiles & Persistent Settings:**
+    *   **Server-Side Settings:** Move API keys, provider preferences, and model selections from `localStorage` to a secure server-side database.
+    *   **Encrypted Keys:** Store third-party API keys (Anthropic, Google) using encryption at rest.
+
+3.  **Project Ownership:**
+    *   Link saved projects to specific user IDs.
+    *   Implement "Private" vs "Public/Shareable" project visibility.
+    *   Enable collaborative editing (e.g., sharing a project link with another user).
+
+## 4. Persistent & Shared Sessions
 *   **Database Integration:** Store the `currentFiles` state in a database (PostgreSQL/Mongo) associated with a `sessionId`.
 *   **Resume Work:** Allow users to come back to a URL (e.g., `/app/123`) and continue working.
 *   **Shareable Links:** "Check out this app I built with Adorable."

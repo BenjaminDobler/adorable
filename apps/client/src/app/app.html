@@ -1,8 +1,16 @@
-<div class="app-container">
+<div class="app-container" 
+     [class.selecting]="isSelecting"
+     (mousedown)="onMouseDown($event)"
+     (mousemove)="onMouseMove($event)"
+     (mouseup)="onMouseUp()">
+  
   <div class="sidebar">
     <div class="header">
       <h1>Adorable</h1>
       <p>Angular App Generator</p>
+      @if (userProfile()) {
+        <div class="user-badge">Hello, {{ userProfile().name }}</div>
+      }
     </div>
     
     <div class="chat-area">
@@ -37,14 +45,33 @@
         <button (click)="toggleSettings()" class="icon-btn" title="Settings">
           ⚙️
         </button>
+        <button (click)="showProfile = true" class="icon-btn" title="Profile">
+          👤
+        </button>
       </div>
 
-      <textarea 
-        [(ngModel)]="prompt" 
-        placeholder="e.g., Create a todo list with signals and tailwind..."
-        [disabled]="loading()">
-      </textarea>
-      <button (click)="generate()" [disabled]="loading() || !prompt">
+      <div class="input-wrapper">
+        <textarea 
+          [(ngModel)]="prompt" 
+          placeholder="e.g., Create a todo list with signals and tailwind..."
+          [disabled]="loading()">
+        </textarea>
+        
+        <div class="toolbar">
+          <button (click)="startSelection()" class="icon-btn small" title="Select Area to Edit" [disabled]="!webContainerService.url()">
+            ⛶
+          </button>
+        </div>
+
+        @if (attachedImage) {
+          <div class="attachment-preview">
+            <img [src]="attachedImage | safeUrl" />
+            <button class="remove-btn" (click)="removeAttachment()">×</button>
+          </div>
+        }
+      </div>
+
+      <button (click)="generate()" [disabled]="loading() || !prompt" class="generate-btn">
         {{ loading() ? 'Generating...' : 'Generate App' }}
       </button>
     </div>
@@ -54,6 +81,14 @@
         (close)="showSettings = false"
         (save)="onSettingsSaved($event)">
       </app-settings>
+    }
+
+    @if (showProfile) {
+      <app-profile 
+        [user]="userProfile()"
+        (close)="showProfile = false"
+        (save)="onProfileSaved($event)">
+      </app-profile>
     }
 
     <div class="terminal-container">
@@ -69,11 +104,16 @@
       <div class="placeholder">
         @if (loading()) {
           <div class="spinner"></div>
-          <p>Adorable is building your app... This takes about 30-60 seconds.</p>
+          <p>Your generated app will appear here.</p>
         } @else {
           <p>Your generated app will appear here.</p>
         }
       </div>
+    }
+    
+    <!-- Marquee Overlay -->
+    @if (isSelecting && selectionRect) {
+      <div class="selection-box" [style.left.px]="selectionRect.x" [style.top.px]="selectionRect.y" [style.width.px]="selectionRect.width" [style.height.px]="selectionRect.height"></div>
     }
   </div>
 </div>

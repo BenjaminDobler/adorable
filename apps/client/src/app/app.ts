@@ -6,6 +6,7 @@ import { ApiService } from './services/api';
 import { WebContainerService } from './services/web-container';
 import { BASE_FILES } from './base-project';
 import { SettingsComponent, AppSettings } from './settings/settings';
+import { ProfileComponent } from './profile/profile';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
@@ -22,7 +23,7 @@ export class SafeUrlPipe implements PipeTransform {
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, SafeUrlPipe, SettingsComponent],
+  imports: [CommonModule, FormsModule, SafeUrlPipe, SettingsComponent, ProfileComponent],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -48,12 +49,105 @@ export class AppComponent {
     model: ''
   };
 
+  // User profile state
+  showProfile = false;
+  userProfile = signal<any>(null);
+
+  // Selection state
+  isSelecting = false;
+  selectionRect: { x: number, y: number, width: number, height: number } | null = null;
+  startPoint: { x: number, y: number } | null = null;
+  attachedImage: string | null = null;
+
   constructor() {
     this.refreshProjectList();
+    this.fetchProfile();
     const stored = localStorage.getItem('adorable-settings');
     if (stored) {
       this.appSettings = JSON.parse(stored);
     }
+
+    // Listen for screenshot response
+    window.addEventListener('message', (event) => {
+      if (event.data.type === 'CAPTURE_RES') {
+        this.attachedImage = event.data.image;
+        this.isSelecting = false;
+        this.selectionRect = null;
+      }
+    });
+  }
+
+  fetchProfile() {
+    this.apiService.getProfile().subscribe(profile => this.userProfile.set(profile));
+  }
+
+  onProfileSaved(data: { name: string }) {
+    this.apiService.updateProfile(data).subscribe(updated => {
+      this.userProfile.set(updated);
+      this.showProfile = false;
+    });
+  }
+  
+  // Selection Logic
+  startSelection() {
+    this.isSelecting = true;
+    this.attachedImage = null;
+  }
+
+  onMouseDown(event: MouseEvent) {
+    if (!this.isSelecting) return;
+    this.startPoint = { x: event.clientX, y: event.clientY };
+    this.selectionRect = { x: event.clientX, y: event.clientY, width: 0, height: 0 };
+  }
+
+  onMouseMove(event: MouseEvent) {
+    if (!this.isSelecting || !this.startPoint) return;
+    
+    const currentX = event.clientX;
+    const currentY = event.clientY;
+    
+    const width = Math.abs(currentX - this.startPoint.x);
+    const height = Math.abs(currentY - this.startPoint.y);
+    const x = Math.min(currentX, this.startPoint.x);
+    const y = Math.min(currentY, this.startPoint.y);
+    
+    this.selectionRect = { x, y, width, height };
+  }
+
+  onMouseUp() {
+    if (!this.isSelecting || !this.selectionRect) return;
+    if (this.selectionRect.width < 10 || this.selectionRect.height < 10) {
+      this.isSelecting = false;
+      this.selectionRect = null;
+      this.startPoint = null;
+      return;
+    }
+    
+    // Capture phase
+    this.captureSelection(this.selectionRect);
+    this.startPoint = null;
+  }
+
+  captureSelection(rect: { x: number, y: number, width: number, height: number }) {
+    // We need to convert screen coordinates to Iframe-relative coordinates
+    const iframe = document.querySelector('iframe');
+    if (!iframe) return;
+
+    const iframeRect = iframe.getBoundingClientRect();
+    
+    // Calculate relative to iframe
+    const relX = rect.x - iframeRect.left;
+    const relY = rect.y - iframeRect.top;
+    
+    // Send message to iframe to capture
+    iframe.contentWindow?.postMessage({
+      type: 'CAPTURE_REQ',
+      rect: { x: relX, y: relY, width: rect.width, height: rect.height }
+    }, '*');
+  }
+
+  removeAttachment() {
+    this.attachedImage = null;
   }
 
   refreshProjectList() {
@@ -75,7 +169,6 @@ export class AppComponent {
   }
 
   saveProject() {
-// ... existing saveProject logic ...
     if (!this.projectName || !this.currentFiles) return;
     
     this.loading.set(true);
@@ -170,10 +263,12 @@ export class AppComponent {
     this.apiService.generate(this.prompt, previousSrc, {
       provider: this.appSettings.provider,
       apiKey: this.appSettings.apiKey,
-      model: this.appSettings.model
+      model: this.appSettings.model,
+      images: this.attachedImage ? [this.attachedImage] : undefined
     }).subscribe({
       next: async (res) => {
         try {
+          this.attachedImage = null; // Clear image after sending
           // Merge generated files into the base project (or current state)
           // We always start from BASE to ensure config files exist, then overlay previous state, then new changes
           let base = BASE_FILES;

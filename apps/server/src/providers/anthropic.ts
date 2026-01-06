@@ -55,11 +55,34 @@ export class AnthropicProvider implements LLMProvider {
       userMessage += `\n\n--- Current File Structure ---\n${JSON.stringify(previousFiles, null, 2)}`;
     }
 
+    const messages: any[] = [{ role: 'user', content: [] }];
+    
+    // Add text content
+    messages[0].content.push({ type: 'text', text: userMessage });
+
+    // Add images if present
+    if (options.images && options.images.length > 0) {
+      options.images.forEach(img => {
+        // Expecting "data:image/png;base64,..."
+        const match = img.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
+        if (match) {
+          messages[0].content.push({
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: `image/${match[1]}` as any,
+              data: match[2]
+            }
+          });
+        }
+      });
+    }
+
     const response = await anthropic.messages.create({
       model: model || 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
+      messages: messages as any,
     });
 
     const content = response.content[0];

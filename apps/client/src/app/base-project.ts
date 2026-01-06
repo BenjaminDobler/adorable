@@ -116,7 +116,43 @@ export const BASE_FILES = {
     directory: {
       'index.html': {
         file: {
-          contents: '<!DOCTYPE html><html><head><title>App</title></head><body><app-root></app-root></body></html>'
+          contents: `<!DOCTYPE html>
+<html>
+<head>
+  <title>App</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script>
+    window.addEventListener('message', async (event) => {
+      if (event.data.type === 'CAPTURE_REQ') {
+        const { x, y, width, height } = event.data.rect;
+        
+        try {
+          if (typeof html2canvas === 'undefined') {
+            throw new Error('html2canvas library not loaded yet');
+          }
+          
+          const canvas = await html2canvas(document.body, {
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+            useCORS: true,
+            logging: false
+          });
+          
+          const dataUrl = canvas.toDataURL('image/png');
+          window.parent.postMessage({ type: 'CAPTURE_RES', image: dataUrl }, '*');
+        } catch (err) {
+          console.error('Screenshot failed:', err.message);
+        }
+      }
+    });
+  </script>
+</head>
+<body>
+  <app-root></app-root>
+</body>
+</html>`
         }
       },
       'main.ts': {

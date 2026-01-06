@@ -5,6 +5,12 @@
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background: #0f172a;
   color: #f8fafc;
+  
+  &.selecting {
+    cursor: crosshair;
+    user-select: none;
+    iframe { pointer-events: none; } /* Allow dragging over iframe */
+  }
 }
 
 .sidebar {
@@ -20,6 +26,15 @@
   margin-bottom: 2rem;
   h1 { margin: 0; font-size: 1.5rem; color: #38bdf8; }
   p { margin: 0.5rem 0 0; font-size: 0.875rem; color: #94a3b8; }
+  .user-badge {
+    margin-top: 0.75rem;
+    font-size: 0.75rem;
+    background: #334155;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    color: #cbd5e1;
+  }
 }
 
 .chat-area {
@@ -57,6 +72,12 @@
       font-size: 1.1rem;
       &:hover:not(:disabled) { background: #334155; color: white; }
       &:disabled { opacity: 0.5; cursor: not-allowed; }
+      
+      &.small {
+        width: 28px;
+        height: 28px;
+        font-size: 0.9rem;
+      }
     }
     
     .dropdown {
@@ -88,19 +109,62 @@
     }
   }
 
-  textarea {
-    height: 150px;
+  .input-wrapper {
+    position: relative;
     background: #1e293b;
     border: 1px solid #334155;
     border-radius: 0.5rem;
-    color: white;
     padding: 1rem;
-    resize: none;
-    font-family: inherit;
-    &:focus { outline: 2px solid #38bdf8; border-color: transparent; }
+    
+    textarea {
+      width: 100%;
+      height: 120px;
+      background: transparent;
+      border: none;
+      color: white;
+      resize: none;
+      font-family: inherit;
+      box-sizing: border-box;
+      &:focus { outline: none; }
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 0.5rem;
+      border-top: 1px solid #334155;
+      padding-top: 0.5rem;
+    }
+    
+    .attachment-preview {
+      margin-top: 0.5rem;
+      position: relative;
+      display: inline-block;
+      img {
+        max-height: 80px;
+        border-radius: 4px;
+        border: 1px solid #38bdf8;
+      }
+      .remove-btn {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background: #ef4444;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        font-size: 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+    }
   }
 
-  button {
+  .generate-btn {
     background: #38bdf8;
     color: #0f172a;
     border: none;
@@ -141,6 +205,7 @@
   background: #1e293b;
   display: flex;
   flex-direction: column;
+  position: relative; /* Context for absolute positioning of selection box */
   
   iframe {
     width: 100%;
@@ -157,6 +222,14 @@
     height: 100%;
     color: #94a3b8;
   }
+}
+
+.selection-box {
+  position: fixed; /* Fixed relative to viewport to match mouse coords simpler */
+  border: 2px dashed #38bdf8;
+  background: rgba(56, 189, 248, 0.2);
+  pointer-events: none;
+  z-index: 100;
 }
 
 .spinner {

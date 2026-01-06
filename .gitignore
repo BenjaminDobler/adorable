@@ -45,3 +45,5 @@ Thumbs.db
 .angular
 
 __screenshots__/
+
+/generated/prisma
