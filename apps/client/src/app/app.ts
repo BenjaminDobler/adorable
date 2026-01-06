@@ -5,6 +5,7 @@ import { DomSanitizer } from '@angular/platform-browser';
 import { ApiService } from './services/api';
 import { WebContainerService } from './services/web-container';
 import { BASE_FILES } from './base-project';
+import { SettingsComponent, AppSettings } from './settings/settings';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
@@ -21,7 +22,7 @@ export class SafeUrlPipe implements PipeTransform {
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, SafeUrlPipe],
+  imports: [CommonModule, FormsModule, SafeUrlPipe, SettingsComponent],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -38,9 +39,21 @@ export class AppComponent {
   projectName = '';
   projects = signal<string[]>([]);
   showLoadMenu = false;
+  
+  // Settings state
+  showSettings = false;
+  appSettings: AppSettings = {
+    provider: 'anthropic',
+    apiKey: '',
+    model: ''
+  };
 
   constructor() {
     this.refreshProjectList();
+    const stored = localStorage.getItem('adorable-settings');
+    if (stored) {
+      this.appSettings = JSON.parse(stored);
+    }
   }
 
   refreshProjectList() {
@@ -51,8 +64,18 @@ export class AppComponent {
     this.showLoadMenu = !this.showLoadMenu;
     if (this.showLoadMenu) this.refreshProjectList();
   }
+  
+  toggleSettings() {
+    this.showSettings = !this.showSettings;
+  }
+  
+  onSettingsSaved(newSettings: AppSettings) {
+    this.appSettings = newSettings;
+    this.showSettings = false;
+  }
 
   saveProject() {
+// ... existing saveProject logic ...
     if (!this.projectName || !this.currentFiles) return;
     
     this.loading.set(true);
@@ -144,7 +167,11 @@ export class AppComponent {
     // Send current 'src' directory if it exists, for context
     const previousSrc = this.currentFiles?.['src'];
 
-    this.apiService.generate(this.prompt, previousSrc).subscribe({
+    this.apiService.generate(this.prompt, previousSrc, {
+      provider: this.appSettings.provider,
+      apiKey: this.appSettings.apiKey,
+      model: this.appSettings.model
+    }).subscribe({
       next: async (res) => {
         try {
           // Merge generated files into the base project (or current state)

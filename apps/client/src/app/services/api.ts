@@ -9,11 +9,21 @@ export class ApiService {
   private http = inject(HttpClient);
   private apiUrl = 'http://localhost:3333/api';
 
-    generate(prompt: string, previousFiles?: any) {
+      generate(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string }) {
 
-      return this.http.post<GenerateResponse>(`${this.apiUrl}/generate`, { prompt, previousFiles });
+        return this.http.post<GenerateResponse>(`${this.apiUrl}/generate`, { 
 
-    }
+          prompt, 
+
+          previousFiles,
+
+          ...options
+
+        });
+
+      }
+
+    
 
   
 

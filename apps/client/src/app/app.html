@@ -34,6 +34,9 @@
             </div>
           }
         </div>
+        <button (click)="toggleSettings()" class="icon-btn" title="Settings">
+          ⚙️
+        </button>
       </div>
 
       <textarea 
@@ -45,6 +48,13 @@
         {{ loading() ? 'Generating...' : 'Generate App' }}
       </button>
     </div>
+
+    @if (showSettings) {
+      <app-settings 
+        (close)="showSettings = false"
+        (save)="onSettingsSaved($event)">
+      </app-settings>
+    }
 
     <div class="terminal-container">
       <h3>Terminal Output</h3>
