@@ -1,0 +1,69 @@
+<div class="app-container">
+  <div class="sidebar">
+    <div class="header">
+      <h1>Adorable</h1>
+      <p>Angular App Generator</p>
+    </div>
+    
+    <div class="chat-area">
+      <div class="project-controls">
+        <input 
+          type="text" 
+          [(ngModel)]="projectName" 
+          placeholder="Project Name" 
+          [disabled]="loading()"
+          class="project-name-input"
+        />
+        <button (click)="saveProject()" [disabled]="loading() || !projectName || !currentFiles" class="icon-btn" title="Save Project">
+          💾
+        </button>
+        <button (click)="downloadZip()" [disabled]="loading() || !currentFiles" class="icon-btn" title="Download ZIP">
+          ⬇️
+        </button>
+        <div class="dropdown">
+          <button (click)="toggleLoadMenu()" class="icon-btn" title="Load Project">
+            📂
+          </button>
+          @if (showLoadMenu) {
+            <div class="dropdown-content">
+              @for (proj of projects(); track proj) {
+                <div (click)="loadProject(proj)" class="dropdown-item">{{ proj }}</div>
+              } @empty {
+                <div class="dropdown-item disabled">No saved projects</div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <textarea 
+        [(ngModel)]="prompt" 
+        placeholder="e.g., Create a todo list with signals and tailwind..."
+        [disabled]="loading()">
+      </textarea>
+      <button (click)="generate()" [disabled]="loading() || !prompt">
+        {{ loading() ? 'Generating...' : 'Generate App' }}
+      </button>
+    </div>
+
+    <div class="terminal-container">
+      <h3>Terminal Output</h3>
+      <pre class="terminal"><code>{{ webContainerService.output() }}</code></pre>
+    </div>
+  </div>
+
+  <div class="preview-area">
+    @if (webContainerService.url()) {
+      <iframe [src]="webContainerService.url() | safeUrl"></iframe>
+    } @else {
+      <div class="placeholder">
+        @if (loading()) {
+          <div class="spinner"></div>
+          <p>Adorable is building your app... This takes about 30-60 seconds.</p>
+        } @else {
+          <p>Your generated app will appear here.</p>
+        }
+      </div>
+    }
+  </div>
+</div>
