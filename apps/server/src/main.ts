@@ -142,28 +142,52 @@ protectedRouter.get('/projects', async (req: any, res) => {
 });
 
 protectedRouter.post('/projects', async (req: any, res) => {
-  const { name, files, id, thumbnail } = req.body;
+  const { name, files, id, thumbnail, messages } = req.body;
   const user = req.user;
 
   if (!name || !files) {
     return res.status(400).json({ error: 'Name and files are required' });
   }
 
+  const messageOperations = messages ? {
+    deleteMany: {},
+    create: messages.map((m: any) => ({
+      role: m.role,
+      text: m.text,
+      files: m.files ? JSON.stringify(m.files) : undefined,
+      timestamp: m.timestamp
+    }))
+  } : undefined;
+
   try {
     const project = await prisma.project.upsert({
       where: { 
         id: id || 'new-project'
       },
-      update: { name, files: JSON.stringify(files), thumbnail },
+      update: { 
+        name, 
+        files: JSON.stringify(files), 
+        thumbnail,
+        messages: messageOperations
+      },
       create: { 
         name, 
         files: JSON.stringify(files), 
         userId: user.id,
-        thumbnail
+        thumbnail,
+        messages: messages ? {
+          create: messages.map((m: any) => ({
+            role: m.role,
+            text: m.text,
+            files: m.files ? JSON.stringify(m.files) : undefined,
+            timestamp: m.timestamp
+          }))
+        } : undefined
       }
     });
     res.json(project);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Failed to save project' });
   }
 });
@@ -172,12 +196,22 @@ protectedRouter.get('/projects/:id', async (req: any, res) => {
   const user = req.user;
   try {
     const project = await prisma.project.findFirst({
-      where: { id: req.params.id, userId: user.id }
+      where: { id: req.params.id, userId: user.id },
+      include: {
+        messages: {
+          orderBy: { timestamp: 'asc' }
+        }
+      }
     });
     if (!project) return res.status(404).json({ error: 'Project not found' });
+    
     res.json({
         ...project,
-        files: JSON.parse(project.files)
+        files: JSON.parse(project.files),
+        messages: project.messages.map(m => ({
+          ...m,
+          files: m.files ? JSON.parse(m.files) : undefined
+        }))
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to load project' });

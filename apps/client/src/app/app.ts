@@ -312,6 +312,7 @@ export class AppComponent implements AfterViewChecked {
     this.apiService.saveProject(
       this.projectName, 
       this.currentFiles, 
+      this.messages(),
       (this.projectId && this.projectId !== 'new') ? this.projectId : undefined,
       thumbnail
     ).subscribe({
@@ -336,6 +337,10 @@ export class AppComponent implements AfterViewChecked {
         this.projectName = project.name;
         this.currentFiles = project.files;
         
+        if (project.messages) {
+          this.messages.set(project.messages);
+        }
+
         await this.reloadPreview(this.currentFiles);
       },
       error: (err) => {

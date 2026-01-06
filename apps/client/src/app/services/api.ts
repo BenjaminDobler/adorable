@@ -17,8 +17,8 @@ export class ApiService {
     });
   }
 
-  saveProject(name: string, files: any, id?: string, thumbnail?: string) {
-    return this.http.post<any>(`${this.apiUrl}/projects`, { name, files, id, thumbnail });
+  saveProject(name: string, files: any, messages?: any[], id?: string, thumbnail?: string) {
+    return this.http.post<any>(`${this.apiUrl}/projects`, { name, files, messages, id, thumbnail });
   }
 
   listProjects() {
