@@ -338,7 +338,16 @@ export class AppComponent implements AfterViewChecked {
         this.currentFiles = project.files;
         
         if (project.messages) {
-          this.messages.set(project.messages);
+          console.log('Loaded messages:', project.messages.length);
+          this.messages.set(project.messages.map((m: any) => ({
+            ...m,
+            timestamp: new Date(m.timestamp)
+          })));
+          // Debug check for files
+          const messagesWithFiles = this.messages().filter(m => m.files);
+          console.log('Messages with snapshots:', messagesWithFiles.length);
+        } else {
+          this.messages.set([]); 
         }
 
         await this.reloadPreview(this.currentFiles);
@@ -352,6 +361,7 @@ export class AppComponent implements AfterViewChecked {
   }
 
   async restoreVersion(files: any) {
+    console.log('Restoring version with files:', files ? Object.keys(files).length : 'null');
     if (!files || this.loading()) return;
     if (confirm('Are you sure you want to restore this version? Current unsaved changes might be lost.')) {
       this.loading.set(true);
