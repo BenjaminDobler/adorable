@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { GenerateResponse } from '@adorable/shared-types';
+import { Observable } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -14,6 +15,54 @@ export class ApiService {
       prompt, 
       previousFiles,
       ...options
+    });
+  }
+
+  generateStream(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[] }): Observable<any> {
+    return new Observable(observer => {
+      const token = localStorage.getItem('adorable_token');
+      
+      fetch(`${this.apiUrl}/generate-stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ prompt, previousFiles, ...options })
+      }).then(response => {
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+
+        if (!reader) {
+          observer.error('No reader');
+          return;
+        }
+
+        const push = () => {
+          reader.read().then(({ done, value }) => {
+            if (done) {
+              observer.complete();
+              return;
+            }
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n');
+            
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.substring(6));
+                  observer.next(data);
+                } catch (e) {
+                  // Partial JSON, skip or wait
+                }
+              }
+            }
+            push();
+          });
+        };
+        push();
+      }).catch(err => observer.error(err));
     });
   }
 

@@ -1,6 +1,6 @@
-import { GenerateOptions, LLMProvider } from './types';
+import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { jsonrepair } from 'jsonrepair';
+import { BaseLLMProvider } from './base';
 
 const SYSTEM_PROMPT = `
 You are an expert Angular developer. 
@@ -11,37 +11,37 @@ DO NOT generate package.json, angular.json, or tsconfig.json.
 DO NOT generate src/main.ts or src/index.html unless you need to change them.
 
 Input Context:
-- You will receive the "Current File Structure".
+- You will receive the "Current File Structure" (if any).
 - If the user asks for a change, ONLY return the files that need to be modified or created.
+- **DO NOT** return files that have not changed. This is critical to avoid response truncation.
 
-Output:
-- Return a JSON object representing the 'src' directory structure.
-- The structure must be:
-{
-  "files": {
-    "src": {
-      "directory": {
-        "app": {
-          "directory": {
-             "app.component.ts": { "file": { "contents": "..." } }
-          }
-        }
-      }
-    }
-  },
-  "explanation": "Brief explanation..."
-}
+Output Format:
+You must provide the output in the following XML-like format.
+Do NOT use Markdown code blocks for the XML tags.
+
+<explanation>
+Brief explanation of what you did.
+</explanation>
+
+<file path="src/app/app.component.ts">
+import { Component } from '@angular/core';
+...
+</file>
+
+<file path="src/app/app.component.html">
+<h1>Hello</h1>
+</file>
 
 RULES:
 1. **Root Component:** Ensure 'src/app/app.component.ts' exists and has selector 'app-root'.
-2. **Features:** Use Angular 18+ Standalone components.
+2. **Features:** Use Angular 21+ Standalone components and signals.
 3. **Styling:** Use inline styles in components or 'src/styles.css' for globals.
 4. **Imports:** Ensure all imports are correct.
-5. **Robustness:** The JSON MUST be valid.
-6. **Conciseness:** Minimize comments. Use compact CSS.
+5. **Conciseness:** Minimize comments. Use compact CSS.
+6. **Path:** The 'path' attribute must be relative to the project root (e.g., "src/app/foo.ts").
 `;
 
-export class GeminiProvider implements LLMProvider {
+export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
   async generate(options: GenerateOptions): Promise<any> {
     const { prompt, previousFiles, apiKey, model } = options;
 
@@ -57,9 +57,6 @@ export class GeminiProvider implements LLMProvider {
     if (previousFiles) {
       userMessage += `\n\n--- Current File Structure ---\n${JSON.stringify(previousFiles, null, 2)}`;
     }
-
-    // Force JSON output structure in the prompt as Gemini sometimes prefers text
-    userMessage += "\n\nIMPORTANT: Return only valid JSON. Do not include markdown formatting like ```json.";
 
     const parts: any[] = [{ text: userMessage }];
 
@@ -78,26 +75,56 @@ export class GeminiProvider implements LLMProvider {
       });
     }
 
-    const result = await geminiModel.generateContent(parts);
+    const result = await geminiModel.generateContent({
+        contents: [{ role: 'user', parts }],
+        generationConfig: {
+            maxOutputTokens: 8192,
+        }
+    });
+    
     const response = result.response;
     const text = response.text();
 
-    let jsonString = text;
-      
-    const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || 
-                      text.match(/\{[\s\S]*\}/);
-    
-    if (jsonMatch) {
-      jsonString = jsonMatch[1] || jsonMatch[0];
+    return this.parseResponse(text);
+  }
+
+  async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any> {
+    const { prompt, previousFiles, apiKey, model } = options;
+    if (!apiKey) throw new Error('Google Generative AI Key is required');
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const geminiModel = genAI.getGenerativeModel({ 
+        model: model || 'gemini-1.5-pro-latest',
+        systemInstruction: SYSTEM_PROMPT 
+    });
+
+    let userMessage = prompt;
+    if (previousFiles) {
+      userMessage += `\n\n--- Current File Structure ---\n${JSON.stringify(previousFiles, null, 2)}`;
     }
 
-    try {
-      const repairedJson = jsonrepair(jsonString);
-      return JSON.parse(repairedJson);
-    } catch (error) {
-        console.error('Gemini JSON Parse Error:', error);
-        console.log('Raw Gemini Output:', text);
-        throw new Error('Failed to parse generated code from Gemini');
+    const parts: any[] = [{ text: userMessage }];
+    if (options.images && options.images.length > 0) {
+      options.images.forEach(img => {
+        const match = img.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
+        if (match) {
+          parts.push({ inlineData: { mimeType: `image/${match[1]}`, data: match[2] } });
+        }
+      });
     }
+
+    const result = await geminiModel.generateContentStream({
+        contents: [{ role: 'user', parts }],
+        generationConfig: { maxOutputTokens: 8192 }
+    });
+
+    let fullText = '';
+    for await (const chunk of result.stream) {
+        const delta = chunk.text();
+        fullText += delta;
+        callbacks.onText?.(delta);
+    }
+
+    return this.parseResponse(fullText);
   }
 }

@@ -273,6 +273,50 @@ protectedRouter.post('/generate', async (req: any, res) => {
     }
 });
 
+protectedRouter.post('/generate-stream', async (req: any, res) => {
+    const { prompt, previousFiles, provider, model, apiKey, images } = req.body;
+    const user = req.user;
+
+    let effectiveApiKey = apiKey;
+    const userSettings = user.settings ? JSON.parse(user.settings) : {};
+    if (!effectiveApiKey) effectiveApiKey = userSettings.apiKey;
+    if (!effectiveApiKey) {
+      effectiveApiKey = provider === 'gemini' ? process.env.GEMINI_API_KEY : process.env.ANTHROPIC_API_KEY;
+    }
+  
+    if (!effectiveApiKey) {
+      return res.status(400).send({ error: `No API Key provided. Please enter one in settings.` });
+    }
+  
+    // Set headers for SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    try {
+      const llm = ProviderFactory.getProvider(provider);
+      const result = await llm.streamGenerate({
+          prompt,
+          previousFiles,
+          apiKey: effectiveApiKey,
+          model: model || userSettings.model,
+          images
+      }, {
+          onText: (text) => {
+              res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);
+          }
+      });
+      
+      // Final result
+      res.write(`data: ${JSON.stringify({ type: 'result', content: result })}\n\n`);
+      res.end();
+    } catch (error) {
+      console.error('Error calling LLM:', error);
+      res.write(`data: ${JSON.stringify({ type: 'error', content: error.message })}\n\n`);
+      res.end();
+    }
+});
+
 app.use('/api', protectedRouter);
 
 const port = process.env.PORT || 3333;

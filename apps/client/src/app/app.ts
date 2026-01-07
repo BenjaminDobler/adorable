@@ -57,6 +57,9 @@ export class AppComponent implements AfterViewChecked {
   selectedFileContent = signal('');
   selectedFileName = signal('');
   selectedFilePath = signal('');
+  
+  editorHeight = signal(50);
+  isResizingEditor = false;
 
   loadingMessages = [
     'Adorable things take time...',
@@ -107,6 +110,15 @@ export class AppComponent implements AfterViewChecked {
         // New project
         this.projectName = this.route.snapshot.queryParams['name'] || 'New Project';
         this.currentFiles = null;
+        this.allFiles = null; // Clear view state
+        
+        // Reset messages to default
+        this.messages.set([
+          { role: 'assistant', text: 'Hi! I can help you build an Angular app. Describe what you want to create.', timestamp: new Date() }
+        ]);
+
+        // Reset preview to base state
+        this.reloadPreview(null);
       }
     });
 
@@ -150,14 +162,34 @@ export class AppComponent implements AfterViewChecked {
     this.isSelecting = true;
     this.attachedImage = null;
   }
+  
+  startResizing(event: MouseEvent) {
+    this.isResizingEditor = true;
+    event.preventDefault();
+  }
 
   onMouseDown(event: MouseEvent) {
-    if (!this.isSelecting) return;
-    this.startPoint = { x: event.clientX, y: event.clientY };
-    this.selectionRect = { x: event.clientX, y: event.clientY, width: 0, height: 0 };
+    // Check if we clicked the selection tool or just normal interaction?
+    // startSelection is triggered by button.
+    // onMouseDown is for drawing the box.
+    if (this.isSelecting) {
+        this.startPoint = { x: event.clientX, y: event.clientY };
+        this.selectionRect = { x: event.clientX, y: event.clientY, width: 0, height: 0 };
+    }
   }
 
   onMouseMove(event: MouseEvent) {
+    if (this.isResizingEditor) {
+      const container = document.querySelector('.preview-area');
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        const relativeY = event.clientY - rect.top;
+        const percentage = (relativeY / rect.height) * 100;
+        this.editorHeight.set(Math.min(Math.max(percentage, 10), 90));
+      }
+      return;
+    }
+
     if (!this.isSelecting || !this.startPoint) return;
     
     const currentX = event.clientX;
@@ -172,6 +204,11 @@ export class AppComponent implements AfterViewChecked {
   }
 
   onMouseUp() {
+    if (this.isResizingEditor) {
+      this.isResizingEditor = false;
+      return;
+    }
+
     if (!this.isSelecting || !this.selectionRect) return;
     if (this.selectionRect.width < 10 || this.selectionRect.height < 10) {
       this.isSelecting = false;
@@ -197,6 +234,15 @@ export class AppComponent implements AfterViewChecked {
       type: 'CAPTURE_REQ',
       rect: { x: relX, y: relY, width: rect.width, height: rect.height }
     }, '*');
+  }
+
+  reloadIframe() {
+    const iframe = document.querySelector('iframe');
+    if (iframe) {
+      // Force reload by re-assigning src (works for cross-origin)
+      const currentSrc = iframe.src;
+      iframe.src = currentSrc;
+    }
   }
 
   onFileSelect(event: {name: string, path: string, content: string}) {
@@ -435,39 +481,96 @@ export class AppComponent implements AfterViewChecked {
     this.prompt = ''; // Clear input immediately
     this.loading.set(true);
 
-    const previousSrc = this.currentFiles?.['src'];
+    // Create placeholder for assistant response
+    const assistantMsgIndex = this.messages().length;
+    this.messages.update(msgs => [...msgs, {
+      role: 'assistant',
+      text: '',
+      timestamp: new Date()
+    }]);
 
-    this.apiService.generate(currentPrompt, previousSrc, {
+    const previousSrc = this.currentFiles?.['src'];
+    
+    let fullStreamText = '';
+
+    this.apiService.generateStream(currentPrompt, previousSrc, {
       provider: this.appSettings?.provider,
       apiKey: this.appSettings?.apiKey,
       model: this.appSettings?.model,
       images: this.attachedImage ? [this.attachedImage] : undefined
     }).subscribe({
-      next: async (res) => {
-        try {
-          this.attachedImage = null;
+      next: async (event) => {
+        if (event.type === 'text') {
+          fullStreamText += event.content;
           
-          let base = BASE_FILES;
-          if (this.currentFiles) {
-             base = this.mergeFiles(base, this.currentFiles);
+          // Parse stream for display
+          let displayText = '';
+          const explMatch = fullStreamText.match(/<explanation>([\s\S]*?)(?:<\/explanation>|$)/);
+          if (explMatch) {
+            displayText = explMatch[1].trim();
+          } else if (fullStreamText.trim().startsWith('<explanation>')) {
+             // Handle case where we are inside the tag but regex failed
+             displayText = fullStreamText.replace('<explanation>', '').trim();
           }
-          const projectFiles = this.mergeFiles(base, res.files);
+
+          // Extract file paths
+          const fileMatches = fullStreamText.matchAll(/<file path="([^"]+)">/g);
+          const files = Array.from(fileMatches).map(m => m[1]);
           
-          // Add Assistant response with new state snapshot
-          this.messages.update(msgs => [...msgs, {
-            role: 'assistant',
-            text: res.explanation || 'I have updated the project based on your request.',
-            timestamp: new Date(),
-            files: projectFiles // Snapshot after changes
-          }]);
+          if (files.length > 0) {
+            displayText += '\n\n**Updating files:**\n' + files.map(f => `• ${f}`).join('\n');
+          }
 
-          await this.reloadPreview(projectFiles);
+          // Fallback if no tags found yet (start of stream) but raw text exists
+          if (!displayText && !fullStreamText.includes('<file')) {
+             displayText = fullStreamText.replace('<explanation>', '');
+          }
 
-        } catch (err) {
-          console.error('WebContainer error:', err);
+          this.messages.update(msgs => {
+            const newMsgs = [...msgs];
+            newMsgs[assistantMsgIndex].text = displayText;
+            return newMsgs;
+          });
+        } else if (event.type === 'result') {
+          try {
+            this.attachedImage = null;
+            const res = event.content;
+            
+            let base = BASE_FILES;
+            if (this.currentFiles) {
+               base = this.mergeFiles(base, this.currentFiles);
+            }
+            const projectFiles = this.mergeFiles(base, res.files);
+            
+            // Update message with final files snapshot and clean explanation
+            this.messages.update(msgs => {
+              const newMsgs = [...msgs];
+              newMsgs[assistantMsgIndex].files = projectFiles;
+              if (res.explanation) {
+                 // Keep the nice file list or just the explanation? 
+                 // User wants explanation. The file list is implicit in the result.
+                 // Let's just show explanation + file list as summary.
+                 const filePaths = this.extractFilePaths(res.files);
+                 newMsgs[assistantMsgIndex].text = res.explanation + '\n\n**Updated files:**\n' + filePaths.map(f => `• ${f}`).join('\n');
+              }
+              return newMsgs;
+            });
+
+            await this.reloadPreview(projectFiles);
+
+          } catch (err) {
+            console.error('WebContainer error:', err);
+            this.messages.update(msgs => [...msgs, {
+              role: 'system',
+              text: 'An error occurred while building the project.',
+              timestamp: new Date()
+            }]);
+            this.loading.set(false);
+          }
+        } else if (event.type === 'error') {
           this.messages.update(msgs => [...msgs, {
             role: 'system',
-            text: 'An error occurred while building the project.',
+            text: `Error: ${event.content}`,
             timestamp: new Date()
           }]);
           this.loading.set(false);
@@ -481,6 +584,9 @@ export class AppComponent implements AfterViewChecked {
           text: 'Failed to generate code. Please try again.',
           timestamp: new Date()
         }]);
+      },
+      complete: () => {
+        this.loading.set(false);
       }
     });
   }
@@ -501,6 +607,18 @@ export class AppComponent implements AfterViewChecked {
       }
     }
     return result;
+  }
+
+  private extractFilePaths(files: any, prefix = ''): string[] {
+    let paths: string[] = [];
+    for (const key in files) {
+      if (files[key].file) {
+        paths.push(prefix + key);
+      } else if (files[key].directory) {
+        paths = paths.concat(this.extractFilePaths(files[key].directory, prefix + key + '/'));
+      }
+    }
+    return paths;
   }
 
   private startMessageRotation() {

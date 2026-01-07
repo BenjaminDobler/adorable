@@ -6,23 +6,23 @@ export const BASE_FILES = {
         name: 'generated-app',
         scripts: { start: 'ng serve', build: 'ng build' },
         dependencies: {
-          '@angular/animations': '^18.0.0',
-          '@angular/common': '^18.0.0',
-          '@angular/compiler': '^18.0.0',
-          '@angular/core': '^18.0.0',
-          '@angular/forms': '^18.0.0',
-          '@angular/platform-browser': '^18.0.0',
-          '@angular/platform-browser-dynamic': '^18.0.0',
-          '@angular/router': '^18.0.0',
-          'rxjs': '~7.8.0',
+          '@angular/animations': '^21.0.0',
+          '@angular/common': '^21.0.0',
+          '@angular/compiler': '^21.0.0',
+          '@angular/core': '^21.0.0',
+          '@angular/forms': '^21.0.0',
+          '@angular/platform-browser': '^21.0.0',
+          '@angular/platform-browser-dynamic': '^21.0.0',
+          '@angular/router': '^21.0.0',
+          'rxjs': '^7.4.0',
           'tslib': '^2.3.0',
-          'zone.js': '~0.14.3'
+          'zone.js': '~0.16.0'
         },
         devDependencies: {
-          '@angular-devkit/build-angular': '^18.0.0',
-          '@angular/cli': '^18.0.0',
-          '@angular/compiler-cli': '^18.0.0',
-          'typescript': '~5.4.2'
+          '@angular/build': '^21.0.0',
+          '@angular/cli': '^21.0.0',
+          '@angular/compiler-cli': '^21.0.0',
+          'typescript': '~5.9.2'
         }
       }, null, 2)
     }
@@ -42,11 +42,11 @@ export const BASE_FILES = {
             prefix: 'app',
             architect: {
               build: {
-                builder: '@angular-devkit/build-angular:browser',
+                builder: '@angular/build:application',
                 options: {
                   outputPath: 'dist/app',
                   index: 'src/index.html',
-                  main: 'src/main.ts',
+                  browser: 'src/main.ts',
                   polyfills: ['zone.js'],
                   tsConfig: 'tsconfig.app.json',
                   assets: [],
@@ -55,9 +55,10 @@ export const BASE_FILES = {
                 }
               },
               serve: {
-                builder: '@angular-devkit/build-angular:dev-server',
+                builder: '@angular/build:dev-server',
                 options: {
-                  browserTarget: 'app:build'
+                  buildTarget: 'app:build',
+                  hmr: false
                 }
               }
             }
@@ -84,7 +85,7 @@ export const BASE_FILES = {
           declaration: false,
           downlevelIteration: true,
           experimentalDecorators: true,
-          moduleResolution: 'node',
+          moduleResolution: 'bundler',
           importHelpers: true,
           target: 'ES2022',
           module: 'ES2022',

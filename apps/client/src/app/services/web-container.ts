@@ -6,6 +6,7 @@ import { WebContainer } from '@webcontainer/api';
 })
 export class WebContainerService {
   private webcontainerInstance?: WebContainer;
+  private serverProcess?: any;
   public url = signal<string | null>(null);
   public isBooting = signal<boolean>(false);
   public output = signal<string>('');
@@ -38,18 +39,35 @@ export class WebContainerService {
   }
 
   async startDevServer() {
-    const serverProcess = await this.webcontainerInstance!.spawn('npm', ['run', 'start']);
+        console.log('web-container:  start dev server');
+
+    if (this.serverProcess) {
+      this.serverProcess.kill();
+    }
+
+    // Pass --allowed-hosts=all to ensure HMR works in the WebContainer iframe
+    // Set VITE_HMR env variables to force HMR to use WSS on port 443
+    const serverProcess = await this.webcontainerInstance!.spawn('npm', ['run', 'start'], {
+      env: {
+        VITE_HMR_PROTOCOL: 'wss',
+        VITE_HMR_PORT: '443'
+      }
+    });
+    this.serverProcess = serverProcess;
     
     serverProcess.output.pipeTo(new WritableStream({
-      write: (data) => this.output.update(o => o + data)
+      write: (data) => {
+        this.output.update(o => o + data);
+      }
     }));
 
     this.webcontainerInstance!.on('server-ready', (port, url) => {
       this.url.set(url);
     });
-  }
+  } 
 
   async writeFile(path: string, contents: string) {
+    console.log('eb-container:  Writing file:', path);
     await this.webcontainerInstance!.fs.writeFile(path, contents);
   }
 }
