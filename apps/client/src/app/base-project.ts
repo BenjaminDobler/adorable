@@ -138,33 +138,111 @@ export const BASE_FILES = {
   <title>App</title>
   <base href="/" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script>
+          <script>
+    // Visual Inspector Script
+    (function() {
+      let active = false;
+      let overlay;
+
+      function createOverlay() {
+        if (document.getElementById('inspector-overlay')) return;
+        overlay = document.createElement('div');
+        overlay.id = 'inspector-overlay';
+        overlay.style.position = 'fixed';
+        overlay.style.border = '2px solid #3ecf8e'; // Angular Green
+        overlay.style.backgroundColor = 'rgba(62, 207, 142, 0.2)';
+        overlay.style.zIndex = '999999';
+        overlay.style.pointerEvents = 'none';
+        overlay.style.display = 'none';
+        overlay.style.transition = 'all 0.1s ease';
+        document.body.appendChild(overlay);
+      }
+
+      window.addEventListener('message', (event) => {
+        if (event.data.type === 'TOGGLE_INSPECTOR') {
+          active = event.data.enabled;
+          createOverlay();
+          if (!active && overlay) overlay.style.display = 'none';
+        }
+        
+        if (event.data.type === 'RELOAD_REQ') {
+           window.location.reload();
+        }
+      });
+
+      // Inspector Events
+      document.addEventListener('mouseover', (e) => {
+        if (!active) return;
+        const target = e.target;
+        const overlayEl = document.getElementById('inspector-overlay');
+        if (!overlayEl || target === overlayEl || target === document.body || target === document.documentElement) return;
+
+        const rect = target.getBoundingClientRect();
+        overlayEl.style.top = rect.top + 'px';
+        overlayEl.style.left = rect.left + 'px';
+        overlayEl.style.width = rect.width + 'px';
+        overlayEl.style.height = rect.height + 'px';
+        overlayEl.style.display = 'block';
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!active) return;
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const target = e.target;
+        let componentName = null;
+        
+        // Attempt to find Angular Component
+        if (window.ng) {
+           let comp = window.ng.getComponent(target);
+           if (!comp) comp = window.ng.getOwningComponent(target);
+           
+           if (comp && comp.constructor) {
+              componentName = comp.constructor.name;
+           }
+        }
+
+        const computedStyle = window.getComputedStyle(target);
+        
+        window.parent.postMessage({
+          type: 'ELEMENT_SELECTED',
+          payload: {
+            tagName: target.tagName.toLowerCase(),
+            text: target.innerText ? target.innerText.substring(0, 100) : '',
+            componentName: componentName,
+            classes: target.className,
+            styles: {
+                color: computedStyle.color,
+                backgroundColor: computedStyle.backgroundColor,
+                borderRadius: computedStyle.borderRadius,
+                fontSize: computedStyle.fontSize,
+                padding: computedStyle.padding,
+                margin: computedStyle.margin
+            }
+          }
+        }, '*');
+        
+        active = false;
+        const overlayEl = document.getElementById('inspector-overlay');
+        if (overlayEl) overlayEl.style.display = 'none';
+      });
+    })();
+    
+    // Screenshot logic (Global scope is fine/needed for html2canvas check if loaded separately)
     window.addEventListener('message', async (event) => {
       if (event.data.type === 'CAPTURE_REQ') {
         const { x, y, width, height } = event.data.rect;
-        
         try {
-          if (typeof html2canvas === 'undefined') {
-            throw new Error('html2canvas library not loaded yet');
-          }
-          
-          const canvas = await html2canvas(document.body, {
-            x: x,
-            y: y,
-            width: width,
-            height: height,
-            useCORS: true,
-            logging: false
-          });
-          
-          const dataUrl = canvas.toDataURL('image/png');
-          window.parent.postMessage({ type: 'CAPTURE_RES', image: dataUrl }, '*');
-        } catch (err) {
-          console.error('Screenshot failed:', err.message);
-        }
+          if (typeof html2canvas === 'undefined') throw new Error('html2canvas not loaded');
+          const canvas = await html2canvas(document.body, { x, y, width, height, useCORS: true, logging: false });
+          window.parent.postMessage({ type: 'CAPTURE_RES', image: canvas.toDataURL('image/png') }, '*');
+        } catch (err) { console.error(err); }
       }
     });
   </script>
+
+
 </head>
 <body>
   <app-root></app-root>
@@ -184,6 +262,31 @@ bootstrapApplication(AppComponent).catch(err => console.error(err));`,
           contents: '/* Global styles */',
         },
       },
+      'app': {
+        directory: {
+          'app.component.ts': {
+            file: {
+              contents: `
+import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
+
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [CommonModule],
+  template: \`
+    <div style="text-align: center; padding: 2rem; font-family: system-ui;">
+      <h1>Welcome to Adorable</h1>
+      <p>Enter a prompt to start building your app!</p>
+    </div>
+  \`
+})
+export class AppComponent {}
+              `
+            }
+          }
+        }
+      }
     },
   },
 };

@@ -1,10 +1,10 @@
 .profile-container {
-  min-height: calc(100vh - 64px);
+  height: calc(100vh - 64px);
   width: 100vw;
   background: var(--bg-color);
   padding: 4rem 1.5rem;
-  display: flex;
-  justify-content: center;
+  display: block; /* Changed from flex */
+  overflow-y: auto;
   color: var(--text-primary);
 }
 
@@ -15,6 +15,7 @@
   padding: 3rem;
   width: 100%;
   max-width: 640px;
+  margin: 0 auto 4rem auto; /* Center horizontally with bottom spacing */
 
   .header {
     margin-bottom: 3rem;

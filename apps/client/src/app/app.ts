@@ -62,6 +62,10 @@ export class AppComponent implements AfterViewChecked {
   editorHeight = signal(50);
   isResizingEditor = false;
   isResizingSidebar = false;
+  
+  isInspectionActive = signal(false);
+  visualEditorData = signal<any>(null);
+  visualPrompt = '';
 
   loadingMessages = [
     'Adorable things take time...',
@@ -136,7 +140,49 @@ export class AppComponent implements AfterViewChecked {
           this.selectionRect = null;
         }
       }
+      
+      if (event.data.type === 'ELEMENT_SELECTED') {
+        this.visualEditorData.set(event.data.payload);
+        this.isInspectionActive.set(false); // Turn off inspector
+      }
     });
+  }
+
+  toggleInspection() {
+    const isActive = !this.isInspectionActive();
+    this.isInspectionActive.set(isActive);
+    
+    const iframe = document.querySelector('iframe');
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.postMessage({ 
+        type: 'TOGGLE_INSPECTOR', 
+        enabled: isActive 
+      }, '*');
+    }
+  }
+
+  closeVisualEditor() {
+    this.visualEditorData.set(null);
+  }
+
+  applyVisualChanges(prompt: string) {
+    if (!this.visualEditorData()) return;
+    
+    // Construct a targeted prompt
+    const data = this.visualEditorData();
+    const specificContext = data.componentName 
+      ? `This change likely involves ${data.componentName}.` 
+      : '';
+      
+    this.prompt = `Visual Edit Request:
+    Target Element: <${data.tagName}> class="${data.classes}"
+    Original Text: "${data.text}"
+    ${specificContext}
+    
+    Instruction: ${prompt}`;
+    
+    this.generate();
+    this.closeVisualEditor();
   }
 
   ngAfterViewChecked() {
@@ -364,7 +410,12 @@ export class AppComponent implements AfterViewChecked {
       this.isSavingWithThumbnail = true;
       iframe.contentWindow?.postMessage({
         type: 'CAPTURE_REQ',
-        rect: { x: 0, y: 0, width: 1280, height: 800 } // Standard preview size
+        rect: { 
+          x: 0, 
+          y: 0, 
+          width: iframe.clientWidth, 
+          height: iframe.clientHeight 
+        }
       }, '*');
     } else {
       this.executeSave();
@@ -439,11 +490,23 @@ export class AppComponent implements AfterViewChecked {
 
   private async reloadPreview(files: any) {
     try {
+      // 1. Stop server to prevent crashes/conflicts
+      await this.webContainerService.stopDevServer();
+      
+      // 2. Clean old src to avoid ghost files
+      await this.webContainerService.clean();
+
       this.currentFiles = files;
       const projectFiles = this.mergeFiles(BASE_FILES, this.currentFiles);
       this.allFiles = projectFiles;
+      
+      // 3. Mount new files
       await this.webContainerService.mount(projectFiles);
+      
+      // 4. Install (optimized internally)
       const exitCode = await this.webContainerService.runInstall();
+      
+      // 5. Start server
       if (exitCode === 0) {
         this.webContainerService.startDevServer();
       }
