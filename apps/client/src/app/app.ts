@@ -58,8 +58,10 @@ export class AppComponent implements AfterViewChecked {
   selectedFileName = signal('');
   selectedFilePath = signal('');
   
+  sidebarWidth = signal(400);
   editorHeight = signal(50);
   isResizingEditor = false;
+  isResizingSidebar = false;
 
   loadingMessages = [
     'Adorable things take time...',
@@ -168,6 +170,11 @@ export class AppComponent implements AfterViewChecked {
     event.preventDefault();
   }
 
+  startSidebarResizing(event: MouseEvent) {
+    this.isResizingSidebar = true;
+    event.preventDefault();
+  }
+
   onMouseDown(event: MouseEvent) {
     // Check if we clicked the selection tool or just normal interaction?
     // startSelection is triggered by button.
@@ -179,6 +186,12 @@ export class AppComponent implements AfterViewChecked {
   }
 
   onMouseMove(event: MouseEvent) {
+    if (this.isResizingSidebar) {
+      const newWidth = Math.max(250, Math.min(event.clientX, 800)); // Min 250px, Max 800px
+      this.sidebarWidth.set(newWidth);
+      return;
+    }
+
     if (this.isResizingEditor) {
       const container = document.querySelector('.preview-area');
       if (container) {
@@ -204,6 +217,10 @@ export class AppComponent implements AfterViewChecked {
   }
 
   onMouseUp() {
+    if (this.isResizingSidebar) {
+      this.isResizingSidebar = false;
+      return;
+    }
     if (this.isResizingEditor) {
       this.isResizingEditor = false;
       return;

@@ -12,13 +12,27 @@
 }
 
 .sidebar {
-  width: 400px;
-  min-width: 400px;
+  width: 400px; /* Default width, overridden by inline style */
+  min-width: 250px;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--panel-border);
   background: var(--bg-color);
   z-index: 10;
+}
+
+.resizer-sidebar {
+  width: 6px;
+  background: var(--bg-color);
+  cursor: col-resize;
+  border-left: 1px solid var(--panel-border);
+  border-right: 1px solid var(--panel-border);
+  z-index: 20;
+  transition: background 0.2s;
+  flex: 0 0 auto;
+
+  &:hover {
+    background: rgba(62, 207, 142, 0.2);
+  }
 }
 
 .editor-header {

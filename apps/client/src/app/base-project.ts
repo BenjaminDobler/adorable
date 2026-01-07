@@ -1,119 +1,134 @@
-
 export const BASE_FILES = {
   'package.json': {
     file: {
-      contents: JSON.stringify({
-        name: 'generated-app',
-        scripts: { start: 'ng serve', build: 'ng build' },
-        dependencies: {
-          '@angular/animations': '^21.0.0',
-          '@angular/common': '^21.0.0',
-          '@angular/compiler': '^21.0.0',
-          '@angular/core': '^21.0.0',
-          '@angular/forms': '^21.0.0',
-          '@angular/platform-browser': '^21.0.0',
-          '@angular/platform-browser-dynamic': '^21.0.0',
-          '@angular/router': '^21.0.0',
-          'rxjs': '^7.4.0',
-          'tslib': '^2.3.0',
-          'zone.js': '~0.16.0'
+      contents: JSON.stringify(
+        {
+          name: 'generated-app',
+          scripts: { start: 'ng serve', build: 'ng build' },
+          dependencies: {
+            '@angular/animations': '^21.0.0',
+            '@angular/common': '^21.0.0',
+            '@angular/compiler': '^21.0.0',
+            '@angular/core': '^21.0.0',
+            '@angular/forms': '^21.0.0',
+            '@angular/platform-browser': '^21.0.0',
+            '@angular/platform-browser-dynamic': '^21.0.0',
+            '@angular/router': '^21.0.0',
+            rxjs: '^7.4.0',
+            tslib: '^2.3.0',
+            'zone.js': '~0.16.0',
+          },
+          devDependencies: {
+            '@angular/build': '^21.0.0',
+            '@angular/cli': '^21.0.0',
+            '@angular/compiler-cli': '^21.0.0',
+            typescript: '~5.9.2',
+          },
         },
-        devDependencies: {
-          '@angular/build': '^21.0.0',
-          '@angular/cli': '^21.0.0',
-          '@angular/compiler-cli': '^21.0.0',
-          'typescript': '~5.9.2'
-        }
-      }, null, 2)
-    }
+        null,
+        2,
+      ),
+    },
   },
   'angular.json': {
     file: {
-      contents: JSON.stringify({
-        $schema: './node_modules/@angular/cli/lib/config/schema.json',
-        version: 1,
-        newProjectRoot: 'projects',
-        projects: {
-          app: {
-            projectType: 'application',
-            schematics: {},
-            root: '',
-            sourceRoot: 'src',
-            prefix: 'app',
-            architect: {
-              build: {
-                builder: '@angular/build:application',
-                options: {
-                  outputPath: 'dist/app',
-                  index: 'src/index.html',
-                  browser: 'src/main.ts',
-                  polyfills: ['zone.js'],
-                  tsConfig: 'tsconfig.app.json',
-                  assets: [],
-                  styles: ['src/styles.css'],
-                  scripts: []
-                }
+      contents: JSON.stringify(
+        {
+          $schema: './node_modules/@angular/cli/lib/config/schema.json',
+          version: 1,
+          newProjectRoot: 'projects',
+          projects: {
+            app: {
+              projectType: 'application',
+              schematics: {},
+              root: '',
+              sourceRoot: 'src',
+              prefix: 'app',
+              architect: {
+                build: {
+                  builder: '@angular/build:application',
+                  options: {
+                    outputPath: 'dist/app',
+                    index: 'src/index.html',
+                    browser: 'src/main.ts',
+                    polyfills: ['zone.js'],
+                    tsConfig: 'tsconfig.app.json',
+                    assets: [],
+                    styles: ['src/styles.css'],
+                    scripts: [],
+                  },
+                },
+                serve: {
+                  builder: '@angular/build:dev-server',
+                  options: {
+                    buildTarget: 'app:build',
+                    hmr: false,
+                  },
+                },
               },
-              serve: {
-                builder: '@angular/build:dev-server',
-                options: {
-                  buildTarget: 'app:build',
-                  hmr: false
-                }
-              }
-            }
-          }
+            },
+          },
+          defaultProject: 'app',
         },
-        defaultProject: 'app'
-      }, null, 2)
-    }
+        null,
+        2,
+      ),
+    },
   },
   'tsconfig.json': {
     file: {
-      contents: JSON.stringify({
-        compileOnSave: false,
-        compilerOptions: {
-          baseUrl: './',
-          outDir: './dist/out-tsc',
-          forceConsistentCasingInFileNames: true,
-          strict: true,
-          noImplicitOverride: true,
-          noPropertyAccessFromIndexSignature: true,
-          noImplicitReturns: true,
-          noFallthroughCasesInSwitch: true,
-          sourceMap: true,
-          declaration: false,
-          downlevelIteration: true,
-          experimentalDecorators: true,
-          moduleResolution: 'bundler',
-          importHelpers: true,
-          target: 'ES2022',
-          module: 'ES2022',
-          lib: ['ES2022', 'dom']
+      contents: JSON.stringify(
+        {
+          compileOnSave: false,
+          compilerOptions: {
+            baseUrl: './',
+            outDir: './dist/out-tsc',
+            forceConsistentCasingInFileNames: true,
+            strict: true,
+            noImplicitOverride: true,
+            noPropertyAccessFromIndexSignature: true,
+            noImplicitReturns: true,
+            noFallthroughCasesInSwitch: true,
+            sourceMap: true,
+            declaration: false,
+            downlevelIteration: true,
+            experimentalDecorators: true,
+            moduleResolution: 'bundler',
+            importHelpers: true,
+            target: 'ES2022',
+            module: 'ES2022',
+            lib: ['ES2022', 'dom'],
+          },
+          angularCompilerOptions: {
+            enableI18nLegacyMessageIdFormat: false,
+            strictInjectionParameters: true,
+            strictInputAccessModifiers: true,
+            strictTemplates: true,
+          },
         },
-        angularCompilerOptions: {
-          enableI18nLegacyMessageIdFormat: false,
-          strictInjectionParameters: true,
-          strictInputAccessModifiers: true,
-          strictTemplates: true
-        }
-      }, null, 2)
-    }
+        null,
+        2,
+      ),
+    },
   },
   'tsconfig.app.json': {
     file: {
-      contents: JSON.stringify({
-        extends: './tsconfig.json',
-        compilerOptions: {
-          outDir: './dist/out-tsc',
-          types: []
+      contents: JSON.stringify(
+        {
+          extends: './tsconfig.json',
+          compilerOptions: {
+            outDir: './dist/out-tsc',
+            types: [],
+          },
+          files: ['src/main.ts'],
+          include: ['src/**/*.d.ts'],
         },
-        files: ['src/main.ts'],
-        include: ['src/**/*.d.ts']
-      }, null, 2)
-    }
+        null,
+        2,
+      ),
+    },
   },
-  'src': {
+  src: {
     directory: {
       'index.html': {
         file: {
@@ -121,6 +136,7 @@ export const BASE_FILES = {
 <html>
 <head>
   <title>App</title>
+  <base href="/" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script>
     window.addEventListener('message', async (event) => {
@@ -153,21 +169,21 @@ export const BASE_FILES = {
 <body>
   <app-root></app-root>
 </body>
-</html>`
-        }
+</html>`,
+        },
       },
       'main.ts': {
         file: {
           contents: `import { bootstrapApplication } from '@angular/platform-browser';
 import { AppComponent } from './app/app.component';
-bootstrapApplication(AppComponent).catch(err => console.error(err));`
-        }
+bootstrapApplication(AppComponent).catch(err => console.error(err));`,
+        },
       },
       'styles.css': {
         file: {
-          contents: '/* Global styles */'
-        }
-      }
-    }
-  }
+          contents: '/* Global styles */',
+        },
+      },
+    },
+  },
 };

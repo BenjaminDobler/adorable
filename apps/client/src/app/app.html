@@ -5,7 +5,7 @@
   (mousemove)="onMouseMove($event)"
   (mouseup)="onMouseUp()"
 >
-  <aside class="sidebar">
+  <aside class="sidebar" [style.width.px]="sidebarWidth()">
     <header class="editor-header">
       <button class="btn-back" (click)="goBack()">
         <svg
@@ -272,6 +272,8 @@
     </div>
   </aside>
 
+  <div class="resizer-sidebar" (mousedown)="startSidebarResizing($event)"></div>
+
   <main class="preview-area">
     <div
       class="editor-frame-container"
@@ -345,7 +347,7 @@
              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
            </button>
         </div>
-        <iframe [src]="webContainerService.url() | safeUrl"></iframe>
+        <iframe [src]="webContainerService.url() | safeUrl" allow="cross-origin-isolated"></iframe>
       </div>
 
       } @else {
