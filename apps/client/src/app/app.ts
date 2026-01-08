@@ -11,6 +11,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { FileExplorerComponent } from './file-explorer/file-explorer';
 import { EditorComponent } from './editor/editor.component';
 import { TerminalFormatterPipe } from './pipes/terminal-formatter.pipe';
+import { LayoutService } from './services/layout';
 
 @Pipe({
   name: 'safeUrl',
@@ -40,6 +41,7 @@ interface ChatMessage {
 export class AppComponent implements AfterViewChecked {
   private apiService = inject(ApiService);
   public webContainerService = inject(WebContainerService);
+  public layoutService = inject(LayoutService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
 
@@ -69,8 +71,6 @@ export class AppComponent implements AfterViewChecked {
   visualPrompt = '';
   
   isAutoFixEnabled = signal(true); // Default to on
-
-  isFullscreen = signal(false);
 
   loadingMessages = [
     'Adorable things take time...',

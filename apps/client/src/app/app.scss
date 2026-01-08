@@ -16,17 +16,67 @@
 
   
 
-    &.fullscreen {
+      &.fullscreen {
 
-      .sidebar, .resizer-sidebar, .editor-frame-container, .resizer {
+  
 
-        display: none !important;
+        .sidebar, .resizer-sidebar, .editor-frame-container, .resizer {
+
+  
+
+          display: none !important;
+
+  
+
+        }
+
+  
+
+        
+
+  
+
+        .preview-area {
+
+  
+
+          padding: 0 !important;
+
+  
+
+        }
+
+  
+
+    
+
+  
+
+        .preview-frame-container {
+
+  
+
+          border-radius: 0 !important;
+
+  
+
+          box-shadow: none !important;
+
+  
+
+        }
+
+  
 
       }
 
+  
+
     }
 
-  }
+  
+
+    
 
   
 
