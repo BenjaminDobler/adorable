@@ -267,7 +267,11 @@ async function saveFilesToDisk(basePath: string, files: any) {
     const node = files[name];
     const targetPath = path.join(basePath, name);
     if (node.file) {
-      await fs.writeFile(targetPath, node.file.contents);
+      if (node.file.encoding === 'base64') {
+        await fs.writeFile(targetPath, Buffer.from(node.file.contents, 'base64'));
+      } else {
+        await fs.writeFile(targetPath, node.file.contents);
+      }
     } else if (node.directory) {
       await fs.mkdir(targetPath, { recursive: true });
       await saveFilesToDisk(targetPath, node.directory);

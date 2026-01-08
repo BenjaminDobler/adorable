@@ -128,19 +128,49 @@
     }
   }
 
-  .project-meta {
-    flex: 1;
-    h1 {
-      margin: 0;
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--text-primary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 200px;
-    }
-    .status-badge {
+    .project-meta {
+
+      flex: 1;
+
+      .project-name-input {
+
+        margin: 0;
+
+        font-size: 1rem;
+
+        font-weight: 600;
+
+        color: var(--text-primary);
+
+        background: transparent;
+
+        border: 1px solid transparent;
+
+        border-radius: 4px;
+
+        padding: 2px 4px;
+
+        width: 100%;
+
+        max-width: 300px;
+
+        
+
+        &:focus {
+
+          border-color: var(--accent-color);
+
+          background: var(--input-bg);
+
+          outline: none;
+
+        }
+
+      }
+
+      .status-badge {
+
+  
       font-size: 0.625rem;
       text-transform: uppercase;
       font-weight: 700;

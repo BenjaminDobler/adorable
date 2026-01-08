@@ -53,18 +53,24 @@ export const BASE_FILES = {
                     browser: 'src/main.ts',
                     polyfills: ['zone.js'],
                     tsConfig: 'tsconfig.app.json',
-                    assets: [],
+                    assets: [
+                      {
+                        "glob": "**/*",
+                        "input": "public"
+                      }
+                    ],
                     styles: ['src/styles.css'],
                     scripts: [],
                   },
                 },
-                serve: {
-                  builder: '@angular/build:dev-server',
-                  options: {
-                    buildTarget: 'app:build',
-                    hmr: false,
-                  },
-                },
+              serve: {
+                builder: '@angular/build:dev-server',
+                options: {
+                  buildTarget: 'app:build',
+                  hmr: false,
+                  allowedHosts: ["all"]
+                }
+              }
               },
             },
           },
@@ -127,6 +133,13 @@ export const BASE_FILES = {
         2,
       ),
     },
+  },
+  'public': {
+    directory: {
+      '.gitkeep': {
+        file: { contents: '' }
+      }
+    }
   },
   src: {
     directory: {

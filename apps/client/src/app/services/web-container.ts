@@ -54,11 +54,17 @@ export class WebContainerService {
       }
   
       this.status.set('Installing dependencies...');
-      const installProcess = await this.webcontainerInstance!.spawn('npm', ['install']);
-      installProcess.output.pipeTo(new WritableStream({
-        write: (data) => this.output.update(o => o + data)
-      }));
-      return installProcess.exit;
+          const installProcess = await this.webcontainerInstance!.spawn('npm', ['install']);
+          installProcess.output.pipeTo(new WritableStream({
+            write: (data) => {
+              this.output.update(o => {
+                const val = o + data;
+                return val.length > 50000 ? val.slice(-50000) : val;
+              });
+            }
+          }));
+          return installProcess.exit;
+      
     }
   
     async stopDevServer() {
@@ -101,11 +107,23 @@ export class WebContainerService {
       
       let errorBuffer = '';
   
-      serverProcess.output.pipeTo(new WritableStream({
-        write: (data) => {
-          this.output.update(o => o + data);
-          
-          // Simple status parsing
+          serverProcess.output.pipeTo(new WritableStream({
+  
+            write: (data) => {
+  
+              this.output.update(o => {
+  
+                const val = o + data;
+  
+                return val.length > 50000 ? val.slice(-50000) : val;
+  
+              });
+  
+              
+  
+              // Simple status parsing
+  
+      
           if (data.includes('Building...')) {
             this.status.set('Building...');
             errorBuffer = ''; // Reset error buffer on new build
@@ -129,12 +147,9 @@ export class WebContainerService {
         this.status.set('Server Ready');
       });
     }
-      async writeFile(path: string, contents: string) {
-
+      async writeFile(path: string, contents: string | Uint8Array) {
       console.log('eb-container:  Writing file:', path);
-
       await this.webcontainerInstance!.fs.writeFile(path, contents);
-
     }
 
   

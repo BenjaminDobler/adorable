@@ -12,6 +12,8 @@ import { FileExplorerComponent } from './file-explorer/file-explorer';
 import { EditorComponent } from './editor/editor.component';
 import { TerminalFormatterPipe } from './pipes/terminal-formatter.pipe';
 import { LayoutService } from './services/layout';
+import { ToastService } from './services/toast';
+import { ToastComponent } from './ui/toast/toast.component';
 
 @Pipe({
   name: 'safeUrl',
@@ -42,6 +44,7 @@ export class AppComponent implements AfterViewChecked {
   private apiService = inject(ApiService);
   public webContainerService = inject(WebContainerService);
   public layoutService = inject(LayoutService);
+  private toastService = inject(ToastService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
 
@@ -328,11 +331,35 @@ export class AppComponent implements AfterViewChecked {
     this.selectedFileContent.set(event.content);
   }
 
-  async onFileContentChange(newContent: string) {
-    const path = this.selectedFilePath();
+  isImage(filename: string): boolean {
+    return /\.(png|jpg|jpeg|gif|svg|webp|ico)$/i.test(filename);
+  }
+
+  onUploadFiles(event: any) {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const reader = new FileReader();
+      
+      reader.onload = (e: any) => {
+        const content = e.target.result;
+        // Upload to public folder which is configured in angular.json assets
+        const targetPath = `public/${file.name}`;
+        this.onFileContentChange(content, targetPath);
+        this.toastService.show(`Uploaded ${file.name}`, 'success');
+      };
+      
+      reader.readAsDataURL(file);
+    }
+  }
+
+  async onFileContentChange(newContent: string, explicitPath?: string) {
+    const path = explicitPath || this.selectedFilePath();
     if (path) {
       // Update allFiles (view state)
-      this.updateFileInTree(this.allFiles, path, newContent);
+      this.updateFileInTree(this.allFiles, path, newContent, true);
       
       // Update currentFiles (save state)
       if (!this.currentFiles) this.currentFiles = {};
@@ -340,11 +367,25 @@ export class AppComponent implements AfterViewChecked {
 
       // Update WebContainer (live preview)
       try {
-        await this.webContainerService.writeFile(path, newContent);
+        let writeContent: string | Uint8Array = newContent;
+        if (typeof newContent === 'string' && newContent.startsWith('data:')) {
+           writeContent = this.dataURIToUint8Array(newContent);
+        }
+        await this.webContainerService.writeFile(path, writeContent);
       } catch (err) {
         console.error('Failed to write file to WebContainer', err);
       }
     }
+  }
+
+  private dataURIToUint8Array(dataURI: string): Uint8Array {
+    const byteString = atob(dataURI.split(',')[1]);
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    return ia;
   }
 
   autoRepair(error: string) {
@@ -359,7 +400,6 @@ export class AppComponent implements AfterViewChecked {
     Errors:
     ${error}`;
     
-    // Set prompt and trigger generation
     this.prompt = repairPrompt;
     this.generate();
   }
@@ -469,13 +509,13 @@ export class AppComponent implements AfterViewChecked {
       thumbnail
     ).subscribe({
       next: (project) => {
-        alert('Project saved!');
+        this.toastService.show('Project saved successfully!', 'success');
         this.projectId = project.id;
         this.loading.set(false);
       },
       error: (err) => {
         console.error(err);
-        alert('Failed to save project');
+        this.toastService.show('Failed to save project', 'error');
         this.loading.set(false);
         this.isSavingWithThumbnail = false;
       }
@@ -502,11 +542,23 @@ export class AppComponent implements AfterViewChecked {
           this.messages.set([]); 
         }
 
+        // DEBUG: Check loaded files for corruption
+        console.log('Loaded files keys:', Object.keys(this.currentFiles));
+        if (this.currentFiles['public'] && this.currentFiles['public'].directory) {
+           const dir = this.currentFiles['public'].directory;
+           for (const f in dir) {
+             if (dir[f].file) {
+                const start = dir[f].file.contents.substring(0, 50);
+                console.log(`File ${f} starts with:`, start);
+             }
+           }
+        }
+
         await this.reloadPreview(this.currentFiles);
       },
       error: (err) => {
         console.error(err);
-        alert('Failed to load project');
+        this.toastService.show('Failed to load project', 'error');
         this.router.navigate(['/dashboard']);
       }
     });
@@ -523,6 +575,7 @@ export class AppComponent implements AfterViewChecked {
         text: 'Restored project to previous version.',
         timestamp: new Date()
       }]);
+      this.toastService.show('Version restored', 'info');
     }
   }
 
@@ -538,8 +591,15 @@ export class AppComponent implements AfterViewChecked {
       const projectFiles = this.mergeFiles(BASE_FILES, this.currentFiles);
       this.allFiles = projectFiles;
       
-      // 3. Mount new files
-      await this.webContainerService.mount(projectFiles);
+      const { tree, binaries } = this.prepareFilesForMount(projectFiles);
+
+      // 3. Mount text files
+      await this.webContainerService.mount(tree);
+      
+      // 3b. Write binary files explicitly (workaround for potential mount binary issues)
+      for (const bin of binaries) {
+        await this.webContainerService.writeFile(bin.path, bin.content);
+      }
       
       // 4. Install (optimized internally)
       const exitCode = await this.webContainerService.runInstall();
@@ -553,6 +613,31 @@ export class AppComponent implements AfterViewChecked {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  private prepareFilesForMount(files: any, prefix = ''): { tree: any, binaries: { path: string, content: Uint8Array }[] } {
+    const tree: any = {};
+    let binaries: { path: string, content: Uint8Array }[] = [];
+
+    for (const key in files) {
+      const fullPath = prefix + key;
+      if (files[key].file) {
+        let content = files[key].file.contents;
+        const isDataUri = typeof content === 'string' && content.trim().startsWith('data:');
+        
+        if (isDataUri) {
+           const binary = this.dataURIToUint8Array(content);
+           binaries.push({ path: fullPath, content: binary });
+        } else {
+           tree[key] = files[key];
+        }
+      } else if (files[key].directory) {
+        const result = this.prepareFilesForMount(files[key].directory, fullPath + '/');
+        tree[key] = { directory: result.tree };
+        binaries = binaries.concat(result.binaries);
+      }
+    }
+    return { tree, binaries };
   }
 
   async downloadZip() {
@@ -577,8 +662,10 @@ export class AppComponent implements AfterViewChecked {
       addFilesToZip(fullProject, '');
       const content = await zip.generateAsync({ type: 'blob' });
       saveAs(content, `${this.projectName || 'adorable-app'}.zip`);
+      this.toastService.show('Project exported', 'success');
     } catch (err) {
       console.error('Export failed:', err);
+      this.toastService.show('Failed to export project', 'error');
     } finally {
       this.loading.set(false);
     }
@@ -586,7 +673,7 @@ export class AppComponent implements AfterViewChecked {
 
   async publish() {
     if (!this.projectId || this.projectId === 'new') {
-      alert('Please save the project first.');
+      this.toastService.show('Please save the project first', 'info');
       return;
     }
 
@@ -616,11 +703,12 @@ export class AppComponent implements AfterViewChecked {
             timestamp: new Date()
           }]);
           window.open(res.url, '_blank');
+          this.toastService.show('Site published successfully!', 'success');
           this.loading.set(false);
         },
         error: (err) => {
           console.error(err);
-          alert('Publishing failed');
+          this.toastService.show('Publishing failed', 'error');
           this.loading.set(false);
         }
       });
@@ -632,6 +720,55 @@ export class AppComponent implements AfterViewChecked {
         text: `Publishing error: ${err.message}`,
         timestamp: new Date()
       }]);
+      this.toastService.show('Publishing failed', 'error');
+      this.loading.set(false);
+    }
+  }
+
+  async migrateProject() {
+    if (!this.currentFiles) return;
+    
+    this.loading.set(true);
+    try {
+      // 1. Ensure 'public' directory exists
+      if (!this.currentFiles['public']) {
+        this.updateFileInTree(this.currentFiles, 'public/.gitkeep', '', true);
+      }
+
+      // 2. Update angular.json
+      if (this.currentFiles['angular.json']) {
+        const content = this.currentFiles['angular.json'].file.contents;
+        const config = JSON.parse(content);
+        
+        // Fix Assets
+        const appArchitect = config.projects.app.architect;
+        const buildOptions = appArchitect.build.options;
+        
+        // Ensure assets array has public
+        const hasPublic = buildOptions.assets.some((a: any) => typeof a === 'object' && a.input === 'public');
+        if (!hasPublic) {
+           buildOptions.assets.push({ "glob": "**/*", "input": "public" });
+        }
+
+        // Fix Serve Options (Disable HMR)
+        const serveOptions = appArchitect.serve.options;
+        serveOptions.hmr = false;
+        serveOptions.allowedHosts = ["all"];
+
+        // Write back
+        const newConfig = JSON.stringify(config, null, 2);
+        this.updateFileInTree(this.currentFiles, 'angular.json', newConfig);
+        
+        // Update allFiles view state too
+        this.updateFileInTree(this.allFiles, 'angular.json', newConfig);
+      }
+
+      await this.reloadPreview(this.currentFiles);
+      this.toastService.show('Project configuration updated', 'success');
+    } catch (err) {
+      console.error(err);
+      this.toastService.show('Migration failed', 'error');
+    } finally {
       this.loading.set(false);
     }
   }
@@ -648,13 +785,37 @@ export class AppComponent implements AfterViewChecked {
           directory: await this.getFilesRecursively(fullPath)
         };
       } else {
-        const contents = await this.webContainerService.readFile(fullPath);
-        files[entry.name] = {
-          file: { contents }
-        };
+        const isBinary = /\.(png|jpg|jpeg|gif|svg|webp|ico|pdf|eot|ttf|woff|woff2)$/i.test(entry.name);
+        console.log(`Publish Check: '${entry.name}' isBinary=${isBinary}`);
+        
+        if (isBinary) {
+          console.log('Publish: Processing binary file', entry.name);
+          const binary = await this.webContainerService.readBinaryFile(fullPath);
+          files[entry.name] = {
+            file: { 
+              contents: this.uint8ArrayToBase64(binary),
+              encoding: 'base64'
+            }
+          };
+        } else {
+          console.log('Publish: Processing text file', entry.name);
+          const contents = await this.webContainerService.readFile(fullPath);
+          files[entry.name] = {
+            file: { contents }
+          };
+        }
       }
     }
     return files;
+  }
+
+  private uint8ArrayToBase64(bytes: Uint8Array): string {
+    let binary = '';
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
   }
 
   async generate() {
@@ -829,4 +990,7 @@ export class AppComponent implements AfterViewChecked {
       this.messageInterval = null;
     }
   }
+
+
+
 }
