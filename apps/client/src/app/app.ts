@@ -72,6 +72,7 @@ export class AppComponent implements AfterViewChecked {
   isInspectionActive = signal(false);
   visualEditorData = signal<any>(null);
   visualPrompt = '';
+  terminalInput = '';
   
   isAutoFixEnabled = signal(true); // Default to on
   shouldAddToAssets = signal(true);
@@ -183,6 +184,12 @@ export class AppComponent implements AfterViewChecked {
 
   closeVisualEditor() {
     this.visualEditorData.set(null);
+  }
+
+  sendTerminalCommand() {
+    if (!this.terminalInput) return;
+    this.webContainerService.writeToShell(this.terminalInput + '\n');
+    this.terminalInput = '';
   }
 
   applyVisualChanges(prompt: string) {

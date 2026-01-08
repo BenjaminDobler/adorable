@@ -7,32 +7,59 @@ import { WebContainer } from '@webcontainer/api';
 export class WebContainerService {
   private webcontainerInstance?: WebContainer;
   private serverProcess?: any;
+  private shellProcess?: any;
   private lastPackageJson: string | null = null;
   
-    public url = signal<string | null>(null);
-    public isBooting = signal<boolean>(false);
-    public output = signal<string>('');
+  public url = signal<string | null>(null);
+  public isBooting = signal<boolean>(false);
+  public output = signal<string>('');
+  
+  public status = signal<string>('Idle');
+  public buildError = signal<string | null>(null);
+
+  async boot() {
+    if (this.webcontainerInstance) return;
     
-    public status = signal<string>('Idle');
-    public buildError = signal<string | null>(null);
-  
-    async boot() {
-      if (this.webcontainerInstance) return;
-      
-      this.status.set('Booting WebContainer...');
-      this.isBooting.set(true);
-      try {
-        this.webcontainerInstance = await WebContainer.boot();
-        this.isBooting.set(false);
-      } catch (err) {
-        this.status.set('Boot failed');
-        console.error('Failed to boot WebContainer', err);
-        this.isBooting.set(false);
-        throw err;
-      }
+    this.status.set('Booting WebContainer...');
+    this.isBooting.set(true);
+    try {
+      this.webcontainerInstance = await WebContainer.boot();
+      this.isBooting.set(false);
+      this.startShell(); // Start the shell immediately
+    } catch (err) {
+      this.status.set('Boot failed');
+      console.error('Failed to boot WebContainer', err);
+      this.isBooting.set(false);
+      throw err;
     }
-  
-    async mount(files: any) {
+  }
+
+  async startShell() {
+    if (this.shellProcess) return;
+    try {
+      this.shellProcess = await this.webcontainerInstance!.spawn('jsh');
+      this.shellProcess.output.pipeTo(new WritableStream({
+        write: (data) => {
+          this.output.update(o => {
+            const val = o + data;
+            return val.length > 50000 ? val.slice(-50000) : val;
+          });
+        }
+      }));
+    } catch (e) {
+      console.error('Failed to start shell', e);
+    }
+  }
+
+  async writeToShell(data: string) {
+    if (!this.shellProcess) await this.startShell();
+    const writer = this.shellProcess.input.getWriter();
+    await writer.write(data);
+    writer.releaseLock();
+  }
+
+  async mount(files: any) {
+
       this.status.set('Mounting files...');
       if (!this.webcontainerInstance) await this.boot();
       // TODO: Consider cleaning 'src' to avoid ghost files when switching projects completely
