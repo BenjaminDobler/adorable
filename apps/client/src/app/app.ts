@@ -917,6 +917,7 @@ export class AppComponent implements AfterViewChecked {
     const previousSrc = this.currentFiles?.['src'];
     
     let fullStreamText = '';
+    let hasResult = false;
 
     this.apiService.generateStream(currentPrompt, previousSrc, {
       provider: this.appSettings?.provider,
@@ -926,6 +927,7 @@ export class AppComponent implements AfterViewChecked {
     }).subscribe({
       next: async (event) => {
         if (event.type === 'text') {
+          // ... existing logic ...
           fullStreamText += event.content;
           
           // Parse stream for display
@@ -934,19 +936,17 @@ export class AppComponent implements AfterViewChecked {
           if (explMatch) {
             displayText = explMatch[1].trim();
           } else if (fullStreamText.trim().startsWith('<explanation>')) {
-             // Handle case where we are inside the tag but regex failed
              displayText = fullStreamText.replace('<explanation>', '').trim();
           }
 
           // Extract file paths
-          const fileMatches = fullStreamText.matchAll(/<file path="([^"]+)">/g);
+          const fileMatches = fullStreamText.matchAll(/<file\s+path="([^"]+)"/g);
           const files = Array.from(fileMatches).map(m => m[1]);
           
           if (files.length > 0) {
             displayText += '\n\n**Updating files:**\n' + files.map(f => `• ${f}`).join('\n');
           }
 
-          // Fallback if no tags found yet (start of stream) but raw text exists
           if (!displayText && !fullStreamText.includes('<file')) {
              displayText = fullStreamText.replace('<explanation>', '');
           }
@@ -957,8 +957,10 @@ export class AppComponent implements AfterViewChecked {
             return newMsgs;
           });
         } else if (event.type === 'result') {
+          hasResult = true;
           try {
             this.attachedImage = null;
+            this.attachedFile = null;
             const res = event.content;
             
             let base = BASE_FILES;
@@ -972,9 +974,6 @@ export class AppComponent implements AfterViewChecked {
               const newMsgs = [...msgs];
               newMsgs[assistantMsgIndex].files = projectFiles;
               if (res.explanation) {
-                 // Keep the nice file list or just the explanation? 
-                 // User wants explanation. The file list is implicit in the result.
-                 // Let's just show explanation + file list as summary.
                  const filePaths = this.extractFilePaths(res.files);
                  newMsgs[assistantMsgIndex].text = res.explanation + '\n\n**Updated files:**\n' + filePaths.map(f => `• ${f}`).join('\n');
               }
@@ -1011,7 +1010,9 @@ export class AppComponent implements AfterViewChecked {
         }]);
       },
       complete: () => {
-        this.loading.set(false);
+        if (!hasResult) {
+           this.loading.set(false);
+        }
       }
     });
   }
