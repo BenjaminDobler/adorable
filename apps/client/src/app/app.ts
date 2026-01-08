@@ -67,6 +67,8 @@ export class AppComponent implements AfterViewChecked {
   isInspectionActive = signal(false);
   visualEditorData = signal<any>(null);
   visualPrompt = '';
+  
+  isFullscreen = signal(false);
 
   loadingMessages = [
     'Adorable things take time...',
