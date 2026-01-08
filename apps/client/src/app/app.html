@@ -361,159 +361,243 @@
 
     
 
-                            @if (activeTab() === 'terminal') {
+                                    @if (activeTab() === 'terminal') {
 
     
 
-                              <div class="terminal-view">
+                                      <div class="terminal-view" style="display: flex; flex-direction: column; height: 100%;">
 
     
 
-                                <div class="terminal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 4px 8px;">
+                                        <div class="terminal-tabs" style="display: flex; background: var(--panel-bg); border-bottom: 1px solid var(--panel-border); min-height: 36px;">
 
     
 
-                                  <div style="display: flex; gap: 8px;">
+                                           <button (click)="terminalTab.set('server')" 
 
     
 
-                                    <button
+                                                   [style.border-bottom]="terminalTab() === 'server' ? '2px solid var(--accent-color)' : '2px solid transparent'"
 
     
 
-                                      class="btn-clear"
+                                                   [style.color]="terminalTab() === 'server' ? 'var(--text-primary)' : 'var(--text-secondary)'"
 
     
 
-                                      (click)="webContainerService.output.set('')"
+                                                   style="flex: 1; font-size: 12px; background: none; border: none; border-right: 1px solid var(--panel-border); cursor: pointer;">
 
     
 
-                                    >
+                                             Server Logs
 
     
 
-                                      Clear
+                                           </button>
 
     
 
-                                    </button>
+                                           <button (click)="terminalTab.set('shell')" 
 
     
 
-                                  </div>
+                                                   [style.border-bottom]="terminalTab() === 'shell' ? '2px solid var(--accent-color)' : '2px solid transparent'"
 
     
 
-                                  <div style="display: flex; gap: 8px; align-items: center;">
+                                                   [style.color]="terminalTab() === 'shell' ? 'var(--text-primary)' : 'var(--text-secondary)'"
 
     
 
-                                    <span style="font-size: 10px; color: var(--text-secondary);">Server:</span>
+                                                   style="flex: 1; font-size: 12px; background: none; border: none; cursor: pointer;">
 
     
 
-                                    @if (webContainerService.url()) {
+                                             Interactive Shell
 
     
 
-                                      <button (click)="webContainerService.stopDevServer()" class="icon-btn" title="Stop Dev Server" style="color: var(--error-color); padding: 4px;">
+                                           </button>
 
     
 
-                                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="currentColor"><rect x="6" y="6" width="12" height="12"></rect></svg>
+                                        </div>
 
     
 
-                                      </button>
+                            
 
     
 
-                                    } @else {
+                                        @if (terminalTab() === 'server') {
 
     
 
-                                      <button (click)="webContainerService.startDevServer()" class="icon-btn" title="Start Dev Server" style="color: var(--accent-color); padding: 4px;">
+                                          <div class="terminal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-bottom: 1px solid var(--panel-border);">
 
     
 
-                                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                            <div style="display: flex; gap: 8px;">
 
     
 
-                                      </button>
+                                              <button class="btn-clear" (click)="webContainerService.serverOutput.set('')">Clear</button>
 
     
 
-                                    }
+                                            </div>
 
     
 
-                                  </div>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
 
     
 
-                                </div>
+                                              <span style="font-size: 10px; color: var(--text-secondary);">Server:</span>
 
     
 
-                                <div class="terminal-window">
+                                              @if (webContainerService.url()) {
 
     
 
-                    
+                                                <button (click)="webContainerService.stopDevServer()" class="icon-btn" title="Stop Dev Server" style="color: var(--error-color); padding: 4px;">
 
     
 
-                          <code [innerHTML]="webContainerService.output() | terminalFormat"></code>
+                                                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="currentColor"><rect x="6" y="6" width="12" height="12"></rect></svg>
 
     
 
-                        </div>
+                                                </button>
 
     
 
-                        <div class="terminal-input-bar" style="border-top: 1px solid var(--panel-border); padding: 8px; background: #0a0a0a;">
+                                              } @else {
 
     
 
-                           <span style="color: var(--accent-color); margin-right: 8px;">$</span>
+                                                <button (click)="webContainerService.startDevServer()" class="icon-btn" title="Start Dev Server" style="color: var(--accent-color); padding: 4px;">
 
     
 
-                           <input 
+                                                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
 
     
 
-                             [(ngModel)]="terminalInput" 
+                                                </button>
 
     
 
-                             (keydown.enter)="sendTerminalCommand()"
+                                              }
 
     
 
-                             placeholder="npm install package..."
+                                            </div>
 
     
 
-                             style="width: calc(100% - 20px); background: transparent; border: none; color: #fff; font-family: monospace; outline: none;"
+                                          </div>
 
     
 
-                           />
+                                          <div class="terminal-window" style="flex: 1; overflow: auto;">
 
     
 
-                        </div>
+                                            <code [innerHTML]="webContainerService.serverOutput() | terminalFormat"></code>
 
     
 
-                      </div>
+                                          </div>
 
     
 
-                    } 
+                                        }
+
+    
+
+                            
+
+    
+
+                                        @if (terminalTab() === 'shell') {
+
+    
+
+                                          <div class="terminal-header" style="display: flex; justify-content: flex-end; padding: 4px 8px; border-bottom: 1px solid var(--panel-border);">
+
+    
+
+                                            <button class="btn-clear" (click)="webContainerService.shellOutput.set('')">Clear</button>
+
+    
+
+                                          </div>
+
+    
+
+                                          <div class="terminal-window" style="flex: 1; overflow: auto;">
+
+    
+
+                                            <code [innerHTML]="webContainerService.shellOutput() | terminalFormat"></code>
+
+    
+
+                                          </div>
+
+    
+
+                                          <div class="terminal-input-bar" style="border-top: 1px solid var(--panel-border); padding: 8px; background: #0a0a0a;">
+
+    
+
+                                             <span style="color: var(--accent-color); margin-right: 8px;">$</span>
+
+    
+
+                                             <input 
+
+    
+
+                                               [(ngModel)]="terminalInput" 
+
+    
+
+                                               (keydown.enter)="sendTerminalCommand()"
+
+    
+
+                                               placeholder="npm install package..."
+
+    
+
+                                               style="width: calc(100% - 20px); background: transparent; border: none; color: #fff; font-family: monospace; outline: none;"
+
+    
+
+                                             />
+
+    
+
+                                          </div>
+
+    
+
+                                        }
+
+    
+
+                                      </div>
+
+    
+
+                                    } 
+
+    
+
+                             
 
     
 

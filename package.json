@@ -70,6 +70,7 @@
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^6.4.1",
     "@webcontainer/api": "^1.6.1",
+    "ansi-to-html": "^0.7.2",
     "axios": "^1.6.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",

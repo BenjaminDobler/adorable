@@ -73,6 +73,7 @@ export class AppComponent implements AfterViewChecked {
   visualEditorData = signal<any>(null);
   visualPrompt = '';
   terminalInput = '';
+  terminalTab = signal<'server' | 'shell'>('server');
   
   isAutoFixEnabled = signal(true); // Default to on
   shouldAddToAssets = signal(true);

@@ -1,5 +1,7 @@
 import { Pipe, PipeTransform, inject } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+// @ts-ignore
+import Convert from 'ansi-to-html';
 
 @Pipe({
   name: 'terminalFormat',
@@ -7,56 +9,38 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 })
 export class TerminalFormatterPipe implements PipeTransform {
   private sanitizer = inject(DomSanitizer);
+  private converter = new Convert({
+    fg: '#e5e7eb',
+    bg: 'transparent',
+    newline: true,
+    escapeXML: true,
+    colors: {
+      0: '#000000',
+      1: '#ef4444', // red
+      2: '#22c55e', // green
+      3: '#eab308', // yellow
+      4: '#3b82f6', // blue
+      5: '#a855f7', // magenta
+      6: '#06b6d4', // cyan
+      7: '#ffffff',
+    }
+  });
 
   transform(value: string): SafeHtml {
     if (!value) return '';
     
-    // Escape HTML entities to prevent XSS
-    let text = value.replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;');
+    // Aggressively strip known problematic codes that ansi-to-html might miss or render as symbols
+    // OSC codes (window title), Cursor hide/show, etc.
+    // eslint-disable-next-line no-control-regex
+    let clean = value.replace(/\x1B\][0-9];.*?\x07/g, '')
+                     .replace(/\x1B\[\??\d*[a-ln-z]/gi, '');
 
-    // Handle common codes
-    text = text.replace(/\x1B\[2K/g, ''); // Clear line
-    text = text.replace(/\x1B\[1G/g, ''); // Move to start (cr)
-    text = text.replace(/\x1B\[0K/g, ''); // Clear line to end
-    
-    // Remove spinner noise
-    text = text.replace(/[\\|/-]{2,}/g, ''); // Sequence of spinner chars
-    text = text.replace(/\s[\\|/-]\s/g, ''); // Single spinner char with spaces
+    // Handle carriage returns that are often used for progress bars in shell
+    // In a simple log view, we'll just treat them as newlines if they are followed by content, 
+    // or just strip them to avoid the [0K noise.
+    clean = clean.replace(/\x1B\[0K/g, '');
 
-    const colors: {[key: number]: string} = {
-      30: '#000000', 31: '#ef4444', 32: '#22c55e', 33: '#eab308', 34: '#3b82f6', 35: '#a855f7', 36: '#06b6d4', 37: '#ffffff',
-      90: '#737373', 91: '#f87171', 92: '#4ade80', 93: '#facc15', 94: '#60a5fa', 95: '#c084fc', 96: '#22d3ee', 97: '#ffffff'
-    };
-
-    // Split by ANSI escape sequences \x1B[...m
-    const parts = text.split(/\x1B\[(\d+)m/);
-    let html = '';
-    let currentSpan = false;
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if (i % 2 === 1) { // It's a code
-        const code = parseInt(part, 10);
-        if (code === 0) {
-          if (currentSpan) { html += '</span>'; currentSpan = false; }
-        } else if (code === 1) {
-          if (currentSpan) html += '</span>'; 
-          html += '<span style="font-weight:bold">';
-          currentSpan = true;
-        } else if (colors[code]) {
-          if (currentSpan) html += '</span>';
-          html += `<span style="color:${colors[code]}">`;
-          currentSpan = true;
-        }
-      } else {
-        html += part;
-      }
-    }
-    
-    if (currentSpan) html += '</span>';
-
+    const html = this.converter.toHtml(clean);
     return this.sanitizer.bypassSecurityTrustHtml(html);
   }
 }

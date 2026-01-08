@@ -12,7 +12,8 @@ export class WebContainerService {
   
   public url = signal<string | null>(null);
   public isBooting = signal<boolean>(false);
-  public output = signal<string>('');
+  public serverOutput = signal<string>('');
+  public shellOutput = signal<string>('');
   
   public status = signal<string>('Idle');
   public buildError = signal<string | null>(null);
@@ -40,7 +41,7 @@ export class WebContainerService {
       this.shellProcess = await this.webcontainerInstance!.spawn('jsh');
       this.shellProcess.output.pipeTo(new WritableStream({
         write: (data) => {
-          this.output.update(o => {
+          this.shellOutput.update(o => {
             const val = o + data;
             return val.length > 50000 ? val.slice(-50000) : val;
           });
@@ -71,7 +72,7 @@ export class WebContainerService {
       try {
         const packageJson = await this.webcontainerInstance!.fs.readFile('package.json', 'utf-8');
         if (this.lastPackageJson === packageJson) {
-          this.output.update(o => o + 'Dependencies unchanged, skipping npm install...\n');
+          this.serverOutput.update(o => o + 'Dependencies unchanged, skipping pnpm install...\n');
           this.status.set('Dependencies up to date');
           return 0;
         }
@@ -81,10 +82,9 @@ export class WebContainerService {
       }
   
     this.status.set('Installing dependencies...');
-    // Use pnpm for faster installation
-    const installProcess = await this.webcontainerInstance!.spawn('pnpm', ['install']);
+    const installProcess = await this.webcontainerInstance!.spawn('npm', ['install']);
     installProcess.output.pipeTo(new WritableStream({
-      write: (data) => this.output.update(o => o + data)
+      write: (data) => this.serverOutput.update(o => o + data)
     }));
     return installProcess.exit;
   }
@@ -129,21 +129,23 @@ export class WebContainerService {
       
       let errorBuffer = '';
   
-          serverProcess.output.pipeTo(new WritableStream({
+              serverProcess.output.pipeTo(new WritableStream({
   
-            write: (data) => {
+                write: (data) => {
   
-              this.output.update(o => {
+                  this.serverOutput.update(o => {
   
-                const val = o + data;
+                    const val = o + data;
   
-                return val.length > 50000 ? val.slice(-50000) : val;
+                    return val.length > 50000 ? val.slice(-50000) : val;
   
-              });
+                  });
   
-              
+                  
   
-              // Simple status parsing
+                  // Simple status parsing
+  
+          
   
       
           if (data.includes('Building...')) {
@@ -184,19 +186,35 @@ export class WebContainerService {
 
   
 
-        const buildProcess = await this.webcontainerInstance!.spawn('npm', ['run', 'build', '--', ...args]);
+                const buildProcess = await this.webcontainerInstance!.spawn('npm', ['run', 'build', '--', ...args]);
 
   
 
-        buildProcess.output.pipeTo(new WritableStream({
+        
 
   
 
-          write: (data) => this.output.update(o => o + data)
+                buildProcess.output.pipeTo(new WritableStream({
 
   
 
-        }));
+        
+
+  
+
+                  write: (data) => this.serverOutput.update(o => o + data)
+
+  
+
+        
+
+  
+
+                }));
+
+  
+
+        
 
   
 
