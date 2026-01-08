@@ -53,21 +53,16 @@ export class WebContainerService {
         // package.json might not exist yet or read failed
       }
   
-      this.status.set('Installing dependencies...');
-          const installProcess = await this.webcontainerInstance!.spawn('npm', ['install']);
-          installProcess.output.pipeTo(new WritableStream({
-            write: (data) => {
-              this.output.update(o => {
-                const val = o + data;
-                return val.length > 50000 ? val.slice(-50000) : val;
-              });
-            }
-          }));
-          return installProcess.exit;
-      
-    }
-  
-    async stopDevServer() {
+    this.status.set('Installing dependencies...');
+    // Use pnpm for faster installation
+    const installProcess = await this.webcontainerInstance!.spawn('pnpm', ['install']);
+    installProcess.output.pipeTo(new WritableStream({
+      write: (data) => this.output.update(o => o + data)
+    }));
+    return installProcess.exit;
+  }
+
+  async stopDevServer() {
       if (this.serverProcess) {
         this.serverProcess.kill();
         this.serverProcess = undefined;
