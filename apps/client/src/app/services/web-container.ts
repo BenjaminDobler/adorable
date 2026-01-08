@@ -133,39 +133,45 @@ export class WebContainerService {
       this.serverProcess = serverProcess;
       
       let errorBuffer = '';
+      let hasErrors = false;
   
-              serverProcess.output.pipeTo(new WritableStream({
+          serverProcess.output.pipeTo(new WritableStream({
   
-                write: (data) => {
+            write: (data) => {
+              this.serverOutput.update(o => {
+                const val = o + data;
+                return val.length > 50000 ? val.slice(-50000) : val;
+              });
   
-                  this.serverOutput.update(o => {
-  
-                    const val = o + data;
-  
-                    return val.length > 50000 ? val.slice(-50000) : val;
-  
-                  });
-  
-                  
-  
-                  // Simple status parsing
-  
-          
-  
+              // Simple status parsing
+              // eslint-disable-next-line no-control-regex
+              const clean = data.replace(/\x1B\[\d+m/g, ''); // Strip colors
       
-          if (data.includes('Building...')) {
+          if (clean.includes('Building...')) {
             this.status.set('Building...');
             errorBuffer = ''; // Reset error buffer on new build
-          } else if (data.includes('Application bundle generation complete')) {
+            hasErrors = false;
+            this.buildError.set(null);
+          } 
+          
+          if (clean.includes('[ERROR]')) {
+            this.status.set('Build Error');
+            hasErrors = true;
+          }
+          
+          if (hasErrors) {
+             errorBuffer += clean;
+          }
+
+          if (clean.includes('Application bundle generation failed') && hasErrors) {
+             // Build finished with errors
+             this.buildError.set(errorBuffer);
+          }
+
+          if (clean.includes('Application bundle generation complete')) {
             this.status.set('Ready');
             this.buildError.set(null); // Clear errors
-          } else if (data.includes('[ERROR]')) {
-            this.status.set('Build Error');
-            errorBuffer += data;
-            // Debounce error emission? 
-            // For now, let's just capture it. 
-            // We might want to wait for the stream to settle or just emit if we see a fatal error.
-            this.buildError.set(errorBuffer); 
+            hasErrors = false;
           }
         }
       }));
