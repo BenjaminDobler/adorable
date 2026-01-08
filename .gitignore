@@ -49,3 +49,4 @@ __screenshots__/
 /generated/prisma
 *.db
 apps/client/public/assets/monaco
+published-sites

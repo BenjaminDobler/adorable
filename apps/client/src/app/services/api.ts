@@ -86,7 +86,20 @@ export class ApiService {
     return this.http.get<any>(`${this.apiUrl}/profile`);
   }
 
-  updateProfile(data: { name?: string, settings?: any }) {
-    return this.http.post<any>(`${this.apiUrl}/profile`, data);
+    updateProfile(data: { name?: string, settings?: any }) {
+
+      return this.http.post<any>(`${this.apiUrl}/profile`, data);
+
+    }
+
+  
+
+    publish(projectId: string, files: any) {
+
+      return this.http.post<any>(`${this.apiUrl}/publish/${projectId}`, { files });
+
+    }
+
   }
-}
+
+  

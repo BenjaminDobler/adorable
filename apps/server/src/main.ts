@@ -16,6 +16,9 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
+const SITES_DIR = path.join(process.cwd(), 'published-sites');
+fs.mkdir(SITES_DIR, { recursive: true }).catch(console.error);
+
 // --- Authentication Routes ---
 
 app.post('/api/auth/register', async (req, res) => {
@@ -94,6 +97,7 @@ app.use((req, res, next) => {
 });
 
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
+app.use('/sites', express.static(SITES_DIR));
 
 app.get('/api/health', (req, res) => {
   res.send({ status: 'ok' });
@@ -229,6 +233,47 @@ protectedRouter.delete('/projects/:id', async (req: any, res) => {
       res.status(500).json({ error: 'Failed to delete project' });
     }
 });
+
+protectedRouter.post('/publish/:id', async (req: any, res) => {
+  const { id } = req.params;
+  const { files } = req.body;
+  const user = req.user;
+
+  try {
+    const project = await prisma.project.findFirst({
+      where: { id, userId: user.id }
+    });
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const sitePath = path.join(SITES_DIR, id);
+    await fs.mkdir(sitePath, { recursive: true });
+    
+    // Clear existing
+    await fs.rm(sitePath, { recursive: true, force: true });
+    await fs.mkdir(sitePath, { recursive: true });
+
+    await saveFilesToDisk(sitePath, files);
+
+    const publicUrl = `http://localhost:${port}/sites/${id}/index.html`;
+    res.json({ url: publicUrl });
+  } catch (error) {
+    console.error('Publish error:', error);
+    res.status(500).json({ error: 'Failed to publish site' });
+  }
+});
+
+async function saveFilesToDisk(basePath: string, files: any) {
+  for (const name in files) {
+    const node = files[name];
+    const targetPath = path.join(basePath, name);
+    if (node.file) {
+      await fs.writeFile(targetPath, node.file.contents);
+    } else if (node.directory) {
+      await fs.mkdir(targetPath, { recursive: true });
+      await saveFilesToDisk(targetPath, node.directory);
+    }
+  }
+}
 
 protectedRouter.post('/generate', async (req: any, res) => {
     const { prompt, previousFiles, provider, model, apiKey, images } = req.body;

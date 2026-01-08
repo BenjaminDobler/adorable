@@ -97,8 +97,74 @@ export class WebContainerService {
     });
   } 
 
-  async writeFile(path: string, contents: string) {
-    console.log('eb-container:  Writing file:', path);
-    await this.webcontainerInstance!.fs.writeFile(path, contents);
+    async writeFile(path: string, contents: string) {
+
+      console.log('eb-container:  Writing file:', path);
+
+      await this.webcontainerInstance!.fs.writeFile(path, contents);
+
+    }
+
+  
+
+      async runBuild(args: string[] = []) {
+
+  
+
+        console.log('web-container:  running npm run build', args);
+
+  
+
+        const buildProcess = await this.webcontainerInstance!.spawn('npm', ['run', 'build', '--', ...args]);
+
+  
+
+        buildProcess.output.pipeTo(new WritableStream({
+
+  
+
+          write: (data) => this.output.update(o => o + data)
+
+  
+
+        }));
+
+  
+
+        return buildProcess.exit;
+
+  
+
+      }
+
+  
+
+    
+
+  
+
+    async readdir(path: string, options?: { withFileTypes: boolean }) {
+
+      return await this.webcontainerInstance!.fs.readdir(path, options as any);
+
+    }
+
+  
+
+    async readFile(path: string) {
+
+      return await this.webcontainerInstance!.fs.readFile(path, 'utf-8');
+
+    }
+
+  
+
+    async readBinaryFile(path: string) {
+
+      return await this.webcontainerInstance!.fs.readFile(path);
+
+    }
+
   }
-}
+
+  

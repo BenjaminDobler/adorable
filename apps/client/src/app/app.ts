@@ -10,6 +10,7 @@ import { saveAs } from 'file-saver';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FileExplorerComponent } from './file-explorer/file-explorer';
 import { EditorComponent } from './editor/editor.component';
+import { TerminalFormatterPipe } from './pipes/terminal-formatter.pipe';
 
 @Pipe({
   name: 'safeUrl',
@@ -31,7 +32,7 @@ interface ChatMessage {
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, SafeUrlPipe, FileExplorerComponent, EditorComponent],
+  imports: [CommonModule, FormsModule, SafeUrlPipe, FileExplorerComponent, EditorComponent, TerminalFormatterPipe],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -544,6 +545,79 @@ export class AppComponent implements AfterViewChecked {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  async publish() {
+    if (!this.projectId || this.projectId === 'new') {
+      alert('Please save the project first.');
+      return;
+    }
+
+    this.loading.set(true);
+    this.messages.update(msgs => [...msgs, {
+      role: 'system',
+      text: 'Building and publishing your app...',
+      timestamp: new Date()
+    }]);
+
+    try {
+      // 1. Run build with relative base-href
+      const exitCode = await this.webContainerService.runBuild(['--base-href', './']);
+      if (exitCode !== 0) throw new Error('Build failed');
+
+      // 2. Read dist files
+      // Angular build output is usually in dist/app/browser
+      const distPath = 'dist/app/browser';
+      const files = await this.getFilesRecursively(distPath);
+
+      // 3. Upload to server
+      this.apiService.publish(this.projectId, files).subscribe({
+        next: (res) => {
+          this.messages.update(msgs => [...msgs, {
+            role: 'assistant',
+            text: `Success! Your app is published at: ${res.url}`,
+            timestamp: new Date()
+          }]);
+          window.open(res.url, '_blank');
+          this.loading.set(false);
+        },
+        error: (err) => {
+          console.error(err);
+          alert('Publishing failed');
+          this.loading.set(false);
+        }
+      });
+
+    } catch (err: any) {
+      console.error(err);
+      this.messages.update(msgs => [...msgs, {
+        role: 'system',
+        text: `Publishing error: ${err.message}`,
+        timestamp: new Date()
+      }]);
+      this.loading.set(false);
+    }
+  }
+
+  private async getFilesRecursively(dirPath: string): Promise<any> {
+    const result = await this.webContainerService.readdir(dirPath, { withFileTypes: true });
+    const entries = result as unknown as { name: string; isDirectory: () => boolean }[];
+    const files: any = {};
+
+    for (const entry of entries) {
+      const fullPath = `${dirPath}/${entry.name}`;
+      if (entry.isDirectory()) {
+        files[entry.name] = {
+          directory: await this.getFilesRecursively(fullPath)
+        };
+      } else {
+        const contents = await this.webContainerService.readFile(fullPath);
+        files[entry.name] = {
+          file: { contents }
+        };
+      }
+    }
+    return files;
   }
 
   async generate() {
