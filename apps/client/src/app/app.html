@@ -223,15 +223,41 @@
 
                     </div>
 
-                    <div class="message-time">{{ msg.timestamp | date:'shortTime' }}</div>
+                                    <div class="message-time">{{ msg.timestamp | date:'shortTime' }}</div>
 
-                  </div>
+                                  </div>
 
-                }
+                                }
 
-                @if (loading()) {
+                                
 
-                   <div class="message assistant loading">
+                                @if (messages().length <= 1 && !loading()) {
+
+                                  <div class="quick-starters" style="padding: 0 1rem 1rem 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+
+                                    @for (starter of quickStarters; track starter.label) {
+
+                                      <button (click)="useQuickStarter(starter.prompt)" class="starter-card" style="background: var(--panel-bg); border: 1px solid var(--panel-border); padding: 12px; border-radius: 8px; text-align: left; cursor: pointer; transition: all 0.2s; color: var(--text-primary); display: flex; flex-direction: column; gap: 4px;">
+
+                                        <div style="font-weight: 600; font-size: 0.85rem; color: var(--accent-color);">{{ starter.label }}</div>
+
+                                        <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4;">{{ starter.prompt }}</div>
+
+                                      </button>
+
+                                    }
+
+                                  </div>
+
+                                }
+
+                    
+
+                                @if (loading()) {
+
+                                   <div class="message assistant loading">
+
+                    
 
                      <div class="typing-indicator">
 
@@ -397,39 +423,67 @@
 
     
 
-                                           <button (click)="terminalTab.set('shell')" 
+                                                          <button (click)="terminalTab.set('shell')" 
 
     
 
-                                                   [style.border-bottom]="terminalTab() === 'shell' ? '2px solid var(--accent-color)' : '2px solid transparent'"
+                                                                  [style.border-bottom]="terminalTab() === 'shell' ? '2px solid var(--accent-color)' : '2px solid transparent'"
 
     
 
-                                                   [style.color]="terminalTab() === 'shell' ? 'var(--text-primary)' : 'var(--text-secondary)'"
+                                                                  [style.color]="terminalTab() === 'shell' ? 'var(--text-primary)' : 'var(--text-secondary)'"
 
     
 
-                                                   style="flex: 1; font-size: 12px; background: none; border: none; cursor: pointer;">
+                                                                  style="flex: 1; font-size: 12px; background: none; border: none; border-right: 1px solid var(--panel-border); cursor: pointer;">
 
     
 
-                                             Interactive Shell
+                                                            Interactive Shell
 
     
 
-                                           </button>
+                                                          </button>
 
     
 
-                                        </div>
+                                                          <button (click)="terminalTab.set('console')" 
 
     
 
-                            
+                                                                  [style.border-bottom]="terminalTab() === 'console' ? '2px solid var(--accent-color)' : '2px solid transparent'"
 
     
 
-                                        @if (terminalTab() === 'server') {
+                                                                  [style.color]="terminalTab() === 'console' ? 'var(--text-primary)' : 'var(--text-secondary)'"
+
+    
+
+                                                                  style="flex: 1; font-size: 12px; background: none; border: none; cursor: pointer;">
+
+    
+
+                                                            Preview Console
+
+    
+
+                                                          </button>
+
+    
+
+                                                       </div>
+
+    
+
+                                           
+
+    
+
+                                                       @if (terminalTab() === 'server') {
+
+    
+
+                                           
 
     
 
@@ -553,47 +607,159 @@
 
     
 
-                                          <div class="terminal-input-bar" style="border-top: 1px solid var(--panel-border); padding: 8px; background: #0a0a0a;">
+                                                                                    <div class="terminal-input-bar" style="border-top: 1px solid var(--panel-border); padding: 8px; background: #0a0a0a;">
 
     
 
-                                             <span style="color: var(--accent-color); margin-right: 8px;">$</span>
+                                              
 
     
 
-                                             <input 
+                                                                                       <span style="color: var(--accent-color); margin-right: 8px;">$</span>
 
     
 
-                                               [(ngModel)]="terminalInput" 
+                                              
 
     
 
-                                               (keydown.enter)="sendTerminalCommand()"
+                                                                                       <input 
 
     
 
-                                               placeholder="npm install package..."
+                                              
 
     
 
-                                               style="width: calc(100% - 20px); background: transparent; border: none; color: #fff; font-family: monospace; outline: none;"
+                                                                                         [(ngModel)]="terminalInput" 
 
     
 
-                                             />
+                                              
 
     
 
-                                          </div>
+                                                                                         (keydown.enter)="sendTerminalCommand()"
 
     
 
-                                        }
+                                              
 
     
 
-                                      </div>
+                                                                                         placeholder="npm install package..."
+
+    
+
+                                              
+
+    
+
+                                                                                         style="width: calc(100% - 20px); background: transparent; border: none; color: #fff; font-family: monospace; outline: none;"
+
+    
+
+                                              
+
+    
+
+                                                                                       />
+
+    
+
+                                              
+
+    
+
+                                                                                    </div>
+
+    
+
+                                              
+
+    
+
+                                                                                  }
+
+    
+
+                                          
+
+    
+
+                                                                                  @if (terminalTab() === 'console') {
+
+    
+
+                                                                                    <div class="terminal-header" style="display: flex; justify-content: flex-end; padding: 4px 8px; border-bottom: 1px solid var(--panel-border);">
+
+    
+
+                                                                                      <button class="btn-clear" (click)="webContainerService.previewConsoleLogs.set([])">Clear</button>
+
+    
+
+                                                                                    </div>
+
+    
+
+                                                                                    <div class="terminal-window" style="flex: 1; overflow: auto; padding: 8px;">
+
+    
+
+                                                                                      @for (log of webContainerService.previewConsoleLogs(); track $index) {
+
+    
+
+                                                                                        <div [style.color]="log.level === 'error' ? '#ef4444' : log.level === 'warn' ? '#eab308' : '#e5e7eb'" 
+
+    
+
+                                                                                             style="font-family: monospace; font-size: 12px; margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 2px;">
+
+    
+
+                                                                                          <span style="opacity: 0.5; margin-right: 8px;">[{{ log.timestamp | date:'HH:mm:ss' }}]</span>
+
+    
+
+                                                                                          <span style="white-space: pre-wrap;">{{ log.message }}</span>
+
+    
+
+                                                                                        </div>
+
+    
+
+                                                                                      }
+
+    
+
+                                                                                      @if (webContainerService.previewConsoleLogs().length === 0) {
+
+    
+
+                                                                                         <div style="color: var(--text-secondary); opacity: 0.5; text-align: center; padding-top: 2rem; font-size: 12px;">No console logs yet</div>
+
+    
+
+                                                                                      }
+
+    
+
+                                                                                    </div>
+
+    
+
+                                                                                  }
+
+    
+
+                                              
+
+    
+
+                                                                                </div>
 
     
 

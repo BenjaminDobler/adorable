@@ -272,7 +272,17 @@
   gap: 1.5rem;
 }
 
-.message {
+  .starter-card {
+    &:hover {
+      background: rgba(255,255,255,0.05) !important;
+      border-color: var(--accent-color) !important;
+      transform: translateY(-1px);
+    }
+  }
+
+  .message {
+    margin-bottom: 1rem;
+
   display: flex;
   flex-direction: column;
   gap: 0.25rem;

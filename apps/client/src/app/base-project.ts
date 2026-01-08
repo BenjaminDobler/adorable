@@ -152,6 +152,28 @@ export const BASE_FILES = {
   <base href="/" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
           <script>
+    // Console Interceptor
+    (function() {
+      const originalLog = console.log;
+      const originalWarn = console.warn;
+      const originalError = console.error;
+
+      function send(type, args) {
+        const message = args.map(arg => {
+          try {
+            return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+          } catch (e) {
+            return String(arg);
+          }
+        }).join(' ');
+        window.parent.postMessage({ type: 'PREVIEW_CONSOLE', level: type, message }, '*');
+      }
+
+      console.log = function(...args) { originalLog.apply(console, args); send('log', args); };
+      console.warn = function(...args) { originalWarn.apply(console, args); send('warn', args); };
+      console.error = function(...args) { originalError.apply(console, args); send('error', args); };
+    })();
+
     // Visual Inspector Script
     (function() {
       let active = false;

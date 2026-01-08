@@ -14,9 +14,14 @@ export class WebContainerService {
   public isBooting = signal<boolean>(false);
   public serverOutput = signal<string>('');
   public shellOutput = signal<string>('');
+  public previewConsoleLogs = signal<Array<{ level: 'log'|'warn'|'error', message: string, timestamp: Date }>>([]);
   
   public status = signal<string>('Idle');
   public buildError = signal<string | null>(null);
+
+  addConsoleLog(log: { level: 'log'|'warn'|'error', message: string }) {
+    this.previewConsoleLogs.update(logs => [...logs, { ...log, timestamp: new Date() }]);
+  }
 
   async boot() {
     if (this.webcontainerInstance) return;
