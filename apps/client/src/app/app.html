@@ -1,6 +1,7 @@
 <div
   class="app-container"
   [class.selecting]="isSelecting"
+  [class.fullscreen]="isFullscreen()"
   (mousedown)="onMouseDown($event)"
   (mousemove)="onMouseMove($event)"
   (mouseup)="onMouseUp()"
@@ -24,10 +25,24 @@
       </button>
       <div class="project-meta">
         <h1>{{ projectName }}</h1>
-        <div class="status-badge" 
-             [class.active]="webContainerService.url()" 
-             [class.error]="webContainerService.buildError()">
-          {{ webContainerService.status() }}
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <div class="status-badge" 
+               [class.active]="webContainerService.url()" 
+               [class.error]="webContainerService.buildError()"
+               (click)="!isAutoFixEnabled() && webContainerService.buildError() ? manualFix() : null"
+               [style.cursor]="!isAutoFixEnabled() && webContainerService.buildError() ? 'pointer' : 'default'">
+            {{ webContainerService.status() }}
+            @if (!isAutoFixEnabled() && webContainerService.buildError()) {
+              <span style="margin-left: 4px; text-decoration: underline;">(Click to Fix)</span>
+            }
+          </div>
+          <button (click)="isAutoFixEnabled.set(!isAutoFixEnabled())" 
+                  [title]="isAutoFixEnabled() ? 'Auto-Fix Enabled' : 'Auto-Fix Disabled'"
+                  style="background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 4px; border-radius: 4px; display: flex; align-items: center; transition: all 0.2s;">
+             <span [style.color]="isAutoFixEnabled() ? 'var(--accent-color)' : 'inherit'" style="font-weight: bold; font-size: 14px;">
+                {{ isAutoFixEnabled() ? '⚡' : 'Manual' }}
+             </span>
+          </button>
         </div>
       </div>
             <div class="header-actions">
@@ -270,6 +285,9 @@
         <div class="preview-toolbar" style="padding: 8px; border-bottom: 1px solid var(--panel-border); display: flex; justify-content: flex-end; gap: 8px; background: var(--bg-color);">
            <button [class.active]="isInspectionActive()" (click)="toggleInspection()" title="Inspect Element" style="background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 4px; padding: 4px 8px; cursor: pointer; display: flex; align-items: center; color: var(--text-secondary); transition: all 0.2s;">
              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+           </button>
+           <button [class.active]="isFullscreen()" (click)="isFullscreen.set(!isFullscreen())" title="Toggle Fullscreen" style="background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 4px; padding: 4px 8px; cursor: pointer; display: flex; align-items: center; color: var(--text-secondary); transition: all 0.2s;">
+             <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
            </button>
            <button (click)="reloadIframe()" title="Refresh Preview" style="background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 4px; padding: 4px 8px; cursor: pointer; display: flex; align-items: center; color: var(--text-secondary); transition: all 0.2s;">
              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>

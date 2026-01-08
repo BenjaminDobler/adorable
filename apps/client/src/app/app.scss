@@ -4,14 +4,31 @@
   width: 100vw;
   background: var(--bg-color);
 
-  &.selecting {
-    cursor: crosshair;
-    user-select: none;
-    iframe {
-      pointer-events: none;
+    &.selecting {
+
+      cursor: crosshair;
+
+      user-select: none;
+
+      iframe { pointer-events: none; }
+
     }
+
+  
+
+    &.fullscreen {
+
+      .sidebar, .resizer-sidebar, .editor-frame-container, .resizer {
+
+        display: none !important;
+
+      }
+
+    }
+
   }
-}
+
+  
 
 .sidebar {
   width: 400px; /* Default width, overridden by inline style */

@@ -68,6 +68,8 @@ export class AppComponent implements AfterViewChecked {
   visualEditorData = signal<any>(null);
   visualPrompt = '';
   
+  isAutoFixEnabled = signal(true); // Default to on
+
   isFullscreen = signal(false);
 
   loadingMessages = [
@@ -113,8 +115,9 @@ export class AppComponent implements AfterViewChecked {
     effect(() => {
       const error = this.webContainerService.buildError();
       if (error && !this.loading()) {
-        // Automatically trigger repair
-        this.autoRepair(error);
+        if (this.isAutoFixEnabled()) {
+          this.autoRepair(error);
+        }
       }
     });
 
@@ -347,7 +350,7 @@ export class AppComponent implements AfterViewChecked {
   autoRepair(error: string) {
     this.messages.update(msgs => [...msgs, {
       role: 'system',
-      text: 'Build error detected. Automatically requesting a fix...',
+      text: 'Build error detected. Requesting fix...',
       timestamp: new Date()
     }]);
     
@@ -359,6 +362,13 @@ export class AppComponent implements AfterViewChecked {
     // Set prompt and trigger generation
     this.prompt = repairPrompt;
     this.generate();
+  }
+
+  manualFix() {
+    const error = this.webContainerService.buildError();
+    if (error) {
+      this.autoRepair(error);
+    }
   }
 
   private updateFileInTree(tree: any, path: string, content: string, createIfMissing = false) {
