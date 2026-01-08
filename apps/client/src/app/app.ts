@@ -110,6 +110,14 @@ export class AppComponent implements AfterViewChecked {
       }
     });
 
+    effect(() => {
+      const error = this.webContainerService.buildError();
+      if (error && !this.loading()) {
+        // Automatically trigger repair
+        this.autoRepair(error);
+      }
+    });
+
     // Handle Route Params
     this.route.params.subscribe(params => {
       this.projectId = params['id'];
@@ -334,6 +342,23 @@ export class AppComponent implements AfterViewChecked {
         console.error('Failed to write file to WebContainer', err);
       }
     }
+  }
+
+  autoRepair(error: string) {
+    this.messages.update(msgs => [...msgs, {
+      role: 'system',
+      text: 'Build error detected. Automatically requesting a fix...',
+      timestamp: new Date()
+    }]);
+    
+    const repairPrompt = `The application failed to build with the following errors. Please investigate and fix the code.
+    
+    Errors:
+    ${error}`;
+    
+    // Set prompt and trigger generation
+    this.prompt = repairPrompt;
+    this.generate();
   }
 
   private updateFileInTree(tree: any, path: string, content: string, createIfMissing = false) {

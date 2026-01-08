@@ -24,8 +24,10 @@
       </button>
       <div class="project-meta">
         <h1>{{ projectName }}</h1>
-        <div class="status-badge" [class.active]="webContainerService.url()">
-          {{ webContainerService.url() ? 'Live' : 'Booting...' }}
+        <div class="status-badge" 
+             [class.active]="webContainerService.url()" 
+             [class.error]="webContainerService.buildError()">
+          {{ webContainerService.status() }}
         </div>
       </div>
             <div class="header-actions">

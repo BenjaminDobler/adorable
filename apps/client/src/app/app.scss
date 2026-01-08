@@ -89,15 +89,17 @@
         border-radius: 50%;
         background: #444;
       }
-      &.active {
-        color: var(--accent-color);
-        &::before {
-          background: var(--accent-color);
-          box-shadow: 0 0 8px var(--accent-color);
+            &.active {
+              color: var(--accent-color);
+              &::before { background: var(--accent-color); box-shadow: 0 0 8px var(--accent-color); }
+            }
+            &.error {
+              color: var(--error-color);
+              &::before { background: var(--error-color); box-shadow: 0 0 8px var(--error-color); }
+            }
+          }
         }
-      }
-    }
-  }
+      
 
   .header-actions {
     display: flex;
