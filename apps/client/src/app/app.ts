@@ -82,18 +82,22 @@ export class AppComponent implements AfterViewChecked {
   quickStarters = [
     { 
       label: 'Cyberpunk SaaS Dashboard ⚡', 
+      description: 'Analytics with neon cyan/pink, glassmorphism sidebar, and real-time data visualizations.',
       prompt: 'Create a high-fidelity SaaS Analytics Dashboard with a "Cyberpunk" aesthetic. Color palette: Deep void black background, neon cyan (#00f3ff) and hot pink (#ff00ff) data accents. Features: A glassmorphism sidebar with glowing active states, a real-time "Live Traffic" area chart with a gradient fill, and "Server Health" cards using radial progress bars. Typography: JetBrains Mono for data, Inter for UI. Use CSS Grid, translucent card backgrounds with backdrop-filter: blur(10px), and subtle 1px borders.' 
     },
     { 
       label: 'Luxury E-Commerce 👟', 
+      description: 'Minimalist product showcase with bold black typography, split layout, and smooth accordion animations.',
       prompt: 'Build a premium e-commerce product page for a limited edition sneaker brand. Design style: "Hypebeast Minimalist". Background: Stark white (#ffffff) with massive, bold black typography (Helvetica Now). Layout: Split screen - left side fixed product details with a sticky "Add to Cart" button (pill shape, black), right side scrollable gallery of large, high-res images. Include a "Details" accordion with smooth animations and a "You might also like" horizontal scroll slider.' 
     },
     { 
       label: 'Smart Home Hub 🏠', 
+      description: 'Futuristic control center with warm neumorphic palettes, interactive dial controls, and status badges.',
       prompt: 'Design a futuristic Smart Home Control Hub. Aesthetic: "Soft UI" / Neumorphism influence but flatter. Palette: Warm off-white background, soft rounded shadows, and vivid orange/purple gradients for active states. Components: A "Climate" card with a circular interactive temperature dial, "Lighting" scene buttons that glow when active, and a "Security" feed showing a mock live camera view with a "System Armed" status badge. Use heavy border-radius (24px) and fluid hover states.' 
     },
     { 
       label: 'Travel Journal 🌍', 
+      description: 'Editorial magazine layout with immersive full-screen photography, parallax headers, and masonry grids.',
       prompt: 'Create an immersive Travel Journal app. Visual style: "Editorial Magazine". The layout relies on full-screen background photography with overlaying text. Hero section: A parallax scrolling header with a dramatic title "Lost in Tokyo". Content: A masonry grid of photo cards with elegant white captions on hover. Typography: Playfair Display (Serif) for headings to give a premium feel, paired with DM Sans. Use varying aspect ratios for images and generous whitespace.' 
     }
   ];
