@@ -449,51 +449,55 @@
 
     
 
-                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                            <div style="display: flex; gap: 8px; align-items: center;">
 
     
 
-                                              <span style="font-size: 10px; color: var(--text-secondary);">Server:</span>
+                                                              <span style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Server</span>
 
     
 
-                                              @if (webContainerService.url()) {
+                                                              @if (webContainerService.url()) {
 
     
 
-                                                <button (click)="webContainerService.stopDevServer()" class="icon-btn" title="Stop Dev Server" style="color: var(--error-color); padding: 4px;">
+                                                                <button (click)="webContainerService.stopDevServer()" class="btn-toggle-server running" title="Stop Dev Server">
 
     
 
-                                                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="currentColor"><rect x="6" y="6" width="12" height="12"></rect></svg>
+                                                                  <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="currentColor" stroke-width="0"><rect x="6" y="6" width="12" height="12"></rect></svg>
 
     
 
-                                                </button>
+                                                                </button>
 
     
 
-                                              } @else {
+                                                              } @else {
 
     
 
-                                                <button (click)="webContainerService.startDevServer()" class="icon-btn" title="Start Dev Server" style="color: var(--accent-color); padding: 4px;">
+                                                                <button (click)="webContainerService.startDevServer()" class="btn-toggle-server stopped" title="Start Dev Server">
 
     
 
-                                                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                                                  <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="currentColor" stroke-width="0"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
 
     
 
-                                                </button>
+                                                                </button>
 
     
 
-                                              }
+                                                              }
 
     
 
-                                            </div>
+                                                            </div>
+
+    
+
+                                            
 
     
 
@@ -605,27 +609,139 @@
 
             
 
-            @if (activeTab() === 'files') {
+                    @if (activeTab() === 'files') {
 
-              <div class="file-explorer-view">
+    
 
-                <div style="padding-bottom: 1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--panel-border);">
+                             
 
-                   <input type="file" #uploadInput (change)="onUploadFiles($event)" multiple style="display: none" />
+    
 
-                   <button class="btn-create" style="width: 100%; justify-content: center;" (click)="uploadInput.click()">
+             
 
-                     <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            
 
-                     Upload Files
+                      <div class="file-explorer-view">
 
-                   </button>
+    
 
-                </div>
+                             
 
-                <app-file-explorer
+    
 
-                  [files]="allFiles"
+             
+
+            
+
+                        <div class="upload-action-bar">
+
+    
+
+                             
+
+    
+
+             
+
+            
+
+                           <input type="file" #uploadInput (change)="onUploadFiles($event)" multiple style="display: none" />
+
+    
+
+                             
+
+    
+
+             
+
+            
+
+                           <button class="btn-upload-primary" (click)="uploadInput.click()">
+
+    
+
+                             
+
+    
+
+             
+
+            
+
+                             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+
+    
+
+                             
+
+    
+
+             
+
+            
+
+                             Upload Files
+
+    
+
+                             
+
+    
+
+             
+
+            
+
+                           </button>
+
+    
+
+                             
+
+    
+
+             
+
+            
+
+                        </div>
+
+    
+
+                             
+
+    
+
+             
+
+            
+
+                        <app-file-explorer
+
+    
+
+                             
+
+    
+
+             
+
+            
+
+                          [files]="allFiles"
+
+    
+
+                             
+
+    
+
+             
+
+            
+
+            
 
                   (fileSelect)="onFileSelect($event)"
 
