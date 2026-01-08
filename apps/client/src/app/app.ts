@@ -74,8 +74,11 @@ export class AppComponent implements AfterViewChecked {
   visualPrompt = '';
   
   isAutoFixEnabled = signal(true); // Default to on
+  shouldAddToAssets = signal(true);
+  attachedFile: File | null = null;
 
   loadingMessages = [
+    'Adorable things take time...',
     'Adorable things take time...',
     'Building with love...',
     'Just taking a break listening to Pearl Jam. I\'ll be right back...',
@@ -466,6 +469,7 @@ export class AppComponent implements AfterViewChecked {
   }
 
   private processFile(file: File) {
+    this.attachedFile = file;
     const reader = new FileReader();
     reader.onload = (e: any) => {
       this.attachedImage = e.target.result;
@@ -475,6 +479,7 @@ export class AppComponent implements AfterViewChecked {
 
   removeAttachment() {
     this.attachedImage = null;
+    this.attachedFile = null;
   }
 
   saveProject() {
@@ -829,9 +834,27 @@ export class AppComponent implements AfterViewChecked {
       files: this.currentFiles // Snapshot before changes
     }]);
 
-    const currentPrompt = this.prompt;
+    let currentPrompt = this.prompt;
     this.prompt = ''; // Clear input immediately
     this.loading.set(true);
+
+    // Auto-upload attached image if enabled
+    if (this.attachedImage && this.shouldAddToAssets() && this.attachedFile) {
+      const targetPath = `public/assets/${this.attachedFile.name}`;
+      // Use await to ensure file is in tree before generating?
+      // onFileContentChange updates currentFiles immediately.
+      // But writeFile to WebContainer is async.
+      // generateStream sends currentFiles (via previousSrc).
+      // If onFileContentChange updates currentFiles synchronously (it calls updateFileInTree), then we are good.
+      // updateFileInTree is synchronous.
+      // writeFile is async but that's for the preview. The AI needs the file STRUCTURE in context?
+      // Actually AI gets `previousSrc`.
+      // `updateFileInTree` updates `this.currentFiles`.
+      // So yes, it works.
+      
+      this.onFileContentChange(this.attachedImage, targetPath);
+      currentPrompt += `\n\n[System Note: I have automatically uploaded the attached image to "${targetPath}". You can use it in your code like <img src="assets/${this.attachedFile.name}">]`;
+    }
 
     // Create placeholder for assistant response
     const assistantMsgIndex = this.messages().length;

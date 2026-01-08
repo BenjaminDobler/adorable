@@ -32,6 +32,10 @@ import { Component } from '@angular/core';
 <h1>Hello</h1>
 </file>
 
+<file path="src/assets/logo.png" encoding="base64">
+...base64 content...
+</file>
+
 RULES:
 1. **Root Component:** Ensure 'src/app/app.component.ts' exists and has selector 'app-root'.
 2. **Features:** Use Angular 21+ Standalone components and signals.
@@ -39,6 +43,7 @@ RULES:
 4. **Imports:** Ensure all imports are correct.
 5. **Conciseness:** Minimize comments. Use compact CSS.
 6. **Path:** The 'path' attribute must be relative to the project root (e.g., "src/app/foo.ts").
+7. **Binary:** For small binary files (like icons), use 'encoding="base64"'. Prefer SVG for vector graphics.
 `;
 
 export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
