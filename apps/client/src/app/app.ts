@@ -140,6 +140,7 @@ export class AppComponent implements AfterViewChecked {
 
     window.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'd') {
+        console.log('Toggling Debug Console');
         e.preventDefault();
         this.showDebug.set(!this.showDebug());
       }

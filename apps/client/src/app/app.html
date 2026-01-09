@@ -709,19 +709,47 @@
 
     
 
-                                                                                  @if (terminalTab() === 'console') {
+                                                                                                                          @if (terminalTab() === 'console') {
 
     
 
-                                                                                    <div class="terminal-header" style="display: flex; justify-content: flex-end; padding: 4px 8px; border-bottom: 1px solid var(--panel-border);">
+                                          
 
     
 
-                                                                                      <button class="btn-clear" (click)="webContainerService.previewConsoleLogs.set([])">Clear</button>
+                                                                                                                            <div class="terminal-header" style="display: flex; justify-content: flex-end; padding: 4px 8px; border-bottom: 1px solid var(--panel-border);">
 
     
 
-                                                                                    </div>
+                                          
+
+    
+
+                                                                                                                              <button (click)="showDebug.set(true)" style="margin-right: 8px; font-size: 10px; background: none; border: 1px solid var(--panel-border); color: var(--text-secondary); border-radius: 4px; cursor: pointer; padding: 2px 6px;">🔍 Debug</button>
+
+    
+
+                                          
+
+    
+
+                                                                                                                              <button class="btn-clear" (click)="webContainerService.previewConsoleLogs.set([])">Clear</button>
+
+    
+
+                                          
+
+    
+
+                                                                                                                            </div>
+
+    
+
+                                          
+
+    
+
+                                                                                  
 
     
 
@@ -1013,8 +1041,60 @@
       }
     </div>
 
-    @if (isSelecting && selectionRect) {
-      <div class="selection-box" [style.left.px]="selectionRect.x" [style.top.px]="selectionRect.y" [style.width.px]="selectionRect.width" [style.height.px]="selectionRect.height"></div>
+        @if (isSelecting && selectionRect) {
+
+          <div class="selection-box" [style.left.px]="selectionRect.x" [style.top.px]="selectionRect.y" [style.width.px]="selectionRect.width" [style.height.px]="selectionRect.height"></div>
+
+        }
+
+      </main>
+
+    </div>
+
+    
+
+    @if (showDebug()) {
+
+      <div class="debug-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 99999; padding: 2rem; overflow: auto; font-family: monospace;">
+
+         <div style="background: #1e1e1e; padding: 1.5rem; border-radius: 8px; min-height: 100%; border: 1px solid #333;">
+
+            <div style="display:flex; justify-content:space-between; align-items: center; margin-bottom: 1rem;">
+
+               <h2 style="margin: 0; color: var(--accent-color);">🤖 Agent Debug Log</h2>
+
+               <button (click)="showDebug.set(false)" style="background: #333; border: none; color: #fff; padding: 4px 12px; border-radius: 4px; cursor: pointer;">Close (Cmd+Shift+D)</button>
+
+            </div>
+
+            @for (log of debugLogs(); track $index) {
+
+               <div style="border-bottom: 1px solid #333; padding: 0.75rem 0;">
+
+                  <div style="color: #888; font-size: 0.8rem; margin-bottom: 4px;">
+
+                    <span style="color: var(--text-primary); font-weight: bold;">{{ log.type | uppercase }}</span> 
+
+                    - {{ log.timestamp | date:'mediumTime' }}
+
+                  </div>
+
+                  <pre style="color: #ccc; overflow-x: auto; font-size: 0.85rem; margin: 0; background: #111; padding: 8px; border-radius: 4px;">{{ log | json }}</pre>
+
+               </div>
+
+            }
+
+            @if (debugLogs().length === 0) {
+
+               <div style="color: #666; text-align: center; padding: 2rem;">No logs captured yet. Make a request!</div>
+
+            }
+
+         </div>
+
+      </div>
+
     }
-  </main>
-</div>
+
+    
