@@ -98,21 +98,25 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     const { prompt, previousFiles, apiKey, model } = options;
     if (!apiKey) throw new Error('Anthropic API Key is required');
 
-    // Fallback for problematic model ID if user has it saved in settings
     let modelToUse = model || 'claude-3-5-sonnet-20240620';
     if (modelToUse === 'claude-3-5-sonnet-20241022') {
       modelToUse = 'claude-3-5-sonnet-20240620';
     }
 
     const anthropic = new Anthropic({ apiKey });
+    
+    // Prepare initial context
+    // We provide a file tree summary if files exist, to encourage read_file usage
+    // But for now, we still provide full context to keep it simple, 
+    // effectively making read_file a "verification" tool if the AI wants to double check.
     let userMessage = prompt;
     if (previousFiles) {
+      // TODO: Optimize this to only send tree structure in the future
       userMessage += `\n\n--- Current File Structure ---\n${JSON.stringify(previousFiles, null, 2)}`;
     }
 
     const messages: any[] = [{ role: 'user', content: [{ type: 'text', text: userMessage }] }];
     
-    // Add images if present
     if (options.images && options.images.length > 0) {
       options.images.forEach(img => {
         const match = img.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
@@ -125,74 +129,111 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       });
     }
 
-    const stream = await anthropic.messages.create({
-      model: modelToUse,
-      max_tokens: 8192,
-      system: [
-        {
-          type: 'text',
-          text: ANGULAR_KNOWLEDGE_BASE,
-          cache_control: { type: 'ephemeral' }
-        },
-        {
-          type: 'text',
-          text: SYSTEM_PROMPT
+    const fileMap = this.flattenFiles(previousFiles || {});
+    const accumulatedFiles: any = {};
+    let fullExplanation = '';
+    let turnCount = 0;
+    const MAX_TURNS = 10;
+
+    while (turnCount < MAX_TURNS) {
+      const stream = await anthropic.messages.create({
+        model: modelToUse,
+        max_tokens: 8192,
+        system: [
+          { type: 'text', text: ANGULAR_KNOWLEDGE_BASE, cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: SYSTEM_PROMPT }
+        ] as any,
+        messages: messages as any,
+        tools: TOOLS as any,
+        stream: true,
+      });
+
+      let toolUses: { id: string, name: string, input: string }[] = [];
+      let currentToolUse: { id: string, name: string, input: string } | null = null;
+      let assistantMessageContent: any[] = [];
+
+      for await (const event of stream) {
+        if (event.type === 'content_block_start') {
+          if (event.content_block.type === 'tool_use') {
+            currentToolUse = { id: event.content_block.id, name: event.content_block.name, input: '' };
+            toolUses.push(currentToolUse);
+            assistantMessageContent.push(event.content_block);
+          } else if (event.content_block.type === 'text') {
+            assistantMessageContent.push({ type: 'text', text: '' });
+          }
         }
-      ] as any,
-      messages: messages as any,
-      tools: TOOLS as any,
-      stream: true,
-    });
 
-    let fullText = '';
-    const toolInputs: {[key: number]: string} = {};
-    const toolNames: {[key: number]: string} = {};
-
-    for await (const event of stream) {
-      if (event.type === 'content_block_start') {
-        if (event.content_block.type === 'tool_use') {
-          toolNames[event.index] = event.content_block.name;
-          toolInputs[event.index] = '';
-        }
-      }
-
-      if (event.type === 'content_block_delta') {
-        if (event.delta.type === 'text_delta') {
-          const delta = event.delta.text;
-          fullText += delta;
-          callbacks.onText?.(delta);
-        } else if (event.delta.type === 'input_json_delta') {
-          toolInputs[event.index] += event.delta.partial_json;
-          callbacks.onToolDelta?.(event.index, event.delta.partial_json);
-        }
-      }
-
-      if (event.type === 'content_block_stop') {
-        if (toolNames[event.index]) {
-          try {
-            const args = JSON.parse(toolInputs[event.index]);
-            callbacks.onToolCall?.(event.index, toolNames[event.index], args);
-          } catch (e) {
-            console.error('Failed to parse tool input', e);
+        if (event.type === 'content_block_delta') {
+          if (event.delta.type === 'text_delta') {
+            const text = event.delta.text;
+            fullExplanation += text;
+            callbacks.onText?.(text);
+            const lastBlock = assistantMessageContent[assistantMessageContent.length - 1];
+            if (lastBlock?.type === 'text') lastBlock.text += text;
+          } else if (event.delta.type === 'input_json_delta') {
+            if (currentToolUse) {
+               currentToolUse.input += event.delta.partial_json;
+               // We use index relative to the message content block index
+               callbacks.onToolDelta?.(assistantMessageContent.length - 1, event.delta.partial_json);
+            }
           }
         }
       }
+
+      messages.push({ role: 'assistant', content: assistantMessageContent });
+
+      if (toolUses.length === 0) {
+        break; 
+      }
+
+      // Execute all tools
+      const toolResults: any[] = [];
+      for (const tool of toolUses) {
+        let toolArgs: any = {};
+        try {
+          toolArgs = JSON.parse(tool.input);
+          callbacks.onToolCall?.(0, tool.name, toolArgs);
+        } catch (e) {
+          console.error('Failed to parse tool input', e);
+          continue;
+        }
+
+        let content = '';
+        if (tool.name === 'write_file') {
+          this.addFileToStructure(accumulatedFiles, toolArgs.path, toolArgs.content);
+          content = 'File created successfully.';
+        } else if (tool.name === 'read_file') {
+          content = fileMap[toolArgs.path] || 'Error: File not found.';
+        } else if (tool.name === 'list_dir') {
+          const dir = toolArgs.path;
+          const matching = Object.keys(fileMap).filter(k => k.startsWith(dir));
+          content = matching.length ? matching.join('\n') : 'Directory is empty or not found.';
+        }
+
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: tool.id,
+          content
+        });
+      }
+
+      messages.push({ role: 'user', content: toolResults });
+      turnCount++;
     }
 
-    // After stream finishes, we need to return the "result" structure
-    // Our existing base class parseResponse won't work perfectly if we used tools
-    // We should build the result object from the accumulated tools and text.
-    
-    const files: any = {};
-    for (const index in toolNames) {
-      if (toolNames[index] === 'write_file') {
-        try {
-          const args = JSON.parse(toolInputs[index]);
-          this.addFileToStructure(files, args.path, args.content);
-        } catch (e) { }
+    return { explanation: fullExplanation, files: accumulatedFiles };
+  }
+
+  private flattenFiles(structure: any, prefix = ''): Record<string, string> {
+    let map: Record<string, string> = {};
+    for (const key in structure) {
+      const node = structure[key];
+      const path = prefix + key;
+      if (node.file) {
+        map[path] = node.file.contents;
+      } else if (node.directory) {
+        Object.assign(map, this.flattenFiles(node.directory, path + '/'));
       }
     }
-
-    return { explanation: fullText, files };
+    return map;
   }
-}
