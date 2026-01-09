@@ -1,6 +1,7 @@
 import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
 import Anthropic from '@anthropic-ai/sdk';
 import { BaseLLMProvider } from './base';
+import { ANGULAR_KNOWLEDGE_BASE } from './knowledge-base';
 
 const SYSTEM_PROMPT = `
 You are an expert Angular developer. 
@@ -91,7 +92,17 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     const response = await anthropic.messages.create({
       model: modelToUse,
       max_tokens: 8192,
-      system: SYSTEM_PROMPT,
+      system: [
+        {
+          type: 'text',
+          text: ANGULAR_KNOWLEDGE_BASE,
+          cache_control: { type: 'ephemeral' }
+        },
+        {
+          type: 'text',
+          text: SYSTEM_PROMPT
+        }
+      ] as any,
       messages: messages as any,
     });
 
@@ -137,7 +148,17 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     const stream = await anthropic.messages.create({
       model: modelToUse,
       max_tokens: 8192,
-      system: SYSTEM_PROMPT,
+      system: [
+        {
+          type: 'text',
+          text: ANGULAR_KNOWLEDGE_BASE,
+          cache_control: { type: 'ephemeral' }
+        },
+        {
+          type: 'text',
+          text: SYSTEM_PROMPT
+        }
+      ] as any,
       messages: messages as any,
       stream: true,
     });

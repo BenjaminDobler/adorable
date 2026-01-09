@@ -5,7 +5,7 @@ import { ApiService } from '../services/api';
 import { Router } from '@angular/router';
 
 export interface AppSettings {
-  provider: 'anthropic' | 'gemini';
+  provider: 'anthropic' | 'gemini' | 'google';
   apiKey: string;
   model: string;
 }

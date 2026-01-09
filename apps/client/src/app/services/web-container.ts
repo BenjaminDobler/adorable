@@ -87,7 +87,7 @@ export class WebContainerService {
       }
   
     this.status.set('Installing dependencies...');
-    const installProcess = await this.webcontainerInstance!.spawn('npm', ['install']);
+    const installProcess = await this.webcontainerInstance!.spawn('pnpm', ['install']);
     installProcess.output.pipeTo(new WritableStream({
       write: (data) => this.serverOutput.update(o => o + data)
     }));
@@ -124,7 +124,7 @@ export class WebContainerService {
       // Pass --allowed-hosts=all to ensure HMR works in the WebContainer iframe
       // Set VITE_HMR env variables to force HMR to use WSS on port 443
       console.log('WebContainer booting completed');
-      const serverProcess = await this.webcontainerInstance!.spawn('npm', ['run', 'start'], {
+      const serverProcess = await this.webcontainerInstance!.spawn('pnpm', ['run', 'start'], {
         env: {
           VITE_HMR_PROTOCOL: 'wss',
           VITE_HMR_PORT: '443'
@@ -189,15 +189,27 @@ export class WebContainerService {
 
   
 
-      async runBuild(args: string[] = []) {
+            async runBuild(args: string[] = []) {
 
   
 
-        console.log('web-container:  running npm run build', args);
+      
 
   
 
-                const buildProcess = await this.webcontainerInstance!.spawn('npm', ['run', 'build', '--', ...args]);
+              console.log('web-container:  running npm run build', args);
+
+  
+
+      
+
+  
+
+                      const buildProcess = await this.webcontainerInstance!.spawn('pnpm', ['run', 'build', '--', ...args]);
+
+  
+
+      
 
   
 
