@@ -14,6 +14,7 @@ import { TerminalFormatterPipe } from './pipes/terminal-formatter.pipe';
 import { LayoutService } from './services/layout';
 import { ToastService } from './services/toast';
 import { ToastComponent } from './ui/toast/toast.component';
+import { RUNTIME_SCRIPTS } from './runtime-scripts';
 
 @Pipe({
   name: 'safeUrl',
@@ -704,7 +705,14 @@ export class AppComponent implements AfterViewChecked {
            const binary = this.dataURIToUint8Array(content);
            binaries.push({ path: fullPath, content: binary });
         } else {
-           tree[key] = files[key];
+           // Inject runtime scripts into index.html if the AI overwrote it
+           if (key === 'index.html' && typeof content === 'string') {
+              if (!content.includes('html2canvas')) {
+                 console.log('Patching index.html with runtime scripts');
+                 content = content.replace('</head>', `${RUNTIME_SCRIPTS}\n</head>`);
+              }
+           }
+           tree[key] = { file: { contents: content } };
         }
       } else if (files[key].directory) {
         const result = this.prepareFilesForMount(files[key].directory, fullPath + '/');
