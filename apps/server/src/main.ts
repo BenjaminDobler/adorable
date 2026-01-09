@@ -401,6 +401,9 @@ protectedRouter.post('/generate-stream', async (req: any, res) => {
           },
           onToolCall: (index, name, args) => {
               res.write(`data: ${JSON.stringify({ type: 'tool_call', index, name, args })}\n\n`);
+          },
+          onToolResult: (tool_use_id, result) => {
+              res.write(`data: ${JSON.stringify({ type: 'tool_result', tool_use_id, result })}\n\n`);
           }
       });
       

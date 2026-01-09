@@ -239,9 +239,10 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         toolResults.push({
           type: 'tool_result',
           tool_use_id: tool.id,
-          content,
-          is_error: isError
+          content
         });
+        
+        callbacks.onToolResult?.(tool.id, content);
       }
 
       messages.push({ role: 'user', content: toolResults });

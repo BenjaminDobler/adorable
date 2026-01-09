@@ -78,6 +78,9 @@ export class AppComponent implements AfterViewChecked {
   isAutoFixEnabled = signal(true); // Default to on
   shouldAddToAssets = signal(true);
   attachedFile: File | null = null;
+  
+  debugLogs = signal<any[]>([]);
+  showDebug = signal(false);
 
   quickStarters = [
     { 
@@ -134,6 +137,13 @@ export class AppComponent implements AfterViewChecked {
 
   constructor() {
     this.fetchSettings();
+
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'd') {
+        e.preventDefault();
+        this.showDebug.set(!this.showDebug());
+      }
+    });
 
     effect(() => {
       if (this.loading()) {
@@ -928,6 +938,10 @@ export class AppComponent implements AfterViewChecked {
       images: this.attachedImage ? [this.attachedImage] : undefined
     }).subscribe({
       next: async (event) => {
+        if (event.type !== 'tool_delta' && event.type !== 'text') { // Filter high-frequency events
+           this.debugLogs.update(logs => [...logs, { ...event, timestamp: new Date() }]);
+        }
+
         if (event.type === 'text') {
           fullStreamText += event.content;
           
