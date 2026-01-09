@@ -86,20 +86,19 @@ export class ApiService {
     return this.http.get<any>(`${this.apiUrl}/profile`);
   }
 
-    updateProfile(data: { name?: string, settings?: any }) {
-
-      return this.http.post<any>(`${this.apiUrl}/profile`, data);
-
-    }
-
-  
-
-    publish(projectId: string, files: any) {
-
-      return this.http.post<any>(`${this.apiUrl}/publish/${projectId}`, { files });
-
-    }
-
+  updateProfile(data: { name?: string, settings?: any }) {
+    return this.http.post<any>(`${this.apiUrl}/profile`, data);
   }
+
+  getModels(provider: string, apiKey: string) {
+    return this.http.get<string[]>(`${this.apiUrl}/models/${provider}`, {
+      headers: { 'x-api-key': apiKey }
+    });
+  }
+
+  publish(projectId: string, files: any) {
+    return this.http.post<any>(`${this.apiUrl}/publish/${projectId}`, { files });
+  }
+}
 
   

@@ -99,7 +99,49 @@ app.use((req, res, next) => {
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use('/sites', express.static(SITES_DIR));
 
-app.get('/api/health', (req, res) => {
+app.get('/api/models/:provider', async (req, res) => {
+  const { provider } = req.params;
+  const apiKey = req.headers['x-api-key'] as string;
+
+  if (!apiKey) return res.status(400).json({ error: 'API Key required' });
+
+  try {
+    if (provider === 'anthropic') {
+      const response = await fetch('https://api.anthropic.com/v1/models', {
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01'
+        }
+      });
+      if (!response.ok) throw new Error(await response.text());
+      const data = await response.json();
+      // Filter for Claude models, sort by latest
+      const models = data.data
+        .filter((m: any) => m.id.includes('claude'))
+        .map((m: any) => m.id)
+        .sort()
+        .reverse();
+      res.json(models);
+    } else if (provider === 'google') {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      if (!response.ok) throw new Error(await response.text());
+      const data = await response.json();
+      const models = data.models
+        .filter((m: any) => m.supportedGenerationMethods.includes('generateContent'))
+        .map((m: any) => m.name.replace('models/', ''));
+      res.json(models);
+    } else {
+      res.status(400).json({ error: 'Unknown provider' });
+    }
+  } catch (error: any) {
+    console.error('Failed to fetch models', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/generate', async (req, res) => {
+
+
   res.send({ status: 'ok' });
 });
 

@@ -25,9 +25,9 @@
       
       <div class="form-group">
         <label>AI Provider</label>
-        <select [(ngModel)]="settings().provider">
+        <select [(ngModel)]="settings().provider" (change)="onProviderChange()">
           <option value="anthropic">Anthropic (Claude)</option>
-          <option value="gemini">Google (Gemini)</option>
+          <option value="google">Google (Gemini)</option>
         </select>
       </div>
 
@@ -36,6 +36,7 @@
         <input 
           type="password" 
           [(ngModel)]="settings().apiKey" 
+          (blur)="fetchModels()"
           placeholder="sk-..."
         />
         <small class="hint">
@@ -46,16 +47,13 @@
       <div class="form-group">
         <label>Default Model</label>
         <select [(ngModel)]="settings().model">
-          @if (settings().provider === 'anthropic') {
-            @for (model of anthropicModels; track model) {
-              <option [value]="model">{{ model }}</option>
-            }
-          } @else {
-            @for (model of geminiModels; track model) {
-              <option [value]="model">{{ model }}</option>
-            }
+          @for (model of availableModels(); track model) {
+            <option [value]="model">{{ model }}</option>
           }
         </select>
+        <div style="text-align: right; margin-top: 4px;">
+           <button class="btn-link" style="font-size: 11px; background: none; border: none; color: var(--accent-color); cursor: pointer; padding: 0;" (click)="fetchModels()">↻ Refresh Models</button>
+        </div>
       </div>
     </section>
 
