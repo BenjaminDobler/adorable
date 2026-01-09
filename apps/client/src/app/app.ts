@@ -774,8 +774,21 @@ export class AppComponent implements AfterViewChecked {
       if (exitCode !== 0) throw new Error('Build failed');
 
       // 2. Read dist files
-      // Angular build output is usually in dist/app/browser
-      const distPath = 'dist/app/browser';
+      // Dynamically detect build output path
+      let distPath = 'dist/app/browser';
+      try {
+        await this.webContainerService.readdir(distPath);
+      } catch {
+        // Fallback for different builder configs
+        distPath = 'dist/app';
+        try {
+           await this.webContainerService.readdir(distPath);
+        } catch {
+           distPath = 'dist';
+        }
+      }
+      
+      console.log(`Publishing from: ${distPath}`);
       const files = await this.getFilesRecursively(distPath);
 
       // 3. Upload to server
