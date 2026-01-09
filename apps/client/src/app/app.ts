@@ -602,6 +602,7 @@ export class AppComponent implements AfterViewChecked {
     this.loading.set(true);
     this.apiService.loadProject(id).subscribe({
       next: async (project) => {
+        this.projectId = project.id; // Critical: Update current project ID
         this.projectName = project.name;
         this.currentFiles = project.files;
         
