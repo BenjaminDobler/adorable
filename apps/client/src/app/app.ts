@@ -561,6 +561,15 @@ export class AppComponent implements AfterViewChecked {
           height: iframe.clientHeight 
         }
       }, '*');
+
+      // Safety timeout in case screenshot fails or script is missing
+      setTimeout(() => {
+        if (this.isSavingWithThumbnail) {
+          console.warn('Screenshot capture timed out. Saving without thumbnail.');
+          this.executeSave();
+          this.isSavingWithThumbnail = false;
+        }
+      }, 2500);
     } else {
       this.executeSave();
     }

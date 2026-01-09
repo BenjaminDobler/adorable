@@ -191,49 +191,57 @@ protectedRouter.post('/projects', async (req: any, res) => {
   const { name, files, id, thumbnail, messages } = req.body;
   const user = req.user;
 
+  console.log(`[Save Project] Request for '${name}' (ID: ${id}) by ${user.email}`);
+
   if (!name || !files) {
     return res.status(400).json({ error: 'Name and files are required' });
   }
 
-  const messageOperations = messages ? {
-    deleteMany: {},
-    create: messages.map((m: any) => ({
+  try {
+    let project;
+    
+    // Message operations for both create and update
+    const messageCreateData = messages ? messages.map((m: any) => ({
       role: m.role,
       text: m.text,
       files: m.files ? JSON.stringify(m.files) : undefined,
       timestamp: m.timestamp
-    }))
-  } : undefined;
+    })) : [];
 
-  try {
-    const project = await prisma.project.upsert({
-      where: { 
-        id: id || 'new-project'
-      },
-      update: { 
-        name, 
-        files: JSON.stringify(files), 
-        thumbnail,
-        messages: messageOperations
-      },
-      create: { 
-        name, 
-        files: JSON.stringify(files), 
-        userId: user.id,
-        thumbnail,
-        messages: messages ? {
-          create: messages.map((m: any) => ({
-            role: m.role,
-            text: m.text,
-            files: m.files ? JSON.stringify(m.files) : undefined,
-            timestamp: m.timestamp
-          }))
-        } : undefined
-      }
-    });
+    if (id && id !== 'new-project' && id !== 'new') {
+      // Update existing project
+      console.log(`[Save Project] Updating existing project ${id}`);
+      project = await prisma.project.update({
+        where: { id: id, userId: user.id },
+        data: {
+          name,
+          files: JSON.stringify(files),
+          thumbnail,
+          messages: messages ? {
+            deleteMany: {}, // Clear old messages
+            create: messageCreateData
+          } : undefined
+        }
+      });
+    } else {
+      // Create new project
+      console.log(`[Save Project] Creating new project`);
+      project = await prisma.project.create({
+        data: {
+          name,
+          files: JSON.stringify(files),
+          userId: user.id,
+          thumbnail,
+          messages: {
+            create: messageCreateData
+          }
+        }
+      });
+    }
+    console.log(`[Save Project] Success. Project ID: ${project.id}`);
     res.json(project);
   } catch (error) {
-    console.error(error);
+    console.error('[Save Project] Error:', error);
     res.status(500).json({ error: 'Failed to save project' });
   }
 });
