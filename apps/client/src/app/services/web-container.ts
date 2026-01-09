@@ -190,23 +190,27 @@ export class WebContainerService {
 
   
 
-            async runBuild(args: string[] = []) {
+                  async runBuild(args: string[] = []) {
 
   
 
-      
+            
 
   
 
-              console.log('web-container:  running npm run build', args);
+                    console.log('web-container:  running pnpm run build', args);
 
   
 
-      
+            
 
   
 
-                      const buildProcess = await this.webcontainerInstance!.spawn('pnpm', ['run', 'build', '--', ...args]);
+                            const buildProcess = await this.webcontainerInstance!.spawn('pnpm', ['run', 'build', ...args]);
+
+  
+
+            
 
   
 

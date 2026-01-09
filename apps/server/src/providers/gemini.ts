@@ -36,6 +36,10 @@ import { Component } from '@angular/core';
 ...base64 content...
 </file>
 
+**RESTRICTED FILES (DO NOT EDIT):**
+- \`package.json\`, \`angular.json\`, \`tsconfig.json\`: Do NOT modify these files unless you are explicitly adding a dependency or changing a build configuration.
+- **NEVER** overwrite \`package.json\` with a generic template. The project is already set up with Angular 21.
+
 RULES:
 1. **Root Component:** Ensure 'src/app/app.component.ts' exists and has selector 'app-root'.
 2. **Features:** Use Angular 21+ Standalone components and signals.
