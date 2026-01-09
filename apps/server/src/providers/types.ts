@@ -8,6 +8,8 @@ export interface GenerateOptions {
 
 export interface StreamCallbacks {
   onText?: (text: string) => void;
+  onToolDelta?: (index: number, delta: string) => void;
+  onToolCall?: (index: number, name: string, args: any) => void;
 }
 
 export interface LLMProvider {

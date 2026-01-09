@@ -2,40 +2,21 @@ import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
 import Anthropic from '@anthropic-ai/sdk';
 import { BaseLLMProvider } from './base';
 import { ANGULAR_KNOWLEDGE_BASE } from './knowledge-base';
+import { TOOLS } from './tools';
 
 const SYSTEM_PROMPT = `
 You are an expert Angular developer. 
 Your task is to generate or modify the SOURCE CODE for an Angular application.
 
-**CRITICAL: You are working within an EXISTING project structure.**
-DO NOT generate package.json, angular.json, or tsconfig.json.
-DO NOT generate src/main.ts or src/index.html unless you need to change them.
+**CRITICAL: Use the provided tools to manage files.**
+- Use 'write_file' to create or update files.
+- Use 'read_file' to inspect existing code if you are unsure.
+- Use 'list_dir' to explore the project structure.
 
 Input Context:
 - You will receive the "Current File Structure" (if any).
 - If the user asks for a change, ONLY return the files that need to be modified or created.
-- **DO NOT** return files that have not changed. This is critical to avoid response truncation.
-
-Output Format:
-You must provide the output in the following XML-like format.
-Do NOT use Markdown code blocks for the XML tags.
-
-<explanation>
-Brief explanation of what you did.
-</explanation>
-
-<file path="src/app/app.component.ts">
-import { Component } from '@angular/core';
-...
-</file>
-
-<file path="src/app/app.component.html">
-<h1>Hello</h1>
-</file>
-
-<file path="src/assets/logo.png" encoding="base64">
-...base64 content...
-</file>
+- **DO NOT** return files that have not changed.
 
 RULES:
 1. **Root Component:** Ensure 'src/app/app.component.ts' exists and has selector 'app-root'.
@@ -43,8 +24,7 @@ RULES:
 3. **Styling:** Use inline styles in components or 'src/styles.css' for globals.
 4. **Imports:** Ensure all imports are correct.
 5. **Conciseness:** Minimize comments. Use compact CSS.
-6. **Path:** The 'path' attribute must be relative to the project root (e.g., "src/app/foo.ts").
-7. **Binary:** For small binary files (like icons), use 'encoding="base64"'. Prefer SVG for vector graphics.
+6. **Binary:** For small binary files (like icons), use the 'write_file' tool with base64 content. Prefer SVG for vector graphics.
 `;
 
 export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
@@ -160,18 +140,59 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         }
       ] as any,
       messages: messages as any,
+      tools: TOOLS as any,
       stream: true,
     });
 
     let fullText = '';
+    const toolInputs: {[key: number]: string} = {};
+    const toolNames: {[key: number]: string} = {};
+
     for await (const event of stream) {
-      if (event.type === 'content_block_delta' && (event.delta as any).text) {
-        const delta = (event.delta as any).text;
-        fullText += delta;
-        callbacks.onText?.(delta);
+      if (event.type === 'content_block_start') {
+        if (event.content_block.type === 'tool_use') {
+          toolNames[event.index] = event.content_block.name;
+          toolInputs[event.index] = '';
+        }
+      }
+
+      if (event.type === 'content_block_delta') {
+        if (event.delta.type === 'text_delta') {
+          const delta = event.delta.text;
+          fullText += delta;
+          callbacks.onText?.(delta);
+        } else if (event.delta.type === 'input_json_delta') {
+          toolInputs[event.index] += event.delta.partial_json;
+          callbacks.onToolDelta?.(event.index, event.delta.partial_json);
+        }
+      }
+
+      if (event.type === 'content_block_stop') {
+        if (toolNames[event.index]) {
+          try {
+            const args = JSON.parse(toolInputs[event.index]);
+            callbacks.onToolCall?.(event.index, toolNames[event.index], args);
+          } catch (e) {
+            console.error('Failed to parse tool input', e);
+          }
+        }
       }
     }
 
-    return this.parseResponse(fullText);
+    // After stream finishes, we need to return the "result" structure
+    // Our existing base class parseResponse won't work perfectly if we used tools
+    // We should build the result object from the accumulated tools and text.
+    
+    const files: any = {};
+    for (const index in toolNames) {
+      if (toolNames[index] === 'write_file') {
+        try {
+          const args = JSON.parse(toolInputs[index]);
+          this.addFileToStructure(files, args.path, args.content);
+        } catch (e) { }
+      }
+    }
+
+    return { explanation: fullText, files };
   }
 }

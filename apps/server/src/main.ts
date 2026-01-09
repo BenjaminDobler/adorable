@@ -395,6 +395,12 @@ protectedRouter.post('/generate-stream', async (req: any, res) => {
       }, {
           onText: (text) => {
               res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);
+          },
+          onToolDelta: (index, delta) => {
+              res.write(`data: ${JSON.stringify({ type: 'tool_delta', index, delta })}\n\n`);
+          },
+          onToolCall: (index, name, args) => {
+              res.write(`data: ${JSON.stringify({ type: 'tool_call', index, name, args })}\n\n`);
           }
       });
       

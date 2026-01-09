@@ -918,6 +918,8 @@ export class AppComponent implements AfterViewChecked {
     
     let fullStreamText = '';
     let hasResult = false;
+    const toolInputs: {[key: number]: string} = {};
+    const toolPaths: {[key: number]: string} = {};
 
     this.apiService.generateStream(currentPrompt, previousSrc, {
       provider: this.appSettings?.provider,
@@ -927,7 +929,6 @@ export class AppComponent implements AfterViewChecked {
     }).subscribe({
       next: async (event) => {
         if (event.type === 'text') {
-          // ... existing logic ...
           fullStreamText += event.content;
           
           // Parse stream for display
@@ -935,20 +936,9 @@ export class AppComponent implements AfterViewChecked {
           const explMatch = fullStreamText.match(/<explanation>([\s\S]*?)(?:<\/explanation>|$)/);
           if (explMatch) {
             displayText = explMatch[1].trim();
-          } else if (fullStreamText.trim().startsWith('<explanation>')) {
-             displayText = fullStreamText.replace('<explanation>', '').trim();
-          }
-
-          // Extract file paths
-          const fileMatches = fullStreamText.matchAll(/<file\s+path="([^"]+)"/g);
-          const files = Array.from(fileMatches).map(m => m[1]);
-          
-          if (files.length > 0) {
-            displayText += '\n\n**Updating files:**\n' + files.map(f => `• ${f}`).join('\n');
-          }
-
-          if (!displayText && !fullStreamText.includes('<file')) {
-             displayText = fullStreamText.replace('<explanation>', '');
+          } else {
+             // If using tools, explanation is just the raw text
+             displayText = fullStreamText.trim();
           }
 
           this.messages.update(msgs => {
@@ -956,6 +946,25 @@ export class AppComponent implements AfterViewChecked {
             newMsgs[assistantMsgIndex].text = displayText;
             return newMsgs;
           });
+        } else if (event.type === 'tool_delta') {
+          toolInputs[event.index] = (toolInputs[event.index] || '') + event.delta;
+          
+          // Peek for path in the JSON stream
+          if (!toolPaths[event.index]) {
+            const pathMatch = toolInputs[event.index].match(/"path"\s*:\s*"([^"]+)"/);
+            if (pathMatch) toolPaths[event.index] = pathMatch[1];
+          }
+
+          // Update message with progress
+          const paths = Object.values(toolPaths);
+          if (paths.length > 0) {
+            this.messages.update(msgs => {
+              const newMsgs = [...msgs];
+              const baseText = newMsgs[assistantMsgIndex].text.split('\n\n**Updating files:**')[0];
+              newMsgs[assistantMsgIndex].text = baseText + '\n\n**Updating files:**\n' + paths.map(f => `• ${f}`).join('\n');
+              return newMsgs;
+            });
+          }
         } else if (event.type === 'result') {
           hasResult = true;
           try {
