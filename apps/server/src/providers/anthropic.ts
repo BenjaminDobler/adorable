@@ -180,6 +180,25 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         }
       }
 
+      // Update assistantMessageContent with full inputs
+      for (const block of assistantMessageContent) {
+        if (block.type === 'tool_use') {
+           // Find the accumulated input for this tool ID
+           // We stored it in toolUses array
+           const tool = toolUses.find(t => t.id === block.id);
+           if (tool) {
+              try {
+                // Input must be an object, not string
+                block.input = JSON.parse(tool.input);
+              } catch (e) {
+                // If input is incomplete JSON, we can't really reconstruct it validly.
+                // We'll set it to empty object to satisfy the type, but this turn is doomed.
+                block.input = {}; 
+              }
+           }
+        }
+      }
+
       messages.push({ role: 'assistant', content: assistantMessageContent });
 
       if (toolUses.length === 0) {
@@ -190,20 +209,27 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       const toolResults: any[] = [];
       for (const tool of toolUses) {
         let toolArgs: any = {};
+        let parseError = false;
         try {
           toolArgs = JSON.parse(tool.input);
           callbacks.onToolCall?.(0, tool.name, toolArgs);
         } catch (e) {
           console.error('Failed to parse tool input', e);
-          continue;
+          parseError = true;
         }
 
         let content = '';
-        if (tool.name === 'write_file') {
+        let isError = false;
+
+        if (parseError) {
+           content = 'Error: Invalid JSON input for tool.';
+           isError = true;
+        } else if (tool.name === 'write_file') {
           this.addFileToStructure(accumulatedFiles, toolArgs.path, toolArgs.content);
           content = 'File created successfully.';
         } else if (tool.name === 'read_file') {
           content = fileMap[toolArgs.path] || 'Error: File not found.';
+          if (content.startsWith('Error:')) isError = true;
         } else if (tool.name === 'list_dir') {
           const dir = toolArgs.path;
           const matching = Object.keys(fileMap).filter(k => k.startsWith(dir));
@@ -213,7 +239,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         toolResults.push({
           type: 'tool_result',
           tool_use_id: tool.id,
-          content
+          content,
+          is_error: isError
         });
       }
 
@@ -237,3 +264,4 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     }
     return map;
   }
+}

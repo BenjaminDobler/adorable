@@ -41,7 +41,7 @@ export abstract class BaseLLMProvider {
     return { files, explanation };
   }
 
-  private addFileToStructure(root: any, path: string, content: string, encoding?: string) {
+  protected addFileToStructure(root: any, path: string, content: string, encoding?: string) {
     const parts = path.split('/');
     let current = root;
 

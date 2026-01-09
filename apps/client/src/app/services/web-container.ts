@@ -97,6 +97,7 @@ export class WebContainerService {
   async stopDevServer() {
       if (this.serverProcess) {
         this.serverProcess.kill();
+        await this.serverProcess.exit;
         this.serverProcess = undefined;
         this.url.set(null);
         this.status.set('Server stopped');

@@ -2,36 +2,36 @@ export const ANGULAR_KNOWLEDGE_BASE = `
 # Angular 21 Expert Knowledge Base
 
 ## Core Concepts
-- **Standalone Components:** All components must use `standalone: true`. Do not use NgModules.
-- **Signals:** Use Signals for all state management. Avoid `Zone.js` reliance where possible.
-  - State: `count = signal(0)`
-  - Computed: `double = computed(() => this.count() * 2)`
-  - Effects: `effect(() => console.log(this.count()))`
+- **Standalone Components:** All components must use \x60standalone: true\x60. Do not use NgModules.
+- **Signals:** Use Signals for all state management. Avoid \x60Zone.js\x60 reliance where possible.
+  - State: \x60count = signal(0)\x60
+  - Computed: \x60double = computed(() => this.count() * 2)\x60
+  - Effects: \x60effect(() => console.log(this.count()))\x60
 - **Control Flow:** Use the new block syntax:
-  - `@if (cond) { ... } @else { ... }`
-  - `@for (item of items; track item.id) { ... }`
-  - `@switch (val) { @case (1) { ... } }`
+  - \x60@if (cond) { ... } @else { ... }\x60
+  - \x60@for (item of items; track item.id) { ... }\x60
+  - \x60@switch (val) { @case (1) { ... } }\x60
 
 ## Styling
 - Use **CSS Variables** for theming.
-- Prefer **Host Binding** via `:host` selector for component layout.
-- Use `encapsulation: ViewEncapsulation.Emulated` (default).
+- Prefer **Host Binding** via \x60:host\x60 selector for component layout.
+- Use \x60encapsulation: ViewEncapsulation.Emulated\x60 (default).
 
 ## Routing
-- Use `loadComponent` for lazy loading routes.
-- Use `inject(Router)` instead of constructor injection.
+- Use \x60loadComponent\x60 for lazy loading routes.
+- Use \x60inject(Router)\x60 instead of constructor injection.
 
 ## HTTP
-- Use `inject(HttpClient)`.
-- Use `toSignal` from `@angular/core/rxjs-interop` to convert Observables to Signals.
+- Use \x60inject(HttpClient)\x60.
+- Use \x60toSignal\x60 from \x60@angular/core/rxjs-interop\x60 to convert Observables to Signals.
 
 ## Forms
-- Use `FormsModule` for template-driven forms (simple).
-- Use `ReactiveFormsModule` for complex logic.
+- Use \x60FormsModule\x60 for template-driven forms (simple).
+- Use \x60ReactiveFormsModule\x60 for complex logic.
 
 ## Best Practices
 - **Strict Typing:** Always define interfaces.
-- **Separation of Concerns:** Move logic to Services (`@Injectable({providedIn: 'root'})`).
-- **Inputs/Outputs:** Use Signal Inputs `input.required<string>()` and `output<void>()`.
-- **Injection:** Prefer `inject(Service)` over constructor arguments.
+- **Separation of Concerns:** Move logic to Services (\x60@Injectable({providedIn: 'root'})\x60).
+- **Inputs/Outputs:** Use Signal Inputs \x60input.required<string>()\x60 and \x60output<void>()\x60.
+- **Injection:** Prefer \x60inject(Service)\x60 over constructor arguments.
 `;
