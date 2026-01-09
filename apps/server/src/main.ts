@@ -205,6 +205,7 @@ protectedRouter.post('/projects', async (req: any, res) => {
       role: m.role,
       text: m.text,
       files: m.files ? JSON.stringify(m.files) : undefined,
+      usage: m.usage ? JSON.stringify(m.usage) : undefined,
       timestamp: m.timestamp
     })) : [];
 
@@ -264,7 +265,8 @@ protectedRouter.get('/projects/:id', async (req: any, res) => {
         files: JSON.parse(project.files),
         messages: project.messages.map(m => ({
           ...m,
-          files: m.files ? JSON.parse(m.files) : undefined
+          files: m.files ? JSON.parse(m.files) : undefined,
+          usage: m.usage ? JSON.parse(m.usage) : undefined
         }))
     });
   } catch (error) {
@@ -412,6 +414,9 @@ protectedRouter.post('/generate-stream', async (req: any, res) => {
           },
           onToolResult: (tool_use_id, result) => {
               res.write(`data: ${JSON.stringify({ type: 'tool_result', tool_use_id, result })}\n\n`);
+          },
+          onTokenUsage: (usage) => {
+              res.write(`data: ${JSON.stringify({ type: 'usage', usage })}\n\n`);
           }
       });
       

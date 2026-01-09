@@ -223,7 +223,16 @@
 
                     </div>
 
-                                    <div class="message-time">{{ msg.timestamp | date:'shortTime' }}</div>
+                                    <div class="message-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                                      @if (msg.usage) {
+                                        <div class="message-usage" style="font-size: 9px; opacity: 0.4; font-family: monospace;">
+                                          Tokens: {{ msg.usage.totalTokens }} ({{ msg.usage.inputTokens }} in, {{ msg.usage.outputTokens }} out)
+                                        </div>
+                                      } @else {
+                                        <span></span>
+                                      }
+                                      <div class="message-time">{{ msg.timestamp | date:'shortTime' }}</div>
+                                    </div>
 
                                   </div>
 

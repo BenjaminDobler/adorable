@@ -51,5 +51,6 @@ model ChatMessage {
   role      String
   text      String
   files     String?  // JSON stringified snapshot
+  usage     String?  // JSON stringified usage data
   timestamp DateTime @default(now())
 }

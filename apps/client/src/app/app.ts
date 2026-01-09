@@ -32,6 +32,7 @@ interface ChatMessage {
   text: string;
   timestamp: Date;
   files?: any;
+  usage?: { inputTokens: number, outputTokens: number, totalTokens: number };
 }
 
 @Component({
@@ -774,18 +775,38 @@ export class AppComponent implements AfterViewChecked {
       if (exitCode !== 0) throw new Error('Build failed');
 
       // 2. Read dist files
-      // Dynamically detect build output path
-      let distPath = 'dist/app/browser';
+      // Dynamically detect build output path by hunting for index.html
+      let distPath = 'dist';
+      
+      const findWebRoot = async (currentPath: string): Promise<string | null> => {
+         try {
+           const entries = await this.webContainerService.readdir(currentPath, { withFileTypes: true }) as any[];
+           
+           // Check if index.html is in this directory
+           const hasIndex = entries.some(e => e.name === 'index.html');
+           if (hasIndex) return currentPath;
+           
+           // Otherwise search subdirectories
+           const dirs = entries.filter(e => e.isDirectory());
+           for (const dir of dirs) {
+              const result = await findWebRoot(`${currentPath}/${dir.name}`);
+              if (result) return result;
+           }
+         } catch (e) { }
+         return null;
+      };
+
       try {
-        await this.webContainerService.readdir(distPath);
-      } catch {
-        // Fallback for different builder configs
-        distPath = 'dist/app';
-        try {
-           await this.webContainerService.readdir(distPath);
-        } catch {
-           distPath = 'dist';
-        }
+         const foundPath = await findWebRoot('dist');
+         if (foundPath) {
+            distPath = foundPath;
+         } else {
+            // Fallback
+            distPath = 'dist/app/browser';
+         }
+      } catch (e) {
+         console.warn('Web root detection failed, defaulting to dist/app/browser');
+         distPath = 'dist/app/browser';
       }
       
       console.log(`Publishing from: ${distPath}`);
@@ -956,14 +977,15 @@ export class AppComponent implements AfterViewChecked {
       timestamp: new Date()
     }]);
 
-    const previousSrc = this.currentFiles?.['src'];
+    // Send full project context so AI knows about root files like package.json
+    const previousFiles = this.allFiles || this.currentFiles || BASE_FILES;
     
     let fullStreamText = '';
     let hasResult = false;
     const toolInputs: {[key: number]: string} = {};
     const toolPaths: {[key: number]: string} = {};
 
-    this.apiService.generateStream(currentPrompt, previousSrc, {
+    this.apiService.generateStream(currentPrompt, previousFiles, {
       provider: this.appSettings?.provider,
       apiKey: this.appSettings?.apiKey,
       model: this.appSettings?.model,
@@ -1011,6 +1033,12 @@ export class AppComponent implements AfterViewChecked {
               return newMsgs;
             });
           }
+        } else if (event.type === 'usage') {
+           this.messages.update(msgs => {
+             const newMsgs = [...msgs];
+             newMsgs[assistantMsgIndex].usage = event.usage;
+             return newMsgs;
+           });
         } else if (event.type === 'result') {
           hasResult = true;
           try {
