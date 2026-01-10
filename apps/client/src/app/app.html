@@ -24,7 +24,7 @@
         </svg>
       </button>
       <div class="project-meta">
-        <input [(ngModel)]="projectName" class="project-name-input" placeholder="Project Name" />
+        <input [(ngModel)]="projectService.projectName" class="project-name-input" placeholder="Project Name" />
         <div style="display: flex; gap: 8px; align-items: center;">
           <div class="status-badge" 
                [class.active]="webContainerService.url()" 
@@ -46,24 +46,22 @@
         </div>
       </div>
       <div class="header-actions">
-        <button (click)="migrateProject()" [disabled]="loading() || !currentFiles" class="icon-btn" title="Repair Project Configuration">
+        <button (click)="projectService.migrateProject()" [disabled]="loading() || !projectService.currentFiles()" class="icon-btn" title="Repair Project Configuration">
           <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
         </button>
-        <button (click)="saveProject()" [disabled]="loading() || !currentFiles" class="icon-btn" title="Save changes">
+        <button (click)="saveProject()" [disabled]="loading() || !projectService.currentFiles()" class="icon-btn" title="Save changes">
           <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
         </button>
-        <button (click)="publish()" [disabled]="loading() || !currentFiles" class="icon-btn" title="Publish live site">
+        <button (click)="publish()" [disabled]="loading() || !projectService.currentFiles()" class="icon-btn" title="Publish live site">
           <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="11" x2="21" y2="3"></line></svg>
         </button>
-        <button (click)="downloadZip()" [disabled]="loading() || !currentFiles" class="icon-btn" title="Download source">
+        <button (click)="downloadZip()" [disabled]="loading() || !projectService.currentFiles()" class="icon-btn" title="Download source">
           <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
         </button>
       </div>
     </header>
 
         <div class="chat-section">
-
-          <!-- FIXED STRUCTURE -->
 
           @if (visualEditorData()) {
 
@@ -954,7 +952,7 @@
 
             
 
-                          [files]="allFiles"
+                          [files]="projectService.allFiles()"
 
     
 
@@ -1105,5 +1103,3 @@
       </div>
 
     }
-
-    
