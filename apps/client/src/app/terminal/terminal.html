@@ -1,0 +1,83 @@
+<div class="terminal-view" style="display: flex; flex-direction: column; height: 100%;">
+  <div class="terminal-tabs" style="display: flex; background: var(--panel-bg); border-bottom: 1px solid var(--panel-border); min-height: 36px;">
+    <button (click)="terminalTab.set('server')" 
+            [style.border-bottom]="terminalTab() === 'server' ? '2px solid var(--accent-color)' : '2px solid transparent'"
+            [style.color]="terminalTab() === 'server' ? 'var(--text-primary)' : 'var(--text-secondary)'"
+            style="flex: 1; font-size: 12px; background: none; border: none; border-right: 1px solid var(--panel-border); cursor: pointer;">
+      Server Logs
+    </button>
+    <button (click)="terminalTab.set('shell')" 
+            [style.border-bottom]="terminalTab() === 'shell' ? '2px solid var(--accent-color)' : '2px solid transparent'"
+            [style.color]="terminalTab() === 'shell' ? 'var(--text-primary)' : 'var(--text-secondary)'"
+            style="flex: 1; font-size: 12px; background: none; border: none; border-right: 1px solid var(--panel-border); cursor: pointer;">
+      Interactive Shell
+    </button>
+    <button (click)="terminalTab.set('console')" 
+            [style.border-bottom]="terminalTab() === 'console' ? '2px solid var(--accent-color)' : '2px solid transparent'"
+            [style.color]="terminalTab() === 'console' ? 'var(--text-primary)' : 'var(--text-secondary)'"
+            style="flex: 1; font-size: 12px; background: none; border: none; cursor: pointer;">
+      Preview Console
+    </button>
+  </div>
+  
+  @if (terminalTab() === 'server') {
+    <div class="terminal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-bottom: 1px solid var(--panel-border);">
+      <div style="display: flex; gap: 8px;">
+        <button class="btn-clear" (click)="webContainerService.serverOutput.set('')">Clear</button>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <span style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Server</span>
+        @if (webContainerService.url()) {
+          <button (click)="webContainerService.stopDevServer()" class="btn-toggle-server running" title="Stop Dev Server">
+            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="currentColor" stroke-width="0"><rect x="6" y="6" width="12" height="12"></rect></svg>
+          </button>
+        } @else {
+          <button (click)="webContainerService.startDevServer()" class="btn-toggle-server stopped" title="Start Dev Server">
+            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="currentColor" stroke-width="0"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          </button>
+        }
+      </div>
+    </div>
+    <div class="terminal-window" style="flex: 1; overflow: auto;">
+      <code [innerHTML]="webContainerService.serverOutput() | terminalFormat"></code>
+    </div>
+  }
+
+  @if (terminalTab() === 'shell') {
+    <div class="terminal-header" style="display: flex; justify-content: flex-end; padding: 4px 8px; border-bottom: 1px solid var(--panel-border);">
+      <button class="btn-clear" (click)="webContainerService.shellOutput.set('')">Clear</button>
+    </div>
+    <div class="terminal-window" style="flex: 1; overflow: auto;">
+      <code [innerHTML]="webContainerService.shellOutput() | terminalFormat"></code>
+    </div>
+    <div class="terminal-input-bar" style="border-top: 1px solid var(--panel-border); padding: 8px; background: #0a0a0a;">
+      <span style="color: var(--accent-color); margin-right: 8px;">$</span>
+      <input 
+        [(ngModel)]="terminalInput" 
+        (keydown.enter)="sendTerminalCommand()"
+        placeholder="npm install package..."
+        style="width: calc(100% - 20px); background: transparent; border: none; color: #fff; font-family: monospace; outline: none;"
+      />
+    </div>
+  }
+  
+  @if (terminalTab() === 'console') {
+    <div class="terminal-header" style="display: flex; justify-content: flex-end; padding: 4px 8px; border-bottom: 1px solid var(--panel-border);">
+      <button (click)="toggleDebug.emit()" style="margin-right: 8px; font-size: 10px; background: none; border: 1px solid var(--panel-border); color: var(--text-secondary); border-radius: 4px; cursor: pointer; padding: 2px 6px;">🔍 Debug</button>
+      <button class="btn-clear" (click)="webContainerService.previewConsoleLogs.set([])">Clear</button>
+    </div>
+    
+    <div class="terminal-window" style="flex: 1; overflow: auto; padding: 8px;">
+      @for (log of webContainerService.previewConsoleLogs(); track $index) {
+        <div [style.color]="log.level === 'error' ? '#ef4444' : log.level === 'warn' ? '#eab308' : '#e5e7eb'" 
+             style="font-family: monospace; font-size: 12px; margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 2px;">
+          <span style="opacity: 0.5; margin-right: 8px;">[{{ log.timestamp | date:'HH:mm:ss' }}]</span>
+          <span style="white-space: pre-wrap;">{{ log.message }}</span>
+        </div>
+      }
+      @if (webContainerService.previewConsoleLogs().length === 0) {
+         <div style="color: var(--text-secondary); opacity: 0.5; text-align: center; padding-top: 2rem; font-size: 12px;">No console logs yet</div>
+      }
+    </div>
+  }
+</div>

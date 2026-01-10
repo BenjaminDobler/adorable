@@ -1,5 +1,6 @@
 import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
 import { GoogleGenAI } from '@google/genai';
+import { minimatch } from 'minimatch';
 import { BaseLLMProvider } from './base';
 import { ANGULAR_KNOWLEDGE_BASE } from './knowledge-base';
 import { TOOLS } from './tools';
@@ -11,7 +12,8 @@ const SYSTEM_PROMPT =
 +"- You have access to the **FILE STRUCTURE ONLY** initially.\n"
 +"- You **MUST** use the `read_file` tool to inspect the code of any file you plan to modify or need to understand.\n"
 +"- **NEVER** guess the content of a file. Always read it first to ensure you have the latest version.\n"
-+"- Use `write_file` to create or update files.\n\n"
++"- Use `write_file` to create or update files.\n"
++"- Use `edit_file` for precise modifications when you want to change a specific part of a file without rewriting the whole content. `old_str` must match exactly.\n\n"
 +"**RESTRICTED FILES (DO NOT EDIT):**\n"
 +"- `package.json`, `angular.json`, `tsconfig.json`, `tsconfig.app.json`: Do NOT modify these files unless you are explicitly adding a dependency or changing a build configuration.\n"
 +"- **NEVER** overwrite `package.json` with a generic template. The project is already set up with Angular 21.\n\n"
@@ -31,6 +33,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
     let text = '';
     await this.streamGenerate(options, {
         onText: (t) => text += t,
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         onToolResult: () => {},
     });
     return { explanation: text, files: this.lastAccumulatedFiles };
@@ -156,6 +159,28 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
             if (call.name === 'write_file') {
                 this.addFileToStructure(accumulatedFiles, args.path, args.content);
                 content = 'File created successfully.';
+            } else if (call.name === 'edit_file') {
+                const originalContent = fileMap[args.path];
+                if (!originalContent) {
+                  content = 'Error: File not found. You must ensure the file exists before editing it.';
+                } else {
+                  if (originalContent.includes(args.old_str)) {
+                    // Check for uniqueness
+                    const parts = originalContent.split(args.old_str);
+                    if (parts.length > 2) {
+                       content = 'Error: old_str is not unique in the file. Please provide more context in old_str to make it unique.';
+                    } else {
+                       const newContent = originalContent.replace(args.old_str, args.new_str);
+                       // Update both fileMap (for future reads in this session if we were persisting it, but we aren't really)
+                       // And accumulatedFiles (for the final output)
+                       fileMap[args.path] = newContent; 
+                       this.addFileToStructure(accumulatedFiles, args.path, newContent);
+                       content = 'File edited successfully.';
+                    }
+                  } else {
+                    content = 'Error: old_str not found in file. Please ensure it matches exactly, including whitespace.';
+                  }
+                }
             } else if (call.name === 'read_file') {
                 content = fileMap[args.path] || 'Error: File not found.';
             } else if (call.name === 'list_dir') {
@@ -174,6 +199,10 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
                 
                 const unique = Array.from(new Set(matching)).sort();
                 content = unique.length ? unique.join('\n') : 'Directory is empty or not found.';
+            } else if (call.name === 'glob') {
+                const pattern = args.pattern;
+                const matchingFiles = Object.keys(fileMap).filter(path => minimatch(path, pattern));
+                content = matchingFiles.length ? matchingFiles.join('\n') : 'No files matched the pattern.';
             }
 
             callbacks.onToolResult?.('gemini-tool', content);
@@ -194,7 +223,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
   }
 
   private flattenFiles(structure: any, prefix = ''): Record<string, string> {
-    let map: Record<string, string> = {};
+    const map: Record<string, string> = {};
     for (const key in structure) {
       const node = structure[key];
       const path = prefix + key;

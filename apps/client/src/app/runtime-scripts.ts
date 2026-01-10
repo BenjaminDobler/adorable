@@ -114,15 +114,48 @@ export const RUNTIME_SCRIPTS = `
     })();
     
     // Screenshot logic
-    window.addEventListener('message', async (event) => {
-      if (event.data.type === 'CAPTURE_REQ') {
-        const { x, y, width, height } = event.data.rect;
-        try {
-          if (typeof html2canvas === 'undefined') throw new Error('html2canvas not loaded');
-          const canvas = await html2canvas(document.body, { x, y, width, height, useCORS: true, logging: false });
-          window.parent.postMessage({ type: 'CAPTURE_RES', image: canvas.toDataURL('image/png') }, '*');
-        } catch (err) { console.error(err); }
-      }
-    });
+    (function() {
+      let domToCanvas;
+      
+      // Load modern-screenshot dynamically as an ES module
+      import('https://cdn.jsdelivr.net/npm/modern-screenshot/+esm').then(mod => {
+        domToCanvas = mod.domToCanvas;
+      }).catch(err => console.error('Failed to load modern-screenshot', err));
+
+      window.addEventListener('message', async (event) => {
+        if (event.data.type === 'CAPTURE_REQ') {
+          const { x, y, width, height } = event.data.rect;
+          if (!domToCanvas) {
+             console.warn('modern-screenshot not loaded yet');
+             return;
+          }
+
+          try {
+            // Using modern-screenshot to capture the rect
+            // We apply a negative translation to "pan" to the correct coordinates
+            const canvas = await domToCanvas(document.body, {
+              width: width,
+              height: height,
+              scale: 2, // Higher resolution
+              features: {
+                // Ensure all modern features are enabled
+                copyCSSStyles: true,
+              },
+              style: {
+                transform: 'translate(-' + x + 'px, -' + y + 'px)',
+                transformOrigin: 'top left'
+              }
+            });
+            
+            window.parent.postMessage({ 
+              type: 'CAPTURE_RES', 
+              image: canvas.toDataURL('image/png') 
+            }, '*');
+          } catch (err) { 
+            console.error('Screenshot failed:', err); 
+          }
+        }
+      });
+    })();
   </script>
 `;

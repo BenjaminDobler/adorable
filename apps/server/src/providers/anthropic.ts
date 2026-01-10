@@ -1,5 +1,6 @@
 import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
 import Anthropic from '@anthropic-ai/sdk';
+import { minimatch } from 'minimatch';
 import { BaseLLMProvider } from './base';
 import { ANGULAR_KNOWLEDGE_BASE } from './knowledge-base';
 import { TOOLS } from './tools';
@@ -11,7 +12,8 @@ const SYSTEM_PROMPT =
 +"- You have access to the **FILE STRUCTURE ONLY** initially.\n"
 +"- You **MUST** use the `read_file` tool to inspect the code of any file you plan to modify or need to understand.\n"
 +"- **NEVER** guess the content of a file. Always read it first to ensure you have the latest version.\n"
-+"- Use `write_file` to create or update files.\n\n"
++"- Use `write_file` to create or update files.\n"
++"- Use `edit_file` for precise modifications when you want to change a specific part of a file without rewriting the whole content. `old_str` must match exactly.\n\n"
 +"**RESTRICTED FILES (DO NOT EDIT):**\n"
 +"- `package.json`, `angular.json`, `tsconfig.json`, `tsconfig.app.json`: Do NOT modify these files unless you are explicitly adding a dependency or changing a build configuration.\n"
 +"- **NEVER** overwrite `package.json` with a generic template. The project is already set up with Angular 21.\n\n"
@@ -149,9 +151,9 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         stream: true,
       });
 
-      let toolUses: { id: string, name: string, input: string }[] = [];
+      const toolUses: { id: string, name: string, input: string }[] = [];
       let currentToolUse: { id: string, name: string, input: string } | null = null;
-      let assistantMessageContent: any[] = [];
+      const assistantMessageContent: any[] = [];
 
       for await (const event of stream) {
         if (event.type === 'message_start' && event.message.usage) {
@@ -237,6 +239,28 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         } else if (tool.name === 'write_file') {
           this.addFileToStructure(accumulatedFiles, toolArgs.path, toolArgs.content);
           content = 'File created successfully.';
+        } else if (tool.name === 'edit_file') {
+          const originalContent = fileMap[toolArgs.path];
+          if (!originalContent) {
+            content = 'Error: File not found. You must ensure the file exists before editing it.';
+            isError = true;
+          } else {
+            if (originalContent.includes(toolArgs.old_str)) {
+              const parts = originalContent.split(toolArgs.old_str);
+              if (parts.length > 2) {
+                 content = 'Error: old_str is not unique in the file. Please provide more context in old_str to make it unique.';
+                 isError = true;
+              } else {
+                 const newContent = originalContent.replace(toolArgs.old_str, toolArgs.new_str);
+                 fileMap[toolArgs.path] = newContent; 
+                 this.addFileToStructure(accumulatedFiles, toolArgs.path, newContent);
+                 content = 'File edited successfully.';
+              }
+            } else {
+              content = 'Error: old_str not found in file. Please ensure it matches exactly, including whitespace.';
+              isError = true;
+            }
+          }
         } else if (tool.name === 'read_file') {
           content = fileMap[toolArgs.path] || 'Error: File not found. The file may not exist in the current project structure.';
           if (content.startsWith('Error:')) isError = true;
@@ -256,6 +280,10 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
           
           const unique = Array.from(new Set(matching)).sort();
           content = unique.length ? unique.join('\n') : 'Directory is empty or not found.';
+        } else if (tool.name === 'glob') {
+          const pattern = toolArgs.pattern;
+          const matchingFiles = Object.keys(fileMap).filter(path => minimatch(path, pattern));
+          content = matchingFiles.length ? matchingFiles.join('\n') : 'No files matched the pattern.';
         }
 
         toolResults.push({
@@ -276,7 +304,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
   }
 
   private flattenFiles(structure: any, prefix = ''): Record<string, string> {
-    let map: Record<string, string> = {};
+    const map: Record<string, string> = {};
     for (const key in structure) {
       const node = structure[key];
       const path = prefix + key;

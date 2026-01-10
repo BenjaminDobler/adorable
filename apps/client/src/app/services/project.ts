@@ -34,6 +34,8 @@ export class ProjectService {
     { role: 'assistant', text: 'Hi! I can help you build an Angular app. Describe what you want to create.', timestamp: new Date() }
   ]);
   loading = signal(false);
+  buildError = signal<string | null>(null);
+  debugLogs = signal<any[]>([]);
 
   // Computed
   hasProject = computed(() => !!this.projectId() && this.projectId() !== 'new');
