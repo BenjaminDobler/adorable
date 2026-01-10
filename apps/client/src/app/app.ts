@@ -985,10 +985,32 @@ export class AppComponent implements AfterViewChecked {
     const toolInputs: {[key: number]: string} = {};
     const toolPaths: {[key: number]: string} = {};
 
+    // Resolve Settings
+    let provider = 'anthropic';
+    let apiKey = '';
+    let model = '';
+
+    if (this.appSettings) {
+      if (this.appSettings.profiles && this.appSettings.activeProfileId) {
+         // New Format
+         const active = this.appSettings.profiles.find((p: any) => p.id === this.appSettings.activeProfileId);
+         if (active) {
+            provider = active.provider;
+            apiKey = active.apiKey;
+            model = active.model;
+         }
+      } else {
+         // Legacy Format
+         provider = this.appSettings.provider || provider;
+         apiKey = this.appSettings.apiKey || apiKey;
+         model = this.appSettings.model || model;
+      }
+    }
+
     this.apiService.generateStream(currentPrompt, previousFiles, {
-      provider: this.appSettings?.provider,
-      apiKey: this.appSettings?.apiKey,
-      model: this.appSettings?.model,
+      provider,
+      apiKey,
+      model,
       images: this.attachedImage ? [this.attachedImage] : undefined
     }).subscribe({
       next: async (event) => {

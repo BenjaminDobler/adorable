@@ -23,37 +23,66 @@
     <section class="section">
       <h3>⚙️ AI Provider Settings</h3>
       
-      <div class="form-group">
-        <label>AI Provider</label>
-        <select [(ngModel)]="settings().provider" (change)="onProviderChange()">
-          <option value="anthropic">Anthropic (Claude)</option>
-          <option value="google">Google (Gemini)</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label>API Key</label>
-        <input 
-          type="password" 
-          [(ngModel)]="settings().apiKey" 
-          (blur)="fetchModels()"
-          placeholder="sk-..."
-        />
-        <small class="hint">
-          Required for custom requests. Stored securely in our database.
-        </small>
-      </div>
-
-      <div class="form-group">
-        <label>Default Model</label>
-        <select [(ngModel)]="settings().model">
-          @for (model of availableModels(); track model) {
-            <option [value]="model">{{ model }}</option>
-          }
-        </select>
-        <div style="text-align: right; margin-top: 4px;">
-           <button class="btn-link" style="font-size: 11px; background: none; border: none; color: var(--accent-color); cursor: pointer; padding: 0;" (click)="fetchModels()">↻ Refresh Models</button>
-        </div>
+      <div class="providers-grid">
+        @for (profile of settings().profiles; track profile.id) {
+          <div class="provider-card" [class.active]="settings().activeProfileId === profile.id">
+            <div class="card-header" (click)="setActive(profile.id)">
+              <div class="header-left">
+                <div class="radio-circle">
+                  @if (settings().activeProfileId === profile.id) {
+                    <div class="radio-inner"></div>
+                  }
+                </div>
+                <span class="provider-name">{{ profile.name }}</span>
+              </div>
+              @if (settings().activeProfileId === profile.id) {
+                <span class="badge">Active</span>
+              }
+            </div>
+  
+            <div class="card-body">
+              <div class="form-group">
+                <label>API Key</label>
+                <input 
+                  type="password" 
+                  [name]="'apiKey-' + profile.id"
+                  [ngModel]="profile.apiKey"
+                  (ngModelChange)="updateProfile(profile.id, {apiKey: $event})" 
+                  placeholder="sk-..."
+                  autocomplete="new-password"
+                />
+              </div>
+  
+              <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                  <label>Model</label>
+                  <button class="btn-link" style="font-size: 11px; background: none; border: none; color: var(--accent-color); cursor: pointer; padding: 0;" (click)="fetchModels(profile)">↻ Refresh</button>
+                </div>
+                <select 
+                  [name]="'model-' + profile.id"
+                  [ngModel]="profile.model"
+                  (ngModelChange)="updateProfile(profile.id, {model: $event})"
+                >
+                  @if (fetchedModels()[profile.id]) {
+                    @for (model of fetchedModels()[profile.id]; track model) {
+                      <option [value]="model">{{ model }}</option>
+                    }
+                  } @else {
+                    @if (profile.provider === 'anthropic') {
+                      @for (model of anthropicModels; track model) {
+                        <option [value]="model">{{ model }}</option>
+                      }
+                    } @else {
+                      @for (model of geminiModels; track model) {
+                        <option [value]="model">{{ model }}</option>
+                      }
+                    }
+                  }
+                </select>
+              </div>
+            </div>
+          </div>
+        }
       </div>
     </section>
 

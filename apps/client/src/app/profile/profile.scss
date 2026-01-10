@@ -14,8 +14,8 @@
   border-radius: 12px;
   padding: 3rem;
   width: 100%;
-  max-width: 640px;
-  margin: 0 auto 4rem auto; /* Center horizontally with bottom spacing */
+  max-width: 800px; /* Increased from 640px */
+  margin: 0 auto 4rem auto;
 
   .header {
     margin-bottom: 3rem;
@@ -119,5 +119,100 @@
     cursor: pointer;
     &:hover:not(:disabled) { background: var(--accent-hover); }
     &:disabled { background: var(--panel-border); color: #444; cursor: not-allowed; }
+  }
+}
+
+/* NEW STYLES FOR PROVIDERS GRID */
+.providers-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.provider-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  padding: 0; /* Reset internal padding */
+  width: auto; /* Reset width constraint */
+  max-width: none;
+  margin: 0;
+  box-shadow: none;
+
+  &:hover {
+    border-color: #444;
+  }
+
+  &.active {
+    border-color: var(--accent-color);
+    background: rgba(62, 207, 142, 0.05);
+    box-shadow: 0 0 0 1px var(--accent-color);
+  }
+
+  .card-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.02);
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .radio-circle {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid #555;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+
+      .radio-inner {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--accent-color);
+      }
+    }
+
+    .provider-name {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      background: rgba(62, 207, 142, 0.1);
+      color: var(--accent-color);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 500;
+    }
+  }
+
+  &.active .radio-circle {
+    border-color: var(--accent-color);
+  }
+
+  .card-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
 }

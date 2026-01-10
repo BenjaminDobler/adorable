@@ -1,12 +1,21 @@
-import { Component, EventEmitter, Output, signal, inject } from '@angular/core';
+import { Component, EventEmitter, Output, signal, inject, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../services/api';
 
-export interface AppSettings {
-  provider: 'anthropic' | 'gemini';
+export type ProviderType = 'anthropic' | 'gemini';
+
+export interface AIProfile {
+  id: string; // 'anthropic' | 'gemini'
+  name: string;
+  provider: ProviderType;
   apiKey: string;
   model: string;
+}
+
+export interface AppSettings {
+  profiles: AIProfile[];
+  activeProfileId: string;
 }
 
 @Component({
@@ -23,10 +32,27 @@ export class SettingsComponent {
   @Output() save = new EventEmitter<AppSettings>();
 
   settings = signal<AppSettings>({
-    provider: 'anthropic',
-    apiKey: '',
-    model: ''
+    profiles: [
+      {
+        id: 'anthropic',
+        name: 'Anthropic (Claude)',
+        provider: 'anthropic',
+        apiKey: '',
+        model: 'claude-3-5-sonnet-20240620'
+      },
+      {
+        id: 'gemini',
+        name: 'Google (Gemini)',
+        provider: 'gemini',
+        apiKey: '',
+        model: 'gemini-2.0-flash-exp'
+      }
+    ],
+    activeProfileId: 'anthropic'
   });
+  
+  anthropicProfile = computed(() => this.settings().profiles.find(p => p.id === 'anthropic')!);
+  geminiProfile = computed(() => this.settings().profiles.find(p => p.id === 'gemini')!);
 
   loading = signal(false);
 
@@ -38,9 +64,9 @@ export class SettingsComponent {
   ];
 
   geminiModels = [
-    'gemini-1.5-pro-latest',
-    'gemini-1.5-flash-latest',
-    'gemini-1.0-pro'
+    'gemini-2.0-flash-exp',
+    'gemini-1.5-flash',
+    'gemini-1.5-pro'
   ];
 
   constructor() {
@@ -50,14 +76,51 @@ export class SettingsComponent {
   loadSettings() {
     this.apiService.getProfile().subscribe(user => {
       if (user.settings) {
-        const parsed = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
+        let parsed = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
+        
+        // Ensure we have the base structure
+        const defaultProfiles = this.settings().profiles;
+        let profiles = parsed.profiles || [];
+
+        // If legacy format
+        if (!parsed.profiles && parsed.provider) {
+           const legacyProfile = {
+             id: parsed.provider,
+             name: parsed.provider === 'anthropic' ? 'Anthropic (Claude)' : 'Google (Gemini)',
+             provider: parsed.provider,
+             apiKey: parsed.apiKey || '',
+             model: parsed.model || ''
+           };
+           profiles = [legacyProfile];
+           parsed.activeProfileId = parsed.provider;
+        }
+
+        // Merge loaded profiles with defaults to ensure both exist
+        const mergedProfiles = defaultProfiles.map(def => {
+          const loaded = profiles.find((p: any) => p.id === def.id || p.provider === def.provider);
+          return loaded ? { ...def, ...loaded, id: def.id } : def; // Force ID consistency
+        });
+
         this.settings.set({
-          provider: parsed.provider || 'anthropic',
-          apiKey: parsed.apiKey || '',
-          model: parsed.model || ''
+          profiles: mergedProfiles,
+          activeProfileId: parsed.activeProfileId || 'anthropic'
         });
       }
     });
+  }
+
+  setActive(id: string) {
+    this.settings.update(s => ({
+      ...s,
+      activeProfileId: id
+    }));
+  }
+
+  updateProfile(id: string, updates: Partial<AIProfile>) {
+    this.settings.update(s => ({
+      ...s,
+      profiles: s.profiles.map(p => p.id === id ? { ...p, ...updates } : p)
+    }));
   }
 
   saveSettings() {

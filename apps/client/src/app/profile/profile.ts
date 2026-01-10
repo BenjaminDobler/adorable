@@ -4,10 +4,19 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../services/api';
 import { Router } from '@angular/router';
 
-export interface AppSettings {
-  provider: 'anthropic' | 'gemini' | 'google';
+export type ProviderType = 'anthropic' | 'gemini';
+
+export interface AIProfile {
+  id: string;
+  name: string;
+  provider: ProviderType;
   apiKey: string;
   model: string;
+}
+
+export interface AppSettings {
+  profiles: AIProfile[];
+  activeProfileId: string;
 }
 
 @Component({
@@ -23,24 +32,42 @@ export class ProfileComponent {
 
   user = signal<any>(null);
   name = signal('');
+  
   settings = signal<AppSettings>({
-    provider: 'anthropic',
-    apiKey: '',
-    model: ''
+    profiles: [
+      {
+        id: 'anthropic',
+        name: 'Anthropic (Claude)',
+        provider: 'anthropic',
+        apiKey: '',
+        model: 'claude-3-5-sonnet-20240620'
+      },
+      {
+        id: 'gemini',
+        name: 'Google (Gemini)',
+        provider: 'gemini',
+        apiKey: '',
+        model: 'gemini-2.0-flash-exp'
+      }
+    ],
+    activeProfileId: 'anthropic'
   });
 
   loading = signal(false);
-  availableModels = signal<string[]>([]);
+
+  fetchedModels = signal<Record<string, string[]>>({});
 
   anthropicModels = [
-    'claude-3-5-sonnet-20241022',
-    'claude-3-5-haiku-20241022'
+    'claude-3-5-sonnet-20240620',
+    'claude-3-5-sonnet-latest',
+    'claude-3-5-haiku-20241022',
+    'claude-3-opus-20240229'
   ];
 
   geminiModels = [
-    'gemini-1.5-pro-latest',
-    'gemini-1.5-flash-latest',
-    'gemini-1.0-pro'
+    'gemini-2.0-flash-exp',
+    'gemini-1.5-flash',
+    'gemini-1.5-pro'
   ];
 
   constructor() {
@@ -53,64 +80,99 @@ export class ProfileComponent {
       this.name.set(user.name || '');
       
       if (user.settings) {
-        const parsed = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
-        this.settings.set({
-          provider: parsed.provider || 'anthropic',
-          apiKey: parsed.apiKey || '',
-          model: parsed.model || ''
+        let parsed = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
+        
+        const defaultProfiles = this.settings().profiles;
+        let profiles = parsed.profiles || [];
+
+        // Legacy migration
+        if (!parsed.profiles && parsed.provider) {
+           // Normalize provider name 'google' -> 'gemini'
+           let pName = parsed.provider;
+           if (pName === 'google') pName = 'gemini';
+
+           const legacyProfile = {
+             id: pName,
+             name: pName === 'anthropic' ? 'Anthropic (Claude)' : 'Google (Gemini)',
+             provider: pName,
+             apiKey: parsed.apiKey || '',
+             model: parsed.model || ''
+           };
+           profiles = [legacyProfile];
+           parsed.activeProfileId = pName;
+        }
+
+        // Merge
+        const mergedProfiles = defaultProfiles.map(def => {
+          const loaded = profiles.find((p: any) => p.id === def.id || p.provider === def.provider);
+          return loaded ? { ...def, ...loaded, id: def.id } : def;
         });
-        this.fetchModels();
+
+        this.settings.set({
+          profiles: mergedProfiles,
+          activeProfileId: parsed.activeProfileId || 'anthropic'
+        });
+
+        // Fetch models for profiles with keys
+        this.settings().profiles.forEach(p => {
+          if (p.apiKey) this.fetchModels(p);
+        });
       }
     });
   }
 
-  fetchModels() {
-    const s = this.settings();
-    if (!s.apiKey || !s.provider) {
-        // Use defaults if no key
-        this.updateAvailableModelsFromDefaults();
-        return;
-    }
+  fetchModels(profile: AIProfile) {
+    if (!profile.apiKey) return;
+    
+    // Map provider to backend expected string if needed
+    let providerParam = profile.provider;
+    if (providerParam === 'gemini') providerParam = 'google' as any; // Backend expects 'google' for gemini
 
-    let provider = s.provider;
-    if (provider === 'gemini') provider = 'google';
-
-    this.apiService.getModels(provider, s.apiKey).subscribe({
+    this.apiService.getModels(providerParam, profile.apiKey).subscribe({
       next: (models) => {
-        this.availableModels.set(models);
-        // If current model is not in list, select first (if list not empty)
-        if (s.model && !models.includes(s.model) && models.length > 0) {
-           // Maybe don't auto-switch if user has a custom model not in list? 
-           // But usually list is authoritative.
-           // Let's keep it unless empty.
-        }
-        if (!s.model && models.length > 0) {
-            this.settings.update(curr => ({ ...curr, model: models[0] }));
+        this.fetchedModels.update(current => ({
+          ...current,
+          [profile.id]: models
+        }));
+        
+        // Auto-select first if current model is invalid/empty?
+        // Let's be careful not to overwrite user choice if valid.
+        if (models.length > 0 && !profile.model) {
+           this.updateProfile(profile.id, { model: models[0] });
         }
       },
       error: (err) => {
-        console.error('Failed to fetch models', err);
-        this.updateAvailableModelsFromDefaults();
+        console.error(`Failed to fetch models for ${profile.name}`, err);
       }
     });
   }
 
-  updateAvailableModelsFromDefaults() {
-      const s = this.settings();
-      if (s.provider === 'anthropic') this.availableModels.set(this.anthropicModels);
-      else if (s.provider === 'gemini' || s.provider === 'google') this.availableModels.set(this.geminiModels);
+  setActive(id: string) {
+    this.settings.update(s => ({
+      ...s,
+      activeProfileId: id
+    }));
   }
 
-  onProviderChange() {
-      this.settings.update(s => ({ ...s, model: '' })); // Reset model
-      this.fetchModels();
+  updateProfile(id: string, updates: Partial<AIProfile>) {
+    this.settings.update(s => ({
+      ...s,
+      profiles: s.profiles.map(p => p.id === id ? { ...p, ...updates } : p)
+    }));
   }
 
   save() {
     this.loading.set(true);
+    
+    // Validate active profile
+    const current = this.settings();
+    if (!current.profiles.find(p => p.id === current.activeProfileId)) {
+       current.activeProfileId = current.profiles[0]?.id;
+    }
+
     const data = {
       name: this.name(),
-      settings: this.settings()
+      settings: current
     };
 
     this.apiService.updateProfile(data).subscribe({

@@ -34,6 +34,7 @@ npm-debug.log
 yarn-error.log
 testem.log
 /typings
+*.log
 
 # System Files
 .DS_Store
@@ -49,5 +50,6 @@ __screenshots__/
 
 /generated/prisma
 *.db
+prisma/dev.db-journal
 apps/client/public/assets/monaco
 published-sites
