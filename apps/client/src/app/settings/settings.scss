@@ -228,7 +228,7 @@
       outline: none;
 
       &:first-child { width: 100px; }
-      &:last-child { flex: 1; }
+      &:last-child { flex: 1; max-width: 200px; }
 
       &:focus { border-color: #38bdf8; }
     }
