@@ -112,6 +112,7 @@ export class ChatComponent {
     const data = this.visualEditorData();
     const fingerprint = {
        componentName: data.componentName,
+       hostTag: data.hostTag,
        tagName: data.tagName,
        text: data.text, // The ORIGINAL text from runtime
        classes: data.classes,

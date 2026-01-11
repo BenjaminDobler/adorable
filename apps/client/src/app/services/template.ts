@@ -3,7 +3,8 @@ import { ProjectService } from './project';
 import { parse } from 'angular-html-parser';
 
 export interface ElementFingerprint {
-  componentName: string;
+  componentName?: string; // Optional now
+  hostTag?: string; // New fallback
   tagName: string;
   text?: string;
   classes?: string;
@@ -30,14 +31,23 @@ export class TemplateService {
     const files = this.projectService.allFiles();
     if (!files) return { content: '', path: '', success: false, error: 'No files loaded' };
 
-    const componentFile = this.findComponentFile(files, fingerprint.componentName);
+    let componentFile;
+    if (fingerprint.componentName) {
+       componentFile = this.findComponentFile(files, fingerprint.componentName);
+    } 
+    
+    if (!componentFile && fingerprint.hostTag) {
+       console.log(`[TemplateService] Fallback: Searching for component by selector: ${fingerprint.hostTag}`);
+       componentFile = this.findComponentFileBySelector(files, fingerprint.hostTag);
+    }
+
     if (!componentFile) {
-       return { content: '', path: '', success: false, error: `Could not locate component file for ${fingerprint.componentName}` };
+       return { content: '', path: '', success: false, error: `Could not locate component file for ${fingerprint.componentName || fingerprint.hostTag}` };
     }
 
     const templateInfo = this.resolveTemplate(componentFile.path, componentFile.content, files);
     if (!templateInfo) {
-       return { content: '', path: '', success: false, error: `Could not locate template for ${fingerprint.componentName}` };
+       return { content: '', path: '', success: false, error: `Could not locate template for ${fingerprint.componentName || fingerprint.hostTag}` };
     }
 
     const { path: templatePath, content: templateContent, isInline, offset: templateOffset } = templateInfo;
@@ -227,6 +237,27 @@ export class TemplateService {
       if (!result) {
          console.warn(`[TemplateService] Failed to find file defining class ${componentName}`);
       }
+      return result;
+  }
+
+  private findComponentFileBySelector(files: any, selector: string): { path: string, content: string } | null {
+      // Search for @Component({ selector: 'app-foo' })
+      // Use simple string matching or regex
+      const result = this.searchFiles(files, (path, content) => {
+         if (!path.endsWith('.ts')) return false;
+         
+         // Simple check first
+         if (!content.includes('selector')) return false;
+         
+         // Regex for selector
+         // selector: 'app-foo' or selector: "app-foo"
+         const selectorRegex = new RegExp(`selector\\s*:\\s*['"\`]${selector}['"\`]`);
+         if (selectorRegex.test(content)) {
+            console.log(`[TemplateService] Found match by selector in: ${path}`);
+            return true;
+         }
+         return false;
+      });
       return result;
   }
 

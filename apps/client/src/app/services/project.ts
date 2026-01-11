@@ -327,7 +327,12 @@ export class ProjectService {
            binaries.push({ path: fullPath, content: binary });
         } else {
            if (key === 'index.html' && typeof content === 'string') {
-              if (!content.includes('html2canvas')) {
+              // Ensure we have the latest runtime scripts (modern-screenshot)
+              if (!content.includes('modern-screenshot')) {
+                 // Remove legacy html2canvas tag if present to avoid duplicate downloads/execution
+                 content = content.replace('<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>', '');
+                 
+                 // Inject the full runtime scripts (which includes html2canvas + modern-screenshot)
                  content = content.replace('</head>', `${RUNTIME_SCRIPTS}\n</head>`);
               }
            }

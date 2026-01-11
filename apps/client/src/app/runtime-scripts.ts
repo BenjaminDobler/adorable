@@ -77,18 +77,50 @@ export const RUNTIME_SCRIPTS = `
         const target = e.target;
         let componentName = null;
         
+        let hostTag = null;
+        
         // Attempt to find Angular Component
         if (window.ng) {
-           let comp = window.ng.getComponent(target);
-           if (!comp) comp = window.ng.getOwningComponent(target);
+           let el = target;
+           while (el) {
+              let comp = window.ng.getComponent(el);
+              if (!comp) comp = window.ng.getOwningComponent(el);
+              
+              if (comp && comp.constructor) {
+                 componentName = comp.constructor.name;
+                 // Strip leading underscores (common in build artifacts)
+                 if (componentName.startsWith('_')) {
+                    componentName = componentName.substring(1);
+                 }
+                 break;
+              }
+              el = el.parentElement;
+           }
+        }
+        
+        // Fallback: Find nearest custom element (tag with dash)
+        if (!componentName) {
+           let el = target;
+           while (el && el.tagName) {
+              if (el.tagName.includes('-')) {
+                 hostTag = el.tagName.toLowerCase();
+                 // If we found a custom tag, it's likely the host.
+                 // We can stop here, or keep going if we are inside a library component?
+                 // Usually the first custom tag up is the owning component.
+                 break;
+              }
+              el = el.parentElement;
+           }
            
-           if (comp && comp.constructor) {
-              componentName = comp.constructor.name;
-              // Strip leading underscores (common in build artifacts)
-              if (componentName.startsWith('_')) {
-                 componentName = componentName.substring(1);
+           if (!hostTag) {
+              console.warn('[Inspector] Failed to find component or host tag for', target);
+              if (document.querySelector('app-root')) {
+                 componentName = 'AppComponent';
               }
            }
+        } else {
+           // We found componentName, but let's also grab hostTag if we are on the host itself?
+           // Not strictly necessary if we have the name.
         }
 
         const computedStyle = window.getComputedStyle(target);
@@ -107,6 +139,7 @@ export const RUNTIME_SCRIPTS = `
             tagName: target.tagName.toLowerCase(),
             text: target.innerText ? target.innerText.substring(0, 100) : '',
             componentName: componentName,
+            hostTag: hostTag, // New: Host Tag Fallback
             childIndex: childIndex, // New: Send the index
             parentTag: target.parentNode ? target.parentNode.tagName.toLowerCase() : null, // New: Parent Tag
             classes: target.className,
