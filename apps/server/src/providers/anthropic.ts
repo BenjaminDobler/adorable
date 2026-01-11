@@ -5,6 +5,7 @@ import { jsonrepair } from 'jsonrepair';
 import { BaseLLMProvider } from './base';
 import { ANGULAR_KNOWLEDGE_BASE } from './knowledge-base';
 import { TOOLS } from './tools';
+import { DebugLogger } from './debug-logger';
 
 const SYSTEM_PROMPT =
 "You are an expert Angular developer.\n"
@@ -27,7 +28,9 @@ const SYSTEM_PROMPT =
 +"3. **Styling:** Use inline styles in components or 'src/styles.css' for globals.\n"
 +"4. **Imports:** Ensure all imports are correct.\n"
 +"5. **Conciseness:** Minimize comments. Use compact CSS.\n"
-+"6. **Binary:** For small binary files (like icons), use the 'write_file' tool with base64 content. Prefer SVG for vector graphics.\n";
++"6. **Binary:** For small binary files (like icons), use the 'write_file' tool with base64 content. Prefer SVG for vector graphics.\n"
++"7. **Efficiency:** You may batch SMALL file operations. However, for LARGE files (like full components with templates), perform them one at a time to avoid hitting token limits.\n"
++"8. **Truncation:** If you receive an error about 'No content provided' or 'truncated JSON', it means your response was too long. You MUST retry by breaking the task into smaller steps, such as writing the component logic first and then using `edit_file` to add the template, or splitting large files into multiple components.\n";
 
 export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
   async generate(options: GenerateOptions): Promise<any> {
@@ -52,7 +55,11 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     const messages: any[] = [{ role: 'user', content: [] }];
     
     // Add text content
-    messages[0].content.push({ type: 'text', text: userMessage });
+    messages[0].content.push({ 
+      type: 'text', 
+      text: userMessage,
+      cache_control: { type: 'ephemeral' }
+    });
 
     // Add images if present
     if (options.images && options.images.length > 0) {
@@ -83,7 +90,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         },
         {
           type: 'text',
-          text: SYSTEM_PROMPT
+          text: SYSTEM_PROMPT,
+          cache_control: { type: 'ephemeral' }
         }
       ] as any,
       messages: messages as any,
@@ -98,6 +106,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
   }
 
   async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any> {
+    const logger = new DebugLogger('anthropic');
     const { prompt, previousFiles, apiKey, model } = options;
     if (!apiKey) throw new Error('Anthropic API Key is required');
 
@@ -119,7 +128,16 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       userMessage += `\n\n--- Current File Structure ---\n${treeSummary}`;
     }
 
-    const messages: any[] = [{ role: 'user', content: [{ type: 'text', text: userMessage }] }];
+    logger.log('START', { model: modelToUse, promptLength: prompt.length, totalMessageLength: userMessage.length });
+
+    const messages: any[] = [{ 
+      role: 'user', 
+      content: [{ 
+        type: 'text', 
+        text: userMessage,
+        cache_control: { type: 'ephemeral' } 
+      }] 
+    }];
     
     if (options.images && options.images.length > 0) {
       options.images.forEach(dataUri => {
@@ -161,12 +179,13 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     let totalOutputTokens = 0;
 
     while (turnCount < MAX_TURNS) {
+      logger.log('TURN_START', { turn: turnCount });
       const stream = await anthropic.messages.create({
         model: modelToUse,
         max_tokens: 8192,
         system: [
           { type: 'text', text: ANGULAR_KNOWLEDGE_BASE, cache_control: { type: 'ephemeral' } },
-          { type: 'text', text: SYSTEM_PROMPT }
+          { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }
         ] as any,
         messages: messages as any,
         tools: TOOLS as any,
@@ -215,6 +234,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         }
       }
 
+      logger.log('ASSISTANT_RESPONSE', { content: assistantMessageContent });
+
       // Update assistantMessageContent with full inputs
       for (const block of assistantMessageContent) {
         if (block.type === 'tool_use') {
@@ -227,8 +248,11 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
                 block.input = JSON.parse(tool.input);
               } catch (e) {
                  try {
-                    block.input = JSON.parse(jsonrepair(tool.input));
+                    const repaired = jsonrepair(tool.input);
+                    logger.log('JSON_REPAIR_USED_IN_HISTORY', { original: tool.input, repaired });
+                    block.input = JSON.parse(repaired);
                  } catch (repairError) {
+                    logger.log('JSON_PARSE_ERROR', { input: tool.input, error: e.message });
                     // If input is incomplete JSON, we can't really reconstruct it validly.
                     // We'll set it to empty object to satisfy the type, but this turn is doomed.
                     block.input = {}; 
@@ -241,6 +265,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       messages.push({ role: 'assistant', content: assistantMessageContent });
 
       if (toolUses.length === 0) {
+        logger.log('TURN_END_NO_TOOLS', { turn: turnCount });
         break; 
       }
 
@@ -254,13 +279,18 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
           callbacks.onToolCall?.(0, tool.name, toolArgs);
         } catch (e) {
           try {
-             toolArgs = JSON.parse(jsonrepair(tool.input));
+             const repaired = jsonrepair(tool.input);
+             logger.log('JSON_REPAIR_USED_IN_EXECUTION', { original: tool.input, repaired });
+             toolArgs = JSON.parse(repaired);
              callbacks.onToolCall?.(0, tool.name, toolArgs);
           } catch (repairError) {
              console.error('Failed to parse tool input', e);
+             logger.log('TOOL_INPUT_PARSE_ERROR', { tool: tool.name, input: tool.input });
              parseError = true;
           }
         }
+        
+        logger.log('EXECUTING_TOOL', { name: tool.name, args: toolArgs });
 
         let content = '';
         let isError = false;
@@ -269,8 +299,13 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
            content = 'Error: Invalid JSON input for tool.';
            isError = true;
         } else if (tool.name === 'write_file') {
-          this.addFileToStructure(accumulatedFiles, toolArgs.path, toolArgs.content);
-          content = 'File created successfully.';
+          if (!toolArgs.content) {
+            content = 'Error: No content provided for file. The JSON input may have been truncated due to length limits. Please try writing the file in smaller chunks or use edit_file.';
+            isError = true;
+          } else {
+            this.addFileToStructure(accumulatedFiles, toolArgs.path, toolArgs.content);
+            content = 'File created successfully.';
+          }
         } else if (tool.name === 'edit_file') {
           const originalContent = fileMap[toolArgs.path];
           if (!originalContent) {
@@ -317,6 +352,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
           const matchingFiles = Object.keys(fileMap).filter(path => minimatch(path, pattern));
           content = matchingFiles.length ? matchingFiles.join('\n') : 'No files matched the pattern.';
         }
+
+        logger.log('TOOL_RESULT', { id: tool.id, result: content, isError });
 
         toolResults.push({
           type: 'tool_result',

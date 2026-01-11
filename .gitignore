@@ -53,3 +53,4 @@ __screenshots__/
 prisma/dev.db-journal
 apps/client/public/assets/monaco
 published-sites
+debug_logs/

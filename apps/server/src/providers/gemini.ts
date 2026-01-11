@@ -1,11 +1,12 @@
 import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { minimatch } from 'minimatch';
 import { BaseLLMProvider } from './base';
 import { ANGULAR_KNOWLEDGE_BASE } from './knowledge-base';
+import { DebugLogger } from './debug-logger';
 import { TOOLS } from './tools';
 
-const SYSTEM_PROMPT =
+const SYSTEM_PROMPT = 
 "You are an expert Angular developer.\n"
 +"Your task is to generate or modify the SOURCE CODE for an Angular application.\n\n"
 +"**CRITICAL: Tool Use & Context**\n"
@@ -42,32 +43,17 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
   private lastAccumulatedFiles: any = {};
 
   async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any> {
+    const logger = new DebugLogger('gemini');
     const { prompt, previousFiles, apiKey, model } = options;
-    if (!apiKey) throw new Error('Google Generative AI Key is required');
+    if (!apiKey) throw new Error('Gemini API Key is required');
 
-    // Use the new @google/genai client
-    const client = new GoogleGenAI({ apiKey });
-    
-    // Map TOOLS to new SDK format
-    const tools: any[] = TOOLS.map(tool => ({
-        functionDeclarations: [{
-            name: tool.name,
-            description: tool.description,
-            parameters: {
-                type: 'OBJECT',
-                properties: Object.entries(tool.input_schema.properties).reduce((acc, [key, prop]: [string, any]) => ({
-                    ...acc,
-                    [key]: { 
-                        type: prop.type === 'string' ? 'STRING' : 'OBJECT',
-                        description: prop.description 
-                    }
-                }), {}),
-                required: tool.input_schema.required
-            }
-        }]
-    }));
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const modelName = model || 'gemini-2.0-flash-exp';
+    const generativeModel = genAI.getGenerativeModel({ model: modelName });
 
-    // Prepare initial context
+    logger.log('START', { model: modelName, promptLength: prompt.length });
+
+    // Initial message construction
     let userMessage = prompt;
     if (previousFiles) {
       const treeSummary = this.generateTreeSummary(previousFiles);
@@ -91,141 +77,157 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       });
     }
 
-    // Chat history
-    const history: any[] = [
-        { role: 'user', parts: initialParts }
-    ];
+    const chat = generativeModel.startChat({
+      history: [
+        {
+          role: 'user',
+          parts: [{ text: SYSTEM_PROMPT }]
+        },
+        {
+          role: 'model',
+          parts: [{ text: 'I understand. I am an expert Angular developer and I have read the system prompt and knowledge base.' }]
+        }
+      ]
+    });
 
+    // Keep the map for read_file execution
     const fileMap = this.flattenFiles(previousFiles || {});
     const accumulatedFiles: any = {};
     this.lastAccumulatedFiles = accumulatedFiles;
     let fullExplanation = '';
     let turnCount = 0;
     const MAX_TURNS = 10;
-    
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+
+    let currentParts = initialParts;
+
     while (turnCount < MAX_TURNS) {
-        const responseStream = await client.models.generateContentStream({
-            model: model || 'gemini-2.0-flash-exp',
-            contents: history,
-            config: {
-                systemInstruction: ANGULAR_KNOWLEDGE_BASE + "\n\n" + SYSTEM_PROMPT,
-                tools: tools,
-                maxOutputTokens: 8192 
-            }
-        });
+      logger.log('TURN_START', { turn: turnCount });
+      
+      const result = await chat.sendMessageStream(currentParts);
+      let functionCalls: any[] = [];
+      let textResponse = '';
 
-        const currentTurnParts: any[] = [];
-
-        for await (const chunk of responseStream) {
-            // Usage tracking
-            if (chunk.usageMetadata) {
-                callbacks.onTokenUsage?.({
-                    inputTokens: chunk.usageMetadata.promptTokenCount || 0,
-                    outputTokens: chunk.usageMetadata.candidatesTokenCount || 0,
-                    totalTokens: chunk.usageMetadata.totalTokenCount || 0
-                });
-            }
-
-            // Text streaming
-            const text = chunk.text;
-            if (text) {
-                fullExplanation += text;
-                callbacks.onText?.(text);
-            }
-
-            // Accumulate parts for history
-            if (chunk.candidates?.[0]?.content?.parts) {
-                currentTurnParts.push(...chunk.candidates[0].content.parts);
-            }
-        }
-
-        // Check if we got any content
-        if (currentTurnParts.length === 0) break;
-
-        // Add assistant response to history
-        const modelContent = { role: 'model', parts: currentTurnParts };
-        history.push(modelContent);
-
-        // Extract function calls
-        const functionCalls = currentTurnParts
-            .filter(part => part.functionCall)
-            .map(part => part.functionCall!);
-
-        if (functionCalls.length === 0) {
-            break;
-        }
-
-        // Execute tools
-        const functionResponses: any[] = [];
-        for (const call of functionCalls) {
-            callbacks.onToolCall?.(0, call.name!, call.args);
-            
-            let content = '';
-            const args = call.args as any;
-            
-            if (call.name === 'write_file') {
-                this.addFileToStructure(accumulatedFiles, args.path, args.content);
-                content = 'File created successfully.';
-            } else if (call.name === 'edit_file') {
-                const originalContent = fileMap[args.path];
-                if (!originalContent) {
-                  content = 'Error: File not found. You must ensure the file exists before editing it.';
-                } else {
-                  if (originalContent.includes(args.old_str)) {
-                    // Check for uniqueness
-                    const parts = originalContent.split(args.old_str);
-                    if (parts.length > 2) {
-                       content = 'Error: old_str is not unique in the file. Please provide more context in old_str to make it unique.';
-                    } else {
-                       const newContent = originalContent.replace(args.old_str, args.new_str);
-                       // Update both fileMap (for future reads in this session if we were persisting it, but we aren't really)
-                       // And accumulatedFiles (for the final output)
-                       fileMap[args.path] = newContent; 
-                       this.addFileToStructure(accumulatedFiles, args.path, newContent);
-                       content = 'File edited successfully.';
-                    }
-                  } else {
-                    content = 'Error: old_str not found in file. Please ensure it matches exactly, including whitespace.';
-                  }
-                }
-            } else if (call.name === 'read_file') {
-                content = fileMap[args.path] || 'Error: File not found.';
-            } else if (call.name === 'list_dir') {
-                let dir = args.path;
-                if (dir === '.' || dir === './') dir = '';
-                if (dir && !dir.endsWith('/')) dir += '/';
-                
-                const matching = Object.keys(fileMap)
-                  .filter(k => k.startsWith(dir))
-                  .map(k => {
-                    const relative = k.substring(dir.length);
-                    const parts = relative.split('/');
-                    const isDir = parts.length > 1;
-                    return isDir ? parts[0] + '/' : parts[0];
-                  });
-                
-                const unique = Array.from(new Set(matching)).sort();
-                content = unique.length ? unique.join('\n') : 'Directory is empty or not found.';
-            } else if (call.name === 'glob') {
-                const pattern = args.pattern;
-                const matchingFiles = Object.keys(fileMap).filter(path => minimatch(path, pattern));
-                content = matchingFiles.length ? matchingFiles.join('\n') : 'No files matched the pattern.';
-            }
-
-            callbacks.onToolResult?.('gemini-tool', content);
-            
-            functionResponses.push({
-                functionResponse: {
-                    name: call.name,
-                    response: { content }
-                }
-            });
+      for await (const chunk of result.stream) {
+        const chunkText = chunk.text();
+        if (chunkText) {
+          textResponse += chunkText;
+          fullExplanation += chunkText;
+          callbacks.onText?.(chunkText);
         }
         
-        history.push({ role: 'user', parts: functionResponses });
-        turnCount++;
-    }
+        // Gemini returns function calls in the chunk object, not as text delta
+        // We need to inspect the underlying candidates
+        const calls = chunk.functionCalls();
+        if (calls && calls.length > 0) {
+           functionCalls.push(...calls);
+           // Notify UI about tool usage (approximate since it's not streaming char-by-char)
+           calls.forEach(call => {
+              callbacks.onToolStart?.(0, call.name);
+              // Send full input immediately as Gemini gives it parsed
+              callbacks.onToolDelta?.(0, JSON.stringify(call.args));
+           });
+        }
+        
+        if (chunk.usageMetadata) {
+            totalInputTokens = chunk.usageMetadata.promptTokenCount;
+            totalOutputTokens = chunk.usageMetadata.candidatesTokenCount;
+            callbacks.onTokenUsage?.({ 
+                inputTokens: totalInputTokens, 
+                outputTokens: totalOutputTokens, 
+                totalTokens: chunk.usageMetadata.totalTokenCount 
+            });
+        }
+      }
 
+      logger.log('ASSISTANT_RESPONSE', { text: textResponse, functionCalls });
+
+      if (functionCalls.length === 0) {
+         logger.log('TURN_END_NO_TOOLS', { turn: turnCount });
+         break;
+      }
+
+      // Execute tools
+      const toolOutputs: any[] = [];
+      
+      for (const call of functionCalls) {
+        const toolName = call.name;
+        const toolArgs = call.args;
+        let content = '';
+        let isError = false;
+
+        logger.log('EXECUTING_TOOL', { name: toolName, args: toolArgs });
+
+        try {
+           callbacks.onToolCall?.(0, toolName, toolArgs);
+
+           if (toolName === 'write_file') {
+             if (!toolArgs.content) {
+                content = 'Error: No content provided. Please retry.';
+                isError = true;
+             } else {
+                this.addFileToStructure(accumulatedFiles, toolArgs.path, toolArgs.content);
+                content = 'File created successfully.';
+             }
+           } else if (toolName === 'edit_file') {
+              const originalContent = fileMap[toolArgs.path];
+              if (!originalContent) {
+                content = 'Error: File not found. You must ensure the file exists before editing it.';
+                isError = true;
+              } else {
+                if (originalContent.includes(toolArgs.old_str)) {
+                   const newContent = originalContent.replace(toolArgs.old_str, toolArgs.new_str);
+                   fileMap[toolArgs.path] = newContent; 
+                   this.addFileToStructure(accumulatedFiles, toolArgs.path, newContent);
+                   content = 'File edited successfully.';
+                } else {
+                   content = 'Error: old_str not found in file. Please ensure it matches exactly, including whitespace.';
+                   isError = true;
+                }
+              }
+           } else if (toolName === 'read_file') {
+              content = fileMap[toolArgs.path] || 'Error: File not found. The file may not exist in the current project structure.';
+              if (content.startsWith('Error:')) isError = true;
+           } else if (toolName === 'list_dir') {
+             // ... simplify list_dir logic for brevity or reuse ...
+             let dir = toolArgs.path;
+             if (dir === '.' || dir === './') dir = '';
+             if (dir && !dir.endsWith('/')) dir += '/';
+             const matching = Object.keys(fileMap)
+               .filter(k => k.startsWith(dir))
+               .map(k => {
+                 const relative = k.substring(dir.length);
+                 const parts = relative.split('/');
+                 return parts.length > 1 ? parts[0] + '/' : parts[0];
+               });
+             const unique = Array.from(new Set(matching)).sort();
+             content = unique.length ? unique.join('\n') : 'Directory is empty or not found.';
+           } else if (toolName === 'glob') {
+             const matchingFiles = Object.keys(fileMap).filter(path => minimatch(path, toolArgs.pattern));
+             content = matchingFiles.length ? matchingFiles.join('\n') : 'No files matched the pattern.';
+           }
+        } catch (e) {
+           content = `Error executing tool: ${e.message}`;
+           isError = true;
+        }
+        
+        logger.log('TOOL_RESULT', { name: toolName, result: content, isError });
+        callbacks.onToolResult?.(toolName, content);
+
+        toolOutputs.push({
+            functionResponse: {
+                name: toolName,
+                response: { name: toolName, content: content }
+            }
+        });
+      }
+      
+      // Gemini expects function responses in the next turn
+      currentParts = toolOutputs;
+      turnCount++;
+    }
+    
     return { explanation: fullExplanation, files: accumulatedFiles };
   }
 
