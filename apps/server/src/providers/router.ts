@@ -24,8 +24,8 @@ export class SmartRouter {
     const routerConfig = config.router;
     // Map internal names to verified IDs
     let routerModel = routerConfig.model;
-    if (routerModel === 'gemini-1.5-flash') routerModel = 'gemini-1.5-flash-002';
-    if (routerModel === 'gemini-1.5-pro') routerModel = 'gemini-1.5-pro-002';
+    if (routerModel === 'gemini-1.5-flash-002') routerModel = 'gemini-1.5-flash';
+    if (routerModel === 'gemini-1.5-pro-002') routerModel = 'gemini-1.5-pro';
 
     const routerApiKey = getApiKey(routerConfig.provider);
 

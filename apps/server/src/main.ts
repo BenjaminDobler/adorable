@@ -357,6 +357,10 @@ protectedRouter.post('/generate', async (req: any, res) => {
           apiKey = decision.apiKey;
        } catch (err) {
           console.error('Routing failed:', err);
+          // Fallback to Anthropic
+          provider = 'anthropic';
+          model = 'claude-3-5-sonnet-20240620';
+          apiKey = undefined; // Force re-resolution
        }
     }
 
@@ -419,7 +423,10 @@ protectedRouter.post('/generate-stream', async (req: any, res) => {
        } catch (err) {
           console.error('Routing failed:', err);
           // Fallback handled inside router.route usually, but just in case
-          if (!apiKey) apiKey = getApiKey(provider);
+          // Fallback to Anthropic
+          provider = 'anthropic';
+          model = 'claude-3-5-sonnet-20240620';
+          apiKey = undefined; // Force re-resolution
        }
     }
 
