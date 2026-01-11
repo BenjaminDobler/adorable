@@ -76,7 +76,9 @@ export class SettingsComponent {
   geminiProfile = computed(() => this.settings().profiles.find(p => p.id === 'gemini')!);
 
   loading = signal(false);
+  fetchedModels = signal<Record<string, string[]>>({});
 
+  // Fallback defaults if fetch fails
   anthropicModels = [
     'claude-3-5-sonnet-20240620',
     'claude-3-5-sonnet-latest',
@@ -130,6 +132,31 @@ export class SettingsComponent {
             ...(parsed.smartRouting || {})
           }
         });
+
+        // Fetch models
+        this.settings().profiles.forEach(p => {
+          if (p.apiKey) this.fetchModels(p);
+        });
+      }
+    });
+  }
+
+  fetchModels(profile: AIProfile) {
+    if (!profile.apiKey) return;
+    
+    // Map provider to backend expected string if needed
+    let providerParam = profile.provider;
+    if (providerParam === 'gemini') providerParam = 'google' as any;
+
+    this.apiService.getModels(providerParam, profile.apiKey).subscribe({
+      next: (models) => {
+        this.fetchedModels.update(current => ({
+          ...current,
+          [profile.id]: models
+        }));
+      },
+      error: (err) => {
+        console.error(`Failed to fetch models for ${profile.name}`, err);
       }
     });
   }

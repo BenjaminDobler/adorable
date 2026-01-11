@@ -132,13 +132,22 @@
                 (ngModelChange)="updateSmartRoutingTier($any(tier), {model: $event})"
                 style="background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 6px 10px; color: white; font-size: 0.8rem; outline: none; flex: 1;"
               >
-                @if (getTierConfig(tier)?.provider === 'anthropic') {
-                  @for (model of anthropicModels; track model) {
-                    <option [value]="model">{{ model }}</option>
-                  }
+                @let provider = getTierConfig(tier)?.provider;
+                @let models = provider ? fetchedModels()[provider] : [];
+                
+                @if (models && models.length > 0) {
+                   @for (model of models; track model) {
+                     <option [value]="model">{{ model }}</option>
+                   }
                 } @else {
-                  @for (model of geminiModels; track model) {
-                    <option [value]="model">{{ model }}</option>
+                  @if (provider === 'anthropic') {
+                    @for (model of anthropicModels; track model) {
+                      <option [value]="model">{{ model }}</option>
+                    }
+                  } @else {
+                    @for (model of geminiModels; track model) {
+                      <option [value]="model">{{ model }}</option>
+                    }
                   }
                 }
               </select>
