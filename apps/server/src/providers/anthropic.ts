@@ -1,6 +1,7 @@
 import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
 import Anthropic from '@anthropic-ai/sdk';
 import { minimatch } from 'minimatch';
+import { jsonrepair } from 'jsonrepair';
 import { BaseLLMProvider } from './base';
 import { ANGULAR_KNOWLEDGE_BASE } from './knowledge-base';
 import { TOOLS } from './tools';
@@ -105,7 +106,10 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       modelToUse = 'claude-3-5-sonnet-20240620';
     }
 
-    const anthropic = new Anthropic({ apiKey });
+    const anthropic = new Anthropic({ 
+      apiKey,
+      defaultHeaders: { 'anthropic-beta': 'pdfs-2024-09-25' }
+    });
     
     // Prepare initial context
     // We ONLY provide the file tree summary to encourage read_file usage
@@ -118,13 +122,31 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     const messages: any[] = [{ role: 'user', content: [{ type: 'text', text: userMessage }] }];
     
     if (options.images && options.images.length > 0) {
-      options.images.forEach(img => {
-        const match = img.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
+      options.images.forEach(dataUri => {
+        const match = dataUri.match(/^data:([^;]+);base64,(.+)$/);
         if (match) {
-          messages[0].content.push({
-            type: 'image',
-            source: { type: 'base64', media_type: `image/${match[1]}` as any, data: match[2] }
-          });
+          const mimeType = match[1];
+          const data = match[2];
+
+          if (['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(mimeType)) {
+             messages[0].content.push({
+               type: 'image',
+               source: { type: 'base64', media_type: mimeType as any, data: data }
+             });
+          } else if (mimeType === 'application/pdf') {
+             messages[0].content.push({
+               type: 'document',
+               source: { type: 'base64', media_type: 'application/pdf', data: data }
+             });
+          } else if (mimeType.startsWith('text/') || mimeType === 'application/json') {
+             try {
+                const textContent = Buffer.from(data, 'base64').toString('utf-8');
+                messages[0].content.push({
+                   type: 'text',
+                   text: `\n[Attached File Content (${mimeType})]:\n${textContent}\n`
+                });
+             } catch(e) { console.error('Failed to decode text attachment', e); }
+          }
         }
       });
     }
@@ -170,6 +192,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
             currentToolUse = { id: event.content_block.id, name: event.content_block.name, input: '' };
             toolUses.push(currentToolUse);
             assistantMessageContent.push(event.content_block);
+            callbacks.onToolStart?.(assistantMessageContent.length - 1, event.content_block.name);
           } else if (event.content_block.type === 'text') {
             assistantMessageContent.push({ type: 'text', text: '' });
           }
@@ -203,9 +226,13 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
                 // Input must be an object, not string
                 block.input = JSON.parse(tool.input);
               } catch (e) {
-                // If input is incomplete JSON, we can't really reconstruct it validly.
-                // We'll set it to empty object to satisfy the type, but this turn is doomed.
-                block.input = {}; 
+                 try {
+                    block.input = JSON.parse(jsonrepair(tool.input));
+                 } catch (repairError) {
+                    // If input is incomplete JSON, we can't really reconstruct it validly.
+                    // We'll set it to empty object to satisfy the type, but this turn is doomed.
+                    block.input = {}; 
+                 }
               }
            }
         }
@@ -226,8 +253,13 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
           toolArgs = JSON.parse(tool.input);
           callbacks.onToolCall?.(0, tool.name, toolArgs);
         } catch (e) {
-          console.error('Failed to parse tool input', e);
-          parseError = true;
+          try {
+             toolArgs = JSON.parse(jsonrepair(tool.input));
+             callbacks.onToolCall?.(0, tool.name, toolArgs);
+          } catch (repairError) {
+             console.error('Failed to parse tool input', e);
+             parseError = true;
+          }
         }
 
         let content = '';

@@ -14,6 +14,9 @@ export interface ChatMessage {
   timestamp: Date;
   files?: any;
   usage?: { inputTokens: number, outputTokens: number, totalTokens: number };
+  status?: string;
+  updatedFiles?: string[];
+  isExpanded?: boolean;
 }
 
 @Injectable({

@@ -46,8 +46,12 @@ export class ChatComponent {
   
   shouldAddToAssets = signal(true);
   attachedFile: File | null = null;
-  attachedImage: string | null = null;
+  attachedFileContent: string | null = null;
   isDragging = false;
+
+  get isAttachedImage(): boolean {
+    return this.attachedFile?.type.startsWith('image/') ?? false;
+  }
 
   quickStarters = [
     {
@@ -97,7 +101,7 @@ export class ChatComponent {
   }
 
   setImage(image: string) {
-    this.attachedImage = image;
+    this.attachedFileContent = image;
     this.isDragging = false;
   }
 
@@ -196,7 +200,7 @@ export class ChatComponent {
     event.preventDefault();
     this.isDragging = false;
     const file = event.dataTransfer?.files[0];
-    if (file && file.type.startsWith('image/')) {
+    if (file) {
       this.processFile(file);
     }
   }
@@ -215,13 +219,13 @@ export class ChatComponent {
     this.attachedFile = file;
     const reader = new FileReader();
     reader.onload = (e: any) => {
-      this.attachedImage = e.target.result;
+      this.attachedFileContent = e.target.result;
     };
     reader.readAsDataURL(file);
   }
 
   removeAttachment() {
-    this.attachedImage = null;
+    this.attachedFileContent = null;
     this.attachedFile = null;
   }
 
@@ -248,13 +252,20 @@ export class ChatComponent {
     this.prompt = ''; 
     this.loading.set(true);
 
-    if (this.attachedImage && this.shouldAddToAssets() && this.attachedFile) {
-      const targetPath = `public/assets/${this.attachedFile.name}`;
+    if (this.attachedFileContent && this.attachedFile) {
       // Emitting event instead of calling onFileContentChange directly
-      this.fileUploaded.emit({name: this.attachedFile.name, content: this.attachedImage});
-      currentPrompt += `
+      this.fileUploaded.emit({name: this.attachedFile.name, content: this.attachedFileContent});
+      
+      if (this.shouldAddToAssets() && this.isAttachedImage) {
+        const targetPath = `public/assets/${this.attachedFile.name}`;
+        currentPrompt += `
 
-[System Note: I have automatically uploaded the attached image to "${targetPath}". You can use it in your code like <img src="assets/${this.attachedFile.name}">]`
+[System Note: I have automatically uploaded the attached image to "${targetPath}". You can use it in your code like <img src="assets/${this.attachedFile.name}">]`;
+      } else {
+         currentPrompt += `
+
+[System Note: The user has attached a file named "${this.attachedFile.name}". It is available in the input context.]`;
+      }
     }
 
     // Placeholder for assistant
@@ -262,7 +273,8 @@ export class ChatComponent {
     this.messages.update(msgs => [...msgs, {
       role: 'assistant',
       text: '',
-      timestamp: new Date()
+      timestamp: new Date(),
+      updatedFiles: []
     }]);
 
     const previousFiles = this.projectService.allFiles() || this.projectService.currentFiles() || BASE_FILES;
@@ -296,7 +308,7 @@ export class ChatComponent {
       provider,
       apiKey,
       model,
-      images: this.attachedImage ? [this.attachedImage] : undefined
+      images: this.attachedFileContent ? [this.attachedFileContent] : undefined
     }).subscribe({
       next: async (event) => {
         if (event.type !== 'tool_delta' && event.type !== 'text') { 
@@ -317,25 +329,50 @@ export class ChatComponent {
           this.messages.update(msgs => {
             const newMsgs = [...msgs];
             newMsgs[assistantMsgIndex].text = displayText;
+            // Clear status when text is streaming (usually means tool is done or explanation is happening)
+            // But if we want to show 'Thinking...' we could.
+            // For now, let's leave status if it was set, or maybe clear it?
+            // If we clear it, 'Using tool...' flickers.
+            // Let's clear status only if it was a generic 'Using tool...' and we are now getting text.
             return newMsgs;
           });
         } else if (event.type === 'tool_delta') {
           toolInputs[event.index] = (toolInputs[event.index] || '') + event.delta;
           
-          if (!toolPaths[event.index]) {
+          let currentPath = toolPaths[event.index];
+          if (!currentPath) {
             const pathMatch = toolInputs[event.index].match(/"path"\s*:\s*"([^"]*)"/);
-            if (pathMatch) toolPaths[event.index] = pathMatch[1];
+            if (pathMatch) {
+               currentPath = pathMatch[1];
+               toolPaths[event.index] = currentPath;
+            }
           }
 
-          const paths = Object.values(toolPaths);
-          if (paths.length > 0) {
+          this.messages.update(msgs => {
+            const newMsgs = [...msgs];
+            const msg = newMsgs[assistantMsgIndex];
+            if (currentPath) {
+                msg.status = `Accessing ${currentPath}...`;
+            } else {
+                msg.status = 'Using tool...';
+            }
+            return newMsgs;
+          });
+        } else if (event.type === 'tool_call') {
+            const { name, args } = event;
             this.messages.update(msgs => {
-              const newMsgs = [...msgs];
-              const baseText = newMsgs[assistantMsgIndex].text.split('\n\n**Updating files:**')[0];
-              newMsgs[assistantMsgIndex].text = baseText + '\n\n**Updating files:**\n' + paths.map(f => `• ${f}`).join('\n');
-              return newMsgs;
+               const newMsgs = [...msgs];
+               const msg = newMsgs[assistantMsgIndex];
+               msg.status = `Executed ${name}${args.path ? ' ' + args.path : ''}...`;
+               
+               if (name === 'write_file' || name === 'edit_file') {
+                   const files = msg.updatedFiles || [];
+                   if (args.path && !files.includes(args.path)) {
+                       msg.updatedFiles = [...files, args.path];
+                   }
+               }
+               return newMsgs;
             });
-          }
         } else if (event.type === 'usage') {
            this.messages.update(msgs => {
              const newMsgs = [...msgs];
@@ -345,7 +382,7 @@ export class ChatComponent {
         } else if (event.type === 'result') {
           hasResult = true;
           try {
-            this.attachedImage = null;
+            this.attachedFileContent = null;
             this.attachedFile = null;
             const res = event.content;
             
@@ -358,6 +395,7 @@ export class ChatComponent {
             this.messages.update(msgs => {
               const newMsgs = [...msgs];
               newMsgs[assistantMsgIndex].files = projectFiles;
+              newMsgs[assistantMsgIndex].status = undefined; // Clear status on completion
               return newMsgs;
             });
 
@@ -382,6 +420,12 @@ export class ChatComponent {
         if (!hasResult) {
            this.loading.set(false);
         }
+        // Final clear of status
+        this.messages.update(msgs => {
+            const newMsgs = [...msgs];
+            newMsgs[assistantMsgIndex].status = undefined;
+            return newMsgs;
+        });
       }
     });
   }

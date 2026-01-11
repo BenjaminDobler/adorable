@@ -76,10 +76,17 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
 
     const initialParts: any[] = [{ text: userMessage }];
     if (options.images && options.images.length > 0) {
-      options.images.forEach(img => {
-        const match = img.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
+      options.images.forEach(dataUri => {
+        // Generic regex to capture mime type and base64 data
+        const match = dataUri.match(/^data:([^;]+);base64,(.+)$/);
         if (match) {
-          initialParts.push({ inlineData: { mimeType: `image/${match[1]}`, data: match[2] } });
+          const mimeType = match[1];
+          const data = match[2];
+          
+          // Allow images, PDFs, and text files
+          if (mimeType.startsWith('image/') || mimeType === 'application/pdf' || mimeType.startsWith('text/')) {
+             initialParts.push({ inlineData: { mimeType, data } });
+          }
         }
       });
     }
