@@ -196,7 +196,7 @@
             [ngModel]="selectedModel()" 
             (ngModelChange)="selectedModel.set($event)"
             style="appearance: none; background: rgba(0,0,0,0.2); border: 1px solid var(--panel-border); border-radius: 6px; color: var(--text-secondary); padding: 4px 24px 4px 8px; font-size: 0.75rem; cursor: pointer; outline: none; height: 28px;">
-            @for (model of availableModels; track model.id) {
+            @for (model of availableModels(); track model.id) {
                <option [ngValue]="model">{{ model.name }}</option>
             }
           </select>

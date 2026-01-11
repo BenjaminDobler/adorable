@@ -49,17 +49,11 @@ export class ChatComponent {
   attachedFileContent: string | null = null;
   isDragging = false;
 
-  availableModels = [
-    { id: 'auto', name: '✨ Auto (Smart)', provider: 'auto' },
-    { id: 'claude-3-5-sonnet-20240620', name: 'Claude 3.5 Sonnet', provider: 'anthropic' },
-    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', provider: 'anthropic' },
-    { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', provider: 'anthropic' },
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'gemini' },
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'gemini' },
-    { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash (Exp)', provider: 'gemini' }
-  ];
+  availableModels = signal<any[]>([
+    { id: 'auto', name: '✨ Auto (Smart)', provider: 'auto' }
+  ]);
 
-  selectedModel = signal(this.availableModels[0]);
+  selectedModel = signal(this.availableModels()[0]);
 
   get isAttachedImage(): boolean {
     return this.attachedFile?.type.startsWith('image/') ?? false;
@@ -100,6 +94,43 @@ export class ChatComponent {
        if (data) {
           this.editText = data.text || '';
           this.editColor = data.styles?.color || '#000000';
+       }
+    });
+
+    effect(() => {
+      // Reload models when settings change
+      if (this.appSettings) {
+        this.loadAvailableModels();
+      }
+    }, { allowSignalWrites: true });
+  }
+
+  loadAvailableModels() {
+    if (!this.appSettings?.profiles) return;
+
+    const models: any[] = [{ id: 'auto', name: '✨ Auto (Smart)', provider: 'auto' }];
+    
+    this.appSettings.profiles.forEach((profile: any) => {
+       if (profile.apiKey) {
+          let providerParam = profile.provider;
+          if (providerParam === 'gemini') providerParam = 'google';
+
+          this.apiService.getModels(providerParam, profile.apiKey).subscribe({
+             next: (fetched) => {
+                const newModels = fetched.map((m: string) => ({
+                   id: m,
+                   name: `${profile.name.split(' ')[0]} - ${m}`,
+                   provider: profile.provider
+                }));
+                
+                // Merge and dedup
+                this.availableModels.update(current => {
+                   const existingIds = new Set(current.map(c => c.id));
+                   const toAdd = newModels.filter((n: any) => !existingIds.has(n.id));
+                   return [...current, ...toAdd];
+                });
+             }
+          });
        }
     });
   }
