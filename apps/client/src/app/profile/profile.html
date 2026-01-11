@@ -86,6 +86,68 @@
       </div>
     </section>
 
+    <hr class="divider" />
+
+    <!-- Smart Routing Section -->
+    <section class="section">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h3>✨ Smart Routing</h3>
+        <label class="switch">
+          <input 
+            type="checkbox" 
+            [ngModel]="settings().smartRouting?.enabled" 
+            (ngModelChange)="updateSmartRouting({enabled: $event})"
+          >
+          <span class="slider round"></span>
+        </label>
+      </div>
+      
+      <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 20px;">Automatically selects the best model based on task complexity. Maps tiers to your configured models.</p>
+
+      <div class="routing-grid" [class.disabled]="!settings().smartRouting?.enabled" style="display: flex; flex-direction: column; gap: 16px;">
+        @for (tier of ['router', 'simple', 'complex', 'vision']; track tier) {
+          <div class="routing-row" style="display: flex; justify-content: space-between; align-items: center; gap: 20px;">
+            <div class="tier-info" style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+              <span class="tier-name" style="font-weight: 600; font-size: 0.9rem; color: #e2e8f0;">{{ tier | titlecase }}</span>
+              <span class="tier-desc" style="font-size: 0.75rem; color: #64748b;">
+                @if (tier === 'router') { Fast model used to classify the task. }
+                @else if (tier === 'simple') { For typos, small edits, and explanations. }
+                @else if (tier === 'complex') { For logic, refactoring, and new features. }
+                @else if (tier === 'vision') { For tasks with image attachments. }
+              </span>
+            </div>
+            
+            <div class="tier-selection" style="display: flex; gap: 8px; width: 320px;">
+              <select 
+                [ngModel]="getTierConfig(tier)?.provider"
+                (ngModelChange)="updateSmartRoutingTier($any(tier), {provider: $event})"
+                style="background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 6px 10px; color: white; font-size: 0.8rem; outline: none; width: 100px;"
+              >
+                <option value="anthropic">Anthropic</option>
+                <option value="gemini">Google</option>
+              </select>
+
+              <select 
+                [ngModel]="getTierConfig(tier)?.model"
+                (ngModelChange)="updateSmartRoutingTier($any(tier), {model: $event})"
+                style="background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 6px 10px; color: white; font-size: 0.8rem; outline: none; flex: 1;"
+              >
+                @if (getTierConfig(tier)?.provider === 'anthropic') {
+                  @for (model of anthropicModels; track model) {
+                    <option [value]="model">{{ model }}</option>
+                  }
+                } @else {
+                  @for (model of geminiModels; track model) {
+                    <option [value]="model">{{ model }}</option>
+                  }
+                }
+              </select>
+            </div>
+          </div>
+        }
+      </div>
+    </section>
+
     <div class="actions">
       <button class="btn-save" (click)="save()" [disabled]="loading()">
         {{ loading() ? 'Saving...' : 'Save All Changes' }}
