@@ -371,11 +371,16 @@ protectedRouter.post('/generate', async (req: any, res) => {
   
     try {
       const llm = ProviderFactory.getProvider(provider);
+      // Ensure model is not "auto" before calling LLM
+      let finalModel = model;
+      if (!finalModel || finalModel === 'auto') finalModel = userSettings.model;
+      if (!finalModel || finalModel === 'auto') finalModel = 'claude-3-5-sonnet-20240620';
+
       const result = await llm.generate({
           prompt,
           previousFiles,
           apiKey: effectiveApiKey,
-          model: model || userSettings.model,
+          model: finalModel,
           images
       });
       
@@ -432,11 +437,16 @@ protectedRouter.post('/generate-stream', async (req: any, res) => {
 
     try {
       const llm = ProviderFactory.getProvider(provider);
+      
+      let finalModel = model;
+      if (!finalModel || finalModel === 'auto') finalModel = userSettings.model;
+      if (!finalModel || finalModel === 'auto') finalModel = 'claude-3-5-sonnet-20240620';
+
       const result = await llm.streamGenerate({
           prompt,
           previousFiles,
           apiKey: effectiveApiKey,
-          model: model || userSettings.model,
+          model: finalModel,
           images
       }, {
           onText: (text) => {

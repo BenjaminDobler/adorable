@@ -22,6 +22,11 @@ export class SmartRouter {
     }
 
     const routerConfig = config.router;
+    // Map internal names to verified IDs
+    let routerModel = routerConfig.model;
+    if (routerModel === 'gemini-1.5-flash') routerModel = 'gemini-1.5-flash-002';
+    if (routerModel === 'gemini-1.5-pro') routerModel = 'gemini-1.5-pro-002';
+
     const routerApiKey = getApiKey(routerConfig.provider);
 
     if (!routerApiKey) {
@@ -42,12 +47,12 @@ export class SmartRouter {
       
       Request: "${prompt.substring(0, 1000)}"`;
 
-      this.logger.log('CLASSIFYING_START', { routerModel: routerConfig.model });
+      this.logger.log('CLASSIFYING_START', { routerModel });
       
       const response = await routerProvider.generate({
         prompt: classificationPrompt,
         apiKey: routerApiKey,
-        model: routerConfig.model
+        model: routerModel
       });
 
       const classification = response.explanation.trim().toUpperCase();
