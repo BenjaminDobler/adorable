@@ -40,6 +40,7 @@ export class AppComponent implements AfterViewChecked {
   private router = inject(Router);
 
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
+  @ViewChild(ChatComponent) chatComponent!: ChatComponent;
 
   activeTab = signal<'chat' | 'terminal' | 'files'>('chat');
   
@@ -134,6 +135,10 @@ export class AppComponent implements AfterViewChecked {
         if (this.isSavingWithThumbnail) {
           this.projectService.saveProject(event.data.image);
           this.isSavingWithThumbnail = false;
+        } else if (this.chatComponent) {
+          this.chatComponent.setImage(event.data.image);
+          this.isSelecting = false;
+          this.selectionRect = null;
         }
       }
       

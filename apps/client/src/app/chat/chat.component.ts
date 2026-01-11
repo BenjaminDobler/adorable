@@ -5,6 +5,7 @@ import { ProjectService, ChatMessage } from '../services/project';
 import { WebContainerService } from '../services/web-container';
 import { ApiService } from '../services/api';
 import { ToastService } from '../services/toast';
+import { TemplateService } from '../services/template';
 import { SafeUrlPipe } from '../pipes/safe-url.pipe';
 import { BASE_FILES } from '../base-project';
 
@@ -20,6 +21,7 @@ export class ChatComponent {
   public webContainerService = inject(WebContainerService);
   public projectService = inject(ProjectService);
   private toastService = inject(ToastService);
+  private templateService = inject(TemplateService);
 
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
   @ViewChild('fileInput') fileInput!: ElementRef;
@@ -37,6 +39,10 @@ export class ChatComponent {
   
   prompt = '';
   visualPrompt = '';
+  
+  // Visual Edit State
+  editText = '';
+  editColor = '#000000';
   
   shouldAddToAssets = signal(true);
   attachedFile: File | null = null;
@@ -72,6 +78,14 @@ export class ChatComponent {
         this.messages();
         setTimeout(() => this.scrollToBottom(), 0);
     });
+    
+    effect(() => {
+       const data = this.visualEditorData();
+       if (data) {
+          this.editText = data.text || '';
+          this.editColor = data.styles?.color || '#000000';
+       }
+    });
   }
 
   useQuickStarter(prompt: string) {
@@ -82,8 +96,50 @@ export class ChatComponent {
     }, 0);
   }
 
+  setImage(image: string) {
+    this.attachedImage = image;
+    this.isDragging = false;
+  }
+
   closeVisualEditor() {
     this.closeVisualEdit.emit();
+  }
+
+  applyVisualEdit(type: 'text' | 'style', value: string, property?: string) {
+    if (!this.visualEditorData()) return;
+    
+    // We construct a "Fingerprint" from the runtime data
+    const data = this.visualEditorData();
+    const fingerprint = {
+       componentName: data.componentName,
+       tagName: data.tagName,
+       text: data.text, // The ORIGINAL text from runtime
+       classes: data.classes,
+       id: data.attributes?.id,
+       childIndex: data.childIndex,
+       parentTag: data.parentTag
+    };
+    
+    const result = this.templateService.findAndModify(fingerprint, { type, value, property });
+    
+    if (result.success) {
+       // Update Project Service
+       const currentFiles = this.projectService.allFiles();
+       this.projectService.updateFileInTree(currentFiles, result.path, result.content);
+       this.projectService.currentFiles.set(currentFiles);
+       
+       // Reload Preview
+       this.webContainerService.writeFile(result.path, result.content);
+       this.toastService.show('Update applied', 'success');
+       
+       // Update local state so subsequent edits work (we need to track the NEW text)
+       if (type === 'text') {
+          this.visualEditorData.update(d => ({ ...d, text: value }));
+       }
+    } else {
+       console.error('Visual Edit Failed:', result.error);
+       this.toastService.show(result.error || 'Failed to apply edit', 'error');
+    }
   }
 
   applyVisualChanges(prompt: string) {

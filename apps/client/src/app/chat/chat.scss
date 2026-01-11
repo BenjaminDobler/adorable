@@ -234,6 +234,26 @@
   }
 }
 
+.btn-icon {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text-secondary);
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover {
+    color: var(--text-primary);
+    border-color: var(--accent-color);
+    background: rgba(62, 207, 142, 0.1);
+  }
+}
+
 .starter-card {
   &:hover {
     background: rgba(255,255,255,0.05) !important;

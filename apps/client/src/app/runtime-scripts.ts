@@ -84,10 +84,22 @@ export const RUNTIME_SCRIPTS = `
            
            if (comp && comp.constructor) {
               componentName = comp.constructor.name;
+              // Strip leading underscores (common in build artifacts)
+              if (componentName.startsWith('_')) {
+                 componentName = componentName.substring(1);
+              }
            }
         }
 
         const computedStyle = window.getComputedStyle(target);
+        
+        // Calculate child index among siblings of same tag
+        let childIndex = 0;
+        if (target.parentNode) {
+           const siblings = Array.from(target.parentNode.children);
+           const sameTagSiblings = siblings.filter(s => s.tagName === target.tagName);
+           childIndex = sameTagSiblings.indexOf(target);
+        }
         
         window.parent.postMessage({
           type: 'ELEMENT_SELECTED',
@@ -95,7 +107,13 @@ export const RUNTIME_SCRIPTS = `
             tagName: target.tagName.toLowerCase(),
             text: target.innerText ? target.innerText.substring(0, 100) : '',
             componentName: componentName,
+            childIndex: childIndex, // New: Send the index
+            parentTag: target.parentNode ? target.parentNode.tagName.toLowerCase() : null, // New: Parent Tag
             classes: target.className,
+            attributes: {
+               id: target.id,
+               type: target.getAttribute('type')
+            },
             styles: {
                 color: computedStyle.color,
                 backgroundColor: computedStyle.backgroundColor,
