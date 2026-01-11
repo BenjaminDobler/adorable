@@ -107,11 +107,26 @@ export class ChatComponent {
   }
 
   loadAvailableModels() {
-    if (!this.appSettings?.profiles) return;
+    if (!this.appSettings) return;
+
+    let profiles = this.appSettings.profiles;
+    
+    // Handle Legacy
+    if (!profiles && this.appSettings.provider) {
+        profiles = [{
+            id: 'legacy',
+            name: this.appSettings.provider,
+            provider: this.appSettings.provider,
+            apiKey: this.appSettings.apiKey,
+            model: this.appSettings.model
+        }];
+    }
+
+    if (!profiles || profiles.length === 0) return;
 
     const models: any[] = [{ id: 'auto', name: '✨ Auto (Smart)', provider: 'auto' }];
     
-    this.appSettings.profiles.forEach((profile: any) => {
+    profiles.forEach((profile: any) => {
        if (profile.apiKey) {
           let providerParam = profile.provider;
           if (providerParam === 'gemini') providerParam = 'google';
@@ -130,7 +145,8 @@ export class ChatComponent {
                    const toAdd = newModels.filter((n: any) => !existingIds.has(n.id));
                    return [...current, ...toAdd];
                 });
-             }
+             },
+             error: (err) => console.error(`Failed to fetch models for chat dropdown (${profile.provider})`, err)
           });
        }
     });
