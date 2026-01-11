@@ -27,7 +27,15 @@ export class ChatComponent {
   @ViewChild('fileInput') fileInput!: ElementRef;
 
   // App settings (retrieved from profile)
-  @Input() appSettings: any = null;
+  private _appSettings: any = null;
+  @Input() set appSettings(value: any) {
+    this._appSettings = value;
+    if (value) {
+      this.loadAvailableModels();
+    }
+  }
+  get appSettings() { return this._appSettings; }
+
   @Input() visualEditorData = signal<any>(null);
 
   @Output() startSelection = new EventEmitter<void>();
@@ -96,13 +104,6 @@ export class ChatComponent {
           this.editColor = data.styles?.color || '#000000';
        }
     });
-
-    effect(() => {
-      // Reload models when settings change
-      if (this.appSettings) {
-        this.loadAvailableModels();
-      }
-    }, { allowSignalWrites: true });
   }
 
   loadAvailableModels() {
