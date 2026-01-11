@@ -55,6 +55,64 @@
       }
     </div>
 
+    <!-- Smart Routing Section -->
+    <div class="smart-routing-section">
+      <div class="section-header">
+        <h3>✨ Smart Routing</h3>
+        <label class="switch">
+          <input 
+            type="checkbox" 
+            [ngModel]="settings().smartRouting?.enabled" 
+            (ngModelChange)="updateSmartRouting({enabled: $event})"
+          >
+          <span class="slider round"></span>
+        </label>
+      </div>
+      
+      <p class="section-desc">Automatically selects the best model based on task complexity. Maps tiers to your configured models.</p>
+
+      <div class="routing-grid" [class.disabled]="!settings().smartRouting?.enabled">
+        @for (tier of ['router', 'simple', 'complex', 'vision']; track tier) {
+          <div class="routing-row">
+            <div class="tier-info">
+              <span class="tier-name">{{ tier | titlecase }}</span>
+              <span class="tier-desc">
+                @if (tier === 'router') { Fast model used to classify the task. }
+                @else if (tier === 'simple') { For typos, small edits, and explanations. }
+                @else if (tier === 'complex') { For logic, refactoring, and new features. }
+                @else if (tier === 'vision') { For tasks with image attachments. }
+              </span>
+            </div>
+            
+            <div class="tier-selection">
+              <select 
+                [ngModel]="getTierConfig(tier)?.provider"
+                (ngModelChange)="updateSmartRoutingTier($any(tier), {provider: $event})"
+              >
+                <option value="anthropic">Anthropic</option>
+                <option value="gemini">Google</option>
+              </select>
+
+              <select 
+                [ngModel]="getTierConfig(tier)?.model"
+                (ngModelChange)="updateSmartRoutingTier($any(tier), {model: $event})"
+              >
+                @if (getTierConfig(tier)?.provider === 'anthropic') {
+                  @for (model of anthropicModels; track model) {
+                    <option [value]="model">{{ model }}</option>
+                  }
+                } @else {
+                  @for (model of geminiModels; track model) {
+                    <option [value]="model">{{ model }}</option>
+                  }
+                }
+              </select>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+
     <div class="actions">
       <button class="btn-cancel" (click)="close.emit()" [disabled]="loading()">Cancel</button>
       <button class="btn-save" (click)="saveSettings()" [disabled]="loading()">

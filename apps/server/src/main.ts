@@ -5,6 +5,7 @@ import { jsonrepair } from 'jsonrepair';
 import 'dotenv/config';
 import * as fs from 'fs/promises';
 import { ProviderFactory } from './providers/factory';
+import { SmartRouter } from './providers/router';
 import { prisma } from './db/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -12,6 +13,7 @@ import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env['JWT_SECRET'] || 'fallback-secret';
 
 const app = express();
+const router = new SmartRouter();
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -332,24 +334,34 @@ async function saveFilesToDisk(basePath: string, files: any) {
 }
 
 protectedRouter.post('/generate', async (req: any, res) => {
-    const { prompt, previousFiles, provider, model, apiKey, images } = req.body;
+    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting } = req.body;
     const user = req.user;
 
-    // Determine API Key: User provided > User Settings > Server Env
-    let effectiveApiKey = apiKey;
     const userSettings = user.settings ? JSON.parse(user.settings) : {};
 
-    if (!effectiveApiKey) {
-        effectiveApiKey = userSettings.apiKey;
+    const getApiKey = (p: string) => {
+       if (p === provider && apiKey) return apiKey;
+       const profiles = userSettings.profiles || [];
+       const profile = profiles.find((pr: any) => pr.provider === p);
+       if (profile && profile.apiKey) return profile.apiKey;
+       if (p === 'gemini') return process.env.GEMINI_API_KEY;
+       if (p === 'anthropic') return process.env.ANTHROPIC_API_KEY;
+       return undefined;
+    };
+
+    if (model === 'auto') {
+       try {
+          const decision = await router.route(prompt, smartRouting || userSettings.smartRouting, getApiKey);
+          provider = decision.provider;
+          model = decision.model;
+          apiKey = decision.apiKey;
+       } catch (err) {
+          console.error('Routing failed:', err);
+       }
     }
 
-    if (!effectiveApiKey) {
-      if (provider === 'gemini') {
-          effectiveApiKey = process.env.GEMINI_API_KEY;
-      } else {
-          effectiveApiKey = process.env.ANTHROPIC_API_KEY;
-      }
-    }
+    let effectiveApiKey = apiKey;
+    if (!effectiveApiKey) effectiveApiKey = getApiKey(provider);
   
     if (!effectiveApiKey) {
       return res.status(400).send({ 
@@ -375,18 +387,42 @@ protectedRouter.post('/generate', async (req: any, res) => {
 });
 
 protectedRouter.post('/generate-stream', async (req: any, res) => {
-    const { prompt, previousFiles, provider, model, apiKey, images } = req.body;
+    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting } = req.body;
     const user = req.user;
 
-    let effectiveApiKey = apiKey;
     const userSettings = user.settings ? JSON.parse(user.settings) : {};
-    if (!effectiveApiKey) effectiveApiKey = userSettings.apiKey;
-    if (!effectiveApiKey) {
-      effectiveApiKey = provider === 'gemini' ? process.env.GEMINI_API_KEY : process.env.ANTHROPIC_API_KEY;
+    
+    const getApiKey = (p: string) => {
+       // Check if provided in request
+       if (p === provider && apiKey) return apiKey;
+       // Check user settings
+       const profiles = userSettings.profiles || [];
+       const profile = profiles.find((pr: any) => pr.provider === p);
+       if (profile && profile.apiKey) return profile.apiKey;
+       // Check environment
+       if (p === 'gemini') return process.env.GEMINI_API_KEY;
+       if (p === 'anthropic') return process.env.ANTHROPIC_API_KEY;
+       return undefined;
+    };
+
+    if (model === 'auto') {
+       try {
+          const decision = await router.route(prompt, smartRouting || userSettings.smartRouting, getApiKey);
+          provider = decision.provider;
+          model = decision.model;
+          apiKey = decision.apiKey;
+       } catch (err) {
+          console.error('Routing failed:', err);
+          // Fallback handled inside router.route usually, but just in case
+          if (!apiKey) apiKey = getApiKey(provider);
+       }
     }
+
+    let effectiveApiKey = apiKey;
+    if (!effectiveApiKey) effectiveApiKey = getApiKey(provider);
   
     if (!effectiveApiKey) {
-      return res.status(400).send({ error: `No API Key provided. Please enter one in settings.` });
+      return res.status(400).send({ error: `No API Key provided for ${provider}. Please enter one in settings.` });
     }
   
     // Set headers for SSE

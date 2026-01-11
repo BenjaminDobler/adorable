@@ -369,7 +369,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       turnCount++;
     }
 
-    return { explanation: fullExplanation, files: accumulatedFiles };
+    return { explanation: fullExplanation, files: accumulatedFiles, model: modelToUse };
   }
 
   private flattenFiles(structure: any, prefix = ''): Record<string, string> {

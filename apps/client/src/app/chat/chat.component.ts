@@ -49,6 +49,18 @@ export class ChatComponent {
   attachedFileContent: string | null = null;
   isDragging = false;
 
+  availableModels = [
+    { id: 'auto', name: '✨ Auto (Smart)', provider: 'auto' },
+    { id: 'claude-3-5-sonnet-20240620', name: 'Claude 3.5 Sonnet', provider: 'anthropic' },
+    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', provider: 'anthropic' },
+    { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', provider: 'anthropic' },
+    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'gemini' },
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'gemini' },
+    { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash (Exp)', provider: 'gemini' }
+  ];
+
+  selectedModel = signal(this.availableModels[0]);
+
   get isAttachedImage(): boolean {
     return this.attachedFile?.type.startsWith('image/') ?? false;
   }
@@ -304,11 +316,31 @@ export class ChatComponent {
       }
     }
 
+    // Override with manual selection if not auto
+    const currentSelection = this.selectedModel();
+    if (currentSelection.id !== 'auto') {
+        provider = currentSelection.provider;
+        model = currentSelection.id;
+        // NOTE: We assume the user has configured the API Key for this provider in their profile
+        // If they switch from Anthropic (profile default) to Gemini (manual), they must have a Gemini key saved in their profile/settings.
+        // For now, we rely on the `appSettings` containing the keys globally or assuming the backend has them.
+        // Ideally, we should look up the key for the specific provider from `appSettings` if available.
+        if (this.appSettings?.profiles) {
+           const profileForProvider = this.appSettings.profiles.find((p: any) => p.provider === provider);
+           if (profileForProvider) {
+               apiKey = profileForProvider.apiKey;
+           }
+        }
+    } else {
+        model = 'auto';
+    }
+
     this.apiService.generateStream(currentPrompt, previousFiles, {
       provider,
       apiKey,
       model,
-      images: this.attachedFileContent ? [this.attachedFileContent] : undefined
+      images: this.attachedFileContent ? [this.attachedFileContent] : undefined,
+      smartRouting: this.appSettings?.smartRouting
     }).subscribe({
       next: async (event) => {
         if (event.type !== 'tool_delta' && event.type !== 'text') { 
@@ -395,6 +427,7 @@ export class ChatComponent {
             this.messages.update(msgs => {
               const newMsgs = [...msgs];
               newMsgs[assistantMsgIndex].files = projectFiles;
+              newMsgs[assistantMsgIndex].model = res.model; // Capture the model actually used
               newMsgs[assistantMsgIndex].status = undefined; // Clear status on completion
               return newMsgs;
             });

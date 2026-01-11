@@ -150,6 +150,141 @@
   }
 }
 
+.smart-routing-section {
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+
+    h3 {
+      margin: 0;
+      font-size: 1.1rem;
+      color: #38bdf8;
+    }
+  }
+
+  .section-desc {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin-bottom: 20px;
+  }
+}
+
+.routing-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: opacity 0.2s;
+
+  &.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+}
+
+.routing-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+
+  .tier-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    .tier-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: #e2e8f0;
+    }
+
+    .tier-desc {
+      font-size: 0.75rem;
+      color: #64748b;
+    }
+  }
+
+  .tier-selection {
+    display: flex;
+    gap: 8px;
+    width: 320px;
+
+    select {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 6px 10px;
+      color: white;
+      font-size: 0.8rem;
+      outline: none;
+
+      &:first-child { width: 100px; }
+      &:last-child { flex: 1; }
+
+      &:focus { border-color: #38bdf8; }
+    }
+  }
+}
+
+/* Toggle Switch Styling */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 22px;
+
+  input { 
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #334155;
+  transition: .4s;
+  border-radius: 34px;
+
+  &:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+  }
+}
+
+input:checked + .slider {
+  background-color: #38bdf8;
+}
+
+input:focus + .slider {
+  box-shadow: 0 0 1px #38bdf8;
+}
+
+input:checked + .slider:before {
+  transform: translateX(22px);
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;

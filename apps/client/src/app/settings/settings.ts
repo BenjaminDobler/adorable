@@ -13,9 +13,23 @@ export interface AIProfile {
   model: string;
 }
 
+export interface SmartRoutingTier {
+  provider: ProviderType;
+  model: string;
+}
+
+export interface SmartRoutingConfig {
+  enabled: boolean;
+  router: SmartRoutingTier;
+  simple: SmartRoutingTier;
+  complex: SmartRoutingTier;
+  vision: SmartRoutingTier;
+}
+
 export interface AppSettings {
   profiles: AIProfile[];
   activeProfileId: string;
+  smartRouting?: SmartRoutingConfig;
 }
 
 @Component({
@@ -48,7 +62,14 @@ export class SettingsComponent {
         model: 'gemini-2.0-flash-exp'
       }
     ],
-    activeProfileId: 'anthropic'
+    activeProfileId: 'anthropic',
+    smartRouting: {
+      enabled: true,
+      router: { provider: 'gemini', model: 'gemini-1.5-flash' },
+      simple: { provider: 'gemini', model: 'gemini-1.5-flash' },
+      complex: { provider: 'anthropic', model: 'claude-3-5-sonnet-20240620' },
+      vision: { provider: 'anthropic', model: 'claude-3-5-sonnet-20240620' }
+    }
   });
   
   anthropicProfile = computed(() => this.settings().profiles.find(p => p.id === 'anthropic')!);
@@ -103,7 +124,11 @@ export class SettingsComponent {
 
         this.settings.set({
           profiles: mergedProfiles,
-          activeProfileId: parsed.activeProfileId || 'anthropic'
+          activeProfileId: parsed.activeProfileId || 'anthropic',
+          smartRouting: {
+            ...this.settings().smartRouting!,
+            ...(parsed.smartRouting || {})
+          }
         });
       }
     });
@@ -121,6 +146,27 @@ export class SettingsComponent {
       ...s,
       profiles: s.profiles.map(p => p.id === id ? { ...p, ...updates } : p)
     }));
+  }
+
+  updateSmartRouting(updates: Partial<SmartRoutingConfig>) {
+    this.settings.update(s => ({
+      ...s,
+      smartRouting: { ...s.smartRouting!, ...updates }
+    }));
+  }
+
+  updateSmartRoutingTier(tier: keyof Omit<SmartRoutingConfig, 'enabled'>, updates: Partial<SmartRoutingTier>) {
+    this.settings.update(s => ({
+      ...s,
+      smartRouting: {
+        ...s.smartRouting!,
+        [tier]: { ...s.smartRouting![tier], ...updates }
+      }
+    }));
+  }
+
+  getTierConfig(tier: string): SmartRoutingTier | undefined {
+    return (this.settings().smartRouting as any)?.[tier];
   }
 
   saveSettings() {

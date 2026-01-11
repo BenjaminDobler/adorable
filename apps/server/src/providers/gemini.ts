@@ -228,7 +228,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       turnCount++;
     }
     
-    return { explanation: fullExplanation, files: accumulatedFiles };
+    return { explanation: fullExplanation, files: accumulatedFiles, model: modelName };
   }
 
   private flattenFiles(structure: any, prefix = ''): Record<string, string> {

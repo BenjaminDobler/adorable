@@ -4,6 +4,7 @@ export interface GenerateOptions {
   apiKey: string;
   model: string;
   images?: string[]; // Base64 data URIs
+  smartRouting?: any; // The SmartRoutingConfig from the client
 }
 
 export interface TokenUsage {

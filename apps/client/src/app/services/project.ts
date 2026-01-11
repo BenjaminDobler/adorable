@@ -15,6 +15,7 @@ export interface ChatMessage {
   files?: any;
   usage?: { inputTokens: number, outputTokens: number, totalTokens: number };
   status?: string;
+  model?: string;
   updatedFiles?: string[];
   isExpanded?: boolean;
 }
