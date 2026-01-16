@@ -49,7 +49,17 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const modelName = model || 'gemini-2.0-flash-exp';
-    const generativeModel = genAI.getGenerativeModel({ model: modelName });
+    
+    const tools = TOOLS.map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.input_schema
+    }));
+
+    const generativeModel = genAI.getGenerativeModel({ 
+      model: modelName,
+      tools: [{ functionDeclarations: tools as any }]
+    });
 
     logger.log('START', { model: modelName, promptLength: prompt.length });
 
