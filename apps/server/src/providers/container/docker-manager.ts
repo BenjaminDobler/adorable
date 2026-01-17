@@ -21,7 +21,7 @@ export class DockerManager {
       WorkingDir: '/app',
       HostConfig: {
         PortBindings: {
-            '4200/tcp': [{ HostPort: '4201' }] // Fixed host port for debugging
+            '4200/tcp': [{ HostIp: '0.0.0.0', HostPort: '4201' }] // Fixed host port for debugging
         }
       },
       ExposedPorts: {
