@@ -21,15 +21,12 @@ const dockerManager = new DockerManager(); // Singleton for local dev
 
 app.use(cors());
 
-// Proxy for Container Preview (Must be before body parser for some requests, or handle carefully)
-// Actually body parser might consume stream. Proxy usually should be before body parser if we proxy POSTs.
-// But we only proxy GET for preview usually.
+// Proxy for Container Preview
 app.use('/api/proxy', createProxyMiddleware({
   target: 'http://localhost:4200', // Default fallback
   router: async () => {
      try {
-       const ip = await dockerManager.getContainerIP();
-       return `http://${ip}:4200`;
+       return await dockerManager.getContainerUrl();
      } catch(e) {
        return 'http://localhost:4200'; // Fallback
      }

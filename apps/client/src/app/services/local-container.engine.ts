@@ -154,11 +154,15 @@ export class LocalContainerEngine extends ContainerEngine {
 
   async startDevServer(): Promise<void> {
     this.status.set('Starting dev server...');
-    const res = await this.exec('npm', ['start'], { stream: true });
+    const res = await this.exec('npm', ['start', '--', '--host', '0.0.0.0'], { stream: true });
     
     res.stream.subscribe(chunk => {
         this.serverOutput.update(o => o + chunk);
-        if (chunk.includes('Application bundle generation complete')) {
+        // Strip ANSI codes for logic checks
+        // eslint-disable-next-line no-control-regex
+        const clean = chunk.replace(/\x1B\[[0-9;]*[mK]/g, '');
+        
+        if (clean.includes('Application bundle generation complete')) {
              this.url.set('http://localhost:3333/api/proxy'); 
              this.status.set('Ready');
              this.onServerReady(4200, 'http://localhost:3333/api/proxy');

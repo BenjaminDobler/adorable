@@ -20,13 +20,27 @@ export class DockerManager {
       Tty: true,
       WorkingDir: '/app',
       HostConfig: {
-        // AutoRemove: true, // Maybe?
-        // PortBindings? For now we proxy via exec
+        PortBindings: {
+            '4200/tcp': [{ HostPort: '0' }] // Random host port
+        }
+      },
+      ExposedPorts: {
+          '4200/tcp': {}
       }
     });
 
     await this.container.start();
     return this.container.id;
+  }
+
+  async getContainerUrl(): Promise<string> {
+      if (!this.container) throw new Error('Container not started');
+      const data = await this.container.inspect();
+      const ports = data.NetworkSettings.Ports['4200/tcp'];
+      if (ports && ports[0]) {
+          return `http://localhost:${ports[0].HostPort}`;
+      }
+      throw new Error('Port not mapped');
   }
 
   private async ensureImage(image: string) {
@@ -108,16 +122,7 @@ export class DockerManager {
     });
   }
 
-  async getContainerIP(): Promise<string> {
-    if (!this.container) throw new Error('Container not started');
-    const data = await this.container.inspect();
-    const networks = data.NetworkSettings.Networks;
-    const networkName = Object.keys(networks)[0];
-    if (networkName) {
-        return networks[networkName].IPAddress;
-    }
-    return '127.0.0.1'; // Fallback
-  }
+
 
   async execStream(cmd: string[], workDir = '/app', onData: (chunk: string) => void): Promise<number> {
     if (!this.container) throw new Error('Container not started');
