@@ -51,8 +51,10 @@ export class LocalContainerEngine extends ContainerEngine {
   }
 
   async exec(cmd: string, args: string[], options?: any): Promise<ProcessOutput> {
-    // For now, simple one-shot exec. Streaming is harder over HTTP without WS.
-    // We'll fake the stream with the full output at the end for this MVP.
+    if (options?.stream) {
+       return this.streamExec(cmd, args);
+    }
+
     const req = this.http.post<{ output: string, exitCode: number }>(`${this.apiUrl}/exec`, { cmd, args, ...options });
     const result = await req.toPromise();
     
@@ -62,23 +64,69 @@ export class LocalContainerEngine extends ContainerEngine {
     };
   }
 
+  private async streamExec(cmd: string, args: string[]): Promise<ProcessOutput> {
+      const token = localStorage.getItem('adorable_token');
+      // Using fetch for streaming response
+      const response = await fetch(`${this.apiUrl}/exec-stream?cmd=${cmd}&args=${args.join(',')}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      
+      const stream = new Observable<string>(observer => {
+          if (!reader) { observer.complete(); return; }
+          
+          const push = () => {
+              reader.read().then(({ done, value }) => {
+                  if (done) {
+                      observer.complete();
+                      return;
+                  }
+                  const chunk = decoder.decode(value, { stream: true });
+                  // Parse SSE format "data: {...}"
+                  const lines = chunk.split('\n');
+                  for (const line of lines) {
+                      if (line.startsWith('data: ')) {
+                          try {
+                              const data = JSON.parse(line.substring(6));
+                              if (data.output) observer.next(data.output);
+                              if (data.done) observer.complete();
+                              if (data.error) observer.error(data.error);
+                          } catch(e) {}
+                      }
+                  }
+                  push();
+              });
+          };
+          push();
+      });
+
+      return {
+          stream,
+          exit: Promise.resolve(0)
+      };
+  }
+
   async runInstall(): Promise<number> {
     this.status.set('Installing dependencies...');
-    const res = await this.exec('npm', ['install']);
-    this.serverOutput.update(o => o + (res as any).stream?.value || ''); // Hacky stream access
-    // We should subscribe to stream
+    const res = await this.exec('npm', ['install'], { stream: true });
     res.stream.subscribe(chunk => this.serverOutput.update(o => o + chunk));
-    return await res.exit;
+    return await res.exit; 
   }
 
   async startDevServer(): Promise<void> {
     this.status.set('Starting dev server...');
-    // In local docker, we might need to expose ports or use a reverse proxy.
-    // For MVP, let's just run the command and assume we can't easily preview it yet without port mapping logic.
-    // Or we use 'npm start' and capture logs.
-    const res = await this.exec('npm', ['start']);
-    res.stream.subscribe(chunk => this.serverOutput.update(o => o + chunk));
-    this.status.set('Dev Server Running (Logs only)');
+    const res = await this.exec('npm', ['start'], { stream: true });
+    
+    res.stream.subscribe(chunk => {
+        this.serverOutput.update(o => o + chunk);
+        if (chunk.includes('Application bundle generation complete')) {
+             this.url.set('http://localhost:3333/api/proxy'); 
+             this.status.set('Ready');
+             this.onServerReady(4200, 'http://localhost:3333/api/proxy');
+        }
+    });
   }
 
   async stopDevServer(): Promise<void> {
@@ -89,11 +137,28 @@ export class LocalContainerEngine extends ContainerEngine {
     await this.exec('rm', ['-rf', 'src']);
   }
 
-  // Not implemented fully for Remote/Local yet
   async writeFile(path: string, content: string | Uint8Array): Promise<void> {
-     // Optimize: sending single file mount
-     // Need to convert to WebContainerFiles structure
-     console.warn('writeFile not optimized for LocalContainerEngine');
+     const parts = path.split('/');
+     const fileName = parts.pop()!;
+     const tree: any = {};
+     let current = tree;
+     for(const part of parts) {
+        current[part] = { directory: {} };
+        current = current[part].directory;
+     }
+     
+     if (typeof content === 'string') {
+        current[fileName] = { file: { contents: content } };
+     } else {
+        let binary = '';
+        const len = content.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(content[i]);
+        }
+        current[fileName] = { file: { contents: btoa(binary), encoding: 'base64' } };
+     }
+     
+     await this.mount(tree);
   }
   
   async readFile(path: string): Promise<string> { return ''; }
@@ -102,7 +167,13 @@ export class LocalContainerEngine extends ContainerEngine {
   async startShell(): Promise<void> {}
   async writeToShell(data: string): Promise<void> {}
   async runBuild(args?: string[]): Promise<number> { return 0; }
-  async readdir(path: string): Promise<any> { return []; }
+  async readdir(path: string): Promise<any> { return []; } 
   
-  on(event: 'server-ready', callback: (port: number, url: string) => void): void {}
+  onServerReadyCallback?: (port: number, url: string) => void;
+  on(event: 'server-ready', callback: (port: number, url: string) => void): void {
+      this.onServerReadyCallback = callback;
+  }
+  private onServerReady(port: number, url: string) {
+      this.onServerReadyCallback?.(port, url);
+  }
 }

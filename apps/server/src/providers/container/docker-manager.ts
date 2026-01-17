@@ -92,6 +92,48 @@ export class DockerManager {
     });
   }
 
+  async getContainerIP(): Promise<string> {
+    if (!this.container) throw new Error('Container not started');
+    const data = await this.container.inspect();
+    const networks = data.NetworkSettings.Networks;
+    const networkName = Object.keys(networks)[0];
+    if (networkName) {
+        return networks[networkName].IPAddress;
+    }
+    return '127.0.0.1'; // Fallback
+  }
+
+  async execStream(cmd: string[], workDir = '/app', onData: (chunk: string) => void): Promise<number> {
+    if (!this.container) throw new Error('Container not started');
+
+    const exec = await this.container.exec({
+      Cmd: cmd,
+      AttachStdout: true,
+      AttachStderr: true,
+      WorkingDir: workDir
+    });
+
+    const stream = await exec.start({ Detach: false, Tty: false });
+    
+    return new Promise((resolve, reject) => {
+        this.container?.modem.demuxStream(stream as any, {
+            write: (chunk: any) => onData(chunk.toString())
+        } as any, {
+            write: (chunk: any) => onData(chunk.toString())
+        } as any);
+
+        (stream as any).on('end', async () => {
+            // Wait a bit for inspection?
+            try {
+               const inspect = await exec.inspect();
+               resolve(inspect.ExitCode);
+            } catch(e) { resolve(-1); }
+        });
+        
+        (stream as any).on('error', reject);
+    });
+  }
+
   async stop() {
     if (this.container) {
       await this.container.stop();

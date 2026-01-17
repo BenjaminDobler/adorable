@@ -11,6 +11,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { encrypt, decrypt } from './utils/crypto';
 import { DockerManager } from './providers/container/docker-manager';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 const JWT_SECRET = process.env['JWT_SECRET'] || 'fallback-secret';
 
@@ -19,6 +20,28 @@ const router = new SmartRouter();
 const dockerManager = new DockerManager(); // Singleton for local dev
 
 app.use(cors());
+
+// Proxy for Container Preview (Must be before body parser for some requests, or handle carefully)
+// Actually body parser might consume stream. Proxy usually should be before body parser if we proxy POSTs.
+// But we only proxy GET for preview usually.
+app.use('/api/proxy', createProxyMiddleware({
+  target: 'http://localhost:4200', // Default fallback
+  router: async () => {
+     try {
+       const ip = await dockerManager.getContainerIP();
+       return `http://${ip}:4200`;
+     } catch(e) {
+       return 'http://localhost:4200'; // Fallback
+     }
+  },
+  pathRewrite: {
+    '^/api/proxy': ''
+  },
+  changeOrigin: true,
+  ws: true,
+  logger: console // Debug
+}));
+
 app.use(express.json({ limit: '50mb' }));
 
 const SITES_DIR = path.join(process.cwd(), 'published-sites');
@@ -134,6 +157,27 @@ protectedRouter.post('/container/exec', async (req: any, res) => {
     res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+protectedRouter.get('/container/exec-stream', async (req: any, res) => {
+  const cmd = req.query.cmd as string;
+  const args = req.query.args ? (req.query.args as string).split(',') : [];
+  
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  try {
+    const fullCmd = [cmd, ...args];
+    await dockerManager.execStream(fullCmd, '/app', (chunk) => {
+       res.write(`data: ${JSON.stringify({ output: chunk })}\n\n`);
+    });
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+  } catch (e) {
+    res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
+    res.end();
   }
 });
 
