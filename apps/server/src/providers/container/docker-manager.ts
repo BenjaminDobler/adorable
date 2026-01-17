@@ -7,7 +7,8 @@ export class DockerManager {
   private container: Docker.Container | null = null;
 
   constructor() {
-    this.docker = new Docker(); // Defaults to socket
+    const socketPath = process.env['DOCKER_SOCKET_PATH'] || '/var/run/docker.sock';
+    this.docker = new Docker({ socketPath }); 
   }
 
   async createContainer(image = 'node:20-slim') {
