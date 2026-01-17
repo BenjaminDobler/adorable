@@ -42,7 +42,7 @@
       <div class="header-actions">
         <button
           (click)="projectService.migrateProject()"
-          [disabled]="loading() || !projectService.currentFiles()"
+          [disabled]="loading() || projectService.fileStore.isEmpty()"
           class="icon-btn"
           title="Repair Project Configuration"
         >
@@ -63,7 +63,7 @@
         </button>
         <button
           (click)="saveProject()"
-          [disabled]="loading() || !projectService.currentFiles()"
+          [disabled]="loading() || projectService.fileStore.isEmpty()"
           class="icon-btn"
           title="Save changes"
         >
@@ -86,7 +86,7 @@
         </button>
         <button
           (click)="publish()"
-          [disabled]="loading() || !projectService.currentFiles()"
+          [disabled]="loading() || projectService.fileStore.isEmpty()"
           class="icon-btn"
           title="Publish live site"
         >
@@ -109,7 +109,7 @@
         </button>
         <button
           (click)="downloadZip()"
-          [disabled]="loading() || !projectService.currentFiles()"
+          [disabled]="loading() || projectService.fileStore.isEmpty()"
           class="icon-btn"
           title="Download source"
         >
@@ -195,7 +195,7 @@
           </button>
         </div>
         <app-file-explorer
-          [files]="projectService.allFiles()"
+          [files]="projectService.files()"
           (fileSelect)="onFileSelect($event)"
         ></app-file-explorer>
       </div>

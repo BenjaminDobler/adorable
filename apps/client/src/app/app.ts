@@ -113,8 +113,7 @@ export class AppComponent implements AfterViewChecked {
       } else {
         this.projectService.projectId.set(null);
         this.projectService.projectName.set(this.route.snapshot.queryParams['name'] || 'New Project');
-        this.projectService.currentFiles.set(null);
-        this.projectService.allFiles.set(null);
+        this.projectService.fileStore.setFiles({});
         this.messages.set([
           { role: 'assistant', text: 'Hi! I can help you build an Angular app. Describe what you want to create.', timestamp: new Date() }
         ]);
@@ -310,13 +309,8 @@ export class AppComponent implements AfterViewChecked {
   async onFileContentChange(newContent: string, explicitPath?: string) {
     const path = explicitPath || this.selectedFilePath();
     if (path) {
-      this.projectService.updateFileInTree(this.projectService.allFiles(), path, newContent, true);
-      
-      const current = this.projectService.currentFiles() || {};
-      this.projectService.updateFileInTree(current, path, newContent, true);
-      if (!this.projectService.currentFiles()) {
-         this.projectService.currentFiles.set(current);
-      }
+      // Update store
+      this.projectService.fileStore.updateFile(path, newContent);
 
       try {
         let writeContent: string | Uint8Array = newContent;
@@ -331,7 +325,7 @@ export class AppComponent implements AfterViewChecked {
   }
 
   saveProject() {
-    if (!this.projectService.projectName() || !this.projectService.currentFiles()) return; 
+    if (!this.projectService.projectName() || this.projectService.fileStore.isEmpty()) return; 
     
     this.loading.set(true);
     const iframe = document.querySelector('iframe');

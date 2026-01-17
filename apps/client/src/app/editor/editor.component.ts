@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, Input, Output, EventEmitter } from '@angular/core';
+import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, input, output, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 declare const monaco: any;
@@ -24,26 +24,31 @@ declare const monaco: any;
 export class EditorComponent implements AfterViewInit, OnDestroy {
   @ViewChild('editorContainer') editorContainer!: ElementRef;
   
-  @Input() set content(value: string) {
-    this._content = value;
-    if (this.editorInstance) {
-      // Only update if value is different to avoid cursor jumps if we were binding back
-      if (this.editorInstance.getValue() !== value) {
-        this.editorInstance.setValue(value);
-      }
-    }
-  }
-  
-  @Input() set fileName(value: string) {
-      this._fileName = value;
-      this.updateLanguage();
-  }
+  content = input.required<string>();
+  fileName = input.required<string>();
+  contentChange = output<string>();
 
-  @Output() contentChange = new EventEmitter<string>();
-
-  private _content = '';
-  private _fileName = '';
   private editorInstance: any;
+
+  constructor() {
+    effect(() => {
+      const value = this.content();
+      if (this.editorInstance) {
+        // Only update if value is different to avoid cursor jumps
+        const currentValue = this.editorInstance.getValue();
+        if (currentValue !== value) {
+          this.editorInstance.setValue(value);
+        }
+      }
+    });
+
+    effect(() => {
+      const name = this.fileName();
+      if (this.editorInstance) {
+        this.updateLanguage();
+      }
+    });
+  }
 
   ngAfterViewInit() {
     this.loadMonaco().then(() => {
@@ -60,8 +65,11 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
   private initEditor() {
     if (!this.editorContainer) return;
 
+    // Use untracked to access signal value once without subscribing
+    const initialContent = untracked(this.content);
+
     this.editorInstance = monaco.editor.create(this.editorContainer.nativeElement, {
-      value: this._content,
+      value: initialContent,
       theme: 'vs-dark',
       automaticLayout: true,
       minimap: { enabled: false },
@@ -82,9 +90,9 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
   }
   
   private updateLanguage() {
-      if (!this.editorInstance || !this._fileName) return;
+      if (!this.editorInstance) return;
       
-      const ext = this._fileName.split('.').pop()?.toLowerCase();
+      const ext = this.fileName().split('.').pop()?.toLowerCase();
       let language = 'plaintext';
       
       switch (ext) {

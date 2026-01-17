@@ -188,10 +188,8 @@ export class ChatComponent {
     const result = this.templateService.findAndModify(fingerprint, { type, value, property });
     
     if (result.success) {
-       // Update Project Service
-       const currentFiles = this.projectService.allFiles();
-       this.projectService.updateFileInTree(currentFiles, result.path, result.content);
-       this.projectService.currentFiles.set(currentFiles);
+       // Update Project Service via Store
+       this.projectService.fileStore.updateFile(result.path, result.content);
        
        // Reload Preview
        this.webContainerService.writeFile(result.path, result.content);
@@ -301,7 +299,7 @@ export class ChatComponent {
     const data = this.visualEditorData();
     if (!data || !data.componentName) return undefined;
 
-    const files = this.projectService.currentFiles();
+    const files = this.projectService.files();
     if (!files) return undefined;
 
     const componentName = data.componentName; 
@@ -337,7 +335,7 @@ export class ChatComponent {
       role: 'user',
       text: this.prompt,
       timestamp: new Date(),
-      files: this.projectService.currentFiles() 
+      files: this.projectService.files() 
     }]);
 
     let currentPrompt = this.prompt;
@@ -369,7 +367,7 @@ export class ChatComponent {
       updatedFiles: []
     }]);
 
-    const previousFiles = this.projectService.allFiles() || this.projectService.currentFiles() || BASE_FILES;
+    const previousFiles = this.projectService.files() || BASE_FILES;
     
     let fullStreamText = '';
     let hasResult = false;
@@ -499,11 +497,8 @@ export class ChatComponent {
             this.attachedFile = null;
             const res = event.content;
             
-            let base = BASE_FILES;
-            if (this.projectService.currentFiles()) {
-               base = this.projectService.mergeFiles(base, this.projectService.currentFiles());
-            }
-            const projectFiles = this.projectService.mergeFiles(base, res.files);
+            const current = this.projectService.files() || BASE_FILES;
+            const projectFiles = this.projectService.mergeFiles(current, res.files);
             
             this.messages.update(msgs => {
               const newMsgs = [...msgs];

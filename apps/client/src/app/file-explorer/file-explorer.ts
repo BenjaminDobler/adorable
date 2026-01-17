@@ -1,4 +1,4 @@
-import { Component, Input, signal, Output, EventEmitter } from '@angular/core';
+import { Component, input, output, signal, effect, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 interface FileNode {
@@ -20,7 +20,7 @@ interface FileNode {
         <div class="tree-node">
           <div class="node-content" 
                [class.active]="selectedFile() === node.name"
-               [style.padding-left.px]="level * 12 + 8"
+               [style.padding-left.px]="level() * 12 + 8"
                (click)="toggleNode(node)">
             
             @if (node.type === 'folder') {
@@ -44,8 +44,8 @@ interface FileNode {
             <div class="children">
               <app-file-explorer 
                 [files]="node.originalData" 
-                [level]="level + 1"
-                [path]="path ? path + '/' + node.name : node.name"
+                [level]="level() + 1"
+                [path]="path() ? path() + '/' + node.name : node.name"
                 (fileSelect)="onChildFileSelect($event)">
               </app-file-explorer>
             </div>
@@ -128,20 +128,19 @@ interface FileNode {
   `]
 })
 export class FileExplorerComponent {
-  @Input() level = 0;
-  @Input() path = '';
-  @Output() fileSelect = new EventEmitter<{name: string, path: string, content: string}>();
+  level = input(0);
+  path = input('');
+  files = input<any>(null); // Still typing as any for now to avoid strict check issues on node.directory recursive types, but could be improved.
   
-  nodes = signal<FileNode[]>([]);
+  fileSelect = output<{name: string, path: string, content: string}>();
+  
+  // Computed instead of set input
+  nodes = computed(() => this.transformFiles(this.files()));
   selectedFile = signal<string | null>(null);
 
-  @Input() set files(value: any) {
-    if (value) {
-      this.nodes.set(this.transformFiles(value));
-    }
-  }
-
   transformFiles(files: any): FileNode[] {
+    if (!files) return [];
+    
     const nodes: FileNode[] = [];
     const entries = Object.entries(files).sort((a: any, b: any) => {
       const aIsDir = !!a[1].directory;
@@ -166,10 +165,16 @@ export class FileExplorerComponent {
   toggleNode(node: FileNode) {
     if (node.type === 'folder') {
       node.expanded = !node.expanded;
-      // Trigger change detection implicitly via the template binding
+      // Force change detection? No, node.expanded mutation inside computed array might not trigger signal update unless we clone.
+      // But 'nodes' is computed from 'files'. 'node' is an object inside that array.
+      // Modifying 'node.expanded' works in template because standard Change Detection picks it up.
+      // In Zoneless, we need to signalize the expansion state or use a signal for 'expanded'.
+      // However, creating a signal for every node in a computed list is tricky.
+      // For now, let's keep mutability for expanded state, but Zoneless CD should pick up the click event.
     } else {
       this.selectedFile.set(node.name);
-      const fullPath = this.path ? `${this.path}/${node.name}` : node.name;
+      const currentPath = this.path();
+      const fullPath = currentPath ? `${currentPath}/${node.name}` : node.name;
       this.fileSelect.emit({
         name: node.name,
         path: fullPath,

@@ -7,6 +7,8 @@ import { BASE_FILES } from '../base-project';
 import { RUNTIME_SCRIPTS } from '../runtime-scripts';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { FileSystemStore } from './file-system.store';
+import { WebContainerFiles } from '@adorable/shared-types';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -28,12 +30,15 @@ export class ProjectService {
   private webContainerService = inject(WebContainerService);
   private toastService = inject(ToastService);
   private router = inject(Router);
+  public fileStore = inject(FileSystemStore);
 
   // State
   projectId = signal<string | null>(null);
   projectName = signal<string>('');
-  currentFiles = signal<any>(null);
-  allFiles = signal<any>(null);
+  
+  // Use store for files
+  files = this.fileStore.files; 
+  
   messages = signal<ChatMessage[]>([
     { role: 'assistant', text: 'Hi! I can help you build an Angular app. Describe what you want to create.', timestamp: new Date() }
   ]);
@@ -50,7 +55,6 @@ export class ProjectService {
       next: async (project) => {
         this.projectId.set(project.id);
         this.projectName.set(project.name);
-        this.currentFiles.set(project.files);
         
         if (project.messages) {
           this.messages.set(project.messages.map((m: any) => ({
@@ -74,12 +78,11 @@ export class ProjectService {
 
   saveProject(thumbnail?: string) {
     const name = this.projectName();
-    const files = this.currentFiles();
-    if (!name || !files) return;
+    const files = this.files();
+    if (!name || this.fileStore.isEmpty()) return;
 
     this.loading.set(true);
     const id = this.projectId();
-    // Pass undefined if it's new/null so backend creates new
     const saveId = (id && id !== 'new') ? id : undefined;
 
     this.apiService.saveProject(name, files, this.messages(), saveId, thumbnail).subscribe({
@@ -107,11 +110,9 @@ export class ProjectService {
     this.addSystemMessage('Building and publishing your app...');
 
     try {
-      // 1. Run build
       const exitCode = await this.webContainerService.runBuild(['--base-href', './']);
       if (exitCode !== 0) throw new Error('Build failed');
 
-      // 2. Detect dist folder
       let distPath = 'dist';
       try {
          const foundPath = await this.findWebRoot('dist');
@@ -123,7 +124,6 @@ export class ProjectService {
       
       const files = await this.getFilesRecursively(distPath);
 
-      // 3. Upload
       this.apiService.publish(id, files).subscribe({
         next: (res) => {
           this.addAssistantMessage(`Success! Your app is published at: ${res.url}`);
@@ -145,15 +145,16 @@ export class ProjectService {
   }
 
   async downloadZip() {
-    const files = this.currentFiles();
-    if (!files) return;
+    const files = this.files();
+    if (this.fileStore.isEmpty()) return;
     
     this.loading.set(true);
     try {
       const zip = new JSZip();
-      const fullProject = this.mergeFiles(BASE_FILES, files);
+      // Files are already merged/current in the store
+      const fullProject = files; 
       
-      const addFilesToZip = (fs: any, currentPath: string) => {
+      const addFilesToZip = (fs: WebContainerFiles, currentPath: string) => {
         for (const key in fs) {
           const node = fs[key];
           if (node.file) {
@@ -182,11 +183,10 @@ export class ProjectService {
       await this.webContainerService.stopDevServer();
       await this.webContainerService.clean();
 
-      this.currentFiles.set(files);
-      const projectFiles = this.mergeFiles(BASE_FILES, files);
-      this.allFiles.set(projectFiles);
+      const mergedFiles = this.mergeFiles(BASE_FILES, files || {});
+      this.fileStore.setFiles(mergedFiles);
       
-      const { tree, binaries } = this.prepareFilesForMount(projectFiles);
+      const { tree, binaries } = this.prepareFilesForMount(mergedFiles);
 
       await this.webContainerService.mount(tree);
       
@@ -207,48 +207,38 @@ export class ProjectService {
   }
 
   async migrateProject() {
-    const files = this.currentFiles();
-    if (!files) return;
+    const files = this.files();
+    if (this.fileStore.isEmpty()) return;
     
     this.loading.set(true);
     try {
-      // 1. Ensure 'public' directory exists
+      // Direct updates via store
       if (!files['public']) {
-        this.updateFileInTree(files, 'public/.gitkeep', '', true);
+        this.fileStore.updateFile('public/.gitkeep', '');
       }
 
-      // 2. Update angular.json
-      if (files['angular.json']) {
+      if (files['angular.json'] && files['angular.json'].file) {
         const content = files['angular.json'].file.contents;
         const config = JSON.parse(content);
         
-        // Fix Assets
         const appArchitect = config.projects.app.architect;
         const buildOptions = appArchitect.build.options;
         
-        // Ensure assets array has public
         const hasPublic = buildOptions.assets.some((a: any) => typeof a === 'object' && a.input === 'public');
         if (!hasPublic) {
            buildOptions.assets.push({ "glob": "**/*", "input": "public" });
         }
 
-        // Fix Serve Options (Disable HMR)
         const serveOptions = appArchitect.serve.options;
         serveOptions.hmr = false;
         serveOptions.allowedHosts = ["all"];
 
-        // Write back
         const newConfig = JSON.stringify(config, null, 2);
-        this.updateFileInTree(files, 'angular.json', newConfig);
-        
-        // Update allFiles view state too
-        const all = this.allFiles();
-        if (all) {
-           this.updateFileInTree(all, 'angular.json', newConfig);
-        }
+        this.fileStore.updateFile('angular.json', newConfig);
       }
 
-      await this.reloadPreview(files);
+      // Reload with new state
+      await this.reloadPreview(this.files()); 
       this.toastService.show('Project configuration updated', 'success');
     } catch (err) {
       console.error(err);
@@ -275,32 +265,10 @@ export class ProjectService {
     }]);
   }
 
-  updateFileInTree(tree: any, path: string, content: string, createIfMissing = false) {
-    if (!tree) return;
-    const parts = path.split('/');
-    let current = tree;
-    
-    for (let i = 0; i < parts.length - 1; i++) {
-      const part = parts[i];
-      if (!current[part]) {
-        if (createIfMissing) {
-          current[part] = { directory: {} };
-        } else {
-          return;
-        }
-      }
-      if (!current[part].directory) {
-         if (createIfMissing) current[part].directory = {};
-         else return;
-      }
-      current = current[part].directory;
-    }
-    
-    const fileName = parts[parts.length - 1];
-    if (createIfMissing || current[fileName]) {
-      current[fileName] = { file: { contents: content } };
-    }
-  }
+  // NOTE: This is likely no longer needed if we use Store, 
+  // but keeping it for now if external utilities use it or just removing it.
+  // The Store handles updates.
+  // updateFileInTree -> fileStore.updateFile
 
   mergeFiles(base: any, generated: any): any {
     const result = { ...base };
@@ -331,12 +299,8 @@ export class ProjectService {
            binaries.push({ path: fullPath, content: binary });
         } else {
            if (key === 'index.html' && typeof content === 'string') {
-              // Ensure we have the latest runtime scripts (modern-screenshot)
               if (!content.includes('modern-screenshot')) {
-                 // Remove legacy html2canvas tag if present to avoid duplicate downloads/execution
                  content = content.replace('<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>', '');
-                 
-                 // Inject the full runtime scripts (which includes html2canvas + modern-screenshot)
                  content = content.replace('</head>', `${RUNTIME_SCRIPTS}\n</head>`);
               }
            }

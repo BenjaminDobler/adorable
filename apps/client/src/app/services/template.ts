@@ -28,7 +28,7 @@ export class TemplateService {
   private projectService = inject(ProjectService);
 
   findAndModify(fingerprint: ElementFingerprint, modification: { type: 'text' | 'style' | 'class', value: string, property?: string }): ModificationResult {
-    const files = this.projectService.allFiles();
+    const files = this.projectService.files();
     if (!files) return { content: '', path: '', success: false, error: 'No files loaded' };
 
     let componentFile;
