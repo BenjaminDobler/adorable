@@ -38,7 +38,7 @@ export class DockerManager {
       const data = await this.container.inspect();
       const ports = data.NetworkSettings.Ports['4200/tcp'];
       if (ports && ports[0]) {
-          return `http://localhost:${ports[0].HostPort}`;
+          return `http://127.0.0.1:${ports[0].HostPort}`;
       }
       throw new Error('Port not mapped');
   }
