@@ -13,7 +13,7 @@ export class SmartContainerEngine extends ContainerEngine {
   private localEngine = inject(LocalContainerEngine);
 
   // Active Engine Mode
-  public mode = signal<'browser' | 'local'>('browser');
+  public mode = signal<'browser' | 'local'>((localStorage.getItem('container_mode') as 'browser' | 'local') || 'browser');
   
   private activeEngine = computed(() => 
     this.mode() === 'local' ? this.localEngine : this.browserEngine
@@ -78,11 +78,10 @@ export class SmartContainerEngine extends ContainerEngine {
   
   setMode(mode: 'browser' | 'local') {
       console.log('Switching Container Engine to:', mode);
-      // Teardown previous?
       const prev = this.activeEngine();
       prev.stopDevServer(); 
-      // prev.teardown(); // Optional, maybe keep warm?
       
       this.mode.set(mode);
+      localStorage.setItem('container_mode', mode);
   }
 }

@@ -46,6 +46,14 @@ export class LocalContainerEngine extends ContainerEngine {
   }
 
   async mount(files: WebContainerFiles): Promise<void> {
+    // We assume boot() starts the container. 
+    // We should check if container is running? 
+    // Ideally the server handles idempotency of start, or we track state locally.
+    // For now, let's call boot if status is Idle or Stopped.
+    if (this.status() === 'Idle' || this.status() === 'Stopped') {
+        await this.boot();
+    }
+
     this.status.set('Mounting files...');
     await this.http.post(`${this.apiUrl}/mount`, { files }).toPromise();
   }
