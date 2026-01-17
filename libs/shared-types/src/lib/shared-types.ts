@@ -19,4 +19,5 @@ export interface GenerateResponse {
 export interface GenerateRequest {
   prompt: string;
   previousFiles?: WebContainerFiles;
+  openFiles?: { [path: string]: string };
 }

@@ -10,7 +10,7 @@ export class ApiService {
   private http = inject(HttpClient);
   private apiUrl = 'http://localhost:3333/api';
 
-  generate(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[], smartRouting?: any }) {
+  generate(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[], smartRouting?: any, openFiles?: { [path: string]: string } }) {
     return this.http.post<GenerateResponse>(`${this.apiUrl}/generate`, { 
       prompt, 
       previousFiles,
@@ -18,7 +18,7 @@ export class ApiService {
     });
   }
 
-  generateStream(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[], smartRouting?: any }): Observable<any> {
+  generateStream(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[], smartRouting?: any, openFiles?: { [path: string]: string } }): Observable<any> {
     return new Observable(observer => {
       const token = localStorage.getItem('adorable_token');
       

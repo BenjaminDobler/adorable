@@ -5,6 +5,7 @@ export interface GenerateOptions {
   model: string;
   images?: string[]; // Base64 data URIs
   smartRouting?: any; // The SmartRoutingConfig from the client
+  openFiles?: { [path: string]: string };
 }
 
 export interface TokenUsage {

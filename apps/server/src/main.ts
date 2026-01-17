@@ -334,7 +334,7 @@ async function saveFilesToDisk(basePath: string, files: any) {
 }
 
 protectedRouter.post('/generate', async (req: any, res) => {
-    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting } = req.body;
+    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting, openFiles } = req.body;
     const user = req.user;
 
     const userSettings = user.settings ? JSON.parse(user.settings) : {};
@@ -385,7 +385,8 @@ protectedRouter.post('/generate', async (req: any, res) => {
           previousFiles,
           apiKey: effectiveApiKey,
           model: finalModel,
-          images
+          images,
+          openFiles
       });
       
       res.json(result);
@@ -396,7 +397,7 @@ protectedRouter.post('/generate', async (req: any, res) => {
 });
 
 protectedRouter.post('/generate-stream', async (req: any, res) => {
-    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting } = req.body;
+    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting, openFiles } = req.body;
     const user = req.user;
 
     const userSettings = user.settings ? JSON.parse(user.settings) : {};
@@ -454,7 +455,8 @@ protectedRouter.post('/generate-stream', async (req: any, res) => {
           previousFiles,
           apiKey: effectiveApiKey,
           model: finalModel,
-          images
+          images,
+          openFiles
       }, {
           onText: (text) => {
               res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);

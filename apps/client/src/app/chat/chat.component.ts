@@ -297,6 +297,38 @@ export class ChatComponent {
     } catch(err) { }
   }
 
+  getContextFiles(): { [path: string]: string } | undefined {
+    const data = this.visualEditorData();
+    if (!data || !data.componentName) return undefined;
+
+    const files = this.projectService.currentFiles();
+    if (!files) return undefined;
+
+    const componentName = data.componentName; 
+    // Normalize: HeaderComponent -> header, but be careful not to match everything
+    // If component is "HeaderComponent", we look for "header.component"
+    let baseName = componentName.replace(/Component$/, '');
+    baseName = baseName.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase(); // camelCase to kebab-case
+
+    const contextFiles: { [path: string]: string } = {};
+    
+    const traverse = (node: any, currentPath: string) => {
+      if (node.file) {
+        // Strict check for component files: name.component.ts, name.component.html, name.component.scss
+        if (currentPath.toLowerCase().includes(`${baseName}.component`)) {
+           contextFiles[currentPath] = node.file.contents;
+        }
+      } else if (node.directory) {
+        for (const key in node.directory) {
+           traverse(node.directory[key], `${currentPath}${key}/`);
+        }
+      }
+    };
+    
+    traverse(files, '');
+    return Object.keys(contextFiles).length > 0 ? contextFiles : undefined;
+  }
+
   async generate() {
     if (!this.prompt) return;
 
@@ -388,7 +420,8 @@ export class ChatComponent {
       apiKey,
       model,
       images: this.attachedFileContent ? [this.attachedFileContent] : undefined,
-      smartRouting: this.appSettings?.smartRouting
+      smartRouting: this.appSettings?.smartRouting,
+      openFiles: this.getContextFiles()
     }).subscribe({
       next: async (event) => {
         if (event.type !== 'tool_delta' && event.type !== 'text') { 

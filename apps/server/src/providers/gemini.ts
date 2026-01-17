@@ -72,6 +72,13 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       userMessage += `\n\n--- Current File Structure ---\n${treeSummary}`;
     }
 
+    if (options.openFiles) {
+      userMessage += `\n\n--- Explicit Context (Files the user is looking at) ---\n`;
+      for (const [path, content] of Object.entries(options.openFiles)) {
+        userMessage += `<file path="${path}">\n${content}\n</file>\n`;
+      }
+    }
+
     const initialParts: any[] = [{ text: userMessage }];
     if (options.images && options.images.length > 0) {
       options.images.forEach(dataUri => {

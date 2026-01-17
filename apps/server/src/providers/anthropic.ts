@@ -130,6 +130,13 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       userMessage += `\n\n--- Current File Structure ---\n${treeSummary}`;
     }
 
+    if (options.openFiles) {
+      userMessage += `\n\n--- Explicit Context (Files the user is looking at) ---\n`;
+      for (const [path, content] of Object.entries(options.openFiles)) {
+        userMessage += `<file path="${path}">\n${content}\n</file>\n`;
+      }
+    }
+
     logger.log('START', { model: modelToUse, promptLength: prompt.length, totalMessageLength: userMessage.length });
 
     const messages: any[] = [{ 
