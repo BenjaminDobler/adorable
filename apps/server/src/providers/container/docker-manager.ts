@@ -12,8 +12,7 @@ export class DockerManager {
   }
 
   async createContainer(image = 'node:20-slim') {
-    // Ensure image exists
-    // await this.docker.pull(image); // Skipping pull for speed if exists, ideally check first
+    await this.ensureImage(image);
 
     this.container = await this.docker.createContainer({
       Image: image,
@@ -28,6 +27,22 @@ export class DockerManager {
 
     await this.container.start();
     return this.container.id;
+  }
+
+  private async ensureImage(image: string) {
+      try {
+          const img = this.docker.getImage(image);
+          await img.inspect();
+      } catch (e) {
+          console.log(`Image ${image} not found, pulling...`);
+          await new Promise((resolve, reject) => {
+              this.docker.pull(image, (err: any, stream: any) => {
+                  if (err) return reject(err);
+                  this.docker.modem.followProgress(stream, (err: any, res: any) => err ? reject(err) : resolve(res));
+              });
+          });
+          console.log(`Image ${image} pulled.`);
+      }
   }
 
   async copyFiles(files: any) {
