@@ -2,7 +2,7 @@ import { Component, inject, signal, effect, ViewChild, ElementRef, AfterViewChec
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from './services/api';
-import { WebContainerService } from './services/web-container';
+import { ContainerEngine } from './services/container-engine';
 import { ProjectService } from './services/project';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FileExplorerComponent } from './file-explorer/file-explorer';
@@ -32,7 +32,7 @@ import { TerminalComponent } from './terminal/terminal.component';
 })
 export class AppComponent implements AfterViewChecked {
   private apiService = inject(ApiService);
-  public webContainerService = inject(WebContainerService);
+  public webContainerService = inject(ContainerEngine);
   public projectService = inject(ProjectService);
   public layoutService = inject(LayoutService);
   private toastService = inject(ToastService);

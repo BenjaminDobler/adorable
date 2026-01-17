@@ -1,23 +1,26 @@
 import { Injectable, signal } from '@angular/core';
 import { WebContainer } from '@webcontainer/api';
+import { ContainerEngine, ProcessOutput } from './container-engine';
+import { WebContainerFiles } from '@adorable/shared-types';
+import { Observable, Subject } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
 })
-export class WebContainerService {
+export class BrowserContainerEngine extends ContainerEngine {
   private webcontainerInstance?: WebContainer;
   private serverProcess?: any;
   private shellProcess?: any;
   private lastPackageJson: string | null = null;
   
-  public url = signal<string | null>(null);
+  // Public Signals
+  public status = signal<string>('Idle');
   public isBooting = signal<boolean>(false);
   public serverOutput = signal<string>('');
   public shellOutput = signal<string>('');
   public previewConsoleLogs = signal<Array<{ level: 'log'|'warn'|'error', message: string, timestamp: Date }>>([]);
-  
-  public status = signal<string>('Idle');
   public buildError = signal<string | null>(null);
+  public url = signal<string | null>(null);
 
   addConsoleLog(log: { level: 'log'|'warn'|'error', message: string }) {
     this.previewConsoleLogs.update(logs => [...logs, { ...log, timestamp: new Date() }]);
@@ -38,6 +41,11 @@ export class WebContainerService {
       this.isBooting.set(false);
       throw err;
     }
+  }
+
+  async teardown() {
+    this.webcontainerInstance?.teardown();
+    this.webcontainerInstance = undefined;
   }
 
   async startShell() {
@@ -64,15 +72,13 @@ export class WebContainerService {
     writer.releaseLock();
   }
 
-  async mount(files: any) {
-
+  async mount(files: WebContainerFiles) {
       this.status.set('Mounting files...');
       if (!this.webcontainerInstance) await this.boot();
-      // TODO: Consider cleaning 'src' to avoid ghost files when switching projects completely
-      await this.webcontainerInstance!.mount(files);
-    }
+      await this.webcontainerInstance!.mount(files as any);
+  }
   
-    async runInstall() {
+  async runInstall(): Promise<number> {
       this.status.set('Checking dependencies...');
       try {
         const packageJson = await this.webcontainerInstance!.fs.readFile('package.json', 'utf-8');
@@ -102,9 +108,9 @@ export class WebContainerService {
         this.url.set(null);
         this.status.set('Server stopped');
       }
-    }
+  }
   
-    async clean() {
+  async clean() {
       if (!this.webcontainerInstance) return;
       this.status.set('Cleaning workspace...');
       try {
@@ -113,9 +119,9 @@ export class WebContainerService {
       } catch (e) {
         console.error('Failed to clean src directory', e);
       }
-    }
+  }
   
-    async startDevServer() {
+  async startDevServer() {
       console.log('web-container:  start dev server');
       this.status.set('Starting dev server...');
       this.buildError.set(null);
@@ -136,152 +142,97 @@ export class WebContainerService {
       let errorBuffer = '';
       let hasErrors = false;
   
-          serverProcess.output.pipeTo(new WritableStream({
-  
+      serverProcess.output.pipeTo(new WritableStream({
             write: (data) => {
               this.serverOutput.update(o => {
                 const val = o + data;
                 return val.length > 50000 ? val.slice(-50000) : val;
               });
   
-                          // Simple status parsing
-                          // eslint-disable-next-line no-control-regex
-                          const clean = data.replace(/\x1B\[[0-9;]*[mK]/g, ''); // Strip colors
-                  
-                          if (clean.includes('Building...')) {
-                            this.status.set('Building...');
-                            errorBuffer = ''; // Reset error buffer on new build
-                            hasErrors = false;
-                            this.buildError.set(null);
-                          } 
-                          
-                          console.log(clean);
-                          if (clean.includes('[ERROR]') || clean.includes('✘') || clean.includes('Error:')) {
-                            console.log('Build error detected');
-                            this.status.set('Build Error');
-                            hasErrors = true;
-                          }
-                          
-                          if (hasErrors) {
-                             errorBuffer += clean;
-                             this.buildError.set(errorBuffer);
-                          }
-                
-                          if ((clean.includes('Application bundle generation failed') || clean.includes('Build failed')) && hasErrors) {
-                             // Build finished with errors (redundant set but keeps explicit check if needed for other logic)
-                             this.buildError.set(errorBuffer);
-                          }
-                
-                          if (clean.includes('Application bundle generation complete')) {            this.status.set('Ready');
-            this.buildError.set(null); // Clear errors
-            hasErrors = false;
-          }
-        }
+              // Simple status parsing
+              // eslint-disable-next-line no-control-regex
+              const clean = data.replace(/\x1B\[[0-9;]*[mK]/g, ''); // Strip colors
+      
+              if (clean.includes('Building...')) {
+                this.status.set('Building...');
+                errorBuffer = ''; // Reset error buffer on new build
+                hasErrors = false;
+                this.buildError.set(null);
+              } 
+              
+              if (clean.includes('[ERROR]') || clean.includes('✘') || clean.includes('Error:')) {
+                console.log('Build error detected');
+                this.status.set('Build Error');
+                hasErrors = true;
+              }
+              
+              if (hasErrors) {
+                 errorBuffer += clean;
+                 this.buildError.set(errorBuffer);
+              }
+    
+              if ((clean.includes('Application bundle generation failed') || clean.includes('Build failed')) && hasErrors) {
+                 this.buildError.set(errorBuffer);
+              }
+    
+              if (clean.includes('Application bundle generation complete')) {
+                this.status.set('Ready');
+                this.buildError.set(null); // Clear errors
+                hasErrors = false;
+              }
+            }
       }));
-  
   
       this.webcontainerInstance!.on('server-ready', (port, url) => {
         this.url.set(url);
         this.status.set('Server Ready');
       });
-    }
-      async writeFile(path: string, contents: string | Uint8Array) {
-      console.log('eb-container:  Writing file:', path);
-      await this.webcontainerInstance!.fs.writeFile(path, contents);
-    }
-
-  
-
-                  async runBuild(args: string[] = []) {
-
-  
-
-            
-
-  
-
-                    console.log('web-container:  running pnpm run build', args);
-
-  
-
-            
-
-  
-
-                            const buildProcess = await this.webcontainerInstance!.spawn('pnpm', ['run', 'build', ...args]);
-
-  
-
-            
-
-  
-
-      
-
-  
-
-        
-
-  
-
-                buildProcess.output.pipeTo(new WritableStream({
-
-  
-
-        
-
-  
-
-                  write: (data) => this.serverOutput.update(o => o + data)
-
-  
-
-        
-
-  
-
-                }));
-
-  
-
-        
-
-  
-
-        return buildProcess.exit;
-
-  
-
-      }
-
-  
-
-    
-
-  
-
-    async readdir(path: string, options?: { withFileTypes: boolean }) {
-
-      return await this.webcontainerInstance!.fs.readdir(path, options as any);
-
-    }
-
-  
-
-    async readFile(path: string) {
-
-      return await this.webcontainerInstance!.fs.readFile(path, 'utf-8');
-
-    }
-
-  
-
-    async readBinaryFile(path: string) {
-
-      return await this.webcontainerInstance!.fs.readFile(path);
-
-    }
-
   }
 
+  async writeFile(path: string, contents: string | Uint8Array) {
+      console.log('web-container:  Writing file:', path);
+      await this.webcontainerInstance!.fs.writeFile(path, contents);
+  }
+
+  async readFile(path: string): Promise<string> {
+      return await this.webcontainerInstance!.fs.readFile(path, 'utf-8');
+  }
+
+  async readBinaryFile(path: string): Promise<Uint8Array> {
+      return await this.webcontainerInstance!.fs.readFile(path);
+  }
+
+  async deleteFile(path: string): Promise<void> {
+      await this.webcontainerInstance!.fs.rm(path, { recursive: true });
+  }
+
+  async exec(cmd: string, args: string[], options?: any): Promise<ProcessOutput> {
+      // Not fully implemented for generic exec yet, specialized methods used
+      // But creating a wrapper:
+      const process = await this.webcontainerInstance!.spawn(cmd, args, options);
+      const stream = new Observable<string>(observer => {
+          process.output.pipeTo(new WritableStream({
+              write: (data) => observer.next(data)
+          })).then(() => observer.complete());
+      });
+      return { stream, exit: process.exit };
+  }
+
+  async runBuild(args: string[] = []) {
+      console.log('web-container:  running pnpm run build', args);
+      const buildProcess = await this.webcontainerInstance!.spawn('pnpm', ['run', 'build', ...args]);
+      
+      buildProcess.output.pipeTo(new WritableStream({
+          write: (data) => this.serverOutput.update(o => o + data)
+      }));
+      return buildProcess.exit;
+  }
+
+  async readdir(path: string, options?: { withFileTypes: boolean }) {
+      return await this.webcontainerInstance!.fs.readdir(path, options as any);
+  }
   
+  on(event: 'server-ready', callback: (port: number, url: string) => void) {
+      this.webcontainerInstance!.on(event, callback);
+  }
+}

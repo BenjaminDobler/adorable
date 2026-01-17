@@ -1,7 +1,7 @@
 import { Component, inject, signal, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { WebContainerService } from '../services/web-container';
+import { ContainerEngine } from '../services/container-engine';
 import { TerminalFormatterPipe } from '../pipes/terminal-formatter.pipe';
 import { ProjectService } from '../services/project';
 
@@ -13,7 +13,7 @@ import { ProjectService } from '../services/project';
   styleUrls: ['./terminal.scss']
 })
 export class TerminalComponent {
-  public webContainerService = inject(WebContainerService);
+  public webContainerService = inject(ContainerEngine);
   public projectService = inject(ProjectService); // For debugging potentially? Or maybe just webContainer is enough.
 
   terminalTab = signal<'server' | 'shell' | 'console'>('server');

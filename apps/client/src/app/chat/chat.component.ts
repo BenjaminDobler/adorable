@@ -2,7 +2,7 @@ import { Component, inject, signal, ElementRef, ViewChild, Output, EventEmitter,
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ProjectService, ChatMessage } from '../services/project';
-import { WebContainerService } from '../services/web-container';
+import { ContainerEngine } from '../services/container-engine';
 import { ApiService } from '../services/api';
 import { ToastService } from '../services/toast';
 import { TemplateService } from '../services/template';
@@ -18,7 +18,7 @@ import { BASE_FILES } from '../base-project';
 })
 export class ChatComponent {
   private apiService = inject(ApiService);
-  public webContainerService = inject(WebContainerService);
+  public webContainerService = inject(ContainerEngine);
   public projectService = inject(ProjectService);
   private toastService = inject(ToastService);
   private templateService = inject(TemplateService);

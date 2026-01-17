@@ -7,12 +7,15 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 import { routes } from './app.routes';
 import { authInterceptor } from './auth.interceptor';
+import { ContainerEngine } from './services/container-engine';
+import { BrowserContainerEngine } from './services/browser-container.engine';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
     provideBrowserGlobalErrorListeners(),
     provideHttpClient(withInterceptors([authInterceptor])),
-    provideRouter(routes)
+    provideRouter(routes),
+    { provide: ContainerEngine, useClass: BrowserContainerEngine }
   ],
 };

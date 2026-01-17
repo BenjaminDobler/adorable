@@ -1,6 +1,6 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { ApiService } from './api';
-import { WebContainerService } from './web-container';
+import { ContainerEngine } from './container-engine';
 import { ToastService } from './toast';
 import { Router } from '@angular/router';
 import { BASE_FILES } from '../base-project';
@@ -27,7 +27,7 @@ export interface ChatMessage {
 })
 export class ProjectService {
   private apiService = inject(ApiService);
-  private webContainerService = inject(WebContainerService);
+  private webContainerService = inject(ContainerEngine);
   private toastService = inject(ToastService);
   private router = inject(Router);
   public fileStore = inject(FileSystemStore);
