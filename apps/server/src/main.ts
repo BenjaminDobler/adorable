@@ -102,11 +102,29 @@ app.use((req, res, next) => {
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use('/sites', express.static(SITES_DIR));
 
-app.get('/api/models/:provider', async (req, res) => {
+app.get('/api/models/:provider', authenticate, async (req: any, res) => {
   const { provider } = req.params;
-  const apiKey = req.headers['x-api-key'] as string;
+  let apiKey = req.headers['x-api-key'] as string;
+  const user = req.user;
 
-  if (!apiKey) return res.status(400).json({ error: 'API Key required' });
+  // Security: If key is masked or missing, try to load from DB
+  if (!apiKey || apiKey.includes('...')) {
+      if (user.settings) {
+          try {
+              const settings = JSON.parse(user.settings);
+              const profiles = settings.profiles || [];
+              const profile = profiles.find((p: any) => p.provider === provider || (provider === 'google' && p.provider === 'gemini'));
+              
+              if (profile && profile.apiKey) {
+                  apiKey = decrypt(profile.apiKey);
+              }
+          } catch (e) {
+              console.error('Error reading user settings for models', e);
+          }
+      }
+  }
+
+  if (!apiKey || apiKey.includes('...')) return res.status(400).json({ error: 'API Key required' });
 
   try {
     if (provider === 'anthropic') {
