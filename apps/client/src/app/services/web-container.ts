@@ -144,33 +144,35 @@ export class WebContainerService {
                 return val.length > 50000 ? val.slice(-50000) : val;
               });
   
-              // Simple status parsing
-              // eslint-disable-next-line no-control-regex
-              const clean = data.replace(/\x1B\[\d+m/g, ''); // Strip colors
-      
-          if (clean.includes('Building...')) {
-            this.status.set('Building...');
-            errorBuffer = ''; // Reset error buffer on new build
-            hasErrors = false;
-            this.buildError.set(null);
-          } 
-          
-          if (clean.includes('[ERROR]')) {
-            this.status.set('Build Error');
-            hasErrors = true;
-          }
-          
-          if (hasErrors) {
-             errorBuffer += clean;
-          }
-
-          if (clean.includes('Application bundle generation failed') && hasErrors) {
-             // Build finished with errors
-             this.buildError.set(errorBuffer);
-          }
-
-          if (clean.includes('Application bundle generation complete')) {
-            this.status.set('Ready');
+                          // Simple status parsing
+                          // eslint-disable-next-line no-control-regex
+                          const clean = data.replace(/\x1B\[[0-9;]*[mK]/g, ''); // Strip colors
+                  
+                          if (clean.includes('Building...')) {
+                            this.status.set('Building...');
+                            errorBuffer = ''; // Reset error buffer on new build
+                            hasErrors = false;
+                            this.buildError.set(null);
+                          } 
+                          
+                          console.log(clean);
+                          if (clean.includes('[ERROR]') || clean.includes('✘') || clean.includes('Error:')) {
+                            console.log('Build error detected');
+                            this.status.set('Build Error');
+                            hasErrors = true;
+                          }
+                          
+                          if (hasErrors) {
+                             errorBuffer += clean;
+                             this.buildError.set(errorBuffer);
+                          }
+                
+                          if ((clean.includes('Application bundle generation failed') || clean.includes('Build failed')) && hasErrors) {
+                             // Build finished with errors (redundant set but keeps explicit check if needed for other logic)
+                             this.buildError.set(errorBuffer);
+                          }
+                
+                          if (clean.includes('Application bundle generation complete')) {            this.status.set('Ready');
             this.buildError.set(null); // Clear errors
             hasErrors = false;
           }

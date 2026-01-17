@@ -25,12 +25,14 @@ const SYSTEM_PROMPT =
 +"RULES:\n"
 +"1. **Root Component:** Ensure 'src/app/app.component.ts' exists and has selector 'app-root'.\n"
 +"2. **Features:** Use Angular 21+ Standalone components and signals.\n"
-+"3. **Styling:** Use inline styles in components or 'src/styles.css' for globals.\n"
-+"4. **Imports:** Ensure all imports are correct.\n"
-+"5. **Conciseness:** Minimize comments. Use compact CSS.\n"
-+"6. **Binary:** For small binary files (like icons), use the 'write_file' tool with base64 content. Prefer SVG for vector graphics.\n"
-+"7. **Efficiency:** You may batch SMALL file operations. However, for LARGE files (like full components with templates), perform them one at a time to avoid hitting token limits.\n"
-+"8. **Truncation:** If you receive an error about 'No content provided' or 'truncated JSON', it means your response was too long. You MUST retry by breaking the task into smaller steps, such as writing the component logic first and then using `edit_file` to add the template, or splitting large files into multiple components.\n";
++"3. **Styling:** Use external stylesheets ('.scss' or '.css') for components. Do NOT use inline styles unless trivial.\n"
++"4. **Templates:** Use external templates ('.html') for components. Do NOT use inline templates unless trivial.\n"
++"5. **Modularity:** Break down complex UIs into smaller, reusable components. Avoid monolithic 'app.component.ts'.\n"
++"6. **Imports:** Ensure all imports are correct.\n"
++"7. **Conciseness:** Minimize comments.\n"
++"8. **Binary:** For small binary files (like icons), use the 'write_file' tool with base64 content. Prefer SVG for vector graphics.\n"
++"9. **Efficiency:** You may batch SMALL file operations. However, for LARGE files (like full components with templates), perform them one at a time to avoid hitting token limits.\n"
++"10. **Truncation:** If you receive an error about 'No content provided' or 'truncated JSON', it means your response was too long. You MUST retry by breaking the task into smaller steps, such as writing the component logic first and then using `edit_file` to add the template, or splitting large files into multiple components.\n";
 
 export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
   async generate(options: GenerateOptions): Promise<any> {

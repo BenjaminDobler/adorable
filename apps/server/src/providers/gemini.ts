@@ -24,10 +24,12 @@ const SYSTEM_PROMPT =
 +"RULES:\n"
 +"1. **Root Component:** Ensure 'src/app/app.component.ts' exists and has selector 'app-root'.\n"
 +"2. **Features:** Use Angular 21+ Standalone components and signals.\n"
-+"3. **Styling:** Use inline styles in components or 'src/styles.css' for globals.\n"
-+"4. **Imports:** Ensure all imports are correct.\n"
-+"5. **Conciseness:** Minimize comments. Use compact CSS.\n"
-+"6. **Binary:** For small binary files (like icons), use the 'write_file' tool with base64 content. Prefer SVG for vector graphics.\n";
++"3. **Styling:** Use external stylesheets ('.scss' or '.css') for components. Do NOT use inline styles unless trivial.\n"
++"4. **Templates:** Use external templates ('.html') for components. Do NOT use inline templates unless trivial.\n"
++"5. **Modularity:** Break down complex UIs into smaller, reusable components. Avoid monolithic 'app.component.ts'.\n"
++"6. **Imports:** Ensure all imports are correct.\n"
++"7. **Conciseness:** Minimize comments.\n"
++"8. **Binary:** For small binary files (like icons), use the 'write_file' tool with base64 content. Prefer SVG for vector graphics.\n";
 
 export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
   async generate(options: GenerateOptions): Promise<any> {
