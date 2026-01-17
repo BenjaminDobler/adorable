@@ -154,7 +154,8 @@ export class LocalContainerEngine extends ContainerEngine {
 
   async startDevServer(): Promise<void> {
     this.status.set('Starting dev server...');
-    const res = await this.exec('npm', ['start', '--', '--host', '0.0.0.0', '--allowed-hosts', 'all'], { stream: true });
+    // Pass --host 0.0.0.0 to ensure it listens on all interfaces for Docker networking
+    const res = await this.exec('npm', ['start', '--', '--host=0.0.0.0', '--allowed-hosts=all'], { stream: true });
     
     res.stream.subscribe(chunk => {
         this.serverOutput.update(o => o + chunk);
