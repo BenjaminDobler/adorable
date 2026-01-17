@@ -72,8 +72,9 @@ export class LocalContainerEngine extends ContainerEngine {
           exit: Promise.resolve(result!.exitCode)
         };
     } catch (e: any) {
-        if (e.error?.error === 'Container not started') {
-            console.log('Container connection lost, rebooting...');
+        const errorMsg = e.error?.error || '';
+        if (errorMsg === 'Container not started' || errorMsg.includes('container state improper')) {
+            console.log('Container connection lost or stopped, rebooting...');
             await this.boot();
             // Retry once
             if (options?.stream) {
@@ -102,8 +103,8 @@ export class LocalContainerEngine extends ContainerEngine {
           let errorJson;
           try { errorJson = JSON.parse(text); } catch(e) {}
           
-          if (errorJson && errorJson.error === 'Container not started') {
-              throw { error: { error: 'Container not started' } }; // Match the structure expected by exec catch
+          if (errorJson && errorJson.error) {
+              throw { error: { error: errorJson.error } }; 
           }
           throw new Error(text);
       }
