@@ -9,6 +9,7 @@ import { SmartRouter } from './providers/router';
 import { prisma } from './db/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { encrypt, decrypt } from './utils/crypto';
 
 const JWT_SECRET = process.env['JWT_SECRET'] || 'fallback-secret';
 
@@ -151,6 +152,30 @@ app.post('/api/generate', async (req, res) => {
 
 protectedRouter.get('/profile', async (req: any, res) => {
   const { password, ...userWithoutPassword } = req.user;
+  
+  if (userWithoutPassword.settings) {
+     try {
+       const settings = JSON.parse(userWithoutPassword.settings);
+       if (settings.profiles) {
+          settings.profiles = settings.profiles.map((p: any) => {
+             if (p.apiKey) {
+                try {
+                   const decrypted = decrypt(p.apiKey);
+                   // Mask: sk-ant...1234
+                   p.apiKey = decrypted.substring(0, 7) + '...' + decrypted.substring(decrypted.length - 4);
+                } catch(e) {
+                   p.apiKey = '********';
+                }
+             }
+             return p;
+          });
+       }
+       userWithoutPassword.settings = JSON.stringify(settings);
+     } catch (e) {
+       console.error('Failed to parse settings for masking', e);
+     }
+  }
+  
   res.json(userWithoutPassword);
 });
 
@@ -159,16 +184,67 @@ protectedRouter.post('/profile', async (req: any, res) => {
   const { name, settings } = req.body;
 
   try {
+    let finalSettingsString = undefined;
+
+    if (settings !== undefined) {
+       // Fetch existing to handle masked keys
+       const currentUser = await prisma.user.findUnique({ where: { id: user.id } });
+       const currentSettings = currentUser?.settings ? JSON.parse(currentUser.settings) : {};
+       const existingProfiles = currentSettings.profiles || [];
+
+       const newProfiles = settings.profiles || [];
+       
+       const processedProfiles = newProfiles.map((p: any) => {
+          // Check if this profile existed
+          const existing = existingProfiles.find((ep: any) => ep.id === p.id || ep.provider === p.provider);
+          
+          if (p.apiKey) {
+             // If key is masked (contains ...), keep the existing encrypted key
+             if (p.apiKey.includes('...')) {
+                return { ...p, apiKey: existing ? existing.apiKey : '' }; // Keep existing encrypted
+             }
+             // Otherwise it's a new cleartext key, encrypt it
+             return { ...p, apiKey: encrypt(p.apiKey) };
+          }
+          return p;
+       });
+       
+       finalSettingsString = JSON.stringify({ ...settings, profiles: processedProfiles });
+    }
+
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: {
         name: name !== undefined ? name : undefined,
-        settings: settings !== undefined ? JSON.stringify(settings) : undefined
+        settings: finalSettingsString
       }
     });
-    const { password, ...userWithoutPassword } = updatedUser;
-    res.json(userWithoutPassword);
+    
+    // Return masked
+    const userSettings = updatedUser.settings ? JSON.parse(updatedUser.settings) : {};
+    if (userSettings.profiles) {
+        userSettings.profiles = userSettings.profiles.map((p: any) => {
+            if (p.apiKey) {
+                // Return mask. We assume encrypted keys are long enough.
+                // Decrypting just to verify? No need.
+                return { ...p, apiKey: p.apiKey.substring(0, 3) + '...' + p.apiKey.substring(p.apiKey.length - 4) }; 
+                // Wait, if p.apiKey is the ENCRYPTED string (hex), masking it looks weird.
+                // Ideally we return a generic mask like '••••••••' or 'sk-ant...'.
+                // If we want to show 'sk-ant...', we need to decrypt it first.
+                try {
+                   const decrypted = decrypt(p.apiKey);
+                   return { ...p, apiKey: decrypted.substring(0, 7) + '...' + decrypted.substring(decrypted.length - 4) };
+                } catch (e) {
+                   return { ...p, apiKey: '********' };
+                }
+            }
+            return p;
+        });
+    }
+    
+    res.json({ ...updatedUser, settings: JSON.stringify(userSettings), password: undefined });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Failed to update profile' });
   }
 });
@@ -340,12 +416,15 @@ protectedRouter.post('/generate', async (req: any, res) => {
     const userSettings = user.settings ? JSON.parse(user.settings) : {};
 
     const getApiKey = (p: string) => {
-       if (p === provider && apiKey) return apiKey;
+       // 1. Check direct override (if provided explicitly in UI, though discouraged)
+       if (p === provider && apiKey && !apiKey.includes('...')) return apiKey;
+       
+       // 2. Load from Profile
        const profiles = userSettings.profiles || [];
        const profile = profiles.find((pr: any) => pr.provider === p);
-       if (profile && profile.apiKey) return profile.apiKey;
-       if (p === 'gemini') return process.env.GEMINI_API_KEY;
-       if (p === 'anthropic') return process.env.ANTHROPIC_API_KEY;
+       if (profile && profile.apiKey) {
+          return decrypt(profile.apiKey);
+       }
        return undefined;
     };
 
@@ -357,15 +436,14 @@ protectedRouter.post('/generate', async (req: any, res) => {
           apiKey = decision.apiKey;
        } catch (err) {
           console.error('Routing failed:', err);
-          // Fallback to Anthropic
           provider = 'anthropic';
           model = 'claude-3-5-sonnet-20240620';
-          apiKey = undefined; // Force re-resolution
+          apiKey = getApiKey('anthropic');
        }
     }
 
     let effectiveApiKey = apiKey;
-    if (!effectiveApiKey) effectiveApiKey = getApiKey(provider);
+    if (!effectiveApiKey || effectiveApiKey.includes('...')) effectiveApiKey = getApiKey(provider);
   
     if (!effectiveApiKey) {
       return res.status(400).send({ 
@@ -403,15 +481,12 @@ protectedRouter.post('/generate-stream', async (req: any, res) => {
     const userSettings = user.settings ? JSON.parse(user.settings) : {};
     
     const getApiKey = (p: string) => {
-       // Check if provided in request
-       if (p === provider && apiKey) return apiKey;
-       // Check user settings
+       if (p === provider && apiKey && !apiKey.includes('...')) return apiKey;
        const profiles = userSettings.profiles || [];
        const profile = profiles.find((pr: any) => pr.provider === p);
-       if (profile && profile.apiKey) return profile.apiKey;
-       // Check environment
-       if (p === 'gemini') return process.env.GEMINI_API_KEY;
-       if (p === 'anthropic') return process.env.ANTHROPIC_API_KEY;
+       if (profile && profile.apiKey) {
+          return decrypt(profile.apiKey);
+       }
        return undefined;
     };
 
@@ -423,16 +498,14 @@ protectedRouter.post('/generate-stream', async (req: any, res) => {
           apiKey = decision.apiKey;
        } catch (err) {
           console.error('Routing failed:', err);
-          // Fallback handled inside router.route usually, but just in case
-          // Fallback to Anthropic
           provider = 'anthropic';
           model = 'claude-3-5-sonnet-20240620';
-          apiKey = undefined; // Force re-resolution
+          apiKey = getApiKey('anthropic');
        }
     }
 
     let effectiveApiKey = apiKey;
-    if (!effectiveApiKey) effectiveApiKey = getApiKey(provider);
+    if (!effectiveApiKey || effectiveApiKey.includes('...')) effectiveApiKey = getApiKey(provider);
   
     if (!effectiveApiKey) {
       return res.status(400).send({ error: `No API Key provided for ${provider}. Please enter one in settings.` });
