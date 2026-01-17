@@ -10,11 +10,13 @@ import { prisma } from './db/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { encrypt, decrypt } from './utils/crypto';
+import { DockerManager } from './providers/container/docker-manager';
 
 const JWT_SECRET = process.env['JWT_SECRET'] || 'fallback-secret';
 
 const app = express();
 const router = new SmartRouter();
+const dockerManager = new DockerManager(); // Singleton for local dev
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -91,6 +93,49 @@ app.use((req, res, next) => {
 // Protected routes router
 const protectedRouter = express.Router();
 protectedRouter.use(authenticate);
+
+// --- Container Routes (Local Dev) ---
+
+protectedRouter.post('/container/start', async (req: any, res) => {
+  try {
+    const id = await dockerManager.createContainer();
+    res.json({ id });
+  } catch (e) {
+    console.error('Failed to start container', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+protectedRouter.post('/container/stop', async (req: any, res) => {
+  try {
+    await dockerManager.stop();
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+protectedRouter.post('/container/mount', async (req: any, res) => {
+  const { files } = req.body;
+  try {
+    await dockerManager.copyFiles(files);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+protectedRouter.post('/container/exec', async (req: any, res) => {
+  const { cmd, args, workDir } = req.body;
+  try {
+    // Reconstruct full command array
+    const fullCmd = [cmd, ...(args || [])];
+    const result = await dockerManager.exec(fullCmd, workDir);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // Critical headers for WebContainers (Applied to ALL responses)
 app.use((req, res, next) => {

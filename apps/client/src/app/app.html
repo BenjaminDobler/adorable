@@ -30,6 +30,10 @@
           placeholder="Project Name"
         />
         <div style="display: flex; gap: 8px; align-items: center">
+          <select (change)="toggleEngine($event)" style="background: rgba(0,0,0,0.2); border: 1px solid var(--panel-border); color: var(--text-secondary); padding: 2px 4px; border-radius: 4px; font-size: 10px;">
+            <option value="browser">Browser</option>
+            <option value="local">Local Docker</option>
+          </select>
           <div
             class="status-badge"
             [class.active]="webContainerService.url()"

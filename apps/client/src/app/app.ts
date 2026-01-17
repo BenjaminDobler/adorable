@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from './services/api';
 import { ContainerEngine } from './services/container-engine';
+import { SmartContainerEngine } from './services/smart-container.engine';
 import { ProjectService } from './services/project';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FileExplorerComponent } from './file-explorer/file-explorer';
@@ -274,6 +275,13 @@ export class AppComponent implements AfterViewChecked {
     if (iframe) {
       const currentSrc = iframe.src;
       iframe.src = currentSrc;
+    }
+  }
+
+  toggleEngine(event: Event) {
+    const select = event.target as HTMLSelectElement;
+    if (this.webContainerService instanceof SmartContainerEngine) {
+       this.webContainerService.setMode(select.value as 'browser' | 'local');
     }
   }
 

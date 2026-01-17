@@ -159,7 +159,7 @@
           <button (click)="autoRepair(webContainerService.buildError()!)" style="flex: 1; background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">
             Fix with AI
           </button>
-          <button (click)="webContainerService.buildError.set(null)" style="background: transparent; border: 1px solid rgba(255,255,255,0.1); color: var(--text-secondary); padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;">
+          <button (click)="webContainerService.clearBuildError()" style="background: transparent; border: 1px solid rgba(255,255,255,0.1); color: var(--text-secondary); padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;">
             Dismiss
           </button>
         </div>

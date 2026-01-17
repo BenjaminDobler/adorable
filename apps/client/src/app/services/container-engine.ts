@@ -13,14 +13,18 @@ export interface DevServerInfo {
 }
 
 export abstract class ContainerEngine {
-  abstract status: WritableSignal<string>; // Changed to Writable for UI clearing if needed
-  abstract url: WritableSignal<string | null>;
-  abstract buildError: WritableSignal<string | null>;
-  abstract previewConsoleLogs: WritableSignal<Array<{ level: 'log'|'warn'|'error', message: string, timestamp: Date }>>;
-  abstract serverOutput: WritableSignal<string>;
-  abstract shellOutput: WritableSignal<string>;
+  abstract status: Signal<string>;
+  abstract url: Signal<string | null>;
+  abstract buildError: Signal<string | null>;
+  abstract previewConsoleLogs: Signal<Array<{ level: 'log'|'warn'|'error', message: string, timestamp: Date }>>;
+  abstract serverOutput: Signal<string>;
+  abstract shellOutput: Signal<string>;
   
   abstract addConsoleLog(log: { level: 'log'|'warn'|'error', message: string }): void;
+  abstract clearServerOutput(): void;
+  abstract clearShellOutput(): void;
+  abstract clearPreviewLogs(): void;
+  abstract clearBuildError(): void;
   
   // Lifecycle
   abstract boot(): Promise<void>;

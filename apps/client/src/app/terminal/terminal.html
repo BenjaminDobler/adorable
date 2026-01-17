@@ -23,7 +23,7 @@
   @if (terminalTab() === 'server') {
     <div class="terminal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-bottom: 1px solid var(--panel-border);">
       <div style="display: flex; gap: 8px;">
-        <button class="btn-clear" (click)="webContainerService.serverOutput.set('')">Clear</button>
+        <button class="btn-clear" (click)="webContainerService.clearServerOutput()">Clear</button>
       </div>
       <div style="display: flex; gap: 8px; align-items: center;">
         <span style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Server</span>
@@ -45,7 +45,7 @@
 
   @if (terminalTab() === 'shell') {
     <div class="terminal-header" style="display: flex; justify-content: flex-end; padding: 4px 8px; border-bottom: 1px solid var(--panel-border);">
-      <button class="btn-clear" (click)="webContainerService.shellOutput.set('')">Clear</button>
+      <button class="btn-clear" (click)="webContainerService.clearShellOutput()">Clear</button>
     </div>
     <div class="terminal-window" style="flex: 1; overflow: auto;">
       <code [innerHTML]="webContainerService.shellOutput() | terminalFormat"></code>
@@ -64,7 +64,7 @@
   @if (terminalTab() === 'console') {
     <div class="terminal-header" style="display: flex; justify-content: flex-end; padding: 4px 8px; border-bottom: 1px solid var(--panel-border);">
       <button (click)="toggleDebug.emit()" style="margin-right: 8px; font-size: 10px; background: none; border: 1px solid var(--panel-border); color: var(--text-secondary); border-radius: 4px; cursor: pointer; padding: 2px 6px;">🔍 Debug</button>
-      <button class="btn-clear" (click)="webContainerService.previewConsoleLogs.set([])">Clear</button>
+      <button class="btn-clear" (click)="webContainerService.clearPreviewLogs()">Clear</button>
     </div>
     
     <div class="terminal-window" style="flex: 1; overflow: auto; padding: 8px;">

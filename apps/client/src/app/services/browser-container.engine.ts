@@ -26,6 +26,11 @@ export class BrowserContainerEngine extends ContainerEngine {
     this.previewConsoleLogs.update(logs => [...logs, { ...log, timestamp: new Date() }]);
   }
 
+  clearServerOutput() { this.serverOutput.set(''); }
+  clearShellOutput() { this.shellOutput.set(''); }
+  clearPreviewLogs() { this.previewConsoleLogs.set([]); }
+  clearBuildError() { this.buildError.set(null); }
+
   async boot() {
     if (this.webcontainerInstance) return;
     

@@ -8,7 +8,7 @@ import { provideRouter } from '@angular/router';
 import { routes } from './app.routes';
 import { authInterceptor } from './auth.interceptor';
 import { ContainerEngine } from './services/container-engine';
-import { BrowserContainerEngine } from './services/browser-container.engine';
+import { SmartContainerEngine } from './services/smart-container.engine';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -16,6 +16,6 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideHttpClient(withInterceptors([authInterceptor])),
     provideRouter(routes),
-    { provide: ContainerEngine, useClass: BrowserContainerEngine }
+    { provide: ContainerEngine, useClass: SmartContainerEngine }
   ],
 };

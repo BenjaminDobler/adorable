@@ -1,0 +1,102 @@
+import Docker from 'dockerode';
+import { Readable, Writable } from 'stream';
+import * as tar from 'tar-stream';
+
+export class DockerManager {
+  private docker: Docker;
+  private container: Docker.Container | null = null;
+
+  constructor() {
+    this.docker = new Docker(); // Defaults to socket
+  }
+
+  async createContainer(image = 'node:20-slim') {
+    // Ensure image exists
+    // await this.docker.pull(image); // Skipping pull for speed if exists, ideally check first
+
+    this.container = await this.docker.createContainer({
+      Image: image,
+      Cmd: ['/bin/sh', '-c', 'tail -f /dev/null'], // Keep alive
+      Tty: true,
+      WorkingDir: '/app',
+      HostConfig: {
+        // AutoRemove: true, // Maybe?
+        // PortBindings? For now we proxy via exec
+      }
+    });
+
+    await this.container.start();
+    return this.container.id;
+  }
+
+  async copyFiles(files: any) {
+    if (!this.container) throw new Error('Container not started');
+
+    const pack = tar.pack();
+
+    const addFiles = (tree: any, prefix = '') => {
+      for (const key in tree) {
+        const node = tree[key];
+        const path = prefix + key;
+        if (node.file) {
+          const content = node.file.contents;
+          // Handle base64 if needed, but assuming string/buffer
+          if (node.file.encoding === 'base64') {
+             pack.entry({ name: path }, Buffer.from(content, 'base64'));
+          } else {
+             pack.entry({ name: path }, content);
+          }
+        } else if (node.directory) {
+          pack.entry({ name: path + '/', type: 'directory' }); // Explicit dir entry
+          addFiles(node.directory, path + '/');
+        }
+      }
+    };
+
+    addFiles(files);
+    pack.finalize();
+
+    await this.container.putArchive(pack, {
+      path: '/app'
+    });
+  }
+
+  async exec(cmd: string[], workDir = '/app'): Promise<{ output: string, exitCode: number }> {
+    if (!this.container) throw new Error('Container not started');
+
+    const exec = await this.container.exec({
+      Cmd: cmd,
+      AttachStdout: true,
+      AttachStderr: true,
+      WorkingDir: workDir
+    });
+
+    const stream = await exec.start({ Detach: false, Tty: false });
+    
+    return new Promise((resolve, reject) => {
+        let output = '';
+        // Demuxing to separate stdout/stderr if needed, but here combining.
+        // Using 'any' cast for modem/stream because dockerode types are tricky with streams.
+        this.container?.modem.demuxStream(stream as any, {
+            write: (chunk: any) => output += chunk.toString()
+        } as any, {
+            write: (chunk: any) => output += chunk.toString()
+        } as any);
+
+        (stream as any).on('end', async () => {
+            const inspect = await exec.inspect();
+            resolve({ output, exitCode: inspect.ExitCode });
+        });
+        
+        (stream as any).on('error', reject);
+    });
+  }
+
+  async stop() {
+    if (this.container) {
+      await this.container.stop();
+      await this.container.remove();
+      this.container = null;
+    }
+  }
+}
