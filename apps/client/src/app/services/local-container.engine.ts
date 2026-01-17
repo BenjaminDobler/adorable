@@ -59,17 +59,35 @@ export class LocalContainerEngine extends ContainerEngine {
   }
 
   async exec(cmd: string, args: string[], options?: any): Promise<ProcessOutput> {
-    if (options?.stream) {
-       return this.streamExec(cmd, args);
-    }
-
-    const req = this.http.post<{ output: string, exitCode: number }>(`${this.apiUrl}/exec`, { cmd, args, ...options });
-    const result = await req.toPromise();
+    try {
+        if (options?.stream) {
+           return this.streamExec(cmd, args);
+        }
     
-    return {
-      stream: of(result!.output),
-      exit: Promise.resolve(result!.exitCode)
-    };
+        const req = this.http.post<{ output: string, exitCode: number }>(`${this.apiUrl}/exec`, { cmd, args, ...options });
+        const result = await req.toPromise();
+        
+        return {
+          stream: of(result!.output),
+          exit: Promise.resolve(result!.exitCode)
+        };
+    } catch (e: any) {
+        if (e.error?.error === 'Container not started') {
+            console.log('Container connection lost, rebooting...');
+            await this.boot();
+            // Retry once
+            if (options?.stream) {
+                return this.streamExec(cmd, args);
+            }
+            const req = this.http.post<{ output: string, exitCode: number }>(`${this.apiUrl}/exec`, { cmd, args, ...options });
+            const result = await req.toPromise();
+            return {
+                stream: of(result!.output),
+                exit: Promise.resolve(result!.exitCode)
+            };
+        }
+        throw e;
+    }
   }
 
   private async streamExec(cmd: string, args: string[]): Promise<ProcessOutput> {
@@ -78,6 +96,17 @@ export class LocalContainerEngine extends ContainerEngine {
       const response = await fetch(`${this.apiUrl}/exec-stream?cmd=${cmd}&args=${args.join(',')}`, {
           headers: { 'Authorization': `Bearer ${token}` }
       });
+      
+      if (!response.ok) {
+          const text = await response.text();
+          let errorJson;
+          try { errorJson = JSON.parse(text); } catch(e) {}
+          
+          if (errorJson && errorJson.error === 'Container not started') {
+              throw { error: { error: 'Container not started' } }; // Match the structure expected by exec catch
+          }
+          throw new Error(text);
+      }
       
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
