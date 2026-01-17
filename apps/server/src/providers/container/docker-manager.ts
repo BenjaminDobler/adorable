@@ -21,7 +21,7 @@ export class DockerManager {
       WorkingDir: '/app',
       HostConfig: {
         PortBindings: {
-            '4200/tcp': [{ HostPort: '4200' }] // Fixed host port for debugging
+            '4200/tcp': [{ HostPort: '4201' }] // Fixed host port for debugging
         }
       },
       ExposedPorts: {
@@ -35,7 +35,7 @@ export class DockerManager {
 
   async getContainerUrl(): Promise<string> {
       if (!this.container) throw new Error('Container not started');
-      return 'http://127.0.0.1:4200';
+      return 'http://127.0.0.1:4201';
   }
 
   private async ensureImage(image: string) {
