@@ -32,28 +32,44 @@ export class TemplateService {
     if (!files) return { content: '', path: '', success: false, error: 'No files loaded' };
 
     let componentFile;
+    
+    // 1. Try finding by Component Name
     if (fingerprint.componentName) {
        componentFile = this.findComponentFile(files, fingerprint.componentName);
     } 
     
+    // 2. Try finding by Selector (Fallback or primary if name missing)
     if (!componentFile && fingerprint.hostTag) {
-       console.log(`[TemplateService] Fallback: Searching for component by selector: ${fingerprint.hostTag}`);
+       console.log(`[TemplateService] Searching for component by selector: ${fingerprint.hostTag}`);
        componentFile = this.findComponentFileBySelector(files, fingerprint.hostTag);
     }
 
+    // 3. Last resort: Try common defaults if it's the root
+    if (!componentFile && (fingerprint.hostTag === 'app-root' || fingerprint.componentName === 'AppComponent')) {
+       console.log('[TemplateService] Root component not found by metadata, trying app.component.ts default');
+       componentFile = this.findComponentFile(files, 'AppComponent');
+    }
+
     if (!componentFile) {
-       return { content: '', path: '', success: false, error: `Could not locate component file for ${fingerprint.componentName || fingerprint.hostTag}` };
+       const target = fingerprint.componentName || fingerprint.hostTag || 'unknown';
+       return { content: '', path: '', success: false, error: `Could not locate component source for "${target}"` };
     }
 
     const templateInfo = this.resolveTemplate(componentFile.path, componentFile.content, files);
     if (!templateInfo) {
-       return { content: '', path: '', success: false, error: `Could not locate template for ${fingerprint.componentName || fingerprint.hostTag}` };
+       return { content: '', path: '', success: false, error: `Could not resolve template for ${componentFile.path}` };
     }
 
     const { path: templatePath, content: templateContent, isInline, offset: templateOffset } = templateInfo;
 
     // 2. Parse AST
-    const { rootNodes } = parse(templateContent);
+    let rootNodes;
+    try {
+       const parsed = parse(templateContent);
+       rootNodes = parsed.rootNodes;
+    } catch(e: any) {
+       return { content: '', path: templatePath, success: false, error: `Template parsing failed: ${e.message}` };
+    }
 
     // 3. Find the matching node
     const match = this.findNode(rootNodes, fingerprint);
@@ -166,58 +182,57 @@ export class TemplateService {
   private isMatch(node: any, fingerprint: ElementFingerprint): boolean {
      if (node.name.toLowerCase() !== fingerprint.tagName.toLowerCase()) return false;
      
-     // Match Class
-     if (fingerprint.classes) {
-        const classAttr = node.attrs.find((a: any) => a.name === 'class');
-        if (classAttr) {
-           const templateClasses = classAttr.value.split(/\s+/);
-           const fingerprintClasses = fingerprint.classes.split(/\s+/);
-           
-           // Check if any significant class matches (relaxed)
-           const intersection = templateClasses.filter((c: string) => fingerprintClasses.includes(c));
-           
-           if (intersection.length > 0) {
-              // Match found by class intersection
-              // If text/id are not present/matching, we consider this a match
-              if (!fingerprint.text && !fingerprint.id) {
-                 return true;
-              }
-           } else if (templateClasses.length > 0 && fingerprintClasses.length > 0) {
-              // Strong mismatch in static classes -> different element
-              return false;
-           }
-        }
-     }
-
-     if (fingerprint.text) {
-        const textContent = (node.children || [])
-           .filter((c: any) => c.value) // Text nodes have value
-           .map((c: any) => c.value)
-           .join('')
-           .trim();
-        
-        // Check for exact match
-        if (fingerprint.text.trim() === textContent) {
-           console.log(`[TemplateService] Match found by exact text: "${textContent}"`);
-           return true;
-        }
-        
-        // Relaxed match: Contains
-        if (textContent.includes(fingerprint.text.trim()) || fingerprint.text.trim().includes(textContent)) {
-           console.log(`[TemplateService] Match found by partial text. Node: "${textContent}"`);
-           return true;
-        }
-        
-        console.log(`[TemplateService] Tag match <${node.name}> but text mismatch. Node: "${textContent}" vs Fingerprint: "${fingerprint.text.trim()}"`);
-     }
-     
-     // ID Match (Strong fallback)
+     // 1. Strongest Match: ID
      if (fingerprint.id) {
         const idAttr = node.attrs.find((a: any) => a.name === 'id');
         if (idAttr && idAttr.value === fingerprint.id) {
-           console.log(`[TemplateService] Match found by ID: #${fingerprint.id}`);
            return true;
         }
+     }
+
+     // 2. Text Match (Normalized)
+     if (fingerprint.text) {
+        const nodeText = (node.children || [])
+           .filter((c: any) => c.value)
+           .map((c: any) => c.value.trim())
+           .join(' ')
+           .trim();
+        
+        const targetText = fingerprint.text.trim();
+        
+        if (nodeText === targetText || nodeText.includes(targetText) || targetText.includes(nodeText)) {
+           // If we have a text match, and classes also match (or aren't provided), it's a win
+           if (!fingerprint.classes) return true;
+        } else {
+           // If text is provided but doesn't match at all, this is likely not the node
+           // Unless it's a very small node where text might be dynamic
+           if (targetText.length > 3) return false;
+        }
+     }
+
+     // 3. Class Match (Fuzzy/Intersection)
+     if (fingerprint.classes) {
+        const classAttr = node.attrs.find((a: any) => a.name === 'class');
+        if (classAttr) {
+           const templateClasses = classAttr.value.split(/\s+/).filter(Boolean);
+           const fingerprintClasses = fingerprint.classes.split(/\s+/).filter(Boolean);
+           
+           const intersection = templateClasses.filter((c: string) => fingerprintClasses.includes(c));
+           
+           // If most classes match, consider it a hit
+           if (intersection.length >= Math.min(fingerprintClasses.length, 2)) {
+              return true;
+           }
+        } else if (!fingerprint.classes) {
+           // Both have no classes
+           return true;
+        }
+     }
+
+     // 4. Fallback for structural match (Tag + Parent + Index)
+     // If we reached here, and no text/classes were provided, we rely on findNode's index logic
+     if (!fingerprint.text && !fingerprint.classes && !fingerprint.id) {
+        return true;
      }
 
      return false;
@@ -241,19 +256,13 @@ export class TemplateService {
   }
 
   private findComponentFileBySelector(files: any, selector: string): { path: string, content: string } | null {
-      // Search for @Component({ selector: 'app-foo' })
-      // Use simple string matching or regex
+      console.log(`[TemplateService] Searching for component with selector: "${selector}"`);
       const result = this.searchFiles(files, (path, content) => {
          if (!path.endsWith('.ts')) return false;
          
-         // Simple check first
-         if (!content.includes('selector')) return false;
-         
-         // Regex for selector
-         // selector: 'app-foo' or selector: "app-foo"
-         const selectorRegex = new RegExp(`selector\\s*:\\s*['"\`]${selector}['"\`]`);
+         const selectorRegex = new RegExp(`selector\\s*:\\s*['"\`]${selector}['"\`]`, 'i');
          if (selectorRegex.test(content)) {
-            console.log(`[TemplateService] Found match by selector in: ${path}`);
+            console.log(`[TemplateService] Found selector match in: ${path}`);
             return true;
          }
          return false;
@@ -262,15 +271,33 @@ export class TemplateService {
   }
 
   private resolveTemplate(tsPath: string, tsContent: string, files: any): { path: string, content: string, isInline: boolean, offset?: number } | null {
+     console.log(`[TemplateService] Resolving template for: ${tsPath}`);
+     
      // 1. Check templateUrl (supports ' " and `)
      const urlMatch = tsContent.match(/templateUrl\s*:\s*(['"`])(.+?)\1/);
      if (urlMatch) {
         const currentDir = tsPath.substring(0, tsPath.lastIndexOf('/'));
-        const resolvedPath = this.normalizePath(`${currentDir}/${urlMatch[2]}`);
+        const rawPath = urlMatch[2];
+        
+        // Handle relative paths (./ or ../)
+        let resolvedPath;
+        if (rawPath.startsWith('./')) {
+           resolvedPath = this.normalizePath(`${currentDir}/${rawPath.substring(2)}`);
+        } else if (rawPath.startsWith('../')) {
+           // Simple one-level up handle
+           const parentDir = currentDir.substring(0, currentDir.lastIndexOf('/'));
+           resolvedPath = this.normalizePath(`${parentDir}/${rawPath.substring(3)}`);
+        } else {
+           resolvedPath = this.normalizePath(`${currentDir}/${rawPath}`);
+        }
+
+        console.log(`[TemplateService] Attempting to load external template: ${resolvedPath}`);
         const content = this.getFileContent(files, resolvedPath);
         if (content !== null) {
-           console.log(`[TemplateService] Resolved external template: ${resolvedPath}`);
+           console.log(`[TemplateService] Successfully loaded external template`);
            return { path: resolvedPath, content, isInline: false };
+        } else {
+           console.warn(`[TemplateService] Failed to find template file at: ${resolvedPath}`);
         }
      }
      
@@ -279,10 +306,11 @@ export class TemplateService {
      if (inlineMatch) {
         const templateContent = inlineMatch[2];
         const offset = inlineMatch.index! + inlineMatch[0].indexOf(templateContent);
-        console.log(`[TemplateService] Resolved inline template in ${tsPath} at offset ${offset}`);
+        console.log(`[TemplateService] Resolved inline template in ${tsPath}`);
         return { path: tsPath, content: templateContent, isInline: true, offset };
      }
 
+     console.error(`[TemplateService] No template or templateUrl found in ${tsPath}`);
      return null;
   }
 
