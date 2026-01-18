@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../services/api';
 import { Router } from '@angular/router';
 import { ThemeService, ThemeMode } from '../services/theme';
+import { ToastService } from '../services/toast';
 
 export type ProviderType = 'anthropic' | 'gemini';
 
@@ -46,6 +47,7 @@ export class ProfileComponent {
   private apiService = inject(ApiService);
   private router = inject(Router);
   public themeService = inject(ThemeService);
+  private toastService = inject(ToastService);
 
   user = signal<any>(null);
   name = signal('');
@@ -240,12 +242,12 @@ export class ProfileComponent {
 
     this.apiService.updateProfile(data).subscribe({
       next: () => {
-        alert('Profile and settings saved!');
+        this.toastService.show('Profile and settings saved!', 'success');
         this.loading.set(false);
       },
       error: (err) => {
         console.error(err);
-        alert('Failed to save profile');
+        this.toastService.show('Failed to save profile', 'error');
         this.loading.set(false);
       }
     });
