@@ -178,24 +178,41 @@ export class LocalContainerEngine extends ContainerEngine {
         if (clean.includes('Application bundle generation complete')) {
              const userId = JSON.parse(localStorage.getItem('adorable_user') || '{}').id;
              const proxyUrl = `http://localhost:3333/api/proxy/?user=${userId}`;
-             this.url.set(proxyUrl); 
-             this.status.set('Ready');
-             this.onServerReady(4200, proxyUrl);
+             
+             // Small delay before setting URL to ensure server is actually listening and stable
+             setTimeout(() => {
+                this.url.set(proxyUrl); 
+                this.status.set('Ready');
+                this.onServerReady(4200, proxyUrl);
+             }, 2000);
         }
     });
   }
 
+  private isStopping = false;
+
   async stopDevServer(): Promise<void> {
+    if (this.isStopping) return;
+    this.isStopping = true;
+
     this.status.set('Stopping dev server...');
     this.url.set(null); // Clear URL immediately
     try {
-      // Kill any process using node or npm to free up port 4200
-      // We use sh -c to handle the OR/TRUE logic safely in a one-off exec
-      const res = await this.exec('sh', ['-c', 'pkill -f "node|npm" || true']);
+      // 1. Check if anything is actually listening on 4200 before killing
+      // 2. Try killing anything on port 4200 specifically (most reliable)
+      // 3. Fallback to pkill for node/npm/ng processes
+      const res = await this.exec('sh', ['-c', 'fuser 4200/tcp && (fuser -k 4200/tcp || pkill -9 -f "node|npm|ng") || echo "Port already free"']);
       await res.exit;
+      
+      // Medium delay only if we actually had to kill something? 
+      // For now, consistent 2s is safer than 3s.
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       this.status.set('Server stopped');
     } catch (e) {
-      console.warn('Failed to stop dev server, it might not be running', e);
+      console.warn('Failed to stop dev server', e);
+    } finally {
+      this.isStopping = false;
     }
   }
 

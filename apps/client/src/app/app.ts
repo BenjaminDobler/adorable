@@ -348,10 +348,11 @@ export class AppComponent implements AfterViewChecked {
 
       setTimeout(() => {
         if (this.isSavingWithThumbnail) {
+          console.warn('Thumbnail capture timed out, saving without thumbnail');
           this.projectService.saveProject();
           this.isSavingWithThumbnail = false;
         }
-      }, 2500);
+      }, 5000);
     } else {
       this.projectService.saveProject();
     }

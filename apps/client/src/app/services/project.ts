@@ -52,7 +52,7 @@ export class ProjectService {
   async loadProject(id: string) {
     this.loading.set(true);
     // Clear current preview state immediately
-    this.webContainerService.stopDevServer();
+    await this.webContainerService.stopDevServer();
     
     this.apiService.loadProject(id).subscribe({
       next: async (project) => {
@@ -303,7 +303,6 @@ export class ProjectService {
         } else {
            if (key === 'index.html' && typeof content === 'string') {
               // Determine correct base href based on engine
-              // We cast to any to check mode if it's SmartContainerEngine
               const engine: any = this.webContainerService;
               const isLocal = engine.mode && engine.mode() === 'local';
               const baseHref = isLocal ? '/api/proxy/' : '/';
@@ -314,10 +313,13 @@ export class ProjectService {
                  content = content.replace('<head>', `<head>\n  <base href="${baseHref}" />`);
               }
 
-              // Ensure we have the latest runtime scripts (modern-screenshot)
-              if (!content.includes('modern-screenshot')) {
-                 content = content.replace('<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>', '');
-                 content = content.replace('</head>', `${RUNTIME_SCRIPTS}\n</head>`);
+              // Ensure we have the latest runtime scripts
+              const scriptTag = '<!-- ADORABLE_RUNTIME_SCRIPTS -->';
+              if (content.includes(scriptTag)) {
+                 const pattern = new RegExp(`${scriptTag}[\\s\\S]*${scriptTag}`);
+                 content = content.replace(pattern, `${scriptTag}\n${RUNTIME_SCRIPTS}\n${scriptTag}`);
+              } else {
+                 content = content.replace('</head>', `${scriptTag}\n${RUNTIME_SCRIPTS}\n${scriptTag}\n</head>`);
               }
            }
            tree[key] = { file: { contents: content } };
@@ -351,7 +353,7 @@ export class ProjectService {
          const result = await this.findWebRoot(`${currentPath}/${dir.name}`);
          if (result) return result;
       }
-    } catch (e) { }
+    } catch (e) { } // Ignore errors, likely directory not found
     return null;
   }
 

@@ -15,7 +15,7 @@ export class DockerManager {
     this.docker = new Docker({ socketPath });
   }
 
-  async createContainer(image = 'node:20-slim', name?: string) {
+  async createContainer(image = 'node:20', name?: string) {
     await this.ensureImage(image);
 
     // Extract userId from name if possible (adorable-user-name-userId)
@@ -74,6 +74,23 @@ export class DockerManager {
     });
 
     await this.container.start();
+
+    // Ensure psmisc (for fuser) is installed for robust port cleanup
+    console.log('[Docker] Installing cleanup tools...');
+    try {
+       const installExec = await this.container.exec({
+          Cmd: ['sh', '-c', 'apt-get update && apt-get install -y psmisc'],
+          User: 'root'
+       });
+       const stream = await installExec.start({ Detach: false });
+       await new Promise((resolve) => {
+          this.container?.modem.demuxStream(stream as any, process.stdout, process.stderr);
+          (stream as any).on('end', resolve);
+       });
+    } catch(e) {
+       console.warn('[Docker] Failed to install psmisc, cleanup might be less reliable', e.message);
+    }
+
     return this.container.id;
   }
 

@@ -168,42 +168,66 @@ export const RUNTIME_SCRIPTS = `
     (function() {
       let domToCanvas;
       
+      console.log('[Runtime] Initializing screenshot logic...');
+
       // Load modern-screenshot dynamically as an ES module
       import('https://cdn.jsdelivr.net/npm/modern-screenshot/+esm').then(mod => {
         domToCanvas = mod.domToCanvas;
-      }).catch(err => console.error('Failed to load modern-screenshot', err));
+        console.log('[Runtime] modern-screenshot loaded successfully');
+      }).catch(err => console.error('[Runtime] Failed to load modern-screenshot', err));
 
       window.addEventListener('message', async (event) => {
         if (event.data.type === 'CAPTURE_REQ') {
+          console.log('[Runtime] Received CAPTURE_REQ', event.data.rect);
           const { x, y, width, height } = event.data.rect;
           if (!domToCanvas) {
-             console.warn('modern-screenshot not loaded yet');
+             console.warn('[Runtime] modern-screenshot not loaded yet');
              return;
           }
 
           try {
-            // Using modern-screenshot to capture the rect
-            // We apply a negative translation to "pan" to the correct coordinates
-            const canvas = await domToCanvas(document.body, {
-              width: width,
-              height: height,
-              scale: 2, // Higher resolution
-              features: {
-                // Ensure all modern features are enabled
-                copyCSSStyles: true,
-              },
-              style: {
-                transform: 'translate(-' + x + 'px, -' + y + 'px)',
-                transformOrigin: 'top left'
+            console.log('[Runtime] Capturing screenshot...');
+            let dataUrl;
+
+            try {
+              // Primary method: modern-screenshot
+              const canvas = await domToCanvas(document.body, {
+                width: width,
+                height: height,
+                scale: 1,
+                features: { copyCSSStyles: true },
+                style: {
+                  transform: 'translate(-' + x + 'px, -' + y + 'px)',
+                  transformOrigin: 'top left'
+                }
+              });
+              dataUrl = canvas.toDataURL('image/png');
+            } catch (modernErr) {
+              console.warn('[Runtime] modern-screenshot failed, falling back to html2canvas', modernErr);
+              if (window.html2canvas) {
+                const canvas = await window.html2canvas(document.body, {
+                  x: x,
+                  y: y,
+                  width: width,
+                  height: height,
+                  scale: 1,
+                  useCORS: true,
+                  allowTaint: true,
+                  logging: true
+                });
+                dataUrl = canvas.toDataURL('image/png');
+              } else {
+                throw modernErr;
               }
-            });
+            }
             
+            console.log('[Runtime] Screenshot captured successfully');
             window.parent.postMessage({ 
               type: 'CAPTURE_RES', 
-              image: canvas.toDataURL('image/png') 
+              image: dataUrl 
             }, '*');
           } catch (err) { 
-            console.error('Screenshot failed:', err); 
+            console.error('[Runtime] All screenshot methods failed:', err); 
           }
         }
       });
