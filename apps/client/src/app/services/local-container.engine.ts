@@ -175,9 +175,11 @@ export class LocalContainerEngine extends ContainerEngine {
         const clean = chunk.replace(/\x1B\[[0-9;]*[mK]/g, '');
         
         if (clean.includes('Application bundle generation complete')) {
-             this.url.set('http://localhost:3333/api/proxy/'); 
+             const userId = JSON.parse(localStorage.getItem('adorable_user') || '{}').id;
+             const proxyUrl = `http://localhost:3333/api/proxy/?user=${userId}`;
+             this.url.set(proxyUrl); 
              this.status.set('Ready');
-             this.onServerReady(4200, 'http://localhost:3333/api/proxy/');
+             this.onServerReady(4200, proxyUrl);
         }
     });
   }

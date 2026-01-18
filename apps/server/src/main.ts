@@ -10,6 +10,8 @@ import { prisma } from './db/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
+import cookie from 'cookie';
+import signature from 'cookie-signature';
 import { encrypt, decrypt } from './utils/crypto';
 import { DockerManager } from './providers/container/docker-manager';
 import { containerRegistry } from './providers/container/container-registry';
@@ -20,63 +22,57 @@ const JWT_SECRET = process.env['JWT_SECRET'] || 'fallback-secret';
 const app = express();
 const router = new SmartRouter();
 
-app.use(cors({ origin: 'http://localhost:4200', credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => callback(null, true),
+  credentials: true
+}));
+app.use(cookieParser(JWT_SECRET));
 app.use(cookieParser(JWT_SECRET));
 app.use(express.json({ limit: '50mb' }));
 
-// Proxy for Container Preview
-app.use('/api/proxy', createProxyMiddleware({
-  target: 'http://localhost:4200', // Default fallback
-  router: async (req: any) => {
-     try {
-       const userId = req.signedCookies?.['adorable_container_user'];
-       if (!userId) return 'http://localhost:4200';
-       const manager = containerRegistry.getManager(userId);
-       const url = await manager.getContainerUrl();
-       return url.replace(/\/$/, ''); 
-     } catch(e) {
-       return 'http://localhost:4200';
-     }
-  },
-  pathRewrite: {
-    '^/api/proxy': ''
-  },
-  on: {
-    proxyRes: (proxyRes, req, res) => {
-       if (proxyRes.statusCode && proxyRes.statusCode >= 300 && proxyRes.statusCode < 400) {
-          console.log(`[Proxy Redirect] ${req.url} -> ${proxyRes.headers.location}`);
-       }
-       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-       res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-    }
-  },
-  autoRewrite: true,
-  xfwd: true,
-  changeOrigin: true,
-  ws: true,
-  timeout: 60000,
-  proxyTimeout: 60000,
-  logger: console
-}));
+// Global Fallback Proxy
+app.use(async (req: any, res, next) => {
+  if (req.path.startsWith('/api/auth') || (req.path.startsWith('/api') && !req.path.startsWith('/api/proxy'))) {
+    return next();
+  }
 
-// Proxy for Vite HMR and other root-relative assets
-const vitePaths = ['/@vite/client', '/@fs/*', '/@id/*', '/.vite/*'];
-app.use(vitePaths, createProxyMiddleware({
-  target: 'http://localhost:4200',
-  router: async (req: any) => {
-     try {
-       const userId = req.signedCookies?.['adorable_container_user'];
-       if (!userId) return 'http://localhost:4200';
-       const manager = containerRegistry.getManager(userId);
-       return await manager.getContainerUrl();
-     } catch(e) {
-       return 'http://localhost:4200';
-     }
-  },
-  changeOrigin: true,
-  ws: true,
-  logger: console
-}));
+  const queryUser = req.query.user as string;
+  const cookieUser = req.signedCookies?.['adorable_container_user'];
+  const userId = cookieUser || queryUser;
+
+  if (userId) {
+    try {
+      if (queryUser && queryUser !== cookieUser) {
+        res.cookie('adorable_container_user', userId, { 
+          signed: true, 
+          httpOnly: true, 
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000 
+        });
+      }
+
+      const manager = containerRegistry.getManager(userId);
+      const target = await manager.getContainerUrl();
+      
+      return createProxyMiddleware({
+        target,
+        changeOrigin: true,
+        ws: true,
+        pathRewrite: (path) => path.replace(/^\/api\/proxy/, ''),
+        on: {
+          proxyRes: (proxyRes) => {
+            proxyRes.headers['Cross-Origin-Resource-Policy'] = 'cross-origin';
+            proxyRes.headers['Cross-Origin-Embedder-Policy'] = 'require-corp';
+          }
+        }
+      })(req, res, next);
+    } catch (e) {
+      console.error('[Proxy] Error:', e.message);
+      return next();
+    }
+  }
+  next();
+});
 
 const SITES_DIR = path.join(process.cwd(), 'published-sites');
 fs.mkdir(SITES_DIR, { recursive: true }).catch(console.error);
@@ -719,4 +715,36 @@ const port = process.env.PORT || 3333;
 const server = app.listen(port, () => {
   console.log(`Listening at http://localhost:${port}/api`);
 });
+
+// WebSocket Upgrade Handler for HMR support in multi-user environment
+server.on('upgrade', async (req: any, socket, head) => {
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return;
+  
+  const cookies = cookie.parse(cookieHeader);
+  const rawCookie = cookies['adorable_container_user'];
+  if (!rawCookie) return;
+  
+  // Signed cookies are prefixed with 's:'
+  const userId = signature.unsign(rawCookie.slice(2), JWT_SECRET);
+  if (!userId) return;
+
+  try {
+    const manager = containerRegistry.getManager(userId as string);
+    const target = await manager.getContainerUrl();
+    
+    // Create a one-off proxy for the upgrade
+    const wsProxy = createProxyMiddleware({ 
+      target, 
+      ws: true, 
+      changeOrigin: true,
+      pathRewrite: (path) => path.replace(/^\/api\/proxy/, '')
+    });
+    
+    (wsProxy as any).upgrade(req, socket, head);
+  } catch (e) {
+    console.error('[WS Upgrade Error]', e.message);
+  }
+});
+
 server.on('error', console.error);
