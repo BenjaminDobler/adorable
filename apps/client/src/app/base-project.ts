@@ -151,7 +151,7 @@ export const BASE_FILES = {
 <html>
 <head>
   <title>App</title>
-  <base href="/" />
+  <base href="./" />
   ${RUNTIME_SCRIPTS}
 </head>
 <body>

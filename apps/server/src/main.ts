@@ -34,14 +34,18 @@ app.use('/api/proxy', createProxyMiddleware({
   pathRewrite: {
     '^/api/proxy': ''
   },
-  changeOrigin: true,
-  ws: true,
   on: {
     proxyRes: (proxyRes, req, res) => {
        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
        res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
     }
   },
+  autoRewrite: true,
+  xfwd: true,
+  changeOrigin: true,
+  ws: true,
+  timeout: 60000,
+  proxyTimeout: 60000,
   logger: console // Debug
 }));
 

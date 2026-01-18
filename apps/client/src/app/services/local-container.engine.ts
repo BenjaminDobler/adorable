@@ -156,8 +156,7 @@ export class LocalContainerEngine extends ContainerEngine {
   async startDevServer(): Promise<void> {
     this.status.set('Starting dev server...');
     // Pass --host 0.0.0.0 to ensure it listens on all interfaces for Docker networking
-    // Pass --serve-path and --base-href to handle proxy mounting
-    const res = await this.exec('npm', ['start', '--', '--host=0.0.0.0', '--allowed-hosts=all', '--serve-path=/api/proxy/', '--base-href=/api/proxy/'], { stream: true });
+    const res = await this.exec('npm', ['start', '--', '--host=0.0.0.0', '--allowed-hosts=all'], { stream: true });
     
     res.stream.subscribe(chunk => {
         this.serverOutput.update(o => o + chunk);
@@ -166,9 +165,9 @@ export class LocalContainerEngine extends ContainerEngine {
         const clean = chunk.replace(/\x1B\[[0-9;]*[mK]/g, '');
         
         if (clean.includes('Application bundle generation complete')) {
-             this.url.set('http://localhost:3333/api/proxy'); 
+             this.url.set('http://localhost:3333/api/proxy/'); 
              this.status.set('Ready');
-             this.onServerReady(4200, 'http://localhost:3333/api/proxy');
+             this.onServerReady(4200, 'http://localhost:3333/api/proxy/');
         }
     });
   }
