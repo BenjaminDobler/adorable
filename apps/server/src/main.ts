@@ -68,6 +68,7 @@ const containerProxy = createProxyMiddleware({
     if (userId) {
       try {
         const manager = containerRegistry.getManager(userId);
+        containerRegistry.updateActivity(userId); // Track Heartbeat
         return await manager.getContainerUrl();
       } catch (e) {
         console.error('[Proxy Router] Error:', e.message);
@@ -103,6 +104,8 @@ app.use(async (req: any, res, next) => {
 
   const userId = getUserId(req);
   if (userId) {
+    containerRegistry.updateActivity(userId); // Track Heartbeat
+    
     // If we found a user via query, ensure cookie matches it (overwrite stale User A cookie)
     const queryUser = new URL(req.url, `http://${req.headers.host}`).searchParams.get('user');
     const cookieUser = req.signedCookies?.['adorable_container_user'];
@@ -209,11 +212,14 @@ protectedRouter.use(authenticate);
 protectedRouter.post('/container/start', async (req: any, res) => {
   try {
     const manager = containerRegistry.getManager(req.user.id);
-    // Sanitize name for Docker: [a-zA-Z0-9][a-zA-Z0-9_.-]*
-    const safeId = req.user.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
-    const containerName = `adorable-user-${safeId}-${Date.now()}`;
-    const id = await manager.createContainer(undefined, containerName);
     
+    // Sanitized naming: adorable-user-${safeName}-${userId}
+    const safeName = req.user.name ? req.user.name.replace(/[^a-zA-Z0-9_.-]/g, '_').toLowerCase() : 'user';
+    const containerName = `adorable-user-${safeName}-${req.user.id}`;
+    
+    const id = await manager.createContainer(undefined, containerName);
+    containerRegistry.updateActivity(req.user.id);
+
     // Set signed cookie for the proxy to know which container to use
     res.cookie('adorable_container_user', req.user.id, {
        signed: true,

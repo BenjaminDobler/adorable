@@ -1,10 +1,13 @@
 import Docker from 'dockerode';
 import { Readable, Writable } from 'stream';
 import * as tar from 'tar-stream';
+import * as path from 'path';
+import * as fs from 'fs/promises';
 
 export class DockerManager {
   private docker: Docker;
   private container: Docker.Container | null = null;
+  private userId: string | null = null;
 
   constructor() {
     const socketPath =
@@ -15,6 +18,44 @@ export class DockerManager {
   async createContainer(image = 'node:20-slim', name?: string) {
     await this.ensureImage(image);
 
+    // Extract userId from name if possible (adorable-user-name-userId)
+    if (name) {
+       const parts = name.split('-');
+       this.userId = parts[parts.length - 1];
+    }
+
+    // 1. Check if container already exists
+    if (name) {
+      try {
+        const existing = await this.docker.getContainer(name);
+        const info = await existing.inspect();
+        this.container = existing;
+        
+        // Ensure userId is tracked if we re-use
+        if (!this.userId) {
+           const parts = name.split('-');
+           this.userId = parts[parts.length - 1];
+        }
+
+        if (info.State.Paused) {
+          console.log(`[Docker] Unpausing existing container: ${name}`);
+          await this.container.unpause();
+        } else if (!info.State.Running) {
+          console.log(`[Docker] Starting existing container: ${name}`);
+          await this.container.start();
+        } else {
+          console.log(`[Docker] Using already running container: ${name}`);
+        }
+        return this.container.id;
+      } catch (e) {
+        // Container doesn't exist, proceed to create
+        console.log(`[Docker] Container ${name} not found, creating fresh.`);
+      }
+    }
+
+    const hostAppPath = path.join(process.cwd(), 'storage', 'projects', this.userId || 'unknown');
+    await fs.mkdir(hostAppPath, { recursive: true });
+
     this.container = await this.docker.createContainer({
       Image: image,
       name: name,
@@ -22,6 +63,7 @@ export class DockerManager {
       Tty: true,
       WorkingDir: '/app',
       HostConfig: {
+        Binds: [`${hostAppPath}:/app`],
         PortBindings: {
           '4200/tcp': [{ HostIp: '0.0.0.0', HostPort: '0' }], // Random host port
         },
@@ -35,8 +77,35 @@ export class DockerManager {
     return this.container.id;
   }
 
+  async pause() {
+    if (this.container) {
+      const info = await this.container.inspect();
+      if (info.State.Running && !info.State.Paused) {
+        await this.container.pause();
+      }
+    }
+  }
+
+  async unpause() {
+    if (this.container) {
+      const info = await this.container.inspect();
+      if (info.State.Paused) {
+        await this.container.unpause();
+      }
+    }
+  }
+
   async getContainerUrl(): Promise<string> {
     if (!this.container) throw new Error('Container not started');
+    
+    // Auto-unpause or start if accessing URL
+    const info = await this.container.inspect();
+    if (info.State.Paused) {
+       await this.container.unpause();
+    } else if (!info.State.Running) {
+       await this.container.start();
+    }
+
     const data = await this.container.inspect();
     const ports = data.NetworkSettings.Ports['4200/tcp'];
     if (ports && ports[0]) {

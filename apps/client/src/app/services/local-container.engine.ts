@@ -186,7 +186,16 @@ export class LocalContainerEngine extends ContainerEngine {
   }
 
   async stopDevServer(): Promise<void> {
-    // TODO: Kill process
+    this.status.set('Stopping dev server...');
+    try {
+      // Kill any process using node or npm to free up port 4200
+      // We use sh -c to handle the OR/TRUE logic safely in a one-off exec
+      const res = await this.exec('sh', ['-c', 'pkill -f "node|npm" || true']);
+      await res.exit;
+      this.status.set('Server stopped');
+    } catch (e) {
+      console.warn('Failed to stop dev server, it might not be running', e);
+    }
   }
 
   async clean(): Promise<void> {
