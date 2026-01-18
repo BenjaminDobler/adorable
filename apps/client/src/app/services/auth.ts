@@ -43,6 +43,13 @@ export class AuthService {
   }
 
   logout() {
+    this.http.post(`${this.apiUrl}/logout`, {}).subscribe({
+      next: () => this.finalizeLogout(),
+      error: () => this.finalizeLogout() // Logout anyway on error
+    });
+  }
+
+  private finalizeLogout() {
     this.currentUser.set(null);
     this.token.set(null);
     localStorage.removeItem('adorable_token');

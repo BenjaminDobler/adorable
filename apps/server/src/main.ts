@@ -103,10 +103,11 @@ app.use(async (req: any, res, next) => {
 
   const userId = getUserId(req);
   if (userId) {
-    // If we found a user via query but not cookie, set the cookie now
-    // This works for HTTP requests where 'res' is an Express Response
+    // If we found a user via query, ensure cookie matches it (overwrite stale User A cookie)
     const queryUser = new URL(req.url, `http://${req.headers.host}`).searchParams.get('user');
-    if (queryUser && !req.signedCookies?.['adorable_container_user']) {
+    const cookieUser = req.signedCookies?.['adorable_container_user'];
+    
+    if (queryUser && queryUser !== cookieUser) {
        res.cookie('adorable_container_user', queryUser, { 
           signed: true, 
           httpOnly: true, 
@@ -127,6 +128,9 @@ fs.mkdir(SITES_DIR, { recursive: true }).catch(console.error);
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, name } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+
+  // Clear any existing container cookie
+  res.clearCookie('adorable_container_user');
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -149,6 +153,9 @@ app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
+  // Clear any existing container cookie
+  res.clearCookie('adorable_container_user');
+
   try {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !(await bcrypt.compare(password, user.password))) {
@@ -160,6 +167,11 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Login failed' });
   }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  res.clearCookie('adorable_container_user');
+  res.json({ success: true });
 });
 
 // --- Auth Middleware ---
