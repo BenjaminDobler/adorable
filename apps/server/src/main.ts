@@ -9,24 +9,30 @@ import { SmartRouter } from './providers/router';
 import { prisma } from './db/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import cookieParser from 'cookie-parser';
 import { encrypt, decrypt } from './utils/crypto';
 import { DockerManager } from './providers/container/docker-manager';
+import { containerRegistry } from './providers/container/container-registry';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 
 const JWT_SECRET = process.env['JWT_SECRET'] || 'fallback-secret';
 
 const app = express();
 const router = new SmartRouter();
-const dockerManager = new DockerManager(); // Singleton for local dev
 
-app.use(cors());
+app.use(cors({ origin: 'http://localhost:4200', credentials: true }));
+app.use(cookieParser(JWT_SECRET));
+app.use(express.json({ limit: '50mb' }));
 
 // Proxy for Container Preview
 app.use('/api/proxy', createProxyMiddleware({
   target: 'http://localhost:4200', // Default fallback
-  router: async () => {
+  router: async (req: any) => {
      try {
-       const url = await dockerManager.getContainerUrl();
+       const userId = req.signedCookies?.['adorable_container_user'];
+       if (!userId) return 'http://localhost:4200';
+       const manager = containerRegistry.getManager(userId);
+       const url = await manager.getContainerUrl();
        return url.replace(/\/$/, ''); 
      } catch(e) {
        return 'http://localhost:4200';
@@ -53,7 +59,24 @@ app.use('/api/proxy', createProxyMiddleware({
   logger: console
 }));
 
-app.use(express.json({ limit: '50mb' }));
+// Proxy for Vite HMR and other root-relative assets
+const vitePaths = ['/@vite/client', '/@fs/*', '/@id/*', '/.vite/*'];
+app.use(vitePaths, createProxyMiddleware({
+  target: 'http://localhost:4200',
+  router: async (req: any) => {
+     try {
+       const userId = req.signedCookies?.['adorable_container_user'];
+       if (!userId) return 'http://localhost:4200';
+       const manager = containerRegistry.getManager(userId);
+       return await manager.getContainerUrl();
+     } catch(e) {
+       return 'http://localhost:4200';
+     }
+  },
+  changeOrigin: true,
+  ws: true,
+  logger: console
+}));
 
 const SITES_DIR = path.join(process.cwd(), 'published-sites');
 fs.mkdir(SITES_DIR, { recursive: true }).catch(console.error);
@@ -132,7 +155,17 @@ protectedRouter.use(authenticate);
 
 protectedRouter.post('/container/start', async (req: any, res) => {
   try {
-    const id = await dockerManager.createContainer();
+    const manager = containerRegistry.getManager(req.user.id);
+    const id = await manager.createContainer();
+    
+    // Set signed cookie for the proxy to know which container to use
+    res.cookie('adorable_container_user', req.user.id, {
+       signed: true,
+       httpOnly: true,
+       sameSite: 'lax', // Needed for localhost cross-port
+       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
     res.json({ id });
   } catch (e) {
     console.error('Failed to start container', e);
@@ -142,7 +175,8 @@ protectedRouter.post('/container/start', async (req: any, res) => {
 
 protectedRouter.post('/container/stop', async (req: any, res) => {
   try {
-    await dockerManager.stop();
+    await containerRegistry.removeManager(req.user.id);
+    res.clearCookie('adorable_container_user');
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -152,7 +186,8 @@ protectedRouter.post('/container/stop', async (req: any, res) => {
 protectedRouter.post('/container/mount', async (req: any, res) => {
   const { files } = req.body;
   try {
-    await dockerManager.copyFiles(files);
+    const manager = containerRegistry.getManager(req.user.id);
+    await manager.copyFiles(files);
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -160,11 +195,11 @@ protectedRouter.post('/container/mount', async (req: any, res) => {
 });
 
 protectedRouter.post('/container/exec', async (req: any, res) => {
-  const { cmd, args, workDir } = req.body;
+  const { cmd, args, workDir, env } = req.body;
   try {
-    // Reconstruct full command array
+    const manager = containerRegistry.getManager(req.user.id);
     const fullCmd = [cmd, ...(args || [])];
-    const result = await dockerManager.exec(fullCmd, workDir);
+    const result = await manager.exec(fullCmd, workDir, env);
     res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -174,16 +209,18 @@ protectedRouter.post('/container/exec', async (req: any, res) => {
 protectedRouter.get('/container/exec-stream', async (req: any, res) => {
   const cmd = req.query.cmd as string;
   const args = req.query.args ? (req.query.args as string).split(',') : [];
+  const env = req.query.env ? JSON.parse(req.query.env as string) : undefined;
   
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
 
   try {
+    const manager = containerRegistry.getManager(req.user.id);
     const fullCmd = [cmd, ...args];
-    await dockerManager.execStream(fullCmd, '/app', (chunk) => {
+    await manager.execStream(fullCmd, '/app', (chunk) => {
        res.write(`data: ${JSON.stringify({ output: chunk })}\n\n`);
-    });
+    }, env);
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
   } catch (e) {

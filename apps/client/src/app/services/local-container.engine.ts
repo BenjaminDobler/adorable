@@ -62,10 +62,10 @@ export class LocalContainerEngine extends ContainerEngine {
   async exec(cmd: string, args: string[], options?: any): Promise<ProcessOutput> {
     try {
         if (options?.stream) {
-           return this.streamExec(cmd, args);
+           return this.streamExec(cmd, args, options?.env);
         }
     
-        const req = this.http.post<{ output: string, exitCode: number }>(`${this.apiUrl}/exec`, { cmd, args, ...options });
+        const req = this.http.post<{ output: string, exitCode: number }>(`${this.apiUrl}/exec`, { cmd, args, env: options?.env, ...options });
         const result = await req.toPromise();
         
         return {
@@ -92,11 +92,12 @@ export class LocalContainerEngine extends ContainerEngine {
     }
   }
 
-  private async streamExec(cmd: string, args: string[]): Promise<ProcessOutput> {
+  private async streamExec(cmd: string, args: string[], env?: any): Promise<ProcessOutput> {
       const token = localStorage.getItem('adorable_token');
       // Using fetch for streaming response
-      const response = await fetch(`${this.apiUrl}/exec-stream?cmd=${cmd}&args=${args.join(',')}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+      const response = await fetch(`${this.apiUrl}/exec-stream?cmd=${cmd}&args=${args.join(',')}&env=${env ? encodeURIComponent(JSON.stringify(env)) : ''}`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+          credentials: 'include'
       });
       
       if (!response.ok) {
@@ -157,8 +158,15 @@ export class LocalContainerEngine extends ContainerEngine {
   async startDevServer(): Promise<void> {
     this.status.set('Starting dev server...');
     // Pass --host 0.0.0.0 to ensure it listens on all interfaces for Docker networking
-    // Pass --poll 2000 to detect changes in Docker volume/putArchive updates
-    const res = await this.exec('npm', ['start', '--', '--host=0.0.0.0', '--allowed-hosts=all', '--poll=2000'], { stream: true });
+    const res = await this.exec('npm', ['start', '--', '--host=0.0.0.0', '--allowed-hosts=all'], { 
+        stream: true,
+        env: {
+            VITE_HMR_PROTOCOL: 'ws',
+            VITE_HMR_HOSTNAME: 'localhost',
+            VITE_HMR_PORT: '3333',
+            VITE_HMR_PATH: '/api/proxy/'
+        }
+    });
     
     res.stream.subscribe(chunk => {
         this.serverOutput.update(o => o + chunk);

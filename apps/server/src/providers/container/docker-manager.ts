@@ -92,69 +92,139 @@ export class DockerManager {
     });
   }
 
-  async exec(cmd: string[], workDir = '/app'): Promise<{ output: string, exitCode: number }> {
-    if (!this.container) throw new Error('Container not started');
+    async exec(cmd: string[], workDir = '/app', env?: any): Promise<{ output: string, exitCode: number }> {
 
-    const exec = await this.container.exec({
-      Cmd: cmd,
-      AttachStdout: true,
-      AttachStderr: true,
-      WorkingDir: workDir
-    });
+      if (!this.container) throw new Error('Container not started');
 
-    const stream = await exec.start({ Detach: false, Tty: false });
-    
-    return new Promise((resolve, reject) => {
-        let output = '';
-        // Demuxing to separate stdout/stderr if needed, but here combining.
-        // Using 'any' cast for modem/stream because dockerode types are tricky with streams.
-        this.container?.modem.demuxStream(stream as any, {
-            write: (chunk: any) => output += chunk.toString()
-        } as any, {
-            write: (chunk: any) => output += chunk.toString()
-        } as any);
+  
 
-        (stream as any).on('end', async () => {
-            const inspect = await exec.inspect();
-            resolve({ output, exitCode: inspect.ExitCode });
-        });
-        
-        (stream as any).on('error', reject);
-    });
-  }
+      const envArray = env ? Object.entries(env).map(([k, v]) => `${k}=${v}`) : [];
 
+  
 
+      const exec = await this.container.exec({
 
-  async execStream(cmd: string[], workDir = '/app', onData: (chunk: string) => void): Promise<number> {
-    if (!this.container) throw new Error('Container not started');
+        Cmd: cmd,
 
-    const exec = await this.container.exec({
-      Cmd: cmd,
-      AttachStdout: true,
-      AttachStderr: true,
-      WorkingDir: workDir
-    });
+        AttachStdout: true,
 
-    const stream = await exec.start({ Detach: false, Tty: false });
-    
-    return new Promise((resolve, reject) => {
-        this.container?.modem.demuxStream(stream as any, {
-            write: (chunk: any) => onData(chunk.toString())
-        } as any, {
-            write: (chunk: any) => onData(chunk.toString())
-        } as any);
+        AttachStderr: true,
 
-        (stream as any).on('end', async () => {
-            // Wait a bit for inspection?
-            try {
-               const inspect = await exec.inspect();
-               resolve(inspect.ExitCode);
-            } catch(e) { resolve(-1); }
-        });
-        
-        (stream as any).on('error', reject);
-    });
-  }
+        WorkingDir: workDir,
+
+        Env: envArray
+
+      });
+
+  
+
+      const stream = await exec.start({ Detach: false, Tty: false });
+
+      
+
+      return new Promise((resolve, reject) => {
+
+          let output = '';
+
+          // Demuxing to separate stdout/stderr if needed, but here combining.
+
+          // Using 'any' cast for modem/stream because dockerode types are tricky with streams.
+
+          this.container?.modem.demuxStream(stream as any, {
+
+              write: (chunk: any) => output += chunk.toString()
+
+          } as any, {
+
+              write: (chunk: any) => output += chunk.toString()
+
+          } as any);
+
+  
+
+          (stream as any).on('end', async () => {
+
+              const inspect = await exec.inspect();
+
+              resolve({ output, exitCode: inspect.ExitCode });
+
+          });
+
+          
+
+          (stream as any).on('error', reject);
+
+      });
+
+    }
+
+  
+
+    async execStream(cmd: string[], workDir = '/app', onData: (chunk: string) => void, env?: any): Promise<number> {
+
+      if (!this.container) throw new Error('Container not started');
+
+  
+
+      const envArray = env ? Object.entries(env).map(([k, v]) => `${k}=${v}`) : [];
+
+  
+
+      const exec = await this.container.exec({
+
+        Cmd: cmd,
+
+        AttachStdout: true,
+
+        AttachStderr: true,
+
+        WorkingDir: workDir,
+
+        Env: envArray
+
+      });
+
+  
+
+      const stream = await exec.start({ Detach: false, Tty: false });
+
+      
+
+      return new Promise((resolve, reject) => {
+
+          this.container?.modem.demuxStream(stream as any, {
+
+              write: (chunk: any) => onData(chunk.toString())
+
+          } as any, {
+
+              write: (chunk: any) => onData(chunk.toString())
+
+          } as any);
+
+  
+
+          (stream as any).on('end', async () => {
+
+              // Wait a bit for inspection?
+
+              try {
+
+                 const inspect = await exec.inspect();
+
+                 resolve(inspect.ExitCode);
+
+              } catch(e) { resolve(-1); }
+
+          });
+
+          
+
+          (stream as any).on('error', reject);
+
+      });
+
+    }
 
   async stop() {
     if (this.container) {
