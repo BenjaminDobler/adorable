@@ -10,8 +10,8 @@ import { prisma } from './db/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
-import cookie from 'cookie';
-import signature from 'cookie-signature';
+import * as cookie from 'cookie';
+import * as signature from 'cookie-signature';
 import { encrypt, decrypt } from './utils/crypto';
 import { DockerManager } from './providers/container/docker-manager';
 import { containerRegistry } from './providers/container/container-registry';
@@ -27,49 +27,94 @@ app.use(cors({
   credentials: true
 }));
 app.use(cookieParser(JWT_SECRET));
-app.use(cookieParser(JWT_SECRET));
 app.use(express.json({ limit: '50mb' }));
 
-// Global Fallback Proxy
+// Helper to identify user from various sources (Query, Cookie, Referer)
+const getUserId = (req: any) => {
+  try {
+    const urlObj = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+    let userId = urlObj.searchParams.get('user');
+
+    if (!userId && req.headers.cookie) {
+      const cookies = cookie.parse(req.headers.cookie);
+      const rawCookie = cookies['adorable_container_user'];
+      if (rawCookie) {
+         if (rawCookie.startsWith('s:')) {
+            const unsigned = signature.unsign(rawCookie.slice(2), JWT_SECRET);
+            if (unsigned) userId = unsigned as string;
+         } else {
+            userId = rawCookie;
+         }
+      }
+    }
+
+    if (!userId && req.headers.referer) {
+       try {
+         const refUrl = new URL(req.headers.referer);
+         userId = refUrl.searchParams.get('user');
+       } catch(e) {}
+    }
+    return userId;
+  } catch (e) {
+    return null;
+  }
+};
+
+// Global Proxy Instance for Containers
+const containerProxy = createProxyMiddleware({
+  target: 'http://localhost:3333', // Placeholder, overridden by router
+  router: async (req: any) => {
+    const userId = getUserId(req);
+    if (userId) {
+      try {
+        const manager = containerRegistry.getManager(userId);
+        return await manager.getContainerUrl();
+      } catch (e) {
+        console.error('[Proxy Router] Error:', e.message);
+      }
+    }
+    return undefined;
+  },
+  changeOrigin: true,
+  ws: true,
+  pathRewrite: {
+    '^/api/proxy': '',
+  },
+  on: {
+    proxyRes: (proxyRes) => {
+      proxyRes.headers['Cross-Origin-Resource-Policy'] = 'cross-origin';
+      proxyRes.headers['Cross-Origin-Embedder-Policy'] = 'require-corp';
+    },
+    error: (err, req, res: any) => {
+      console.error('[Proxy Error]', err);
+      if (res.writeHead && !res.headersSent) {
+        res.writeHead(502, { 'Content-Type': 'text/plain' });
+        res.end('Container Proxy Error: ' + err.message);
+      }
+    }
+  }
+});
+
+// Apply Global Fallback Proxy
 app.use(async (req: any, res, next) => {
   if (req.path.startsWith('/api/auth') || (req.path.startsWith('/api') && !req.path.startsWith('/api/proxy'))) {
     return next();
   }
 
-  const queryUser = req.query.user as string;
-  const cookieUser = req.signedCookies?.['adorable_container_user'];
-  const userId = cookieUser || queryUser;
-
+  const userId = getUserId(req);
   if (userId) {
-    try {
-      if (queryUser && queryUser !== cookieUser) {
-        res.cookie('adorable_container_user', userId, { 
+    // If we found a user via query but not cookie, set the cookie now
+    // This works for HTTP requests where 'res' is an Express Response
+    const queryUser = new URL(req.url, `http://${req.headers.host}`).searchParams.get('user');
+    if (queryUser && !req.signedCookies?.['adorable_container_user']) {
+       res.cookie('adorable_container_user', queryUser, { 
           signed: true, 
           httpOnly: true, 
           sameSite: 'lax',
           maxAge: 7 * 24 * 60 * 60 * 1000 
-        });
-      }
-
-      const manager = containerRegistry.getManager(userId);
-      const target = await manager.getContainerUrl();
-      
-      return createProxyMiddleware({
-        target,
-        changeOrigin: true,
-        ws: true,
-        pathRewrite: (path) => path.replace(/^\/api\/proxy/, ''),
-        on: {
-          proxyRes: (proxyRes) => {
-            proxyRes.headers['Cross-Origin-Resource-Policy'] = 'cross-origin';
-            proxyRes.headers['Cross-Origin-Embedder-Policy'] = 'require-corp';
-          }
-        }
-      })(req, res, next);
-    } catch (e) {
-      console.error('[Proxy] Error:', e.message);
-      return next();
+       });
     }
+    return (containerProxy as any)(req, res, next);
   }
   next();
 });
@@ -717,33 +762,16 @@ const server = app.listen(port, () => {
 });
 
 // WebSocket Upgrade Handler for HMR support in multi-user environment
-server.on('upgrade', async (req: any, socket, head) => {
-  const cookieHeader = req.headers.cookie;
-  if (!cookieHeader) return;
-  
-  const cookies = cookie.parse(cookieHeader);
-  const rawCookie = cookies['adorable_container_user'];
-  if (!rawCookie) return;
-  
-  // Signed cookies are prefixed with 's:'
-  const userId = signature.unsign(rawCookie.slice(2), JWT_SECRET);
-  if (!userId) return;
+server.on('upgrade', (req, socket, head) => {
+  const userId = getUserId(req);
 
-  try {
-    const manager = containerRegistry.getManager(userId as string);
-    const target = await manager.getContainerUrl();
-    
-    // Create a one-off proxy for the upgrade
-    const wsProxy = createProxyMiddleware({ 
-      target, 
-      ws: true, 
-      changeOrigin: true,
-      pathRewrite: (path) => path.replace(/^\/api\/proxy/, '')
-    });
-    
-    (wsProxy as any).upgrade(req, socket, head);
-  } catch (e) {
-    console.error('[WS Upgrade Error]', e.message);
+  if (userId) {
+     // Let the global container proxy handle the upgrade
+     (containerProxy as any).upgrade(req, socket, head);
+  } else {
+     // console.log(`[WS Upgrade] No user found for request: ${req.url}`);
+     // If we don't handle it, we could destroy it or let other handlers try
+     // socket.destroy(); 
   }
 });
 
