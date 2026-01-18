@@ -71,7 +71,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/auth', authRouter);
 app.use('/api/projects', projectRouter);
-app.use('/api/ai', aiRouter);
+app.use('/api', aiRouter);
 app.use('/api/container', containerRouter);
 app.use('/api/profile', profileRouter);
 
