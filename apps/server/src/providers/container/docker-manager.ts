@@ -189,6 +189,14 @@ export class DockerManager {
   ): Promise<{ output: string; exitCode: number }> {
     if (!this.container) throw new Error('Container not started');
 
+    // Auto-unpause if needed
+    const info = await this.container.inspect();
+    if (info.State.Paused) {
+       await this.container.unpause();
+    } else if (!info.State.Running) {
+       await this.container.start();
+    }
+
     const envArray = env
       ? Object.entries(env).map(([k, v]) => `${k}=${v}`)
       : [];
@@ -241,6 +249,14 @@ export class DockerManager {
     env?: any,
   ): Promise<number> {
     if (!this.container) throw new Error('Container not started');
+
+    // Auto-unpause if needed
+    const info = await this.container.inspect();
+    if (info.State.Paused) {
+       await this.container.unpause();
+    } else if (!info.State.Running) {
+       await this.container.start();
+    }
 
     const envArray = env
       ? Object.entries(env).map(([k, v]) => `${k}=${v}`)

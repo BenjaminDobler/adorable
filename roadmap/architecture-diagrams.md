@@ -1,8 +1,8 @@
 # Architecture Diagrams
 
-## 1. Software Component Architecture (Today)
+## 1. Software Component Architecture (Frontend)
 
-This diagram shows the relationship between UI components, core services, and external dependencies in the current codebase.
+This diagram shows the relationship between UI components, core services, and the hybrid execution engines.
 
 ```mermaid
 graph LR
@@ -16,37 +16,90 @@ graph LR
 
     subgraph Service_Layer [Core Services]
         Proj[ProjectService]
-        WC[WebContainerService]
+        Smart[SmartContainerEngine]
+        Store[FileSystemStore]
         API[ApiService]
-        Tpl[TemplateService]
     end
 
-    subgraph External_Runtime [Runtime]
+    subgraph Engines [Hybrid Engines]
+        BrowserE[BrowserContainerEngine]
+        LocalE[LocalContainerEngine]
+    end
+
+    subgraph Runtimes [Execution Runtimes]
         WCApi[["@webcontainer/api"]]
-        ServerProxy[[Express Backend]]
+        Docker[[Docker Containers]]
     end
 
     %% Component to Service
     Chat -- "manages project" --> Proj
-    Editor -- "updates files" --> Proj
+    Editor -- "updates files" --> Store
     Dash -- "loads/saves" --> Proj
-    Explorer -- "selects files" --> Proj
+    Explorer -- "selects files" --> Store
+    Proj -- "syncs" --> Store
     
-    %% Service to Service
-    Proj -- "coordinates" --> WC
+    %% Service to Engine
+    Proj -- "coordinates" --> Smart
+    Smart -- "proxies" --> BrowserE
+    Smart -- "proxies" --> LocalE
+    
+    %% Engine to Runtime
+    BrowserE -- "mounts/execs" --> WCApi
+    LocalE -- "HTTP/WS Proxy" --> Docker
+    
+    %% Service to Backend
     Proj -- "calls" --> API
-    Chat -- "visual edits" --> Tpl
-    
-    %% Service to External
-    WC -- "mounts/execs" --> WCApi
-    API -- "HTTPS" --> ServerProxy
+    API -- "REST / SSE" --> NodeBackend[[Express Backend]]
 ```
 
 ---
 
-## 2. Infrastructure Architecture (Monolith / Local)
+## 2. Backend Architecture (Modular)
 
-This represents the current state of the application running on your local machine.
+The current refactored state of the Express server.
+
+```mermaid
+graph TD
+    subgraph Express_App [Express Server :3333]
+        Main[main.ts]
+        Proxy[Proxy Middleware]
+        Auth[Auth Middleware]
+        
+        subgraph Routers
+            ProjR[Project Router]
+            AuthR[Auth Router]
+            AIR[AI Router]
+            ContR[Container Router]
+        end
+        
+        subgraph Providers
+            DockerM[Docker Manager]
+            LLM[LLM Factory]
+        end
+    end
+
+    subgraph Persistence
+        DB[(SQLite / Prisma)]
+        HostFS[Host File System]
+    end
+
+    Main --> Proxy
+    Main --> Routers
+    
+    Proxy -- "getUserId" --> Auth
+    ProjR -- "CRUD" --> DB
+    ContR -- "Orchestrates" --> DockerM
+    AIR -- "Prompts" --> LLM
+    
+    DockerM -- "Volumes" --> HostFS
+    DockerM -- "pkill/fuser" --> Containers[[User Containers]]
+```
+
+---
+
+## 3. Infrastructure Architecture (Local)
+
+The hybrid local environment using both in-browser virtualization and Docker.
 
 ```mermaid
 graph TD
@@ -54,113 +107,82 @@ graph TD
         Browser[Browser]
         Server[Node.js Server :3333]
         DB[(SQLite DB)]
-        LLM[LLM Providers]
+        
+        subgraph Docker_Engine [Docker Desktop]
+            C1[[User A Container]]
+            C2[[User B Container]]
+        end
+        
+        Storage[./storage/projects/]
     end
 
-    Browser -- "HTTP / API" --> Server
-    Browser -- "WebContainer (In-Browser Node.js)" --> BrowserFS[Virtual File System]
+    Browser -- "WebContainer" --> VirtualFS[Virtual File System]
+    Browser -- "HTTP / WS (HMR)" --> Server
     
+    Server -- "Proxy" --> C1
+    Server -- "Proxy" --> C2
     Server -- "Prisma" --> DB
-    Server -- "HTTP" --> LLM
     
-    LLM -.-> |Gemini/Anthropic| Server
+    C1 -- "Mount" --> Storage
+    C2 -- "Mount" --> Storage
+    
+    Server -- "HTTPS" --> CloudLLM[AI APIs]
 ```
 
 ---
 
-## 2. Proposed Split Deployment (Production)
+## 4. Container Abstraction (Class Diagram)
 
-The target architecture for deployment on Render and GitHub Pages.
-
-```mermaid
-graph TD
-    subgraph Client_Side [User's Browser]
-        AngularApp[Angular App (GitHub Pages)]
-        WC[WebContainer Runtime]
-    end
-
-    subgraph Backend [Render.com]
-        APIServer[Node.js API Service]
-        Postgres[(PostgreSQL DB)]
-    end
-
-    subgraph External
-        Anthropic[Anthropic API]
-        Google[Google Gemini API]
-    end
-
-    AngularApp -- "HTTPS (API)" --> APIServer
-    AngularApp -- "Executes Code" --> WC
-    
-    APIServer -- "Read/Write" --> Postgres
-    APIServer -- "Prompt" --> Anthropic
-    APIServer -- "Prompt" --> Google
-```
-
----
-
-## 3. Future Container Abstraction (Hybrid Engine)
-
-The proposed architecture to support both in-browser and server-side execution.
+The implemented abstraction for execution engines.
 
 ```mermaid
 classDiagram
-    class ProjectService {
-        +loadProject()
-        +saveProject()
-        +engine: ContainerEngine
+    class ContainerEngine {
+        <<abstract>>
+        +mode: Signal
+        +status: Signal
+        +url: Signal
+        +boot()*
+        +mount()*
+        +exec()*
+        +stopDevServer()*
     }
 
-    class ContainerEngine {
-        <<Interface>>
-        +boot()
-        +mount()
-        +exec()
+    class SmartContainerEngine {
+        -activeEngine: Computed
+        +setMode(mode)
     }
 
     class BrowserContainerEngine {
         -webcontainer: WebContainer
-        +boot()
-        +mount()
-        +exec()
-    }
-
-    class RemoteContainerEngine {
-        -apiEndpoint: string
-        +boot()
-        +mount()
-        +exec()
     }
     
     class LocalContainerEngine {
-        -dockerSocket: string
-        +boot()
-        +mount()
-        +exec()
+        -apiUrl: string
     }
 
-    ProjectService --> ContainerEngine
+    ContainerEngine <|-- SmartContainerEngine : Extends
     ContainerEngine <|-- BrowserContainerEngine : Implements
-    ContainerEngine <|-- RemoteContainerEngine : Implements
     ContainerEngine <|-- LocalContainerEngine : Implements
+    
+    SmartContainerEngine o-- BrowserContainerEngine : Aggregates
+    SmartContainerEngine o-- LocalContainerEngine : Aggregates
 
-    note for BrowserContainerEngine "Uses @webcontainer/api\n(Current Implementation)"
-    note for RemoteContainerEngine "Uses Fly.io / Firecracker\n(Future - Phase 1)"
-    note for LocalContainerEngine "Uses Local Docker/Podman\n(Future - Dev Mode)"
+    link ContainerEngine "https://github.com/BenjaminDobler/adorable/blob/main/apps/client/src/app/services/container-engine.ts"
 ```
 
 ---
 
-## 4. Remote Execution Flow (Sequence)
+## 5. Remote Execution Flow (Future)
 
-How the frontend interacts with a remote MicroVM backend.
+Proposed flow for remote Firecracker/MicroVM execution.
 
 ```mermaid
 sequenceDiagram
     participant User
     participant Angular as Angular Client
     participant API as Backend API
-    participant Fly as Fly.io / Firecracker
+    participant Fly as Remote Infrastructure
 
     User->>Angular: Opens Project
     Angular->>API: POST /session/start
