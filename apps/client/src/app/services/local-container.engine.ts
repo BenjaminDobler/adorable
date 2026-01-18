@@ -187,6 +187,7 @@ export class LocalContainerEngine extends ContainerEngine {
 
   async stopDevServer(): Promise<void> {
     this.status.set('Stopping dev server...');
+    this.url.set(null); // Clear URL immediately
     try {
       // Kill any process using node or npm to free up port 4200
       // We use sh -c to handle the OR/TRUE logic safely in a one-off exec

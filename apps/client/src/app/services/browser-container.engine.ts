@@ -107,13 +107,15 @@ export class BrowserContainerEngine extends ContainerEngine {
   }
 
   async stopDevServer() {
+      this.url.set(null);
+      this.status.set('Stopping dev server...');
+      
       if (this.serverProcess) {
         this.serverProcess.kill();
         await this.serverProcess.exit;
         this.serverProcess = undefined;
-        this.url.set(null);
-        this.status.set('Server stopped');
       }
+      this.status.set('Server stopped');
   }
   
   async clean() {

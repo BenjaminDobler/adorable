@@ -51,6 +51,9 @@ export class ProjectService {
 
   async loadProject(id: string) {
     this.loading.set(true);
+    // Clear current preview state immediately
+    this.webContainerService.stopDevServer();
+    
     this.apiService.loadProject(id).subscribe({
       next: async (project) => {
         this.projectId.set(project.id);
