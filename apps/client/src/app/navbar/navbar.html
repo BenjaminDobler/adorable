@@ -1,11 +1,74 @@
 <nav class="navbar" *ngIf="authService.isAuthenticated()">
   <div class="navbar-inner">
-    <div class="brand" routerLink="/dashboard">
+    <div class="brand" (click)="goBack()">
       <img src="logo.png" alt="Adorable Logo" class="logo" />
       <span style="margin-left: -7px;">dorable</span>
     </div>
+
+    @if (isProjectView()) {
+      <div class="project-actions-center">
+        <div class="project-info">
+          <input
+            [(ngModel)]="projectService.projectName"
+            class="project-name-input"
+            placeholder="Project Name"
+          />
+          <div class="status-group">
+            <select [value]="webContainerService.mode()" (change)="toggleEngine($event)" class="engine-select">
+              <option value="browser">Browser</option>
+              <option value="local">Docker</option>
+            </select>
+            <div
+              class="status-badge"
+              [class.active]="webContainerService.url()"
+              [class.error]="webContainerService.buildError()"
+            >
+              {{ webContainerService.status() }}
+            </div>
+          </div>
+        </div>
+
+        <div class="v-divider"></div>
+
+        <div class="action-group">
+          <button
+            (click)="projectService.migrateProject()"
+            [disabled]="projectService.loading() || projectService.fileStore.isEmpty()"
+            class="icon-btn"
+            title="Repair Project Configuration"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+          </button>
+          <button
+            (click)="projectService.saveProject()"
+            [disabled]="projectService.loading() || projectService.fileStore.isEmpty()"
+            class="icon-btn"
+            title="Save changes"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+          </button>
+          <button
+            (click)="projectService.publish()"
+            [disabled]="projectService.loading() || projectService.fileStore.isEmpty()"
+            class="icon-btn"
+            title="Publish live site"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1-2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="11" x2="21" y2="3"></line></svg>
+          </button>
+          <button
+            (click)="projectService.downloadZip()"
+            [disabled]="projectService.loading() || projectService.fileStore.isEmpty()"
+            class="icon-btn"
+            title="Download source"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          </button>
+        </div>
+      </div>
+    }
+
     <div class="user-menu">
-      <a class="user-link" routerLink="/profile">
+      <a class="user-link" routerLink="/profile" routerLinkActive="active">
         <span class="user-name">{{ authService.currentUser()?.name || 'User' }}</span>
       </a>
       <button class="btn-logout" (click)="logout()">Sign out</button>

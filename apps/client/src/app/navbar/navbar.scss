@@ -3,65 +3,210 @@
   justify-content: center;
   align-items: center;
   height: 64px;
-  background: var(--bg-color);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
   border-bottom: 1px solid var(--panel-border);
   position: sticky;
   top: 0;
   z-index: 100;
-  padding: 0 1.5rem;
+  padding: 0 2rem;
 
   .navbar-inner {
     width: 100%;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 2rem;
   }
 
   .brand {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    font-size: 1.125rem;
-    font-weight: 600;
+    gap: 0.875rem;
+    font-size: 1.1rem;
+    font-weight: 700;
     color: var(--text-primary);
     cursor: pointer;
-    letter-spacing: -0.025em;
+    letter-spacing: -0.02em;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+
+    &:hover {
+      transform: translateY(-1px);
+    }
 
     .logo {
-      height: 24px;
+      height: 22px;
       width: auto;
+      filter: drop-shadow(0 0 8px var(--accent-glow));
+    }
+  }
+
+  /* Centered Project Actions */
+  .project-actions-center {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    background: var(--bg-surface-2);
+    padding: 0.5rem 1.25rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--panel-border);
+    max-width: fit-content;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .project-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 180px;
+
+    .project-name-input {
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 0;
+      width: 100%;
+      cursor: pointer;
+      &:focus {
+        cursor: text;
+      }
+    }
+
+    .status-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 2px;
+    }
+
+    .engine-select {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 0;
+      cursor: pointer;
+      &:hover {
+        color: var(--text-secondary);
+      }
+    }
+
+    .status-badge {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      
+      &::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--text-muted);
+      }
+      &.active {
+        color: var(--accent-color);
+        &::before {
+          background: var(--accent-color);
+          box-shadow: 0 0 8px var(--accent-color);
+        }
+      }
+      &.error {
+        color: var(--error-color);
+        &::before { background: var(--error-color); }
+      }
+    }
+  }
+
+  .v-divider {
+    width: 1px;
+    height: 24px;
+    background: var(--panel-border);
+  }
+
+  .action-group {
+    display: flex;
+    gap: 0.5rem;
+
+    .icon-btn {
+      background: var(--bg-surface-3);
+      border: 1px solid var(--panel-border);
+      color: var(--text-secondary);
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-md);
+      transition: all 0.2s;
+
+      &:hover:not(:disabled) {
+        color: var(--text-primary);
+        border-color: var(--text-muted);
+        background: var(--bg-surface-3);
+        transform: translateY(-1px);
+      }
+      &:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
     }
   }
 
   .user-menu {
     display: flex;
     align-items: center;
-    gap: 1.5rem;
+    gap: 1.75rem;
+    flex-shrink: 0;
   }
 
   .user-link {
     color: var(--text-secondary);
     text-decoration: none;
-    font-size: 0.875rem;
-    font-weight: 500;
-    transition: color 0.2s;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.2s;
+    letter-spacing: 0.01em;
+    
     &:hover {
+      color: var(--accent-color);
+    }
+    
+    &.active {
       color: var(--text-primary);
     }
   }
 
   .btn-logout {
-    background: var(--panel-bg);
+    background: var(--bg-surface-2);
     border: 1px solid var(--panel-border);
-    color: var(--text-primary);
-    padding: 0.4rem 0.8rem;
-    border-radius: var(--radius);
+    color: var(--text-secondary);
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
     cursor: pointer;
-    font-size: 0.8125rem;
-    font-weight: 500;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    
     &:hover {
-      background: var(--panel-border);
-      border-color: #444;
+      background: var(--bg-surface-3);
+      color: var(--text-primary);
+      border-color: var(--text-muted);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
+    
+    &:active {
+      transform: translateY(0);
     }
   }
 }

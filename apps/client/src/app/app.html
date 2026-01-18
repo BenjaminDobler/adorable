@@ -7,134 +7,6 @@
   (mouseup)="onMouseUp()"
 >
   <aside class="sidebar" [style.width.px]="sidebarWidth()">
-    <header class="editor-header">
-      <button class="btn-back" (click)="goBack()">
-        <svg
-          viewBox="0 0 24 24"
-          width="16"
-          height="16"
-          stroke="currentColor"
-          stroke-width="2"
-          fill="none"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <line x1="19" y1="12" x2="5" y2="12"></line>
-          <polyline points="12 19 5 12 12 5"></polyline>
-        </svg>
-      </button>
-      <div class="project-meta">
-        <input
-          [(ngModel)]="projectService.projectName"
-          class="project-name-input"
-          placeholder="Project Name"
-        />
-        <div style="display: flex; gap: 8px; align-items: center">
-          <select [value]="webContainerService.mode()" (change)="toggleEngine($event)" style="background: rgba(0,0,0,0.2); border: 1px solid var(--panel-border); color: var(--text-secondary); padding: 2px 4px; border-radius: 4px; font-size: 10px;">
-            <option value="browser">Browser</option>
-            <option value="local">Local Docker</option>
-          </select>
-          <div
-            class="status-badge"
-            [class.active]="webContainerService.url()"
-            [class.error]="webContainerService.buildError()"
-          >
-            {{ webContainerService.status() }}
-          </div>
-        </div>
-      </div>
-      <div class="header-actions">
-        <button
-          (click)="projectService.migrateProject()"
-          [disabled]="loading() || projectService.fileStore.isEmpty()"
-          class="icon-btn"
-          title="Repair Project Configuration"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="18"
-            height="18"
-            stroke="currentColor"
-            stroke-width="2"
-            fill="none"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path
-              d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
-            ></path>
-          </svg>
-        </button>
-        <button
-          (click)="saveProject()"
-          [disabled]="loading() || projectService.fileStore.isEmpty()"
-          class="icon-btn"
-          title="Save changes"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="18"
-            height="18"
-            stroke="currentColor"
-            stroke-width="2"
-            fill="none"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path
-              d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"
-            ></path>
-            <polyline points="17 21 17 13 7 13 7 21"></polyline>
-            <polyline points="7 3 7 8 15 8"></polyline>
-          </svg>
-        </button>
-        <button
-          (click)="publish()"
-          [disabled]="loading() || projectService.fileStore.isEmpty()"
-          class="icon-btn"
-          title="Publish live site"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="18"
-            height="18"
-            stroke="currentColor"
-            stroke-width="2"
-            fill="none"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path
-              d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1-2-2h6"
-            ></path>
-            <polyline points="15 3 21 3 21 9"></polyline>
-            <line x1="10" y1="11" x2="21" y2="3"></line>
-          </svg>
-        </button>
-        <button
-          (click)="downloadZip()"
-          [disabled]="loading() || projectService.fileStore.isEmpty()"
-          class="icon-btn"
-          title="Download source"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="18"
-            height="18"
-            stroke="currentColor"
-            stroke-width="2"
-            fill="none"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-        </button>
-      </div>
-    </header>
-
     <div class="chat-section">
       <div class="tab-bar">
         <button
@@ -287,32 +159,11 @@
     >
       @if (webContainerService.url()) {
       <div class="preview-frame-container">
-        <div
-          class="preview-toolbar"
-          style="
-            padding: 8px;
-            border-bottom: 1px solid var(--panel-border);
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
-            background: var(--bg-color);
-          "
-        >
+        <div class="preview-toolbar">
           <button
             [class.active]="isInspectionActive()"
             (click)="toggleInspection()"
             title="Inspect Element"
-            style="
-              background: var(--panel-bg);
-              border: 1px solid var(--panel-border);
-              border-radius: 4px;
-              padding: 4px 8px;
-              cursor: pointer;
-              display: flex;
-              align-items: center;
-              color: var(--text-secondary);
-              transition: all 0.2s;
-            "
           >
             <svg
               viewBox="0 0 24 24"
@@ -332,17 +183,6 @@
             [class.active]="layoutService.isFullscreen()"
             (click)="layoutService.isFullscreen.set(!layoutService.isFullscreen())"
             title="Toggle Fullscreen"
-            style="
-              background: var(--panel-bg);
-              border: 1px solid var(--panel-border);
-              border-radius: 4px;
-              padding: 4px 8px;
-              cursor: pointer;
-              display: flex;
-              align-items: center;
-              color: var(--text-secondary);
-              transition: all 0.2s;
-            "
           >
             <svg
               viewBox="0 0 24 24"
@@ -362,17 +202,6 @@
           <button
             (click)="reloadIframe()"
             title="Refresh Preview"
-            style="
-              background: var(--panel-bg);
-              border: 1px solid var(--panel-border);
-              border-radius: 4px;
-              padding: 4px 8px;
-              cursor: pointer;
-              display: flex;
-              align-items: center;
-              color: var(--text-secondary);
-              transition: all 0.2s;
-            "
           >
             <svg
               viewBox="0 0 24 24"
@@ -403,17 +232,7 @@
           <div class="spinner-large"></div>
           <h2>Building your app...</h2>
           <p class="loading-text">{{ currentMessage() }}</p>
-          <p
-            class="status-detail"
-            style="
-              margin-top: 1rem;
-              font-family: monospace;
-              color: var(--accent-color);
-              background: rgba(62, 207, 142, 0.1);
-              padding: 4px 8px;
-              border-radius: 4px;
-            "
-          >
+          <p class="status-detail">
             > {{ webContainerService.status() }}
           </p>
         </div>
