@@ -282,6 +282,8 @@ export class AppComponent implements AfterViewChecked {
     const select = event.target as HTMLSelectElement;
     if (this.webContainerService instanceof SmartContainerEngine) {
        this.webContainerService.setMode(select.value as 'browser' | 'local');
+       // Re-trigger preview in new engine
+       this.projectService.reloadPreview(this.projectService.files());
     }
   }
 
