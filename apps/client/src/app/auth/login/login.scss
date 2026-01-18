@@ -9,13 +9,13 @@
 }
 
 .auth-card {
-  background: var(--bg-color);
+  background: var(--bg-surface-1);
   padding: 3.5rem;
   border: 1px solid var(--panel-border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   width: 100%;
   max-width: 440px;
-  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-xl);
 
   .auth-header {
     display: flex;
@@ -27,13 +27,14 @@
     .auth-logo {
       height: 48px;
       width: auto;
+      filter: drop-shadow(0 0 10px var(--accent-glow));
     }
   }
 
   h1 { 
     margin: 0; 
-    font-size: 1.5rem; 
-    font-weight: 700; 
+    font-size: 1.75rem; 
+    font-weight: 800; 
     color: var(--text-primary); 
     text-align: center; 
     letter-spacing: -0.04em;
@@ -43,7 +44,8 @@
     margin: 0.5rem 0 2.5rem; 
     color: var(--text-secondary); 
     text-align: center; 
-    font-size: 0.9375rem;
+    font-size: 0.95rem;
+    font-weight: 500;
   }
 }
 
@@ -53,19 +55,20 @@
   flex-direction: column;
   gap: 0.625rem;
 
-  label { font-size: 0.8125rem; font-weight: 500; color: var(--text-secondary); }
+  label { font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); }
   input {
-    background: #0a0a0a;
+    background: var(--bg-surface-2);
     border: 1px solid var(--panel-border);
-    border-radius: var(--radius);
+    border-radius: var(--radius-md);
     padding: 0.75rem;
-    color: white;
+    color: var(--text-primary);
     font-size: 0.9375rem;
     transition: all 0.2s;
     &:focus { 
       outline: none; 
       border-color: var(--accent-color);
-      box-shadow: 0 0 0 2px rgba(62, 207, 142, 0.1);
+      background: var(--input-bg);
+      box-shadow: 0 0 0 3px var(--accent-glow);
     }
   }
 }
@@ -75,14 +78,31 @@ button {
   background: var(--accent-color);
   color: #000;
   border: none;
-  border-radius: var(--radius);
-  padding: 0.75rem;
-  font-weight: 600;
-  font-size: 0.875rem;
+  border-radius: var(--radius-md);
+  padding: 0.875rem;
+  font-weight: 700;
+  font-size: 0.9rem;
   cursor: pointer;
   margin-top: 1rem;
-  &:hover:not(:disabled) { background: var(--accent-hover); }
-  &:disabled { background: var(--panel-border); color: #444; }
+  box-shadow: 0 0 15px var(--accent-glow);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:hover:not(:disabled) { 
+    background: var(--accent-hover); 
+    transform: translateY(-2px);
+    box-shadow: 0 0 25px var(--accent-glow);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+
+  &:disabled { 
+    background: var(--panel-border); 
+    color: var(--text-muted); 
+    cursor: not-allowed;
+    box-shadow: none;
+  }
 }
 
 .error-message {
@@ -90,21 +110,22 @@ button {
   font-size: 0.8125rem;
   margin-bottom: 1.25rem;
   text-align: center;
-  background: rgba(248, 113, 113, 0.1);
+  background: rgba(239, 68, 68, 0.05);
   padding: 0.75rem;
-  border-radius: 6px;
-  border: 1px solid rgba(248, 113, 113, 0.2);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
 .footer {
   margin-top: 2rem;
   text-align: center;
-  font-size: 0.8125rem;
+  font-size: 0.85rem;
   color: var(--text-secondary);
+  font-weight: 500;
   a { 
     color: var(--text-primary); 
-    font-weight: 600;
+    font-weight: 700;
     text-decoration: none; 
-    &:hover { color: var(--accent-color); text-decoration: underline; } 
+    &:hover { color: var(--accent-color); } 
   }
 }

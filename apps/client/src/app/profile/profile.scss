@@ -3,39 +3,41 @@
   width: 100vw;
   background: var(--bg-color);
   padding: 4rem 1.5rem;
-  display: block; /* Changed from flex */
+  display: block; 
   overflow-y: auto;
   color: var(--text-primary);
 }
 
 .profile-card {
-  background: var(--bg-color);
+  background: var(--bg-surface-1);
   border: 1px solid var(--panel-border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 3rem;
   width: 100%;
-  max-width: 800px; /* Increased from 640px */
+  max-width: 800px;
   margin: 0 auto 4rem auto;
+  box-shadow: var(--shadow-lg);
 
   .header {
     margin-bottom: 3rem;
     
     .btn-back {
-      background: transparent;
+      background: var(--bg-surface-2);
       border: 1px solid var(--panel-border);
       color: var(--text-secondary);
       padding: 0.5rem 1rem;
-      border-radius: var(--radius);
+      border-radius: var(--radius-md);
       cursor: pointer;
       font-size: 0.8125rem;
       margin-bottom: 1.5rem;
-      &:hover { color: var(--text-primary); border-color: #444; }
+      transition: all 0.2s;
+      &:hover { color: var(--text-primary); border-color: var(--text-muted); background: var(--bg-surface-3); }
     }
 
     h1 { 
       margin: 0; 
-      font-size: 1.875rem; 
-      font-weight: 700; 
+      font-size: 2rem; 
+      font-weight: 800; 
       letter-spacing: -0.04em;
       color: var(--text-primary); 
     }
@@ -46,11 +48,11 @@
   margin-bottom: 2.5rem;
   h3 { 
     margin: 0 0 1.5rem 0; 
-    font-size: 0.875rem; 
-    font-weight: 600;
+    font-size: 0.85rem; 
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--text-secondary); 
+    color: var(--text-muted); 
   }
 }
 
@@ -58,6 +60,43 @@
   border: 0;
   border-top: 1px solid var(--panel-border);
   margin: 3rem 0;
+}
+
+/* Shared Input & Select Styles */
+select, input {
+  background: var(--bg-surface-2);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+  
+  &:focus { 
+    outline: none; 
+    border-color: var(--accent-color);
+    background: var(--input-bg);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  &::placeholder {
+    color: var(--text-muted);
+  }
+}
+
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='gray' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+  padding-right: 2.5rem;
+  cursor: pointer;
+  
+  option {
+    background: var(--bg-surface-1);
+    color: var(--text-primary);
+  }
 }
 
 .form-group {
@@ -68,37 +107,23 @@
 
   label { 
     font-size: 0.875rem; 
-    font-weight: 500; 
+    font-weight: 600; 
     color: var(--text-secondary); 
   }
 
   .read-only {
-    background: #0a0a0a;
+    background: var(--bg-surface-2);
     border: 1px solid var(--panel-border);
-    border-radius: var(--radius);
+    border-radius: var(--radius-md);
     padding: 0.75rem;
-    color: #666;
+    color: var(--text-secondary);
     font-size: 0.9375rem;
-  }
-
-  select, input {
-    background: #0a0a0a;
-    border: 1px solid var(--panel-border);
-    border-radius: var(--radius);
-    padding: 0.75rem;
-    color: var(--text-primary);
-    font-size: 0.9375rem;
-    transition: all 0.2s;
-    &:focus { 
-      outline: none; 
-      border-color: var(--accent-color);
-      box-shadow: 0 0 0 2px rgba(62, 207, 142, 0.1);
-    }
+    font-weight: 500;
   }
 
   .hint { 
     font-size: 0.75rem; 
-    color: #555; 
+    color: var(--text-muted); 
     line-height: 1.4;
   }
 }
@@ -112,21 +137,33 @@
     background: var(--accent-color);
     color: #000;
     border: none;
-    border-radius: var(--radius);
-    padding: 0.75rem 2rem;
-    font-weight: 600;
-    font-size: 0.875rem;
+    border-radius: var(--radius-md);
+    padding: 0.75rem 2.5rem;
+    font-weight: 700;
+    font-size: 0.9rem;
     cursor: pointer;
-    &:hover:not(:disabled) { background: var(--accent-hover); }
-    &:disabled { background: var(--panel-border); color: #444; cursor: not-allowed; }
+    box-shadow: 0 0 15px var(--accent-glow);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    &:hover:not(:disabled) { 
+      background: var(--accent-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 0 25px var(--accent-glow);
+    }
+    
+    &:disabled { 
+      background: var(--panel-border); 
+      color: var(--text-muted); 
+      cursor: not-allowed;
+      box-shadow: none;
+    }
   }
 }
 
-/* NEW STYLES FOR PROVIDERS GRID */
 .providers-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 1.5rem;
   margin-bottom: 24px;
 
   @media (max-width: 600px) {
@@ -135,30 +172,27 @@
 }
 
 .provider-card {
-  background: var(--panel-bg);
+  background: var(--bg-surface-2);
   border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  transition: all 0.2s;
+  border-radius: var(--radius-lg);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
-  padding: 0; /* Reset internal padding */
-  width: auto; /* Reset width constraint */
-  max-width: none;
-  margin: 0;
-  box-shadow: none;
+  overflow: hidden;
 
   &:hover {
-    border-color: #444;
+    border-color: var(--text-muted);
+    background: var(--bg-surface-3);
   }
 
   &.active {
     border-color: var(--accent-color);
-    background: rgba(62, 207, 142, 0.05);
-    box-shadow: 0 0 0 1px var(--accent-color);
+    background: var(--accent-glow);
+    box-shadow: var(--shadow-md);
   }
 
   .card-header {
-    padding: 16px;
+    padding: 1.25rem;
     border-bottom: 1px solid var(--panel-border);
     display: flex;
     justify-content: space-between;
@@ -176,32 +210,38 @@
       width: 20px;
       height: 20px;
       border-radius: 50%;
-      border: 2px solid #555;
+      border: 2px solid var(--panel-border);
       display: flex;
       align-items: center;
       justify-content: center;
       transition: all 0.2s;
+      background: var(--bg-surface-1);
 
       .radio-inner {
         width: 10px;
         height: 10px;
         border-radius: 50%;
         background: var(--accent-color);
+        box-shadow: 0 0 8px var(--accent-color);
       }
     }
 
     .provider-name {
-      font-weight: 600;
+      font-weight: 700;
       color: var(--text-primary);
+      letter-spacing: -0.01em;
     }
 
     .badge {
-      font-size: 0.75rem;
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
       background: rgba(62, 207, 142, 0.1);
       color: var(--accent-color);
       padding: 2px 8px;
       border-radius: 12px;
-      font-weight: 500;
+      font-weight: 800;
+      border: 1px solid var(--panel-border-glow);
     }
   }
 
@@ -210,18 +250,10 @@
   }
 
   .card-body {
-    padding: 16px;
+    padding: 1.25rem;
     display: flex;
     flex-direction: column;
-    gap: 16px;
-  }
-}
-
-.routing-grid {
-  transition: opacity 0.2s;
-  &.disabled {
-    opacity: 0.4;
-    pointer-events: none;
+    gap: 1.25rem;
   }
 }
 
@@ -230,7 +262,7 @@
   position: relative;
   display: inline-block;
   width: 44px;
-  height: 22px;
+  height: 24px;
 
   input { 
     opacity: 0;
@@ -246,9 +278,10 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #333;
+  background-color: var(--bg-surface-3);
   transition: .4s;
   border-radius: 34px;
+  border: 1px solid var(--panel-border);
 
   &:before {
     position: absolute;
@@ -257,20 +290,18 @@
     width: 16px;
     left: 3px;
     bottom: 3px;
-    background-color: white;
+    background-color: var(--text-primary);
     transition: .4s;
     border-radius: 50%;
+    box-shadow: var(--shadow-sm);
   }
 }
 
 input:checked + .slider {
   background-color: var(--accent-color);
-}
-
-input:focus + .slider {
-  box-shadow: 0 0 1px var(--accent-color);
+  border-color: var(--accent-hover);
 }
 
 input:checked + .slider:before {
-  transform: translateX(22px);
+  transform: translateX(20px);
 }

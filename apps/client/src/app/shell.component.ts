@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { NavbarComponent } from './navbar/navbar';
 import { LayoutService } from './services/layout';
+import { ThemeService } from './services/theme';
 import { ToastComponent } from './ui/toast/toast.component';
 
 @Component({
@@ -18,4 +19,5 @@ import { ToastComponent } from './ui/toast/toast.component';
 })
 export class ShellComponent {
   public layoutService = inject(LayoutService);
+  public themeService = inject(ThemeService); // Triggers constructor effect
 }

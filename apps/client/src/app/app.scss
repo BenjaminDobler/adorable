@@ -279,7 +279,7 @@
 
 .preview-area {
   flex: 1;
-  background: #000;
+  background: var(--bg-color);
   padding: 1rem;
   display: flex;
   flex-direction: column;

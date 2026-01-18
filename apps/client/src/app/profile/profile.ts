@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../services/api';
 import { Router } from '@angular/router';
+import { ThemeService, ThemeMode } from '../services/theme';
 
 export type ProviderType = 'anthropic' | 'gemini';
 
@@ -31,6 +32,7 @@ export interface AppSettings {
   profiles: AIProfile[];
   activeProfileId: string;
   smartRouting?: SmartRoutingConfig;
+  theme?: ThemeMode;
 }
 
 @Component({
@@ -43,6 +45,7 @@ export interface AppSettings {
 export class ProfileComponent {
   private apiService = inject(ApiService);
   private router = inject(Router);
+  public themeService = inject(ThemeService);
 
   user = signal<any>(null);
   name = signal('');
@@ -71,7 +74,8 @@ export class ProfileComponent {
       simple: { provider: 'gemini', model: 'gemini-1.5-flash' },
       complex: { provider: 'anthropic', model: 'claude-3-5-sonnet-20240620' },
       vision: { provider: 'anthropic', model: 'claude-3-5-sonnet-20240620' }
-    }
+    },
+    theme: 'dark'
   });
 
   loading = signal(false);
@@ -129,14 +133,22 @@ export class ProfileComponent {
           return loaded ? { ...def, ...loaded, id: def.id } : def;
         });
 
-        this.settings.set({
+        const newSettings: AppSettings = {
           profiles: mergedProfiles,
           activeProfileId: parsed.activeProfileId || 'anthropic',
           smartRouting: {
             ...this.settings().smartRouting!,
             ...(parsed.smartRouting || {})
-          }
-        });
+          },
+          theme: parsed.theme || 'dark'
+        };
+
+        this.settings.set(newSettings);
+
+        // Apply theme from settings
+        if (newSettings.theme) {
+          this.themeService.setTheme(newSettings.theme);
+        }
 
         // Fetch models for profiles with keys
         this.settings().profiles.forEach(p => {
@@ -205,6 +217,11 @@ export class ProfileComponent {
 
   getTierConfig(tier: string): SmartRoutingTier | undefined {
     return (this.settings().smartRouting as any)?.[tier];
+  }
+
+  updateTheme(mode: ThemeMode) {
+    this.settings.update(s => ({ ...s, theme: mode }));
+    this.themeService.setTheme(mode);
   }
 
   save() {

@@ -35,6 +35,31 @@
   --glass-blur: blur(12px);
 }
 
+body.light-mode {
+  --bg-color: #f8fafc;
+  --bg-surface-1: #ffffff;
+  --bg-surface-2: #f1f5f9;
+  --bg-surface-3: #e2e8f0;
+  
+  --panel-bg: rgba(255, 255, 255, 0.8);
+  --panel-border: rgba(0, 0, 0, 0.08);
+  --panel-border-glow: rgba(62, 207, 142, 0.1);
+  
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  
+  --input-bg: #ffffff;
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.2);
+  }
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
