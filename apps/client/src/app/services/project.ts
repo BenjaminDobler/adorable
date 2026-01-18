@@ -299,6 +299,19 @@ export class ProjectService {
            binaries.push({ path: fullPath, content: binary });
         } else {
            if (key === 'index.html' && typeof content === 'string') {
+              // Determine correct base href based on engine
+              // We cast to any to check mode if it's SmartContainerEngine
+              const engine: any = this.webContainerService;
+              const isLocal = engine.mode && engine.mode() === 'local';
+              const baseHref = isLocal ? '/api/proxy/' : '/';
+
+              if (content.includes('<base href=')) {
+                 content = content.replace(/<base href="[^"]*"/, `<base href="${baseHref}"`);
+              } else {
+                 content = content.replace('<head>', `<head>\n  <base href="${baseHref}" />`);
+              }
+
+              // Ensure we have the latest runtime scripts (modern-screenshot)
               if (!content.includes('modern-screenshot')) {
                  content = content.replace('<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>', '');
                  content = content.replace('</head>', `${RUNTIME_SCRIPTS}\n</head>`);

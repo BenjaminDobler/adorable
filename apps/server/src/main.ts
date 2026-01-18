@@ -26,9 +26,10 @@ app.use('/api/proxy', createProxyMiddleware({
   target: 'http://localhost:4200', // Default fallback
   router: async () => {
      try {
-       return await dockerManager.getContainerUrl();
+       const url = await dockerManager.getContainerUrl();
+       return url.replace(/\/$/, ''); 
      } catch(e) {
-       return 'http://localhost:4200'; // Fallback
+       return 'http://localhost:4200';
      }
   },
   pathRewrite: {
@@ -36,6 +37,9 @@ app.use('/api/proxy', createProxyMiddleware({
   },
   on: {
     proxyRes: (proxyRes, req, res) => {
+       if (proxyRes.statusCode && proxyRes.statusCode >= 300 && proxyRes.statusCode < 400) {
+          console.log(`[Proxy Redirect] ${req.url} -> ${proxyRes.headers.location}`);
+       }
        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
        res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
     }
@@ -46,7 +50,7 @@ app.use('/api/proxy', createProxyMiddleware({
   ws: true,
   timeout: 60000,
   proxyTimeout: 60000,
-  logger: console // Debug
+  logger: console
 }));
 
 app.use(express.json({ limit: '50mb' }));

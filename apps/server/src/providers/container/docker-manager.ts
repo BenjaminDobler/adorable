@@ -21,7 +21,7 @@ export class DockerManager {
       WorkingDir: '/app',
       HostConfig: {
         PortBindings: {
-            '4200/tcp': [{ HostIp: '0.0.0.0', HostPort: '4201' }] // Fixed host port for debugging
+            '4200/tcp': [{ HostIp: '0.0.0.0', HostPort: '0' }] // Random host port
         }
       },
       ExposedPorts: {
@@ -35,7 +35,13 @@ export class DockerManager {
 
   async getContainerUrl(): Promise<string> {
       if (!this.container) throw new Error('Container not started');
-      return 'http://localhost:4201';
+      const data = await this.container.inspect();
+      const ports = data.NetworkSettings.Ports['4200/tcp'];
+      if (ports && ports[0]) {
+          // On macOS, always use 127.0.0.1 for the host side of mapping
+          return `http://127.0.0.1:${ports[0].HostPort}`;
+      }
+      throw new Error('Port not mapped');
   }
 
   private async ensureImage(image: string) {

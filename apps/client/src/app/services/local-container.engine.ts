@@ -12,6 +12,7 @@ export class LocalContainerEngine extends ContainerEngine {
   private apiUrl = 'http://localhost:3333/api/container';
 
   // State
+  public mode = signal<'browser' | 'local'>('local');
   public status = signal<string>('Idle');
   public url = signal<string | null>(null);
   public buildError = signal<string | null>(null);
