@@ -38,8 +38,8 @@ app.use('/api/proxy', createProxyMiddleware({
   ws: true,
   on: {
     proxyRes: (proxyRes, req, res) => {
+       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
        res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-       res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
     }
   },
   logger: console // Debug
