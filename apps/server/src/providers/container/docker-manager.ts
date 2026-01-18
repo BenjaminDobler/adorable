@@ -7,26 +7,28 @@ export class DockerManager {
   private container: Docker.Container | null = null;
 
   constructor() {
-    const socketPath = process.env['DOCKER_SOCKET_PATH'] || '/var/run/docker.sock';
-    this.docker = new Docker({ socketPath }); 
+    const socketPath =
+      process.env['DOCKER_SOCKET_PATH'] || '/var/run/docker.sock';
+    this.docker = new Docker({ socketPath });
   }
 
-  async createContainer(image = 'node:20-slim') {
+  async createContainer(image = 'node:20-slim', name?: string) {
     await this.ensureImage(image);
 
     this.container = await this.docker.createContainer({
       Image: image,
+      name: name,
       Cmd: ['/bin/sh', '-c', 'tail -f /dev/null'], // Keep alive
       Tty: true,
       WorkingDir: '/app',
       HostConfig: {
         PortBindings: {
-            '4200/tcp': [{ HostIp: '0.0.0.0', HostPort: '0' }] // Random host port
-        }
+          '4200/tcp': [{ HostIp: '0.0.0.0', HostPort: '0' }], // Random host port
+        },
       },
       ExposedPorts: {
-          '4200/tcp': {}
-      }
+        '4200/tcp': {},
+      },
     });
 
     await this.container.start();
@@ -34,30 +36,32 @@ export class DockerManager {
   }
 
   async getContainerUrl(): Promise<string> {
-      if (!this.container) throw new Error('Container not started');
-      const data = await this.container.inspect();
-      const ports = data.NetworkSettings.Ports['4200/tcp'];
-      if (ports && ports[0]) {
-          // On macOS, always use 127.0.0.1 for the host side of mapping
-          return `http://127.0.0.1:${ports[0].HostPort}`;
-      }
-      throw new Error('Port not mapped');
+    if (!this.container) throw new Error('Container not started');
+    const data = await this.container.inspect();
+    const ports = data.NetworkSettings.Ports['4200/tcp'];
+    if (ports && ports[0]) {
+      // On macOS, always use 127.0.0.1 for the host side of mapping
+      return `http://127.0.0.1:${ports[0].HostPort}`;
+    }
+    throw new Error('Port not mapped');
   }
 
   private async ensureImage(image: string) {
-      try {
-          const img = this.docker.getImage(image);
-          await img.inspect();
-      } catch (e) {
-          console.log(`Image ${image} not found, pulling...`);
-          await new Promise((resolve, reject) => {
-              this.docker.pull(image, (err: any, stream: any) => {
-                  if (err) return reject(err);
-                  this.docker.modem.followProgress(stream, (err: any, res: any) => err ? reject(err) : resolve(res));
-              });
-          });
-          console.log(`Image ${image} pulled.`);
-      }
+    try {
+      const img = this.docker.getImage(image);
+      await img.inspect();
+    } catch (e) {
+      console.log(`Image ${image} not found, pulling...`);
+      await new Promise((resolve, reject) => {
+        this.docker.pull(image, (err: any, stream: any) => {
+          if (err) return reject(err);
+          this.docker.modem.followProgress(stream, (err: any, res: any) =>
+            err ? reject(err) : resolve(res),
+          );
+        });
+      });
+      console.log(`Image ${image} pulled.`);
+    }
   }
 
   async copyFiles(files: any) {
@@ -73,9 +77,9 @@ export class DockerManager {
           const content = node.file.contents;
           // Handle base64 if needed, but assuming string/buffer
           if (node.file.encoding === 'base64') {
-             pack.entry({ name: path }, Buffer.from(content, 'base64'));
+            pack.entry({ name: path }, Buffer.from(content, 'base64'));
           } else {
-             pack.entry({ name: path }, content);
+            pack.entry({ name: path }, content);
           }
         } else if (node.directory) {
           pack.entry({ name: path + '/', type: 'directory' }); // Explicit dir entry
@@ -88,143 +92,114 @@ export class DockerManager {
     pack.finalize();
 
     await this.container.putArchive(pack, {
-      path: '/app'
+      path: '/app',
     });
   }
 
-    async exec(cmd: string[], workDir = '/app', env?: any): Promise<{ output: string, exitCode: number }> {
+  async exec(
+    cmd: string[],
+    workDir = '/app',
+    env?: any,
+  ): Promise<{ output: string; exitCode: number }> {
+    if (!this.container) throw new Error('Container not started');
 
-      if (!this.container) throw new Error('Container not started');
+    const envArray = env
+      ? Object.entries(env).map(([k, v]) => `${k}=${v}`)
+      : [];
 
-  
+    const exec = await this.container.exec({
+      Cmd: cmd,
 
-      const envArray = env ? Object.entries(env).map(([k, v]) => `${k}=${v}`) : [];
+      AttachStdout: true,
 
-  
+      AttachStderr: true,
 
-      const exec = await this.container.exec({
+      WorkingDir: workDir,
 
-        Cmd: cmd,
+      Env: envArray,
+    });
 
-        AttachStdout: true,
+    const stream = await exec.start({ Detach: false, Tty: false });
 
-        AttachStderr: true,
+    return new Promise((resolve, reject) => {
+      let output = '';
 
-        WorkingDir: workDir,
+      // Demuxing to separate stdout/stderr if needed, but here combining.
 
-        Env: envArray
+      // Using 'any' cast for modem/stream because dockerode types are tricky with streams.
 
+      this.container?.modem.demuxStream(
+        stream as any,
+        {
+          write: (chunk: any) => (output += chunk.toString()),
+        } as any,
+        {
+          write: (chunk: any) => (output += chunk.toString()),
+        } as any,
+      );
+
+      (stream as any).on('end', async () => {
+        const inspect = await exec.inspect();
+
+        resolve({ output, exitCode: inspect.ExitCode });
       });
 
-  
+      (stream as any).on('error', reject);
+    });
+  }
 
-      const stream = await exec.start({ Detach: false, Tty: false });
+  async execStream(
+    cmd: string[],
+    workDir = '/app',
+    onData: (chunk: string) => void,
+    env?: any,
+  ): Promise<number> {
+    if (!this.container) throw new Error('Container not started');
 
-      
+    const envArray = env
+      ? Object.entries(env).map(([k, v]) => `${k}=${v}`)
+      : [];
 
-      return new Promise((resolve, reject) => {
+    const exec = await this.container.exec({
+      Cmd: cmd,
 
-          let output = '';
+      AttachStdout: true,
 
-          // Demuxing to separate stdout/stderr if needed, but here combining.
+      AttachStderr: true,
 
-          // Using 'any' cast for modem/stream because dockerode types are tricky with streams.
+      WorkingDir: workDir,
 
-          this.container?.modem.demuxStream(stream as any, {
+      Env: envArray,
+    });
 
-              write: (chunk: any) => output += chunk.toString()
+    const stream = await exec.start({ Detach: false, Tty: false });
 
-          } as any, {
+    return new Promise((resolve, reject) => {
+      this.container?.modem.demuxStream(
+        stream as any,
+        {
+          write: (chunk: any) => onData(chunk.toString()),
+        } as any,
+        {
+          write: (chunk: any) => onData(chunk.toString()),
+        } as any,
+      );
 
-              write: (chunk: any) => output += chunk.toString()
+      (stream as any).on('end', async () => {
+        // Wait a bit for inspection?
 
-          } as any);
+        try {
+          const inspect = await exec.inspect();
 
-  
-
-          (stream as any).on('end', async () => {
-
-              const inspect = await exec.inspect();
-
-              resolve({ output, exitCode: inspect.ExitCode });
-
-          });
-
-          
-
-          (stream as any).on('error', reject);
-
+          resolve(inspect.ExitCode);
+        } catch (e) {
+          resolve(-1);
+        }
       });
 
-    }
-
-  
-
-    async execStream(cmd: string[], workDir = '/app', onData: (chunk: string) => void, env?: any): Promise<number> {
-
-      if (!this.container) throw new Error('Container not started');
-
-  
-
-      const envArray = env ? Object.entries(env).map(([k, v]) => `${k}=${v}`) : [];
-
-  
-
-      const exec = await this.container.exec({
-
-        Cmd: cmd,
-
-        AttachStdout: true,
-
-        AttachStderr: true,
-
-        WorkingDir: workDir,
-
-        Env: envArray
-
-      });
-
-  
-
-      const stream = await exec.start({ Detach: false, Tty: false });
-
-      
-
-      return new Promise((resolve, reject) => {
-
-          this.container?.modem.demuxStream(stream as any, {
-
-              write: (chunk: any) => onData(chunk.toString())
-
-          } as any, {
-
-              write: (chunk: any) => onData(chunk.toString())
-
-          } as any);
-
-  
-
-          (stream as any).on('end', async () => {
-
-              // Wait a bit for inspection?
-
-              try {
-
-                 const inspect = await exec.inspect();
-
-                 resolve(inspect.ExitCode);
-
-              } catch(e) { resolve(-1); }
-
-          });
-
-          
-
-          (stream as any).on('error', reject);
-
-      });
-
-    }
+      (stream as any).on('error', reject);
+    });
+  }
 
   async stop() {
     if (this.container) {

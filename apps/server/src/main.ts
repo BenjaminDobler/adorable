@@ -197,7 +197,10 @@ protectedRouter.use(authenticate);
 protectedRouter.post('/container/start', async (req: any, res) => {
   try {
     const manager = containerRegistry.getManager(req.user.id);
-    const id = await manager.createContainer();
+    // Sanitize name for Docker: [a-zA-Z0-9][a-zA-Z0-9_.-]*
+    const safeId = req.user.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
+    const containerName = `adorable-user-${safeId}-${Date.now()}`;
+    const id = await manager.createContainer(undefined, containerName);
     
     // Set signed cookie for the proxy to know which container to use
     res.cookie('adorable_container_user', req.user.id, {
