@@ -1,4 +1,14 @@
-import { Component, inject, signal, effect, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
+import {
+  Component,
+  inject,
+  signal,
+  effect,
+  ViewChild,
+  ElementRef,
+  AfterViewChecked,
+  viewChild,
+  viewChildren,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from './services/api';
@@ -14,18 +24,19 @@ import { LayoutService } from './services/layout';
 import { ToastService } from './services/toast';
 import { ChatComponent } from './chat/chat.component';
 import { TerminalComponent } from './terminal/terminal.component';
+import { ScreenshotService } from './services/screenshot';
 
 @Component({
   standalone: true,
   imports: [
-    CommonModule, 
-    FormsModule, 
-    SafeUrlPipe, 
-    FileExplorerComponent, 
-    EditorComponent, 
-    TerminalFormatterPipe, 
-    ChatComponent, 
-    TerminalComponent
+    CommonModule,
+    FormsModule,
+    SafeUrlPipe,
+    FileExplorerComponent,
+    EditorComponent,
+    TerminalFormatterPipe,
+    ChatComponent,
+    TerminalComponent,
   ],
   selector: 'app-root',
   templateUrl: './app.html',
@@ -37,58 +48,74 @@ export class AppComponent implements AfterViewChecked {
   public projectService = inject(ProjectService);
   public layoutService = inject(LayoutService);
   private toastService = inject(ToastService);
+  private screenshotService = inject(ScreenshotService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
 
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
+
+  @ViewChild('previewFrame', {static: false}) set previewFrame(ref: ElementRef<HTMLIFrameElement> | undefined) {
+    if (ref?.nativeElement) {
+      console.log('[AppComponent] Iframe ViewChild resolved, registering...');
+      this.screenshotService.registerIframe(ref.nativeElement);
+    }
+  }
+
+
   @ViewChild(ChatComponent) chatComponent!: ChatComponent;
 
   activeTab = signal<'chat' | 'terminal' | 'files'>('chat');
-  
+
   // Signals from project service
   messages = this.projectService.messages;
   loading = this.projectService.loading;
   debugLogs = this.projectService.debugLogs;
-  
+
   selectedFileContent = signal('');
   selectedFileName = signal('');
   selectedFilePath = signal('');
-  
+
   sidebarWidth = signal(400);
   editorHeight = signal(50);
   isResizingEditor = false;
   isResizingSidebar = false;
-  
+
   isInspectionActive = signal(false);
   visualEditorData = signal<any>(null);
-  
+
   showDebug = signal(false);
 
   loadingMessages = [
-    'Adorable things take time...', 
-    'Building with love...', 
-    'Just taking a break listening to Pearl Jam. I\'ll be right back...', 
-    'Counting the number of pixels... it\'s a lot.', 
-    'Herding cats into the codebase...', 
-    'Reticulating splines...', 
-    'Teaching the AI how to love... and code.', 
-    'Brewing some digital coffee for the server...', 
-    'Wait, did I leave the oven on?', 
+    'Adorable things take time...',
+    'Building with love...',
+    "Just taking a break listening to Pearl Jam. I'll be right back...",
+    "Counting the number of pixels... it's a lot.",
+    'Herding cats into the codebase...',
+    'Reticulating splines...',
+    'Teaching the AI how to love... and code.',
+    'Brewing some digital coffee for the server...',
+    'Wait, did I leave the oven on?',
   ];
   currentMessage = signal(this.loadingMessages[0]);
   private messageInterval: any;
-  
+
   // App settings (retrieved from profile)
   appSettings: any = null;
 
   // Selection state
   isSelecting = false;
-  selectionRect: { x: number, y: number, width: number, height: number } | null = null;
-  startPoint: { x: number, y: number } | null = null;
+  selectionRect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null = null;
+  startPoint: { x: number; y: number } | null = null;
   isDragging = false;
   private isSavingWithThumbnail = false;
 
   constructor() {
+
     this.fetchSettings();
 
     window.addEventListener('keydown', (e) => {
@@ -107,16 +134,22 @@ export class AppComponent implements AfterViewChecked {
     });
 
     // Handle Route Params
-    this.route.params.subscribe(params => {
+    this.route.params.subscribe((params) => {
       const projectId = params['id'];
       if (projectId && projectId !== 'new') {
         this.projectService.loadProject(projectId);
       } else {
         this.projectService.projectId.set(null);
-        this.projectService.projectName.set(this.route.snapshot.queryParams['name'] || 'New Project');
+        this.projectService.projectName.set(
+          this.route.snapshot.queryParams['name'] || 'New Project',
+        );
         this.projectService.fileStore.setFiles({});
         this.messages.set([
-          { role: 'assistant', text: 'Hi! I can help you build an Angular app. Describe what you want to create.', timestamp: new Date() }
+          {
+            role: 'assistant',
+            text: 'Hi! I can help you build an Angular app. Describe what you want to create.',
+            timestamp: new Date(),
+          },
         ]);
         this.projectService.reloadPreview(null);
       }
@@ -127,7 +160,7 @@ export class AppComponent implements AfterViewChecked {
       if (event.data.type === 'PREVIEW_CONSOLE') {
         this.webContainerService.addConsoleLog({
           level: event.data.level,
-          message: event.data.message
+          message: event.data.message,
         });
       }
 
@@ -141,7 +174,7 @@ export class AppComponent implements AfterViewChecked {
           this.selectionRect = null;
         }
       }
-      
+
       if (event.data.type === 'ELEMENT_SELECTED') {
         this.visualEditorData.set(event.data.payload);
         this.isInspectionActive.set(false);
@@ -152,13 +185,16 @@ export class AppComponent implements AfterViewChecked {
   toggleInspection() {
     const isActive = !this.isInspectionActive();
     this.isInspectionActive.set(isActive);
-    
+
     const iframe = document.querySelector('iframe');
     if (iframe && iframe.contentWindow) {
-      iframe.contentWindow.postMessage({
-        type: 'TOGGLE_INSPECTOR',
-        enabled: isActive
-      }, '*');
+      iframe.contentWindow.postMessage(
+        {
+          type: 'TOGGLE_INSPECTOR',
+          enabled: isActive,
+        },
+        '*',
+      );
     }
   }
 
@@ -169,23 +205,27 @@ export class AppComponent implements AfterViewChecked {
   scrollToBottom(): void {
     try {
       if (this.scrollContainer) {
-        this.scrollContainer.nativeElement.scrollTop = this.scrollContainer.nativeElement.scrollHeight;
+        this.scrollContainer.nativeElement.scrollTop =
+          this.scrollContainer.nativeElement.scrollHeight;
       }
-    } catch(err) { }
+    } catch (err) {}
   }
 
   fetchSettings() {
-    this.apiService.getProfile().subscribe(user => {
+    this.apiService.getProfile().subscribe((user) => {
       if (user.settings) {
-        this.appSettings = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
+        this.appSettings =
+          typeof user.settings === 'string'
+            ? JSON.parse(user.settings)
+            : user.settings;
       }
     });
   }
-  
+
   startSelection() {
     this.isSelecting = true;
   }
-  
+
   startResizing(event: MouseEvent) {
     this.isResizingEditor = true;
     event.preventDefault();
@@ -198,8 +238,13 @@ export class AppComponent implements AfterViewChecked {
 
   onMouseDown(event: MouseEvent) {
     if (this.isSelecting) {
-        this.startPoint = { x: event.clientX, y: event.clientY };
-        this.selectionRect = { x: event.clientX, y: event.clientY, width: 0, height: 0 };
+      this.startPoint = { x: event.clientX, y: event.clientY };
+      this.selectionRect = {
+        x: event.clientX,
+        y: event.clientY,
+        width: 0,
+        height: 0,
+      };
     }
   }
 
@@ -221,16 +266,16 @@ export class AppComponent implements AfterViewChecked {
       return;
     }
 
-    if (!this.isSelecting || !this.startPoint) return; 
-    
+    if (!this.isSelecting || !this.startPoint) return;
+
     const currentX = event.clientX;
     const currentY = event.clientY;
-    
+
     const width = Math.abs(currentX - this.startPoint.x);
     const height = Math.abs(currentY - this.startPoint.y);
     const x = Math.min(currentX, this.startPoint.x);
     const y = Math.min(currentY, this.startPoint.y);
-    
+
     this.selectionRect = { x, y, width, height };
   }
 
@@ -251,23 +296,31 @@ export class AppComponent implements AfterViewChecked {
       this.startPoint = null;
       return;
     }
-    
+
     this.captureSelection(this.selectionRect);
     this.startPoint = null;
   }
 
-  captureSelection(rect: { x: number, y: number, width: number, height: number }) {
+  captureSelection(rect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }) {
     const iframe = document.querySelector('iframe');
     if (!iframe) return;
 
     const iframeRect = iframe.getBoundingClientRect();
     const relX = rect.x - iframeRect.left;
     const relY = rect.y - iframeRect.top;
-    
-    iframe.contentWindow?.postMessage({
-      type: 'CAPTURE_REQ',
-      rect: { x: relX, y: relY, width: rect.width, height: rect.height }
-    }, '*');
+
+    iframe.contentWindow?.postMessage(
+      {
+        type: 'CAPTURE_REQ',
+        rect: { x: relX, y: relY, width: rect.width, height: rect.height },
+      },
+      '*',
+    );
   }
 
   reloadIframe() {
@@ -281,13 +334,13 @@ export class AppComponent implements AfterViewChecked {
   toggleEngine(event: Event) {
     const select = event.target as HTMLSelectElement;
     if (this.webContainerService instanceof SmartContainerEngine) {
-       this.webContainerService.setMode(select.value as 'browser' | 'local');
-       // Re-trigger preview in new engine
-       this.projectService.reloadPreview(this.projectService.files());
+      this.webContainerService.setMode(select.value as 'browser' | 'local');
+      // Re-trigger preview in new engine
+      this.projectService.reloadPreview(this.projectService.files());
     }
   }
 
-  onFileSelect(event: {name: string, path: string, content: string}) {
+  onFileSelect(event: { name: string; path: string; content: string }) {
     this.selectedFileName.set(event.name);
     this.selectedFilePath.set(event.path);
     this.selectedFileContent.set(event.content);
@@ -304,14 +357,14 @@ export class AppComponent implements AfterViewChecked {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const reader = new FileReader();
-      
+
       reader.onload = (e: any) => {
         const content = e.target.result;
         const targetPath = `public/${file.name}`;
         this.onFileContentChange(content, targetPath);
         this.toastService.show(`Uploaded ${file.name}`, 'success');
       };
-      
+
       reader.readAsDataURL(file);
     }
   }
@@ -325,7 +378,7 @@ export class AppComponent implements AfterViewChecked {
       try {
         let writeContent: string | Uint8Array = newContent;
         if (typeof newContent === 'string' && newContent.startsWith('data:')) {
-           writeContent = this.projectService.dataURIToUint8Array(newContent);
+          writeContent = this.projectService.dataURIToUint8Array(newContent);
         }
         await this.webContainerService.writeFile(path, writeContent);
       } catch (err) {
@@ -334,37 +387,6 @@ export class AppComponent implements AfterViewChecked {
     }
   }
 
-  saveProject() {
-    if (!this.projectService.projectName() || this.projectService.fileStore.isEmpty()) return; 
-    
-    this.loading.set(true);
-    const iframe = document.querySelector('iframe');
-    if (iframe) {
-      this.isSavingWithThumbnail = true;
-      iframe.contentWindow?.postMessage({
-        type: 'CAPTURE_REQ',
-        rect: { x: 0, y: 0, width: iframe.clientWidth, height: iframe.clientHeight }
-      }, '*');
-
-      setTimeout(() => {
-        if (this.isSavingWithThumbnail) {
-          console.warn('Thumbnail capture timed out, saving without thumbnail');
-          this.projectService.saveProject();
-          this.isSavingWithThumbnail = false;
-        }
-      }, 5000);
-    } else {
-      this.projectService.saveProject();
-    }
-  }
-
-  downloadZip() {
-    this.projectService.downloadZip();
-  }
-
-  publish() {
-    this.projectService.publish();
-  }
 
   goBack() {
     this.router.navigate(['/dashboard']);
