@@ -1,4 +1,4 @@
-import { Injectable, inject, signal, computed } from '@angular/core';
+import { Injectable, inject, signal, computed, Signal } from '@angular/core';
 import { ApiService } from './api';
 import { ContainerEngine } from './container-engine';
 import { ToastService } from './toast';
@@ -9,6 +9,7 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { FileSystemStore } from './file-system.store';
 import { WebContainerFiles } from '@adorable/shared-types';
+import { ScreenshotService } from './screenshot';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -30,6 +31,7 @@ export class ProjectService {
   private webContainerService = inject(ContainerEngine);
   private toastService = inject(ToastService);
   private router = inject(Router);
+  private screenshotService = inject(ScreenshotService);
   public fileStore = inject(FileSystemStore);
 
   // State
@@ -37,7 +39,7 @@ export class ProjectService {
   projectName = signal<string>('');
   
   // Use store for files
-  files = this.fileStore.files; 
+  files: Signal<WebContainerFiles> = this.fileStore.files; 
   
   messages = signal<ChatMessage[]>([
     { role: 'assistant', text: 'Hi! I can help you build an Angular app. Describe what you want to create.', timestamp: new Date() }
@@ -79,12 +81,20 @@ export class ProjectService {
     });
   }
 
-  saveProject(thumbnail?: string) {
+  async saveProject(thumbnail?: string) {
     const name = this.projectName();
     const files = this.files();
     if (!name || this.fileStore.isEmpty()) return;
 
     this.loading.set(true);
+    
+    // Capture thumbnail if not provided
+    if (!thumbnail) {
+       console.log('[ProjectService] capturing thumbnail...');
+       const captured = await this.screenshotService.captureThumbnail();
+       if (captured) thumbnail = captured;
+    }
+
     const id = this.projectId();
     const saveId = (id && id !== 'new') ? id : undefined;
 
@@ -121,7 +131,7 @@ export class ProjectService {
          const foundPath = await this.findWebRoot('dist');
          if (foundPath) distPath = foundPath;
          else distPath = 'dist/app/browser';
-      } catch (e) {
+      } catch (e) { 
          distPath = 'dist/app/browser';
       }
       
@@ -316,7 +326,7 @@ export class ProjectService {
               // Ensure we have the latest runtime scripts
               const scriptTag = '<!-- ADORABLE_RUNTIME_SCRIPTS -->';
               if (content.includes(scriptTag)) {
-                 const pattern = new RegExp(`${scriptTag}[\\s\\S]*${scriptTag}`);
+                 const pattern = new RegExp(`${scriptTag}[\s\S]*${scriptTag}`);
                  content = content.replace(pattern, `${scriptTag}\n${RUNTIME_SCRIPTS}\n${scriptTag}`);
               } else {
                  content = content.replace('</head>', `${scriptTag}\n${RUNTIME_SCRIPTS}\n${scriptTag}\n</head>`);
