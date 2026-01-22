@@ -1,11 +1,11 @@
-import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
+import { GenerateOptions, LLMProvider, StreamCallbacks, FileSystemInterface } from './types';
 import Anthropic from '@anthropic-ai/sdk';
-import { minimatch } from 'minimatch';
 import { jsonrepair } from 'jsonrepair';
 import { BaseLLMProvider } from './base';
 import { ANGULAR_KNOWLEDGE_BASE } from './knowledge-base';
 import { TOOLS } from './tools';
 import { DebugLogger } from './debug-logger';
+import { MemoryFileSystem } from './filesystem/memory-filesystem';
 
 const SYSTEM_PROMPT =
 "You are an expert Angular developer.\n"
@@ -36,37 +36,33 @@ const SYSTEM_PROMPT =
 
 export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
   async generate(options: GenerateOptions): Promise<any> {
-    const { prompt, previousFiles, apiKey, model } = options;
-
+    // Non-streaming fallback - deprecated or simple use cases
+    const { prompt, previousFiles, apiKey, model, fileSystem } = options;
     if (!apiKey) throw new Error('Anthropic API Key is required');
 
-    // Fallback for problematic model ID
     let modelToUse = model || 'claude-3-5-sonnet-20240620';
     if (modelToUse === 'claude-3-5-sonnet-20241022') {
       modelToUse = 'claude-3-5-sonnet-20240620';
     }
 
     const anthropic = new Anthropic({ apiKey });
+    
+    // Default to MemoryFileSystem if not provided
+    const fs = fileSystem || new MemoryFileSystem(this.flattenFiles(previousFiles || {}));
 
+    // TODO: We could use listDir() from fs to generate tree summary, 
+    // but for now relying on previousFiles if available is faster for initial context.
     let userMessage = prompt;
     if (previousFiles) {
       const treeSummary = this.generateTreeSummary(previousFiles);
       userMessage += `\n\n--- Current File Structure ---\n${treeSummary}`;
     }
 
-    const messages: any[] = [{ role: 'user', content: [] }];
+    const messages: any[] = [{ role: 'user', content: [{ type: 'text', text: userMessage, cache_control: { type: 'ephemeral' } }] }];
     
-    // Add text content
-    messages[0].content.push({ 
-      type: 'text', 
-      text: userMessage,
-      cache_control: { type: 'ephemeral' }
-    });
-
     // Add images if present
     if (options.images && options.images.length > 0) {
       options.images.forEach(img => {
-        // Expecting "data:image/png;base64,வைக்"
         const match = img.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
         if (match) {
           messages[0].content.push({
@@ -81,21 +77,12 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       });
     }
 
+    // Note: This non-streaming implementation is basic and doesn't loop tools. 
+    // It's recommended to use streamGenerate for full agent capabilities.
     const response = await anthropic.messages.create({
       model: modelToUse,
       max_tokens: 8192,
-      system: [
-        {
-          type: 'text',
-          text: ANGULAR_KNOWLEDGE_BASE,
-          cache_control: { type: 'ephemeral' }
-        },
-        {
-          type: 'text',
-          text: SYSTEM_PROMPT,
-          cache_control: { type: 'ephemeral' }
-        }
-      ] as any,
+      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }] as any,
       messages: messages as any,
     });
 
@@ -109,7 +96,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
 
   async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any> {
     const logger = new DebugLogger('anthropic');
-    const { prompt, previousFiles, apiKey, model } = options;
+    const { prompt, previousFiles, apiKey, model, fileSystem } = options;
     if (!apiKey) throw new Error('Anthropic API Key is required');
 
     let modelToUse = model || 'claude-3-5-sonnet-20240620';
@@ -117,14 +104,18 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       modelToUse = 'claude-3-5-sonnet-20240620';
     }
 
-    const anthropic = new Anthropic({ 
+    const anthropic = new Anthropic({
       apiKey,
       defaultHeaders: { 'anthropic-beta': 'pdfs-2024-09-25' }
     });
     
+    // Initialize File System (Abstracted)
+    const fs: FileSystemInterface = fileSystem || new MemoryFileSystem(this.flattenFiles(previousFiles || {}));
+
     // Prepare initial context
-    // We ONLY provide the file tree summary to encourage read_file usage
     let userMessage = prompt;
+    
+    // If we have previous files structure, provide summary
     if (previousFiles) {
       const treeSummary = this.generateTreeSummary(previousFiles);
       userMessage += `\n\n--- Current File Structure ---\n${treeSummary}`;
@@ -148,6 +139,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       }] 
     }];
     
+    // Handle Attachments
     if (options.images && options.images.length > 0) {
       options.images.forEach(dataUri => {
         const match = dataUri.match(/^data:([^;]+);base64,(.+)$/);
@@ -178,14 +170,27 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       });
     }
 
-    // Keep the map for read_file execution
-    const fileMap = this.flattenFiles(previousFiles || {});
-    const accumulatedFiles: any = {};
     let fullExplanation = '';
     let turnCount = 0;
     const MAX_TURNS = 10;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
+
+    // Define available tools based on FS capabilities
+    const availableTools = [...TOOLS];
+    if (fs.exec) {
+       availableTools.push({
+          name: "run_command",
+          description: "Execute a shell command in the project environment. Use this to run build commands, tests, or grep for information. Returns stdout, stderr and exit code.",
+          input_schema: {
+             type: "object",
+             properties: {
+                command: { type: "string", description: "The shell command to execute (e.g. 'npm run build', 'grep -r \"Component\" src')" }
+             },
+             required: ["command"]
+          }
+       });
+    }
 
     while (turnCount < MAX_TURNS) {
       logger.log('TURN_START', { turn: turnCount });
@@ -197,7 +202,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
           { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }
         ] as any,
         messages: messages as any,
-        tools: TOOLS as any,
+        tools: availableTools as any,
         stream: true,
       });
 
@@ -236,7 +241,6 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
           } else if (event.delta.type === 'input_json_delta') {
             if (currentToolUse) {
                currentToolUse.input += event.delta.partial_json;
-               // We use index relative to the message content block index
                callbacks.onToolDelta?.(assistantMessageContent.length - 1, event.delta.partial_json);
             }
           }
@@ -245,15 +249,12 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
 
       logger.log('ASSISTANT_RESPONSE', { content: assistantMessageContent });
 
-      // Update assistantMessageContent with full inputs
+      // Parse tool inputs
       for (const block of assistantMessageContent) {
         if (block.type === 'tool_use') {
-           // Find the accumulated input for this tool ID
-           // We stored it in toolUses array
            const tool = toolUses.find(t => t.id === block.id);
            if (tool) {
               try {
-                // Input must be an object, not string
                 block.input = JSON.parse(tool.input);
               } catch (e) {
                  try {
@@ -262,8 +263,6 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
                     block.input = JSON.parse(repaired);
                  } catch (repairError) {
                     logger.log('JSON_PARSE_ERROR', { input: tool.input, error: e.message });
-                    // If input is incomplete JSON, we can't really reconstruct it validly.
-                    // We'll set it to empty object to satisfy the type, but this turn is doomed.
                     block.input = {}; 
                  }
               }
@@ -278,7 +277,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         break; 
       }
 
-      // Execute all tools
+      // Execute all tools via FileSystemInterface
       const toolResults: any[] = [];
       for (const tool of toolUses) {
         let toolArgs: any = {};
@@ -307,59 +306,43 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         if (parseError) {
            content = 'Error: Invalid JSON input for tool.';
            isError = true;
-        } else if (tool.name === 'write_file') {
-          if (!toolArgs.content) {
-            content = 'Error: No content provided for file. The JSON input may have been truncated due to length limits. Please try writing the file in smaller chunks or use edit_file.';
-            isError = true;
-          } else {
-            this.addFileToStructure(accumulatedFiles, toolArgs.path, toolArgs.content);
-            content = 'File created successfully.';
-          }
-        } else if (tool.name === 'edit_file') {
-          const originalContent = fileMap[toolArgs.path];
-          if (!originalContent) {
-            content = 'Error: File not found. You must ensure the file exists before editing it.';
-            isError = true;
-          } else {
-            if (originalContent.includes(toolArgs.old_str)) {
-              const parts = originalContent.split(toolArgs.old_str);
-              if (parts.length > 2) {
-                 content = 'Error: old_str is not unique in the file. Please provide more context in old_str to make it unique.';
-                 isError = true;
-              } else {
-                 const newContent = originalContent.replace(toolArgs.old_str, toolArgs.new_str);
-                 fileMap[toolArgs.path] = newContent; 
-                 this.addFileToStructure(accumulatedFiles, toolArgs.path, newContent);
-                 content = 'File edited successfully.';
-              }
-            } else {
-              content = 'Error: old_str not found in file. Please ensure it matches exactly, including whitespace.';
-              isError = true;
+        } else {
+            try {
+                switch (tool.name) {
+                    case 'write_file':
+                        if (!toolArgs.content) throw new Error('No content provided for file.');
+                        await fs.writeFile(toolArgs.path, toolArgs.content);
+                        content = 'File created successfully.';
+                        break;
+                    case 'edit_file':
+                        await fs.editFile(toolArgs.path, toolArgs.old_str, toolArgs.new_str);
+                        content = 'File edited successfully.';
+                        break;
+                    case 'read_file':
+                        content = await fs.readFile(toolArgs.path);
+                        break;
+                    case 'list_dir':
+                        const items = await fs.listDir(toolArgs.path);
+                        content = items.length ? items.join('\n') : 'Directory is empty or not found.';
+                        break;
+                    case 'glob':
+                        const matches = await fs.glob(toolArgs.pattern);
+                        content = matches.length ? matches.join('\n') : 'No files matched the pattern.';
+                        break;
+                    case 'run_command':
+                        if (!fs.exec) throw new Error('run_command is not supported in this environment.');
+                        const res = await fs.exec(toolArgs.command);
+                        content = `Exit Code: ${res.exitCode}\n\nSTDOUT:\n${res.stdout}\n\nSTDERR:\n${res.stderr}`;
+                        if (res.exitCode !== 0) isError = true;
+                        break;
+                    default:
+                        content = `Error: Unknown tool ${tool.name}`;
+                        isError = true;
+                }
+            } catch (err: any) {
+                content = `Error: ${err.message}`;
+                isError = true;
             }
-          }
-        } else if (tool.name === 'read_file') {
-          content = fileMap[toolArgs.path] || 'Error: File not found. The file may not exist in the current project structure.';
-          if (content.startsWith('Error:')) isError = true;
-        } else if (tool.name === 'list_dir') {
-          let dir = toolArgs.path;
-          if (dir === '.' || dir === './') dir = '';
-          if (dir && !dir.endsWith('/')) dir += '/';
-          
-          const matching = Object.keys(fileMap)
-            .filter(k => k.startsWith(dir))
-            .map(k => {
-              const relative = k.substring(dir.length);
-              const parts = relative.split('/');
-              const isDir = parts.length > 1;
-              return isDir ? parts[0] + '/' : parts[0];
-            });
-          
-          const unique = Array.from(new Set(matching)).sort();
-          content = unique.length ? unique.join('\n') : 'Directory is empty or not found.';
-        } else if (tool.name === 'glob') {
-          const pattern = toolArgs.pattern;
-          const matchingFiles = Object.keys(fileMap).filter(path => minimatch(path, pattern));
-          content = matchingFiles.length ? matchingFiles.join('\n') : 'No files matched the pattern.';
         }
 
         logger.log('TOOL_RESULT', { id: tool.id, result: content, isError });
@@ -378,9 +361,10 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       turnCount++;
     }
 
-    return { explanation: fullExplanation, files: accumulatedFiles, model: modelToUse };
+    return { explanation: fullExplanation, files: fs.getAccumulatedFiles(), model: modelToUse };
   }
 
+  // Legacy helper - mostly replaced by MemoryFileSystem logic but kept for non-streaming fallback
   private flattenFiles(structure: any, prefix = ''): Record<string, string> {
     const map: Record<string, string> = {};
     for (const key in structure) {
@@ -401,13 +385,9 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     
     for (const [key, node] of entries) {
       const path = prefix + key;
-      // Skip node_modules and hidden files if necessary, but for now include everything provided
       if ((node as any).file) {
         summary += `${path}\n`;
       } else if ((node as any).directory) {
-        // We recurse but don't explicitly list the directory name as a separate line if it's implied by children
-        // But for empty dirs it might be useful?
-        // Let's just recurse.
         summary += this.generateTreeSummary((node as any).directory, path + '/');
       }
     }

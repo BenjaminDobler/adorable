@@ -1,39 +1,63 @@
-# Anthropic SDK Migration Strategy
+# Anthropic SDK & Agent Migration Strategy (Re-evaluated)
 
-## Overview
-Currently, the `AnthropicProvider` uses `@anthropic-ai/sdk` (the low-level client). We evaluated switching to `@anthropic-ai/claude-agent-sdk` (the high-level agent framework). This document outlines the trade-offs and decision criteria for future reference.
+## 🔄 Status: Re-opened for "Agent Mode"
 
-## Comparison
+**Last Updated:** Jan 2026
+**Context:** Introduction of Docker/Container Architecture (`LocalContainerEngine` & `DockerManager`).
 
-### Current Implementation (`@anthropic-ai/sdk`)
-*   **Architecture:** Manual implementation of the "think-act-observe" loop.
-*   **Context:** Operates on a **virtual file system** (in-memory `fileMap` constructed from `previousFiles`).
-*   **Control:** High granularity. We manually parse tool calls, handle `jsonrepair` strategies, and strictly control the environment (e.g., forcing ephemeral cache control).
+## The Shift: Virtual vs. Real Environment
+Previously, we decided against the high-level Agent SDK because our environment was purely **virtual** (in-memory file maps). We were "simulating" a file system, and adapting an OS-opinionated SDK to a virtual one was complex and brittle.
 
-### Proposed Alternative (`@anthropic-ai/claude-agent-sdk`)
-*   **Architecture:** Built-in agent loop. Automatically handles tool execution and re-prompting.
-*   **Context:** Optimized for **real Operating System** interactions (direct disk I/O, shell execution).
-*   **Features:**
-    *   **Context Compaction:** Automatic history summarization to save tokens.
-    *   **MCP Support:** Native integration with the Model Context Protocol.
+**The Game Changer:**
+With the new **Docker Architecture**, we now have a **real, persistent Linux environment** for each project. This aligns perfectly with the "Computer Use" or "Agent" paradigm.
 
-## Trade-offs
+## 🚀 Proposal: The "Hybrid Agent" Option
 
-| Feature | `@anthropic-ai/sdk` (Current) | `@anthropic-ai/claude-agent-sdk` |
-| :--- | :--- | :--- |
-| **Code Volume** | High (Manual loop, tool parsing) | Low (SDK handles the loop) |
-| **Virtual FS Support** | **Excellent** (We define the boundaries) | **Poor** (Defaults to real FS; requires extensive customization to mock) |
-| **Context Management** | Manual (Simple append) | Automatic (Smart compaction) |
-| **Flexibility** | High (Custom error handling/retry logic) | Medium (Opinionated flow) |
+Instead of a full migration (replacing the current fast generator), we should introduce this as an **Advanced Option**:
 
-## Recommendation & Future Triggers
+### 1. Standard Mode (Browser & Docker)
+*   **Driver:** `@anthropic-ai/sdk` (Low-level) or `google-generative-ai`.
+*   **Environment:** Virtual In-Memory Context (passed from client).
+*   **Workflow:** User Prompt -> AI Generates Code -> Client Applies Changes.
+*   **Pros:** Fast, stateless, safe, low latency.
+*   **Best For:** "Create a component", "Add a style", "Explain this code".
+*   **Supported Providers:** Anthropic, Gemini, OpenAI.
 
-**Decision: Maintain current `@anthropic-ai/sdk` implementation.**
+### 2. Agent Mode (Docker Exclusive)
+*   **Driver:** Any LLM with Tool/Function Calling capabilities.
+*   **Environment:** Real Docker Container.
+*   **Workflow:** 
+    1.  User Prompt ("Fix the build error").
+    2.  AI Inspects Container (runs `ls`, `cat`, `ng build`).
+    3.  AI Sees Error -> Edits File -> Re-runs Build.
+    4.  Loop continues until success or timeout.
+*   **Implementation:**
+    *   Tools (`read_file`, `write_file`, `run_command`) map directly to `DockerManager.exec()`.
+    *   The `FileSystemInterface` abstraction on the server allows the AI provider to switch between "Memory" and "Container" targets seamlessly.
+*   **Best For:** "Fix this bug", "Refactor and verify", "Upgrade dependencies".
+*   **Supported Providers:** 
+    *   **Anthropic:** Excellent reasoning for complex loops.
+    *   **Gemini:** Large context window is perfect for analyzing huge build logs.
+    *   **OpenAI:** Robust function calling standard.
 
-### Why?
-Our current use case is specialized: we generate code within a **virtual, in-memory context** passed from the client. The Agent SDK is opinionated towards acting as an autonomous agent on a *real* machine. Adapting it to work strictly within our virtual file boundaries would likely require fighting the framework, negating the benefits of its simplicity.
+## Feasibility & Implementation Plan
 
-### When to Revisit?
-1.  **Architecture Change:** If we move to an architecture where the server directly modifies the host file system instead of returning file diffs to the client.
-2.  **Complexity Threshold:** If we find ourselves re-implementing complex agent behaviors like history summarization/compaction or advanced sub-agent orchestration.
-3.  **Standardization:** If we decide to fully adopt the Model Context Protocol (MCP) for all tools, the Agent SDK might offer a more compliant implementation out of the box.
+This can be introduced without breaking the existing flow.
+
+### Phase 1: Tool Abstraction (Provider Agnostic)
+Refactor our `LLMProvider` interface to accept a context target.
+*   **Current:** `generate(files: VirtualFileMap)`
+*   **New:** `generate(target: FileSystemInterface)`
+    *   `MemoryFileSystem`: Reads/writes to the JSON object.
+    *   `ContainerFileSystem`: Wraps `DockerManager.exec()` and `readFile()`.
+
+### Phase 2: "Run Command" Tool
+Enable the `run_command` tool *only* when the `target` is `ContainerFileSystem`.
+*   Security: This is safe(r) because it runs inside the user's isolated Docker container, not the host.
+
+### Phase 3: The "Auto-Fix" Button
+Add a UI toggle or specific button ("Agent Fix") that sends the request with the `use_container_context: true` flag.
+
+## Conclusion
+We should **NOT** replace the current implementation entirely. The in-memory generation is unbeatable for speed.
+However, we **SHOULD** build the **Agent Mode** as a powerful optional feature for Docker users. This architecture is **provider-agnostic**, allowing us to use Gemini Pro's massive context window for debugging just as easily as Claude's reasoning.
