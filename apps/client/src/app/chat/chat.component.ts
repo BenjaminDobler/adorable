@@ -496,6 +496,18 @@ export class ChatComponent {
                }
                return newMsgs;
             });
+        } else if (event.type === 'tool_result') {
+            this.messages.update(msgs => {
+               const newMsgs = [...msgs];
+               const msg = newMsgs[assistantMsgIndex];
+               const results = msg.toolResults || [];
+               msg.toolResults = [...results, { 
+                  tool: event.name || 'tool', 
+                  result: event.result, 
+                  isError: event.isError 
+               }];
+               return newMsgs;
+            });
         } else if (event.type === 'usage') {
            this.messages.update(msgs => {
              const newMsgs = [...msgs];

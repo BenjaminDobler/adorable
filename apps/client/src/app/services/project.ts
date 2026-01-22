@@ -20,6 +20,7 @@ export interface ChatMessage {
   status?: string;
   model?: string;
   updatedFiles?: string[];
+  toolResults?: { tool: string, result: string, isError?: boolean }[];
   isExpanded?: boolean;
 }
 

@@ -99,6 +99,25 @@
             </div>
           }
 
+          @if (msg.toolResults && msg.toolResults.length > 0) {
+            <div class="tool-results-container" style="margin-top: 1rem;">
+              @for (res of msg.toolResults; track res) {
+                <div class="tool-result-item" style="border: 1px solid var(--panel-border); border-radius: var(--radius-md); overflow: hidden; margin-bottom: 0.5rem;">
+                  <div style="background: var(--bg-surface-2); padding: 6px 12px; font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--panel-border);">
+                    <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                    {{ res.tool | uppercase }}
+                    @if (res.isError) {
+                      <span style="color: var(--error-color); font-size: 0.6rem; margin-left: auto;">FAILED</span>
+                    } @else {
+                      <span style="color: var(--accent-color); font-size: 0.6rem; margin-left: auto;">SUCCESS</span>
+                    }
+                  </div>
+                  <pre style="margin: 0; padding: 10px; background: #000; color: #ccc; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">{{ res.result }}</pre>
+                </div>
+              }
+            </div>
+          }
+
           @if (msg.files) {
             <div class="message-actions">
               <button class="btn-restore" (click)="restoreVersion(msg.files)" title="Restore project to this state">
