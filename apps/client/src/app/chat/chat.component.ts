@@ -52,6 +52,10 @@ export class ChatComponent {
   editText = '';
   editColor = '#000000';
   
+  // Agent Mode State
+  agentMode = signal(false);
+  isDockerMode = computed(() => this.webContainerService.mode() === 'local');
+  
   shouldAddToAssets = signal(true);
   attachedFile: File | null = null;
   attachedFileContent: string | null = null;
@@ -102,6 +106,13 @@ export class ChatComponent {
        if (data) {
           this.editText = data.text || '';
           this.editColor = data.styles?.color || '#000000';
+       }
+    });
+
+    // Disable agent mode if switching away from Docker
+    effect(() => {
+       if (!this.isDockerMode()) {
+          this.agentMode.set(false);
        }
     });
   }
@@ -419,7 +430,8 @@ export class ChatComponent {
       model,
       images: this.attachedFileContent ? [this.attachedFileContent] : undefined,
       smartRouting: this.appSettings?.smartRouting,
-      openFiles: this.getContextFiles()
+      openFiles: this.getContextFiles(),
+      use_container_context: this.agentMode()
     }).subscribe({
       next: async (event) => {
         if (event.type !== 'tool_delta' && event.type !== 'text') { 

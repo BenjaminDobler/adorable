@@ -214,6 +214,11 @@
     color: var(--text-primary);
     background: rgba(255, 255, 255, 0.05);
   }
+
+  &.active {
+    color: var(--accent-color);
+    background: var(--accent-glow);
+  }
   
   &:active {
     transform: scale(0.95);

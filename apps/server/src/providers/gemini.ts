@@ -1,10 +1,10 @@
-import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
+import { GenerateOptions, LLMProvider, StreamCallbacks, FileSystemInterface } from './types';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { minimatch } from 'minimatch';
 import { BaseLLMProvider } from './base';
 import { ANGULAR_KNOWLEDGE_BASE } from './knowledge-base';
 import { DebugLogger } from './debug-logger';
 import { TOOLS } from './tools';
+import { MemoryFileSystem } from './filesystem/memory-filesystem';
 
 const SYSTEM_PROMPT = 
 "You are an expert Angular developer.\n"
@@ -14,7 +14,8 @@ const SYSTEM_PROMPT =
 +"- You **MUST** use the `read_file` tool to inspect the code of any file you plan to modify or need to understand.\n"
 +"- **NEVER** guess the content of a file. Always read it first to ensure you have the latest version.\n"
 +"- Use `write_file` to create or update files.\n"
-+"- Use `edit_file` for precise modifications when you want to change a specific part of a file without rewriting the whole content. `old_str` must match exactly.\n\n"
++"- Use `edit_file` for precise modifications when you want to change a specific part of a file without rewriting the whole content. `old_str` must match exactly.\n"
++"- Use `run_command` if available to execute shell commands, run builds, or grep for information. Always inspect the output to verify success.\n\n"
 +"**RESTRICTED FILES (DO NOT EDIT):**\n"
 +"- `package.json`, `angular.json`, `tsconfig.json`, `tsconfig.app.json`: Do NOT modify these files unless you are explicitly adding a dependency or changing a build configuration.\n"
 +"- **NEVER** overwrite `package.json` with a generic template. The project is already set up with Angular 21.\n\n"
@@ -34,31 +35,48 @@ const SYSTEM_PROMPT =
 export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
   async generate(options: GenerateOptions): Promise<any> {
     let text = '';
-    await this.streamGenerate(options, {
+    const res = await this.streamGenerate(options, {
         onText: (t) => text += t,
         // eslint-disable-next-line @typescript-eslint/no-empty-function
         onToolResult: () => {},
     });
-    return { explanation: text, files: this.lastAccumulatedFiles };
+    return { explanation: text, files: res.files };
   }
   
-  private lastAccumulatedFiles: any = {};
-
   async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any> {
     const logger = new DebugLogger('gemini');
-    const { prompt, previousFiles, apiKey, model } = options;
+    const { prompt, previousFiles, apiKey, model, fileSystem } = options;
     if (!apiKey) throw new Error('Gemini API Key is required');
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const modelName = model || 'gemini-2.0-flash-exp';
     
-    const tools = TOOLS.map(tool => ({
+    // Initialize File System
+    const fs: FileSystemInterface = fileSystem || new MemoryFileSystem(this.flattenFiles(previousFiles || {}));
+
+    // Prepare Tools
+    const availableTools: any[] = [...TOOLS];
+    if (fs.exec) {
+       availableTools.push({
+          name: "run_command",
+          description: "Execute a shell command in the project environment. Use this to run build commands, tests, or grep for information. Returns stdout, stderr and exit code.",
+          input_schema: {
+             type: "object",
+             properties: {
+                command: { type: "string", description: "The shell command to execute (e.g. 'npm run build', 'grep -r \"Component\" src')" }
+             },
+             required: ["command"]
+          }
+       });
+    }
+
+    const tools = availableTools.map(tool => ({
       name: tool.name,
       description: tool.description,
       parameters: tool.input_schema
     }));
 
-    const generativeModel = genAI.getGenerativeModel({ 
+    const generativeModel = genAI.getGenerativeModel({
       model: modelName,
       tools: [{ functionDeclarations: tools as any }]
     });
@@ -82,13 +100,10 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
     const initialParts: any[] = [{ text: userMessage }];
     if (options.images && options.images.length > 0) {
       options.images.forEach(dataUri => {
-        // Generic regex to capture mime type and base64 data
         const match = dataUri.match(/^data:([^;]+);base64,(.+)$/);
         if (match) {
           const mimeType = match[1];
           const data = match[2];
-          
-          // Allow images, PDFs, and text files
           if (mimeType.startsWith('image/') || mimeType === 'application/pdf' || mimeType.startsWith('text/')) {
              initialParts.push({ inlineData: { mimeType, data } });
           }
@@ -109,10 +124,6 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       ]
     });
 
-    // Keep the map for read_file execution
-    const fileMap = this.flattenFiles(previousFiles || {});
-    const accumulatedFiles: any = {};
-    this.lastAccumulatedFiles = accumulatedFiles;
     let fullExplanation = '';
     let turnCount = 0;
     const MAX_TURNS = 10;
@@ -125,7 +136,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       logger.log('TURN_START', { turn: turnCount });
       
       const result = await chat.sendMessageStream(currentParts);
-      let functionCalls: any[] = [];
+      const functionCalls: any[] = [];
       let textResponse = '';
 
       for await (const chunk of result.stream) {
@@ -136,15 +147,11 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
           callbacks.onText?.(chunkText);
         }
         
-        // Gemini returns function calls in the chunk object, not as text delta
-        // We need to inspect the underlying candidates
         const calls = chunk.functionCalls();
         if (calls && calls.length > 0) {
            functionCalls.push(...calls);
-           // Notify UI about tool usage (approximate since it's not streaming char-by-char)
            calls.forEach(call => {
               callbacks.onToolStart?.(0, call.name);
-              // Send full input immediately as Gemini gives it parsed
               callbacks.onToolDelta?.(0, JSON.stringify(call.args));
            });
         }
@@ -152,7 +159,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
         if (chunk.usageMetadata) {
             totalInputTokens = chunk.usageMetadata.promptTokenCount;
             totalOutputTokens = chunk.usageMetadata.candidatesTokenCount;
-            callbacks.onTokenUsage?.({ 
+            callbacks.onTokenUsage?.({
                 inputTokens: totalInputTokens, 
                 outputTokens: totalOutputTokens, 
                 totalTokens: chunk.usageMetadata.totalTokenCount 
@@ -181,52 +188,38 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
         try {
            callbacks.onToolCall?.(0, toolName, toolArgs);
 
-           if (toolName === 'write_file') {
-             if (!toolArgs.content) {
-                content = 'Error: No content provided. Please retry.';
-                isError = true;
-             } else {
-                this.addFileToStructure(accumulatedFiles, toolArgs.path, toolArgs.content);
-                content = 'File created successfully.';
-             }
-           } else if (toolName === 'edit_file') {
-              const originalContent = fileMap[toolArgs.path];
-              if (!originalContent) {
-                content = 'Error: File not found. You must ensure the file exists before editing it.';
-                isError = true;
-              } else {
-                if (originalContent.includes(toolArgs.old_str)) {
-                   const newContent = originalContent.replace(toolArgs.old_str, toolArgs.new_str);
-                   fileMap[toolArgs.path] = newContent; 
-                   this.addFileToStructure(accumulatedFiles, toolArgs.path, newContent);
-                   content = 'File edited successfully.';
-                } else {
-                   content = 'Error: old_str not found in file. Please ensure it matches exactly, including whitespace.';
-                   isError = true;
-                }
-              }
-           } else if (toolName === 'read_file') {
-              content = fileMap[toolArgs.path] || 'Error: File not found. The file may not exist in the current project structure.';
-              if (content.startsWith('Error:')) isError = true;
-           } else if (toolName === 'list_dir') {
-             // ... simplify list_dir logic for brevity or reuse ...
-             let dir = toolArgs.path;
-             if (dir === '.' || dir === './') dir = '';
-             if (dir && !dir.endsWith('/')) dir += '/';
-             const matching = Object.keys(fileMap)
-               .filter(k => k.startsWith(dir))
-               .map(k => {
-                 const relative = k.substring(dir.length);
-                 const parts = relative.split('/');
-                 return parts.length > 1 ? parts[0] + '/' : parts[0];
-               });
-             const unique = Array.from(new Set(matching)).sort();
-             content = unique.length ? unique.join('\n') : 'Directory is empty or not found.';
-           } else if (toolName === 'glob') {
-             const matchingFiles = Object.keys(fileMap).filter(path => minimatch(path, toolArgs.pattern));
-             content = matchingFiles.length ? matchingFiles.join('\n') : 'No files matched the pattern.';
-           }
-        } catch (e) {
+           switch (toolName) {
+                case 'write_file':
+                    if (!toolArgs.content) throw new Error('No content provided for file.');
+                    await fs.writeFile(toolArgs.path, toolArgs.content);
+                    content = 'File created successfully.';
+                    break;
+                case 'edit_file':
+                    await fs.editFile(toolArgs.path, toolArgs.old_str, toolArgs.new_str);
+                    content = 'File edited successfully.';
+                    break;
+                case 'read_file':
+                    content = await fs.readFile(toolArgs.path);
+                    break;
+                case 'list_dir':
+                    const items = await fs.listDir(toolArgs.path);
+                    content = items.length ? items.join('\n') : 'Directory is empty or not found.';
+                    break;
+                case 'glob':
+                    const matches = await fs.glob(toolArgs.pattern);
+                    content = matches.length ? matches.join('\n') : 'No files matched the pattern.';
+                    break;
+                case 'run_command':
+                    if (!fs.exec) throw new Error('run_command is not supported in this environment.');
+                    const res = await fs.exec(toolArgs.command);
+                    content = `Exit Code: ${res.exitCode}\n\nSTDOUT:\n${res.stdout}\n\nSTDERR:\n${res.stderr}`;
+                    if (res.exitCode !== 0) isError = true;
+                    break;
+                default:
+                    content = `Error: Unknown tool ${toolName}`;
+                    isError = true;
+            }
+        } catch (e: any) {
            content = `Error executing tool: ${e.message}`;
            isError = true;
         }
@@ -242,12 +235,11 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
         });
       }
       
-      // Gemini expects function responses in the next turn
       currentParts = toolOutputs;
       turnCount++;
     }
     
-    return { explanation: fullExplanation, files: accumulatedFiles, model: modelName };
+    return { explanation: fullExplanation, files: fs.getAccumulatedFiles(), model: modelName };
   }
 
   private flattenFiles(structure: any, prefix = ''): Record<string, string> {
