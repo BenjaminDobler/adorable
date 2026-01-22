@@ -15,7 +15,7 @@ const SYSTEM_PROMPT =
 +"- **NEVER** guess the content of a file. Always read it first to ensure you have the latest version.\n"
 +"- Use `write_file` to create or update files.\n"
 +"- Use `edit_file` for precise modifications when you want to change a specific part of a file without rewriting the whole content. `old_str` must match exactly.\n"
-+"- Use `run_command` if available to execute shell commands, run builds, or grep for information. Always inspect the output to verify success.\n\n"
++"- Use `run_command` if available to execute shell commands. **MANDATORY:** After creating or modifying components, you MUST run `npm run build` to verify compilation. Do NOT assume your code works. If the build fails (exit code != 0), read the error output, fix the file(s), and RE-RUN the build to confirm the fix.\n\n"
 +"**RESTRICTED FILES (DO NOT EDIT):**\n"
 +"- `package.json`, `angular.json`, `tsconfig.json`, `tsconfig.app.json`: Do NOT modify these files unless you are explicitly adding a dependency or changing a build configuration.\n"
 +"- **NEVER** overwrite `package.json` with a generic template. The project is already set up with Angular 21.\n\n"
