@@ -1,0 +1,237 @@
+<div class="figma-panel">
+  <!-- Loading Overlay -->
+  @if (figmaService.loading() || importing()) {
+    <div class="loading-overlay">
+      <div class="spinner"></div>
+      <span>{{ importing() ? 'Importing designs...' : 'Loading...' }}</span>
+    </div>
+  }
+
+  <!-- Setup View - Not Configured -->
+  @if (view === 'setup') {
+    <div class="setup-view">
+      <div class="figma-logo">
+        <svg viewBox="0 0 38 57" width="48" height="72" fill="none">
+          <path fill="#1ABCFE" d="M19 28.5a9.5 9.5 0 1 1 19 0 9.5 9.5 0 0 1-19 0z"/>
+          <path fill="#0ACF83" d="M0 47.5A9.5 9.5 0 0 1 9.5 38H19v9.5a9.5 9.5 0 1 1-19 0z"/>
+          <path fill="#FF7262" d="M19 0v19h9.5a9.5 9.5 0 1 0 0-19H19z"/>
+          <path fill="#F24E1E" d="M0 9.5A9.5 9.5 0 0 0 9.5 19H19V0H9.5A9.5 9.5 0 0 0 0 9.5z"/>
+          <path fill="#A259FF" d="M0 28.5A9.5 9.5 0 0 0 9.5 38H19V19H9.5A9.5 9.5 0 0 0 0 28.5z"/>
+        </svg>
+      </div>
+      <h3>Connect Figma</h3>
+      <p>Add your Figma Personal Access Token in your profile settings to import designs.</p>
+      <div class="setup-instructions">
+        <h4>How to get a token:</h4>
+        <ol>
+          <li>Go to <a href="https://www.figma.com/settings" target="_blank" rel="noopener">Figma Settings</a></li>
+          <li>Scroll to "Personal Access Tokens"</li>
+          <li>Click "Generate new token"</li>
+          <li>Copy the token and paste it in your Profile settings</li>
+        </ol>
+      </div>
+      <a href="/profile" class="btn-primary">Open Profile Settings</a>
+
+      <div class="divider">
+        <span>or</span>
+      </div>
+
+      <!-- Plugin Import Option -->
+      <div class="plugin-import-section">
+        <h4>Import from Figma Plugin</h4>
+        <p>Use the Adorable Export plugin to export designs directly from Figma.</p>
+        <div
+          class="file-drop-zone"
+          [class.dragging]="isDragging()"
+          (drop)="onFileDrop($event)"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave($event)"
+          (click)="fileInput.click()"
+        >
+          <input
+            #fileInput
+            type="file"
+            accept=".json"
+            style="display: none"
+            (change)="onFileSelect($event)"
+          />
+          <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="1.5" fill="none">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          <span>Drop export file here or click to browse</span>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Input View - Enter Figma URL -->
+  @if (view === 'input') {
+    <div class="input-view">
+      <div class="user-info">
+        @if (figmaService.status().user; as user) {
+          <div class="user-badge">
+            <span class="avatar-placeholder">👤</span>
+            <span>{{ user.handle || user.email }}</span>
+          </div>
+        }
+      </div>
+
+      <div class="url-input-section">
+        <h3>Import from Figma API</h3>
+        <p>Paste a Figma file URL to browse and select designs for import.</p>
+
+        <div class="input-group">
+          <input
+            type="text"
+            placeholder="https://www.figma.com/design/..."
+            [ngModel]="figmaUrl()"
+            (ngModelChange)="figmaUrl.set($event)"
+            (keydown.enter)="loadFile()"
+          />
+          <button class="btn-primary" (click)="loadFile()" [disabled]="!figmaUrl()">
+            Load File
+          </button>
+        </div>
+
+        @if (error()) {
+          <div class="error-message">{{ error() }}</div>
+        }
+      </div>
+
+      <div class="divider">
+        <span>or</span>
+      </div>
+
+      <!-- Plugin Import Option -->
+      <div class="plugin-import-section">
+        <h4>Import from Plugin Export</h4>
+        <p>Drop an export file from the Adorable Figma Plugin.</p>
+        <div
+          class="file-drop-zone"
+          [class.dragging]="isDragging()"
+          (drop)="onFileDrop($event)"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave($event)"
+          (click)="fileInput.click()"
+        >
+          <input
+            #fileInput
+            type="file"
+            accept=".json"
+            style="display: none"
+            (change)="onFileSelect($event)"
+          />
+          <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="1.5" fill="none">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          <span>Drop .json file or click to browse</span>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Tree View - Select Frames -->
+  @if (view === 'tree') {
+    <div class="tree-view">
+      <div class="tree-header">
+        <button class="btn-back" (click)="goBack()">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          Back
+        </button>
+        <div class="file-name">{{ figmaService.currentFile()?.name }}</div>
+      </div>
+
+      <div class="selection-bar">
+        <span>{{ selectedCount }} selected</span>
+        <button class="btn-link" (click)="clearSelection()">Clear all</button>
+      </div>
+
+      @if (error()) {
+        <div class="error-message">{{ error() }}</div>
+      }
+
+      <div class="tree-content">
+        @for (page of figmaService.currentFile()?.pages; track page.id) {
+          <div class="page-section">
+            <div class="page-header" (click)="toggleExpand(page.id)">
+              <span class="expand-icon" [class.expanded]="isExpanded(page.id)">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </span>
+              <span class="page-icon">📄</span>
+              <span class="page-name">{{ page.name }}</span>
+              <button class="btn-select-all" (click)="selectAllInPage(page); $event.stopPropagation()">
+                Select all
+              </button>
+            </div>
+
+            @if (isExpanded(page.id)) {
+              <div class="page-children">
+                <ng-container *ngTemplateOutlet="nodeTree; context: { nodes: page.children, depth: 0 }"></ng-container>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="import-bar">
+        <button
+          class="btn-import"
+          [disabled]="selectedCount === 0 || importing()"
+          (click)="importSelected()"
+        >
+          @if (importing()) {
+            Importing...
+          } @else {
+            Import {{ selectedCount }} frame{{ selectedCount !== 1 ? 's' : '' }} to Chat
+          }
+        </button>
+      </div>
+    </div>
+  }
+</div>
+
+<!-- Recursive Node Tree Template -->
+<ng-template #nodeTree let-nodes="nodes" let-depth="depth">
+  @for (node of nodes; track node.id) {
+    <div class="tree-node" [style.padding-left.px]="depth * 16 + 8">
+      <div class="node-row">
+        @if (hasChildren(node)) {
+          <span class="expand-icon" [class.expanded]="isExpanded(node.id)" (click)="toggleExpand(node.id)">
+            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </span>
+        } @else {
+          <span class="expand-spacer"></span>
+        }
+
+        <label class="node-label" (click)="$event.stopPropagation()">
+          <input
+            type="checkbox"
+            [checked]="isSelected(node.id)"
+            (change)="toggleSelect(node.id)"
+          />
+          <span class="node-icon">{{ getNodeIcon(node.type) }}</span>
+          <span class="node-name">{{ node.name }}</span>
+          @if (node.bounds) {
+            <span class="node-size">{{ node.bounds.width }}×{{ node.bounds.height }}</span>
+          }
+        </label>
+      </div>
+
+      @if (hasChildren(node) && isExpanded(node.id)) {
+        <div class="node-children">
+          <ng-container *ngTemplateOutlet="nodeTree; context: { nodes: node.children, depth: depth + 1 }"></ng-container>
+        </div>
+      }
+    </div>
+  }
+</ng-template>

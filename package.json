@@ -12,6 +12,7 @@
     "@angular/compiler-cli": "~21.0.0",
     "@angular/language-service": "~21.0.0",
     "@eslint/js": "^9.8.0",
+    "@figma/plugin-typings": "^1.122.0",
     "@nx/angular": "^22.3.3",
     "@nx/devkit": "22.3.3",
     "@nx/eslint": "22.3.3",

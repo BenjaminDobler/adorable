@@ -333,6 +333,25 @@
         </div>
       }
 
+      @if (hasFigmaAttachment) {
+        <div class="image-chip figma-chip" style="margin: 0 12px 0 0; background: linear-gradient(135deg, rgba(242, 78, 30, 0.1), rgba(162, 89, 255, 0.1)); border-color: rgba(162, 89, 255, 0.3);">
+          <div style="display: flex; align-items: center; gap: 8px; padding: 0 8px;">
+            <svg viewBox="0 0 38 57" width="16" height="24" fill="none">
+              <path fill="#1ABCFE" d="M19 28.5a9.5 9.5 0 1 1 19 0 9.5 9.5 0 0 1-19 0z"/>
+              <path fill="#0ACF83" d="M0 47.5A9.5 9.5 0 0 1 9.5 38H19v9.5a9.5 9.5 0 1 1-19 0z"/>
+              <path fill="#FF7262" d="M19 0v19h9.5a9.5 9.5 0 1 0 0-19H19z"/>
+              <path fill="#F24E1E" d="M0 9.5A9.5 9.5 0 0 0 9.5 19H19V0H9.5A9.5 9.5 0 0 0 0 9.5z"/>
+              <path fill="#A259FF" d="M0 28.5A9.5 9.5 0 0 0 9.5 38H19V19H9.5A9.5 9.5 0 0 0 0 28.5z"/>
+            </svg>
+            <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary);">{{ figmaFrameCount }} Figma frame{{ figmaFrameCount !== 1 ? 's' : '' }}</span>
+          </div>
+          @if (figmaImages().length > 0) {
+            <img [src]="figmaImages()[0] | safeUrl" style="max-height: 32px; border-radius: 4px; margin-left: 4px;" />
+          }
+          <button class="chip-remove" (click)="removeFigmaAttachment()">×</button>
+        </div>
+      }
+
       <button (click)="generate()" [disabled]="loading() || !prompt" class="btn-generate">
         @if (loading()) {
           <div class="spinner-small" style="border-top-color: white; border-width: 2px; width: 14px; height: 14px;"></div>

@@ -13,6 +13,7 @@ import { aiRouter } from './routes/ai.routes';
 import { containerRouter } from './routes/container.routes';
 import { profileRouter } from './routes/profile.routes';
 import { skillsRouter } from './routes/skills.routes';
+import { figmaRouter } from './routes/figma.routes';
 
 const app = express();
 
@@ -76,6 +77,7 @@ app.use('/api', aiRouter);
 app.use('/api/container', containerRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/skills', skillsRouter);
+app.use('/api/figma', figmaRouter);
 
 const server = app.listen(PORT, () => {
   console.log(`Listening at http://localhost:${PORT}/api`);

@@ -6,7 +6,7 @@ import { Router } from '@angular/router';
 import { ThemeService, ThemeMode } from '../services/theme';
 import { ToastService } from '../services/toast';
 
-export type ProviderType = 'anthropic' | 'gemini';
+export type ProviderType = 'anthropic' | 'gemini' | 'figma';
 
 export interface AIProfile {
   id: string;
@@ -67,6 +67,13 @@ export class ProfileComponent {
         provider: 'gemini',
         apiKey: '',
         model: 'gemini-2.0-flash-exp'
+      },
+      {
+        id: 'figma',
+        name: 'Figma',
+        provider: 'figma',
+        apiKey: '',
+        model: ''
       }
     ],
     activeProfileId: 'anthropic',
@@ -152,9 +159,9 @@ export class ProfileComponent {
           this.themeService.setTheme(newSettings.theme);
         }
 
-        // Fetch models for profiles with keys
+        // Fetch models for AI profiles with keys (skip Figma)
         this.settings().profiles.forEach(p => {
-          if (p.apiKey) this.fetchModels(p);
+          if (p.apiKey && p.provider !== 'figma') this.fetchModels(p);
         });
       }
     });
@@ -219,6 +226,14 @@ export class ProfileComponent {
 
   getTierConfig(tier: string): SmartRoutingTier | undefined {
     return (this.settings().smartRouting as any)?.[tier];
+  }
+
+  getFigmaProfile(): AIProfile | undefined {
+    return this.settings().profiles.find(p => p.provider === 'figma');
+  }
+
+  getAIProfiles(): AIProfile[] {
+    return this.settings().profiles.filter(p => p.provider !== 'figma');
   }
 
   updateTheme(mode: ThemeMode) {

@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 12px;
+      color: #333;
+      padding: 16px;
+      background: #fff;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #e5e5e5;
+    }
+
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #3ecf8e, #2db87a);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+
+    .subtitle {
+      font-size: 11px;
+      color: #666;
+      margin-top: 2px;
+    }
+
+    .section {
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .selection-list {
+      background: #f5f5f5;
+      border-radius: 8px;
+      padding: 12px;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+
+    .selection-empty {
+      color: #999;
+      font-style: italic;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .selection-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+      border-bottom: 1px solid #e5e5e5;
+    }
+
+    .selection-item:last-child {
+      border-bottom: none;
+    }
+
+    .selection-icon {
+      width: 20px;
+      height: 20px;
+      background: #e0e0e0;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+    }
+
+    .selection-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+
+    .selection-type {
+      font-size: 10px;
+      color: #999;
+      background: #e5e5e5;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .option-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      background: #f5f5f5;
+      border-radius: 8px;
+    }
+
+    .option-label {
+      font-weight: 500;
+    }
+
+    .option-desc {
+      font-size: 10px;
+      color: #666;
+      margin-top: 2px;
+    }
+
+    select {
+      padding: 6px 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 12px;
+      background: white;
+      cursor: pointer;
+    }
+
+    select:focus {
+      outline: none;
+      border-color: #3ecf8e;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #3ecf8e, #2db87a);
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      filter: brightness(1.05);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #333;
+      margin-top: 8px;
+    }
+
+    .btn-secondary:hover {
+      background: #e5e5e5;
+    }
+
+    .status {
+      text-align: center;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+
+    .status.info {
+      background: #e8f4fd;
+      color: #0066cc;
+    }
+
+    .status.error {
+      background: #fde8e8;
+      color: #cc0000;
+    }
+
+    .status.success {
+      background: #e8fdf0;
+      color: #00994d;
+    }
+
+    .progress-bar {
+      height: 4px;
+      background: #e5e5e5;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3ecf8e, #2db87a);
+      transition: width 0.3s;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .footer {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid #e5e5e5;
+      text-align: center;
+      font-size: 10px;
+      color: #999;
+    }
+
+    .footer a {
+      color: #3ecf8e;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">A</div>
+    <div>
+      <div class="title">Adorable Export</div>
+      <div class="subtitle">Export designs for AI generation</div>
+    </div>
+  </div>
+
+  <div id="status-container" class="hidden">
+    <div id="status" class="status info"></div>
+    <div id="progress" class="progress-bar hidden">
+      <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Selected Items (<span id="selection-count">0</span>)</div>
+    <div class="selection-list" id="selection-list">
+      <div class="selection-empty">Select frames or components in Figma</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Export Settings</div>
+    <div class="option-row">
+      <div>
+        <div class="option-label">Image Scale</div>
+        <div class="option-desc">Higher = better quality, larger file</div>
+      </div>
+      <select id="scale-select">
+        <option value="1">1x</option>
+        <option value="2" selected>2x</option>
+        <option value="3">3x</option>
+        <option value="4">4x</option>
+      </select>
+    </div>
+  </div>
+
+  <button id="export-btn" class="btn btn-primary" disabled>
+    Export Selection
+  </button>
+  <button id="cancel-btn" class="btn btn-secondary">
+    Close
+  </button>
+
+  <div class="footer">
+    Export file can be imported into Adorable AI App Generator
+  </div>
+
+  <script>
+    const selectionList = document.getElementById('selection-list');
+    const selectionCount = document.getElementById('selection-count');
+    const exportBtn = document.getElementById('export-btn');
+    const cancelBtn = document.getElementById('cancel-btn');
+    const scaleSelect = document.getElementById('scale-select');
+    const statusContainer = document.getElementById('status-container');
+    const statusEl = document.getElementById('status');
+    const progressBar = document.getElementById('progress');
+    const progressFill = document.getElementById('progress-fill');
+
+    let currentSelection = [];
+
+    // Icon mapping for node types
+    const typeIcons = {
+      'FRAME': '⬜',
+      'COMPONENT': '◇',
+      'COMPONENT_SET': '◈',
+      'GROUP': '📁',
+      'SECTION': '📑',
+      'INSTANCE': '◆',
+      'RECTANGLE': '▢',
+      'ELLIPSE': '○',
+      'TEXT': 'T',
+      'VECTOR': '✦',
+    };
+
+    function updateSelectionUI(items) {
+      currentSelection = items;
+      selectionCount.textContent = items.length;
+
+      if (items.length === 0) {
+        selectionList.innerHTML = '<div class="selection-empty">Select frames or components in Figma</div>';
+        exportBtn.disabled = true;
+        exportBtn.textContent = 'Export Selection';
+      } else {
+        selectionList.innerHTML = items.map(item => `
+          <div class="selection-item">
+            <div class="selection-icon">${typeIcons[item.type] || '▢'}</div>
+            <div class="selection-name">${item.name}</div>
+            <div class="selection-type">${item.type}</div>
+          </div>
+        `).join('');
+        exportBtn.disabled = false;
+        exportBtn.textContent = `Export ${items.length} Item${items.length > 1 ? 's' : ''}`;
+      }
+    }
+
+    function showStatus(message, type = 'info') {
+      statusContainer.classList.remove('hidden');
+      statusEl.textContent = message;
+      statusEl.className = `status ${type}`;
+    }
+
+    function hideStatus() {
+      statusContainer.classList.add('hidden');
+    }
+
+    function showProgress(current, total) {
+      progressBar.classList.remove('hidden');
+      const percent = (current / total) * 100;
+      progressFill.style.width = `${percent}%`;
+    }
+
+    function hideProgress() {
+      progressBar.classList.add('hidden');
+      progressFill.style.width = '0%';
+    }
+
+    function downloadJSON(payload) {
+      const dataStr = JSON.stringify(payload, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const safeName = payload.fileName.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+      const filename = `adorable-export-${safeName}-${timestamp}.json`;
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Handle messages from plugin code
+    window.onmessage = (event) => {
+      const msg = event.data.pluginMessage;
+      if (!msg) return;
+
+      switch (msg.type) {
+        case 'selection-info':
+          updateSelectionUI(msg.items);
+          break;
+
+        case 'status':
+          showStatus(msg.message, 'info');
+          break;
+
+        case 'progress':
+          showStatus(msg.message, 'info');
+          showProgress(msg.current, msg.total);
+          break;
+
+        case 'error':
+          showStatus(msg.message, 'error');
+          hideProgress();
+          exportBtn.disabled = false;
+          break;
+
+        case 'download':
+          downloadJSON(msg.payload);
+          showStatus(`Exported ${msg.payload.selection.length} item(s) successfully!`, 'success');
+          hideProgress();
+          exportBtn.disabled = false;
+          break;
+      }
+    };
+
+    // Export button click
+    exportBtn.addEventListener('click', () => {
+      exportBtn.disabled = true;
+      hideStatus();
+      const scale = parseInt(scaleSelect.value, 10);
+      parent.postMessage({ pluginMessage: { type: 'export', scale } }, '*');
+    });
+
+    // Cancel button click
+    cancelBtn.addEventListener('click', () => {
+      parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
+    });
+
+    // Request initial selection info
+    parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
+  </script>
+</body>
+</html>

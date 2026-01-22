@@ -9,6 +9,7 @@ import { TemplateService } from '../services/template';
 import { SkillsService, Skill } from '../services/skills';
 import { SafeUrlPipe } from '../pipes/safe-url.pipe';
 import { BASE_FILES } from '../base-project';
+import { FigmaImportPayload } from '@adorable/shared-types';
 
 @Component({
   selector: 'app-chat',
@@ -40,9 +41,18 @@ export class ChatComponent {
 
   @Input() visualEditorData = signal<any>(null);
 
+  // Pending Figma import from the Figma panel
+  @Input() set pendingFigmaImport(payload: FigmaImportPayload | null) {
+    if (payload) {
+      this.handleFigmaImport(payload);
+      this.figmaImportProcessed.emit();
+    }
+  }
+
   @Output() startSelection = new EventEmitter<void>();
   @Output() fileUploaded = new EventEmitter<{name: string, content: string}>();
   @Output() closeVisualEdit = new EventEmitter<void>();
+  @Output() figmaImportProcessed = new EventEmitter<void>();
 
   messages = this.projectService.messages;
   loading = this.projectService.loading;
@@ -72,6 +82,10 @@ export class ChatComponent {
 
   availableSkills = signal<Skill[]>([]);
   selectedSkill = signal<Skill | null>(null);
+
+  // Figma import state
+  figmaContext = signal<any>(null);
+  figmaImages = signal<string[]>([]);
 
   get isAttachedImage(): boolean {
     return this.attachedFile?.type.startsWith('image/') ?? false;
@@ -153,6 +167,9 @@ export class ChatComponent {
     const models: any[] = [{ id: 'auto', name: '✨ Auto (Smart)', provider: 'auto' }];
     
     profiles.forEach((profile: any) => {
+       // Skip non-AI providers like Figma
+       if (profile.provider === 'figma') return;
+
        if (profile.apiKey) {
           let providerParam = profile.provider;
           if (providerParam === 'gemini') providerParam = 'google';
@@ -313,6 +330,101 @@ export class ChatComponent {
     this.attachedFile = null;
   }
 
+  removeFigmaAttachment() {
+    this.figmaContext.set(null);
+    this.figmaImages.set([]);
+  }
+
+  get hasFigmaAttachment(): boolean {
+    return this.figmaImages().length > 0;
+  }
+
+  get figmaFrameCount(): number {
+    return this.figmaImages().length;
+  }
+
+  /**
+   * Simplify Figma context to avoid token limits.
+   * Extracts only essential structure info (names, types, dimensions).
+   */
+  private simplifyFigmaContext(context: Record<string, any>): string {
+    const summaries: string[] = [];
+
+    for (const nodeId of Object.keys(context)) {
+      const node = context[nodeId]?.document;
+      if (!node) continue;
+
+      const summary = this.summarizeNode(node, 0);
+      summaries.push(summary);
+    }
+
+    return summaries.join('\n\n');
+  }
+
+  private summarizeNode(node: any, depth: number): string {
+    if (depth > 3) return ''; // Limit depth to avoid huge outputs
+
+    const indent = '  '.repeat(depth);
+    const dims = node.absoluteBoundingBox
+      ? ` (${Math.round(node.absoluteBoundingBox.width)}×${Math.round(node.absoluteBoundingBox.height)})`
+      : '';
+
+    let line = `${indent}- ${node.name} [${node.type}]${dims}`;
+
+    if (node.children && node.children.length > 0 && depth < 3) {
+      const childSummaries = node.children
+        .slice(0, 10) // Limit to first 10 children
+        .map((child: any) => this.summarizeNode(child, depth + 1))
+        .filter((s: string) => s);
+
+      if (childSummaries.length > 0) {
+        line += '\n' + childSummaries.join('\n');
+      }
+
+      if (node.children.length > 10) {
+        line += `\n${indent}  ... and ${node.children.length - 10} more children`;
+      }
+    }
+
+    return line;
+  }
+
+  /**
+   * Handle Figma design import from the Figma panel
+   */
+  handleFigmaImport(payload: FigmaImportPayload) {
+    console.log('[Figma Import] Received payload:', {
+      fileName: payload.fileName,
+      selectionCount: payload.selection?.length,
+      imageCount: payload.imageDataUris?.length,
+      hasJsonStructure: !!payload.jsonStructure
+    });
+
+    // Store images for attachment
+    this.figmaImages.set(payload.imageDataUris || []);
+
+    // Store JSON structure for context
+    this.figmaContext.set(payload.jsonStructure);
+
+    // Build frame list for prompt
+    const frameList = payload.selection.map(s => `- ${s.nodeName} (${s.nodeType})`).join('\n');
+
+    // Pre-fill prompt with context
+    this.prompt = `Create Angular components from this Figma design:
+
+File: ${payload.fileName}
+Selected Frames:
+${frameList}
+
+Please analyze the design images and structure, then create the corresponding Angular components with accurate styling.`;
+
+    // Focus the textarea
+    setTimeout(() => {
+      const textarea = document.querySelector('.input-container textarea');
+      if (textarea) (textarea as HTMLElement).focus();
+    }, 0);
+  }
+
   scrollToBottom(): void {
     try {
       if (this.scrollContainer) {
@@ -386,7 +498,7 @@ export class ChatComponent {
     if (this.attachedFileContent && this.attachedFile) {
       // Emitting event instead of calling onFileContentChange directly
       this.fileUploaded.emit({name: this.attachedFile.name, content: this.attachedFileContent});
-      
+
       if (this.shouldAddToAssets() && this.isAttachedImage) {
         const targetPath = `public/assets/${this.attachedFile.name}`;
         currentPrompt += `
@@ -397,6 +509,19 @@ export class ChatComponent {
 
 [System Note: The user has attached a file named "${this.attachedFile.name}". It is available in the input context.]`;
       }
+    }
+
+    // Append Figma context if present (simplified to avoid token limits)
+    if (this.figmaContext()) {
+      const simplifiedContext = this.simplifyFigmaContext(this.figmaContext());
+      currentPrompt += `
+
+--- Figma Design Context ---
+<figma_summary>
+${simplifiedContext}
+</figma_summary>
+
+Analyze the attached design images carefully and create matching Angular components. The summary above provides structural hints.`;
     }
 
     // Placeholder for assistant
@@ -454,11 +579,26 @@ export class ChatComponent {
         model = 'auto';
     }
 
+    // Collect all images (attached file + Figma imports)
+    const allImages: string[] = [];
+    if (this.attachedFileContent) {
+      allImages.push(this.attachedFileContent);
+    }
+    if (this.figmaImages().length > 0) {
+      allImages.push(...this.figmaImages());
+    }
+
+    console.log('[Generate] Sending request with:', {
+      promptLength: currentPrompt.length,
+      imageCount: allImages.length,
+      hasFigmaContext: !!this.figmaContext()
+    });
+
     this.apiService.generateStream(currentPrompt, previousFiles, {
       provider,
       apiKey,
       model,
-      images: this.attachedFileContent ? [this.attachedFileContent] : undefined,
+      images: allImages.length > 0 ? allImages : undefined,
       smartRouting: this.appSettings?.smartRouting,
       openFiles: this.getContextFiles(),
       use_container_context: this.agentMode(),
@@ -548,8 +688,13 @@ export class ChatComponent {
         } else if (event.type === 'result') {
           hasResult = true;
           try {
+            // Clear attachments
             this.attachedFileContent = null;
             this.attachedFile = null;
+            // Clear Figma context
+            this.figmaContext.set(null);
+            this.figmaImages.set([]);
+
             const res = event.content;
             
             const current = this.projectService.files() || BASE_FILES;

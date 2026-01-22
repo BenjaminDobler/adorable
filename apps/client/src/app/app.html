@@ -30,15 +30,24 @@
         >
           Files
         </button>
+        <button
+          class="tab-btn"
+          [class.active]="activeTab() === 'figma'"
+          (click)="activeTab.set('figma')"
+        >
+          Figma
+        </button>
       </div>
 
       @if (activeTab() === 'chat') {
       <app-chat
         [appSettings]="appSettings"
         [visualEditorData]="visualEditorData"
+        [pendingFigmaImport]="pendingFigmaImport()"
         (startSelection)="startSelection()"
         (fileUploaded)="onFileContentChange($event.content, 'public/assets/' + $event.name)"
         (closeVisualEdit)="visualEditorData.set(null)"
+        (figmaImportProcessed)="pendingFigmaImport.set(null)"
       ></app-chat>
       } @if (activeTab() === 'terminal') {
       <app-terminal (toggleDebug)="showDebug.set(true)"></app-terminal>
@@ -75,6 +84,10 @@
           (fileSelect)="onFileSelect($event)"
         ></app-file-explorer>
       </div>
+      } @if (activeTab() === 'figma') {
+      <app-figma-panel
+        (importToChat)="onFigmaImport($event)"
+      ></app-figma-panel>
       }
     </div>
   </aside>

@@ -48,9 +48,9 @@
 
     <section class="section">
       <h3>⚙️ AI Provider Settings</h3>
-      
+
       <div class="providers-grid">
-        @for (profile of settings().profiles; track profile.id) {
+        @for (profile of getAIProfiles(); track profile.id) {
           <div class="provider-card" [class.active]="settings().activeProfileId === profile.id">
             <div class="card-header" (click)="setActive(profile.id)">
               <div class="header-left">
@@ -65,26 +65,26 @@
                 <span class="badge">Active</span>
               }
             </div>
-  
+
             <div class="card-body">
               <div class="form-group">
                 <label>API Key</label>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   [name]="'apiKey-' + profile.id"
                   [ngModel]="profile.apiKey"
-                  (ngModelChange)="updateProfile(profile.id, {apiKey: $event})" 
+                  (ngModelChange)="updateProfile(profile.id, {apiKey: $event})"
                   placeholder="sk-..."
                   autocomplete="new-password"
                 />
               </div>
-  
+
               <div class="form-group">
                 <div style="display: flex; justify-content: space-between; align-items: baseline;">
                   <label>Model</label>
                   <button class="btn-link" style="font-size: 11px; background: none; border: none; color: var(--accent-color); cursor: pointer; padding: 0;" (click)="fetchModels(profile)">↻ Refresh</button>
                 </div>
-                <select 
+                <select
                   [name]="'model-' + profile.id"
                   [ngModel]="profile.model"
                   (ngModelChange)="updateProfile(profile.id, {model: $event})"
@@ -110,6 +110,58 @@
           </div>
         }
       </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- Figma Integration Section -->
+    <section class="section">
+      <h3>🎨 Figma Integration</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+        Connect your Figma account to import designs directly into your projects.
+      </p>
+
+      @if (getFigmaProfile(); as figma) {
+        <div class="figma-config" style="background: var(--bg-surface-2); padding: 20px; border-radius: 12px; border: 1px solid var(--panel-border);">
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 8px;">
+              Personal Access Token
+              <a
+                href="https://www.figma.com/developers/api#access-tokens"
+                target="_blank"
+                rel="noopener"
+                style="font-size: 0.75rem; color: var(--accent-color); text-decoration: none;"
+              >
+                How to get one →
+              </a>
+            </label>
+            <input
+              type="password"
+              name="figma-token"
+              [ngModel]="figma.apiKey"
+              (ngModelChange)="updateProfile('figma', {apiKey: $event})"
+              placeholder="figd_..."
+              autocomplete="new-password"
+              style="font-family: monospace;"
+            />
+            <small style="color: var(--text-muted); font-size: 0.75rem; margin-top: 4px; display: block;">
+              Go to Figma → Settings → Account → Personal Access Tokens
+            </small>
+          </div>
+
+          @if (figma.apiKey && !figma.apiKey.includes('...')) {
+            <div style="margin-top: 12px; padding: 12px; background: rgba(62, 207, 142, 0.1); border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+              <span style="color: var(--accent-color);">✓</span>
+              <span style="font-size: 0.85rem; color: var(--text-secondary);">Token configured. Go to the Figma tab in a project to import designs.</span>
+            </div>
+          } @else if (figma.apiKey && figma.apiKey.includes('...')) {
+            <div style="margin-top: 12px; padding: 12px; background: rgba(62, 207, 142, 0.1); border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+              <span style="color: var(--accent-color);">✓</span>
+              <span style="font-size: 0.85rem; color: var(--text-secondary);">Token saved. Go to the Figma tab in a project to import designs.</span>
+            </div>
+          }
+        </div>
+      }
     </section>
 
     <hr class="divider" />

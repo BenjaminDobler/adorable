@@ -25,6 +25,8 @@ import { ToastService } from './services/toast';
 import { ChatComponent } from './chat/chat.component';
 import { TerminalComponent } from './terminal/terminal.component';
 import { ScreenshotService } from './services/screenshot';
+import { FigmaPanelComponent } from './figma/figma-panel.component';
+import { FigmaImportPayload } from '@adorable/shared-types';
 
 @Component({
   standalone: true,
@@ -37,6 +39,7 @@ import { ScreenshotService } from './services/screenshot';
     TerminalFormatterPipe,
     ChatComponent,
     TerminalComponent,
+    FigmaPanelComponent,
   ],
   selector: 'app-root',
   templateUrl: './app.html',
@@ -64,7 +67,10 @@ export class AppComponent implements AfterViewChecked {
 
   @ViewChild(ChatComponent) chatComponent!: ChatComponent;
 
-  activeTab = signal<'chat' | 'terminal' | 'files'>('chat');
+  activeTab = signal<'chat' | 'terminal' | 'files' | 'figma'>('chat');
+
+  // Pending Figma import (passed to chat component when it renders)
+  pendingFigmaImport = signal<FigmaImportPayload | null>(null);
 
   // Signals from project service
   messages = this.projectService.messages;
@@ -390,6 +396,13 @@ export class AppComponent implements AfterViewChecked {
 
   goBack() {
     this.router.navigate(['/dashboard']);
+  }
+
+  onFigmaImport(payload: FigmaImportPayload) {
+    // Store the payload - chat component will pick it up via input
+    this.pendingFigmaImport.set(payload);
+    // Switch to chat tab
+    this.activeTab.set('chat');
   }
 
   private startMessageRotation() {

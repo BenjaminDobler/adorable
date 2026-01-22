@@ -1,0 +1,21 @@
+{
+  "name": "figma-plugin",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/figma-plugin/src",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "tsc -p apps/figma-plugin/tsconfig.json",
+          "cp apps/figma-plugin/src/manifest.json dist/apps/figma-plugin/",
+          "cp apps/figma-plugin/src/ui.html dist/apps/figma-plugin/"
+        ],
+        "parallel": false
+      },
+      "outputs": ["{workspaceRoot}/dist/apps/figma-plugin"]
+    }
+  },
+  "tags": []
+}

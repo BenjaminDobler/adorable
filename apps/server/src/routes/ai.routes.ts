@@ -135,6 +135,16 @@ router.post('/generate-stream', async (req: any, res) => {
     let { prompt, previousFiles, provider, model, apiKey, images, smartRouting, openFiles, use_container_context, forcedSkill } = req.body;
     const user = req.user;
 
+    // Debug: Log images received
+    if (images && images.length > 0) {
+      console.log(`[Generate] Received ${images.length} image(s) in request`);
+      images.forEach((img: string, i: number) => {
+        console.log(`[Generate] Image ${i + 1}: ${img.substring(0, 50)}...`);
+      });
+    } else {
+      console.log('[Generate] No images in request');
+    }
+
     const userSettings = user.settings ? JSON.parse(user.settings) : {};
     
     const getApiKey = (p: string) => {
