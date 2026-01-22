@@ -12,6 +12,7 @@ import { projectRouter } from './routes/project.routes';
 import { aiRouter } from './routes/ai.routes';
 import { containerRouter } from './routes/container.routes';
 import { profileRouter } from './routes/profile.routes';
+import { skillsRouter } from './routes/skills.routes';
 
 const app = express();
 
@@ -74,6 +75,7 @@ app.use('/api/projects', projectRouter);
 app.use('/api', aiRouter);
 app.use('/api/container', containerRouter);
 app.use('/api/profile', profileRouter);
+app.use('/api/skills', skillsRouter);
 
 const server = app.listen(PORT, () => {
   console.log(`Listening at http://localhost:${PORT}/api`);

@@ -91,6 +91,24 @@ export class ContainerFileSystem implements FileSystemInterface {
     return allFiles.filter(f => minimatch(f, pattern));
   }
 
+  async grep(pattern: string, path: string = '.', caseSensitive = false): Promise<string[]> {
+    // grep -rn "pattern" path
+    const args = ['grep', '-rn'];
+    if (!caseSensitive) {
+       args.push('-i');
+    }
+    args.push(pattern);
+    args.push(path);
+
+    const { output, exitCode } = await this.manager.exec(args);
+    // grep exit code 1 means no matches found, which is not an error
+    if (exitCode !== 0 && exitCode !== 1) {
+       throw new Error(`grep failed: ${output}`);
+    }
+    
+    return output.split('\n').filter(Boolean);
+  }
+
   async exec(command: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     // Security: This command runs INSIDE the container.
     // We use sh -c to allow piping etc.

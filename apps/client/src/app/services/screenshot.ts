@@ -35,7 +35,7 @@ export class ScreenshotService {
           this.pendingCapture.resolve(null);
           this.pendingCapture = null;
         }
-      }, 5000);
+      }, 30000);
 
       this.pendingCapture = { 
         resolve: (data) => {

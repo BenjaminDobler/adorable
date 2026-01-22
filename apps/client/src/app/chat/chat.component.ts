@@ -6,6 +6,7 @@ import { ContainerEngine } from '../services/container-engine';
 import { ApiService } from '../services/api';
 import { ToastService } from '../services/toast';
 import { TemplateService } from '../services/template';
+import { SkillsService, Skill } from '../services/skills';
 import { SafeUrlPipe } from '../pipes/safe-url.pipe';
 import { BASE_FILES } from '../base-project';
 
@@ -22,6 +23,7 @@ export class ChatComponent {
   public projectService = inject(ProjectService);
   private toastService = inject(ToastService);
   private templateService = inject(TemplateService);
+  private skillsService = inject(SkillsService);
 
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
   @ViewChild('fileInput') fileInput!: ElementRef;
@@ -54,6 +56,7 @@ export class ChatComponent {
   
   // Agent Mode State
   agentMode = signal(false);
+  compactMode = signal(true); // Default to compact
   isDockerMode = computed(() => this.webContainerService.mode() === 'local');
   
   shouldAddToAssets = signal(true);
@@ -66,6 +69,9 @@ export class ChatComponent {
   ]);
 
   selectedModel = signal(this.availableModels()[0]);
+
+  availableSkills = signal<Skill[]>([]);
+  selectedSkill = signal<Skill | null>(null);
 
   get isAttachedImage(): boolean {
     return this.attachedFile?.type.startsWith('image/') ?? false;
@@ -95,6 +101,8 @@ export class ChatComponent {
   ];
 
   constructor() {
+    this.loadSkills();
+
     effect(() => {
         // Auto-scroll when messages change
         this.messages();
@@ -114,6 +122,13 @@ export class ChatComponent {
        if (!this.isDockerMode()) {
           this.agentMode.set(false);
        }
+    });
+  }
+
+  loadSkills() {
+    this.skillsService.getSkills().subscribe({
+      next: (skills) => this.availableSkills.set(skills),
+      error: () => console.warn('Failed to load skills for chat')
     });
   }
 
@@ -306,6 +321,21 @@ export class ChatComponent {
     } catch(err) { }
   }
 
+  getActivatedSkills(msg: ChatMessage): string[] {
+    if (!msg.toolResults) return [];
+    
+    const skills: string[] = [];
+    for (const res of msg.toolResults) {
+      if (res.tool === 'activate_skill') {
+        const match = res.result.match(/name="([^"]*)"/);
+        if (match) {
+          skills.push(match[1]);
+        }
+      }
+    }
+    return Array.from(new Set(skills));
+  }
+
   getContextFiles(): { [path: string]: string } | undefined {
     const data = this.visualEditorData();
     if (!data || !data.componentName) return undefined;
@@ -431,7 +461,8 @@ export class ChatComponent {
       images: this.attachedFileContent ? [this.attachedFileContent] : undefined,
       smartRouting: this.appSettings?.smartRouting,
       openFiles: this.getContextFiles(),
-      use_container_context: this.agentMode()
+      use_container_context: this.agentMode(),
+      forcedSkill: this.selectedSkill()?.name
     }).subscribe({
       next: async (event) => {
         if (event.type !== 'tool_delta' && event.type !== 'text') { 

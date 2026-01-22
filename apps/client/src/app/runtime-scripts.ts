@@ -196,7 +196,7 @@ export const RUNTIME_SCRIPTS = `
               const canvas = await domToCanvas(document.body, {
                 width: width,
                 height: height,
-                scale: 1,
+                scale: 0.5,
                 features: { copyCSSStyles: true },
                 style: {
                   transform: 'translate(-' + x + 'px, -' + y + 'px)',

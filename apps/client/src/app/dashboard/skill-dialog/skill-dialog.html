@@ -1,0 +1,41 @@
+<div class="dialog-overlay" (click)="cancel.emit()">
+  <div class="dialog-content" (click)="$event.stopPropagation()">
+    <header>
+      <h2>{{ skill ? 'Edit Skill' : 'Create New Skill' }}</h2>
+      <button class="close-btn" (click)="cancel.emit()">×</button>
+    </header>
+    
+    <div class="form-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Name (ID)</label>
+          <input [(ngModel)]="name" placeholder="e.g. tailwind-expert" [disabled]="!!skill">
+          <small>Unique identifier for the skill.</small>
+        </div>
+        
+        <div class="form-group">
+          <label>Description</label>
+          <input [(ngModel)]="description" placeholder="Briefly describe what this skill does...">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Triggers</label>
+        <input [(ngModel)]="triggers" placeholder="e.g. css, styling, tailwind (comma separated)">
+        <small>Keywords that might activate this skill automatically.</small>
+      </div>
+
+      <div class="form-group full-height">
+        <label>Instructions (Markdown)</label>
+        <textarea [(ngModel)]="instructions" placeholder="# Your Skill Instructions..."></textarea>
+      </div>
+    </div>
+
+    <footer>
+      <button class="btn-cancel" (click)="cancel.emit()">Cancel</button>
+      <button class="btn-save" (click)="onSubmit()" [disabled]="!name || !instructions">
+        {{ skill ? 'Update Skill' : 'Create Skill' }}
+      </button>
+    </footer>
+  </div>
+</div>

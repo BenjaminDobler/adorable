@@ -47,6 +47,56 @@
           </div>
         }
       </div>
+
+      <div class="divider"></div>
+
+      <header class="section-header">
+        <div class="title-area">
+          <h2>Expert Skills</h2>
+          <p>Teach your AI new capabilities or use built-in experts.</p>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <input type="file" #skillUpload (change)="onSkillUpload($event)" accept=".md" style="display: none">
+          <button class="btn-create-secondary" (click)="skillUpload.click()" title="Upload SKILL.md">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          </button>
+          <button class="btn-create-secondary" (click)="createSkill()">
+            <span>New Skill</span>
+          </button>
+        </div>
+      </header>
+  
+      <div class="skills-grid">
+         @for (skill of skills(); track skill.name) {
+            <div class="skill-card">
+               <div class="skill-icon">⚡</div>
+               <div class="skill-info">
+                 <h3>{{ skill.name }}</h3>
+                 <p>{{ skill.description }}</p>
+                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: auto;">
+                    <span class="skill-badge" [class.system]="skill.sourcePath?.includes('assets/skills')">
+                      {{ skill.sourcePath?.includes('assets/skills') ? 'System' : 'User' }}
+                    </span>
+                    @if (!skill.sourcePath?.includes('assets/skills')) {
+                       <button class="btn-delete-small" (click)="deleteSkill(skill.name, $event)" title="Delete Skill">
+                          <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                       </button>
+                    }
+                 </div>
+               </div>
+            </div>
+         } @empty {
+            <div class="empty-skills">No skills available.</div>
+         }
+      </div>
     }
   </main>
+
+  @if (showSkillDialog()) {
+    <app-skill-dialog
+      [skill]="editingSkill()"
+      (save)="onSaveSkill($event)"
+      (cancel)="showSkillDialog.set(false)">
+    </app-skill-dialog>
+  }
 </div>

@@ -56,6 +56,29 @@ export class MemoryFileSystem implements FileSystemInterface {
     return Object.keys(this.fileMap).filter(path => minimatch(path, pattern));
   }
 
+  async grep(pattern: string, path: string = '.', caseSensitive = false): Promise<string[]> {
+    const results: string[] = [];
+    // Do not use 'g' flag as we are testing line by line and want to find if line matches once.
+    const flags = caseSensitive ? '' : 'i';
+    const regex = new RegExp(pattern, flags);
+    
+    // Normalize search path
+    let searchPath = path;
+    if (searchPath === './' || searchPath === '.') searchPath = '';
+
+    for (const [filePath, content] of Object.entries(this.fileMap)) {
+      if (searchPath && !filePath.startsWith(searchPath)) continue;
+      
+      const lines = content.split('\n');
+      lines.forEach((line, index) => {
+        if (regex.test(line)) {
+             results.push(`${filePath}:${index + 1}:${line.trim()}`);
+        }
+      });
+    }
+    return results;
+  }
+
   getAccumulatedFiles() {
     return this.accumulatedFiles;
   }

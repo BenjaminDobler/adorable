@@ -5,11 +5,13 @@ import { ANGULAR_KNOWLEDGE_BASE } from './knowledge-base';
 import { DebugLogger } from './debug-logger';
 import { TOOLS } from './tools';
 import { MemoryFileSystem } from './filesystem/memory-filesystem';
+import { SkillRegistry } from './skills/skill-registry';
 
 const SYSTEM_PROMPT = 
 "You are an expert Angular developer.\n"
 +"Your task is to generate or modify the SOURCE CODE for an Angular application.\n\n"
 +"**CRITICAL: Tool Use & Context**\n"
++"- **SKILLS:** Check the `activate_skill` tool. If a skill matches the user's request (e.g. 'angular-expert' for Angular tasks), you **MUST** activate it immediately before generating code.\n"
 +"- You have access to the **FILE STRUCTURE ONLY** initially.\n"
 +"- You **MUST** use the `read_file` tool to inspect the code of any file you plan to modify or need to understand.\n"
 +"- **NEVER** guess the content of a file. Always read it first to ensure you have the latest version.\n"
@@ -54,6 +56,10 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
     // Initialize File System
     const fs: FileSystemInterface = fileSystem || new MemoryFileSystem(this.flattenFiles(previousFiles || {}));
 
+    // Discover Skills
+    const skillRegistry = new SkillRegistry();
+    const skills = await skillRegistry.discover(fs, options.userId);
+
     // Prepare Tools
     const availableTools: any[] = [...TOOLS];
     if (fs.exec) {
@@ -68,6 +74,25 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
              required: ["command"]
           }
        });
+    }
+
+    if (skills.length > 0) {
+      const skillDescriptions = skills.map(s => `- "${s.name}": ${s.description}`).join('\n');
+      availableTools.push({
+        name: 'activate_skill',
+        description: `Activates a specialized agent skill. Choose from:\n${skillDescriptions}`,
+        input_schema: {
+          type: 'object',
+          properties: {
+            name: {
+              type: 'string',
+              description: 'The name of the skill to activate.',
+              enum: skills.map(s => s.name)
+            }
+          },
+          required: ['name']
+        }
+      });
     }
 
     const tools = availableTools.map(tool => ({
@@ -85,6 +110,15 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
 
     // Initial message construction
     let userMessage = prompt;
+
+    // Handle Forced Skill
+    if (options.forcedSkill) {
+       const skill = skillRegistry.getSkill(options.forcedSkill);
+       if (skill) {
+          userMessage += `\n\n[SYSTEM INJECTION] The user has explicitly enabled the '${skill.name}' skill. You MUST follow these instructions:\n${skill.instructions}`;
+       }
+    }
+
     if (previousFiles) {
       const treeSummary = this.generateTreeSummary(previousFiles);
       userMessage += `\n\n--- Current File Structure ---\n${treeSummary}`;
@@ -209,6 +243,19 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
                     const matches = await fs.glob(toolArgs.pattern);
                     content = matches.length ? matches.join('\n') : 'No files matched the pattern.';
                     break;
+                case 'grep':
+                    const grepResults = await fs.grep(toolArgs.pattern, toolArgs.path, toolArgs.case_sensitive);
+                    content = grepResults.length ? grepResults.join('\n') : 'No matches found.';
+                    break;
+                case 'activate_skill':
+                    const skill = skillRegistry.getSkill(toolArgs.name);
+                    if (skill) {
+                       content = `<activated_skill name="${skill.name}">\n${skill.instructions}\n</activated_skill>`;
+                    } else {
+                       content = `Error: Skill '${toolArgs.name}' not found.`;
+                       isError = true;
+                    }
+                    break;
                 case 'run_command':
                     if (!fs.exec) throw new Error('run_command is not supported in this environment.');
                     const res = await fs.exec(toolArgs.command);
@@ -225,7 +272,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
         }
         
         logger.log('TOOL_RESULT', { name: toolName, result: content, isError });
-        callbacks.onToolResult?.(toolName, content);
+        callbacks.onToolResult?.(toolName, content, toolName);
 
         toolOutputs.push({
             functionResponse: {

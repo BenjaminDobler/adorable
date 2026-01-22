@@ -168,7 +168,7 @@ export class AppComponent implements AfterViewChecked {
         if (this.isSavingWithThumbnail) {
           this.projectService.saveProject(event.data.image);
           this.isSavingWithThumbnail = false;
-        } else if (this.chatComponent) {
+        } else if (this.chatComponent && this.isSelecting) {
           this.chatComponent.setImage(event.data.image);
           this.isSelecting = false;
           this.selectionRect = null;

@@ -21,7 +21,8 @@ export interface ChatMessage {
   model?: string;
   updatedFiles?: string[];
   toolResults?: { tool: string, result: string, isError?: boolean }[];
-  isExpanded?: boolean;
+  isExpanded?: boolean; // For files
+  areToolsExpanded?: boolean; // For tool results
 }
 
 @Injectable({

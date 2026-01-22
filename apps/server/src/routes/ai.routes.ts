@@ -120,7 +120,8 @@ router.post('/generate', async (req: any, res) => {
           apiKey: effectiveApiKey,
           model: finalModel,
           images,
-          openFiles
+          openFiles,
+          userId: user.id
       });
       
       res.json(result);
@@ -131,7 +132,7 @@ router.post('/generate', async (req: any, res) => {
 });
 
 router.post('/generate-stream', async (req: any, res) => {
-    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting, openFiles, use_container_context } = req.body;
+    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting, openFiles, use_container_context, forcedSkill } = req.body;
     const user = req.user;
 
     const userSettings = user.settings ? JSON.parse(user.settings) : {};
@@ -201,7 +202,9 @@ router.post('/generate-stream', async (req: any, res) => {
           model: finalModel,
           images,
           openFiles,
-          fileSystem
+          fileSystem,
+          userId: user.id,
+          forcedSkill
       }, {
           onText: (text) => {
               res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);
@@ -212,8 +215,8 @@ router.post('/generate-stream', async (req: any, res) => {
           onToolCall: (index, name, args) => {
               res.write(`data: ${JSON.stringify({ type: 'tool_call', index, name, args })}\n\n`);
           },
-          onToolResult: (tool_use_id, result) => {
-              res.write(`data: ${JSON.stringify({ type: 'tool_result', tool_use_id, result })}\n\n`);
+          onToolResult: (tool_use_id, result, name) => {
+              res.write(`data: ${JSON.stringify({ type: 'tool_result', tool_use_id, result, name })}\n\n`);
           },
           onTokenUsage: (usage) => {
               res.write(`data: ${JSON.stringify({ type: 'usage', usage })}\n\n`);
