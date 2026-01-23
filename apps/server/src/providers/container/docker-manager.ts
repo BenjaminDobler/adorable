@@ -112,6 +112,10 @@ export class DockerManager {
     }
   }
 
+  isRunning(): boolean {
+    return this.container !== null;
+  }
+
   async getContainerUrl(): Promise<string> {
     if (!this.container) throw new Error('Container not started');
     

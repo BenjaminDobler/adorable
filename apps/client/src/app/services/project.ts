@@ -8,7 +8,7 @@ import { RUNTIME_SCRIPTS } from '../runtime-scripts';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { FileSystemStore } from './file-system.store';
-import { WebContainerFiles } from '@adorable/shared-types';
+import { WebContainerFiles, FigmaImportPayload } from '@adorable/shared-types';
 import { ScreenshotService } from './screenshot';
 
 export interface ChatMessage {
@@ -49,6 +49,7 @@ export class ProjectService {
   loading = signal(false);
   buildError = signal<string | null>(null);
   debugLogs = signal<any[]>([]);
+  figmaImports = signal<FigmaImportPayload[]>([]);
 
   // Computed
   hasProject = computed(() => !!this.projectId() && this.projectId() !== 'new');
@@ -62,14 +63,21 @@ export class ProjectService {
       next: async (project) => {
         this.projectId.set(project.id);
         this.projectName.set(project.name);
-        
+
         if (project.messages) {
           this.messages.set(project.messages.map((m: any) => ({
             ...m,
             timestamp: new Date(m.timestamp)
           })));
         } else {
-          this.messages.set([]); 
+          this.messages.set([]);
+        }
+
+        // Load Figma imports
+        if (project.figmaImports) {
+          this.figmaImports.set(project.figmaImports);
+        } else {
+          this.figmaImports.set([]);
         }
 
         await this.reloadPreview(project.files);
@@ -100,7 +108,7 @@ export class ProjectService {
     const id = this.projectId();
     const saveId = (id && id !== 'new') ? id : undefined;
 
-    this.apiService.saveProject(name, files, this.messages(), saveId, thumbnail).subscribe({
+    this.apiService.saveProject(name, files, this.messages(), saveId, thumbnail, this.figmaImports()).subscribe({
       next: (project) => {
         this.toastService.show('Project saved successfully!', 'success');
         this.projectId.set(project.id);

@@ -405,6 +405,11 @@ export class AppComponent implements AfterViewChecked {
     this.activeTab.set('chat');
   }
 
+  onFigmaImportsChanged(imports: FigmaImportPayload[]) {
+    // Update the project service with new imports
+    this.projectService.figmaImports.set(imports);
+  }
+
   private startMessageRotation() {
     this.stopMessageRotation();
     let index = 0;

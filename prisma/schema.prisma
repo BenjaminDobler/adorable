@@ -32,6 +32,8 @@ model Project {
 
   thumbnail String?  // Base64 preview image
 
+  figmaImports String?  // JSON stringified FigmaImportPayload[]
+
   userId    String
 
   user      User     @relation(fields: [userId], references: [id])

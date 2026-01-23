@@ -86,7 +86,9 @@
       </div>
       } @if (activeTab() === 'figma') {
       <app-figma-panel
+        [storedImports]="projectService.figmaImports()"
         (importToChat)="onFigmaImport($event)"
+        (importsChanged)="onFigmaImportsChanged($event)"
       ></app-figma-panel>
       }
     </div>

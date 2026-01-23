@@ -26,7 +26,11 @@ app.use(express.json({ limit: '50mb' }));
 
 // Apply Global Fallback Proxy
 app.use(async (req: any, res, next) => {
-  if (req.path.startsWith('/api/auth') || (req.path.startsWith('/api') && !req.path.startsWith('/api/proxy'))) {
+  // Skip proxy for auth routes, API routes (except /api/proxy), static sites, and assets
+  if (req.path.startsWith('/api/auth') ||
+      (req.path.startsWith('/api') && !req.path.startsWith('/api/proxy')) ||
+      req.path.startsWith('/sites') ||
+      req.path.startsWith('/assets')) {
     return next();
   }
 

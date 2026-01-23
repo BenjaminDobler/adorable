@@ -66,8 +66,8 @@ export class ApiService {
     });
   }
 
-  saveProject(name: string, files: any, messages?: any[], id?: string, thumbnail?: string) {
-    return this.http.post<any>(`${this.apiUrl}/projects`, { name, files, messages, id, thumbnail });
+  saveProject(name: string, files: any, messages?: any[], id?: string, thumbnail?: string, figmaImports?: any[]) {
+    return this.http.post<any>(`${this.apiUrl}/projects`, { name, files, messages, id, thumbnail, figmaImports });
   }
 
   listProjects() {
@@ -97,7 +97,7 @@ export class ApiService {
   }
 
   publish(projectId: string, files: any) {
-    return this.http.post<any>(`${this.apiUrl}/publish/${projectId}`, { files });
+    return this.http.post<any>(`${this.apiUrl}/projects/publish/${projectId}`, { files });
   }
 }
 
