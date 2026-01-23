@@ -9,7 +9,12 @@
 ## 🚀 Key Features
 
 *   **Natural Language IDE:** Describe your app and watch Adorable build the file structure, logic, and styles in real-time.
-*   **Dual Runtime Engines:** 
+*   **Figma Integration 🎨:** Import designs directly from Figma and let AI generate Angular components.
+    *   **API Import:** Connect with your Figma Personal Access Token to browse and select frames.
+    *   **Plugin Export:** Use the Adorable Figma Plugin for local exports without API rate limits.
+    *   **Layer Selection:** Browse imported design layers, preview highlights on hover, and select individual layers to use in chat.
+    *   **Persistent Imports:** Figma imports are saved with your project for future reference.
+*   **Dual Runtime Engines:**
     *   **Browser-based:** Powered by **WebContainer API** for zero-setup, instant booting.
     *   **Local Docker:** Multi-tenant containerized execution for persistent, high-performance development.
 *   **Smart Lifecycle Management 🧠:** (Local Mode) Background reaper automatically pauses idle containers (15m) and hibernates them (2h) to save CPU/RAM.
@@ -24,14 +29,19 @@
 
 Adorable is built as an **Nx monorepo**:
 
-*   **Frontend (`apps/client`):** 
+*   **Frontend (`apps/client`):**
     *   **Angular 21** (Signals-based).
     *   `SmartContainerEngine` for switching between Browser and Local runtimes.
     *   `monaco-editor` integration.
-*   **Backend (`apps/server`):** 
+    *   Figma panel for importing and browsing designs.
+*   **Backend (`apps/server`):**
     *   Node.js / Express proxy for AI providers and Docker management.
     *   **Unified Proxy Middleware:** Handles dynamic routing for both HTTP and WebSockets (HMR).
     *   Prisma + SQLite for project persistence.
+    *   Figma API proxy with PAT authentication.
+*   **Figma Plugin (`apps/figma-plugin`):**
+    *   Standalone Figma plugin for exporting designs without API rate limits.
+    *   Exports JSON structure + rendered images as base64.
 *   **AI Providers:**
     *   **Anthropic:** Claude 3.5 Sonnet (Optimized for code).
     *   **Google:** Gemini 1.5 Pro / Flash.
@@ -72,6 +82,26 @@ npx nx serve client
 3.  **Generate:** Type a prompt like *"Create a project management dashboard with signals"* in the Chat tab.
 4.  **Visual Edit:** Use the **Inspect** icon in the preview toolbar, click a UI element, and tell the AI what to change.
 5.  **Persistence:** In Local Docker mode, your code is persisted in `./storage/projects/${userId}` on your host machine, ensuring it survives container restarts.
+
+### Figma Integration
+
+**Option A: API Import (requires Figma PAT)**
+1.  Go to **Profile** and add your Figma Personal Access Token.
+2.  Switch to the **Figma** tab in the sidebar.
+3.  Paste a Figma file URL and click **Load File**.
+4.  Browse pages and frames, select the designs you want, and click **Import to Chat**.
+
+**Option B: Plugin Export (no API needed)**
+1.  Build the Figma plugin: `npx nx run figma-plugin:build`
+2.  In Figma Desktop, go to **Plugins > Development > Import plugin from manifest** and select `dist/apps/figma-plugin/manifest.json`.
+3.  Select frames in Figma and run the plugin to export.
+4.  Drag the exported `.json` file into the Figma panel in Adorable.
+
+**Working with Imports:**
+*   Previous imports are saved with your project and shown in the Figma panel.
+*   Click an import to browse its layers with preview thumbnails.
+*   Hover over layers to highlight them on the preview image.
+*   Click **Use** on any layer to send just that layer (with cropped image) to chat.
 
 ## ⚡ Performance & Efficiency
 
