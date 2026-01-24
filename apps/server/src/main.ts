@@ -14,6 +14,8 @@ import { containerRouter } from './routes/container.routes';
 import { profileRouter } from './routes/profile.routes';
 import { skillsRouter } from './routes/skills.routes';
 import { figmaRouter } from './routes/figma.routes';
+import { githubRouter } from './routes/github.routes';
+import { webhooksRouter } from './routes/webhooks.routes';
 
 const app = express();
 
@@ -82,6 +84,8 @@ app.use('/api/container', containerRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/skills', skillsRouter);
 app.use('/api/figma', figmaRouter);
+app.use('/api/github', githubRouter);
+app.use('/api/webhooks', webhooksRouter);
 
 const server = app.listen(PORT, () => {
   console.log(`Listening at http://localhost:${PORT}/api`);

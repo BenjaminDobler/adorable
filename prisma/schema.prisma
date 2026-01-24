@@ -20,30 +20,46 @@ model User {
   projects  Project[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  // GitHub Integration
+  githubId          String?   @unique
+  githubUsername    String?
+  githubAccessToken String?   // Encrypted OAuth access token
+  githubAvatarUrl   String?
 }
 
 model Project {
-
   id        String   @id @default(cuid())
-
   name      String
-
   files     String   // JSON stringified WebContainerFiles
-
   thumbnail String?  // Base64 preview image
-
   figmaImports String?  // JSON stringified FigmaImportPayload[]
 
   userId    String
-
   user      User     @relation(fields: [userId], references: [id])
 
   messages  ChatMessage[]
 
   createdAt DateTime @default(now())
-
   updatedAt DateTime @updatedAt
 
+  // GitHub Integration
+  githubRepoId        String?   // GitHub repository ID
+  githubRepoFullName  String?   // owner/repo format
+  githubBranch        String?   // Default branch to sync (usually 'main')
+  githubLastSyncAt    DateTime? // Last successful sync timestamp
+  githubLastCommitSha String?   // Last synced commit SHA
+  githubSyncEnabled   Boolean   @default(false)
+  githubWebhook       GitHubWebhook?
+}
+
+model GitHubWebhook {
+  id        String   @id @default(cuid())
+  projectId String   @unique
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  webhookId String   // GitHub webhook ID
+  secret    String   // Webhook secret for verification
+  createdAt DateTime @default(now())
 }
 
 model ChatMessage {

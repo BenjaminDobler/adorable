@@ -62,3 +62,46 @@ export interface FigmaImportPayload {
   jsonStructure: any;
   imageDataUris: string[];
 }
+
+// GitHub Integration Types
+export interface GitHubUser {
+  id: number;
+  login: string;
+  avatar_url: string;
+  name?: string;
+}
+
+export interface GitHubRepository {
+  id: number;
+  name: string;
+  full_name: string;
+  private: boolean;
+  default_branch: string;
+  html_url: string;
+  description?: string;
+  owner: {
+    login: string;
+    avatar_url: string;
+  };
+}
+
+export interface GitHubConnection {
+  connected: boolean;
+  username?: string;
+  avatarUrl?: string;
+}
+
+export interface GitHubProjectSync {
+  enabled: boolean;
+  repoFullName?: string;
+  branch?: string;
+  lastSyncAt?: string;
+  lastCommitSha?: string;
+}
+
+export interface GitHubSyncStatus {
+  status: 'synced' | 'pending' | 'conflict' | 'error' | 'not_connected';
+  message?: string;
+  lastSyncAt?: string;
+  pendingChanges?: number;
+}

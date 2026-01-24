@@ -1,10 +1,11 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../services/api';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { ThemeService, ThemeMode } from '../services/theme';
 import { ToastService } from '../services/toast';
+import { GitHubService } from '../services/github.service';
 
 export type ProviderType = 'anthropic' | 'gemini' | 'figma';
 
@@ -43,11 +44,13 @@ export interface AppSettings {
   templateUrl: './profile.html',
   styleUrl: './profile.scss',
 })
-export class ProfileComponent {
+export class ProfileComponent implements OnInit {
   private apiService = inject(ApiService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   public themeService = inject(ThemeService);
   private toastService = inject(ToastService);
+  public githubService = inject(GitHubService);
 
   user = signal<any>(null);
   name = signal('');
@@ -106,6 +109,37 @@ export class ProfileComponent {
 
   constructor() {
     this.loadData();
+  }
+
+  ngOnInit() {
+    // Check for GitHub OAuth callback result
+    this.route.queryParams.subscribe(params => {
+      if (params['github_connected'] === 'true') {
+        this.toastService.show('GitHub account connected!', 'success');
+        this.githubService.getConnection().subscribe();
+      }
+      if (params['github_error']) {
+        this.toastService.show(`GitHub error: ${params['github_error']}`, 'error');
+      }
+    });
+
+    // Load GitHub connection status
+    this.githubService.getConnection().subscribe();
+  }
+
+  connectGitHub() {
+    this.githubService.connect();
+  }
+
+  disconnectGitHub() {
+    this.githubService.disconnect().subscribe({
+      next: () => {
+        this.toastService.show('GitHub disconnected', 'success');
+      },
+      error: (err) => {
+        this.toastService.show('Failed to disconnect GitHub', 'error');
+      }
+    });
   }
 
   loadData() {
