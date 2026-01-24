@@ -50,6 +50,7 @@ model Project {
   githubLastSyncAt    DateTime? // Last successful sync timestamp
   githubLastCommitSha String?   // Last synced commit SHA
   githubSyncEnabled   Boolean   @default(false)
+  githubPagesUrl      String?   // GitHub Pages URL if enabled
   githubWebhook       GitHubWebhook?
 }
 

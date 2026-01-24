@@ -21,7 +21,7 @@ export class GitHubService {
     const params = new URLSearchParams({
       client_id: this.clientId,
       redirect_uri: this.callbackUrl,
-      scope: 'repo user:email',
+      scope: 'repo workflow user:email',
       state,
     });
     return `${GITHUB_OAUTH}/authorize?${params.toString()}`;
@@ -211,6 +211,197 @@ export class GitHubService {
     if (!response.ok && response.status !== 404) {
       throw new Error(`GitHub API error: ${response.status}`);
     }
+  }
+
+  /**
+   * Get GitHub Pages status for a repository
+   */
+  async getPages(accessToken: string, fullName: string): Promise<{ enabled: boolean; url?: string; status?: string }> {
+    const response = await fetch(`${GITHUB_API}/repos/${fullName}/pages`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+      },
+    });
+
+    if (response.status === 404) {
+      return { enabled: false };
+    }
+
+    if (!response.ok) {
+      throw new Error(`GitHub API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return {
+      enabled: true,
+      url: data.html_url,
+      status: data.status,
+    };
+  }
+
+  /**
+   * Enable GitHub Pages on the gh-pages branch
+   */
+  async enablePages(accessToken: string, fullName: string): Promise<{ url: string }> {
+    const response = await fetch(`${GITHUB_API}/repos/${fullName}/pages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        source: {
+          branch: 'gh-pages',
+          path: '/',
+        },
+      }),
+    });
+
+    // 409 means Pages already exists
+    if (response.status === 409) {
+      const pages = await this.getPages(accessToken, fullName);
+      return { url: pages.url || '' };
+    }
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || `GitHub API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { url: data.html_url };
+  }
+
+  /**
+   * Check if a branch exists
+   */
+  async branchExists(accessToken: string, fullName: string, branch: string): Promise<boolean> {
+    const response = await fetch(`${GITHUB_API}/repos/${fullName}/branches/${branch}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+      },
+    });
+
+    return response.ok;
+  }
+
+  /**
+   * Create an orphan branch (for gh-pages)
+   */
+  async createOrphanBranch(
+    accessToken: string,
+    fullName: string,
+    branch: string,
+    files: { path: string; content: string }[]
+  ): Promise<string> {
+    // Create blobs for all files
+    const blobs = await Promise.all(
+      files.map(async (file) => {
+        const blobResponse = await fetch(`${GITHUB_API}/repos/${fullName}/git/blobs`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            content: Buffer.from(file.content).toString('base64'),
+            encoding: 'base64',
+          }),
+        });
+
+        if (!blobResponse.ok) {
+          throw new Error(`Failed to create blob for ${file.path}`);
+        }
+
+        const blobData = await blobResponse.json();
+        return {
+          path: file.path,
+          mode: '100644' as const,
+          type: 'blob' as const,
+          sha: blobData.sha,
+        };
+      })
+    );
+
+    // Create tree
+    const treeResponse = await fetch(`${GITHUB_API}/repos/${fullName}/git/trees`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ tree: blobs }),
+    });
+
+    if (!treeResponse.ok) {
+      throw new Error('Failed to create tree');
+    }
+
+    const treeData = await treeResponse.json();
+
+    // Create commit (no parent = orphan)
+    const commitResponse = await fetch(`${GITHUB_API}/repos/${fullName}/git/commits`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: 'Deploy to GitHub Pages from Adorable',
+        tree: treeData.sha,
+        // No parents = orphan commit
+      }),
+    });
+
+    if (!commitResponse.ok) {
+      throw new Error('Failed to create commit');
+    }
+
+    const commitData = await commitResponse.json();
+
+    // Create or update branch reference
+    const refResponse = await fetch(`${GITHUB_API}/repos/${fullName}/git/refs`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ref: `refs/heads/${branch}`,
+        sha: commitData.sha,
+      }),
+    });
+
+    // If branch already exists, update it
+    if (refResponse.status === 422) {
+      const updateResponse = await fetch(`${GITHUB_API}/repos/${fullName}/git/refs/heads/${branch}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sha: commitData.sha,
+          force: true,
+        }),
+      });
+
+      if (!updateResponse.ok) {
+        throw new Error('Failed to update branch reference');
+      }
+    } else if (!refResponse.ok) {
+      throw new Error('Failed to create branch reference');
+    }
+
+    return commitData.sha;
   }
 }
 

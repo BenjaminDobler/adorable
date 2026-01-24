@@ -63,6 +63,138 @@
           >
             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           </button>
+
+          <!-- GitHub Sync -->
+          <div class="github-sync-wrapper">
+            <button
+              (click)="toggleGitHubPanel()"
+              class="icon-btn"
+              [class.active]="githubPanelOpen()"
+              [class.connected]="githubSyncStatus()?.enabled"
+              [title]="githubSyncStatus()?.enabled ? 'GitHub: ' + githubSyncStatus()?.repoFullName : 'GitHub Sync'"
+              [disabled]="!hasProject"
+            >
+              <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              @if (githubSyncStatus()?.enabled) {
+                <span class="connected-dot"></span>
+              }
+            </button>
+
+            @if (githubPanelOpen()) {
+              <div class="github-panel">
+                <div class="panel-header">
+                  <h4>
+                    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                    GitHub Sync
+                  </h4>
+                  <button class="close-btn" (click)="githubPanelOpen.set(false)">×</button>
+                </div>
+
+                @if (!isGitHubConnected) {
+                  <div class="not-connected">
+                    <p>Connect your GitHub account first</p>
+                    <a routerLink="/profile">Go to Profile Settings →</a>
+                  </div>
+                } @else if (githubSyncStatus()?.enabled) {
+                  <div class="connected-repo">
+                    <div class="repo-info">
+                      <span class="check">✓</span>
+                      <span class="repo-name">{{ githubSyncStatus()?.repoFullName }}</span>
+                    </div>
+                    <div class="repo-meta">
+                      Branch: {{ githubSyncStatus()?.branch || 'main' }}
+                    </div>
+                  </div>
+
+                  <div class="sync-actions">
+                    <button class="btn-push" (click)="pushToGitHub()" [disabled]="githubSyncing()">
+                      @if (githubSyncing()) {
+                        <span class="spinner"></span>
+                      } @else {
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+                      }
+                      Push
+                    </button>
+                    <button class="btn-pull" (click)="pullFromGitHub()" [disabled]="githubSyncing()">
+                      @if (githubSyncing()) {
+                        <span class="spinner"></span>
+                      } @else {
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+                      }
+                      Pull
+                    </button>
+                  </div>
+
+                  <!-- GitHub Pages -->
+                  <div class="pages-section">
+                    <div class="section-divider"></div>
+                    <div class="pages-header">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                      <span>GitHub Pages</span>
+                    </div>
+                    @if (githubPagesUrl()) {
+                      <a class="pages-url" [href]="githubPagesUrl()" target="_blank">
+                        {{ githubPagesUrl() }}
+                        <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                      </a>
+                    }
+                    <button class="btn-deploy" (click)="deployToGitHubPages()" [disabled]="githubPagesDeploying() || githubSyncing()">
+                      @if (githubPagesDeploying()) {
+                        <span class="spinner"></span>
+                        Deploying...
+                      } @else {
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M22 2L11 13"></path><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        {{ githubPagesUrl() ? 'Redeploy to Pages' : 'Deploy to Pages' }}
+                      }
+                    </button>
+                  </div>
+
+                  <button class="btn-disconnect" (click)="disconnectFromGitHub()" [disabled]="githubSyncing()">
+                    Disconnect
+                  </button>
+                } @else {
+                  @if (!githubCreateMode()) {
+                    <div class="repo-select">
+                      <label>Select Repository</label>
+                      <select [ngModel]="githubSelectedRepo()" (ngModelChange)="githubSelectedRepo.set($event)">
+                        <option value="">Choose a repository...</option>
+                        @for (repo of githubRepos(); track repo.id) {
+                          <option [value]="repo.full_name">{{ repo.full_name }}</option>
+                        }
+                      </select>
+                    </div>
+
+                    <button class="btn-connect" (click)="connectToGitHubRepo()" [disabled]="!githubSelectedRepo() || githubSyncing()">
+                      {{ githubSyncing() ? 'Connecting...' : 'Connect' }}
+                    </button>
+
+                    <button class="btn-create-new" (click)="githubCreateMode.set(true)">
+                      + Create New Repository
+                    </button>
+                  } @else {
+                    <div class="repo-create">
+                      <label>New Repository Name</label>
+                      <input
+                        type="text"
+                        [ngModel]="githubNewRepoName()"
+                        (ngModelChange)="githubNewRepoName.set($event)"
+                        placeholder="my-adorable-project"
+                      />
+                    </div>
+
+                    <div class="create-actions">
+                      <button class="btn-cancel" (click)="githubCreateMode.set(false)">Cancel</button>
+                      <button class="btn-create" (click)="createAndConnectRepo()" [disabled]="!githubNewRepoName() || githubSyncing()">
+                        {{ githubSyncing() ? 'Creating...' : 'Create & Connect' }}
+                      </button>
+                    </div>
+                  }
+                }
+              </div>
+            }
+          </div>
         </div>
       </div>
     }

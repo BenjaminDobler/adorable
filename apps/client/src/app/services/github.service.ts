@@ -141,4 +141,27 @@ export class GitHubService {
       {}
     );
   }
+
+  /**
+   * Deploy project to GitHub Pages
+   */
+  deployToPages(
+    projectId: string
+  ): Observable<{ success: boolean; url: string; message: string }> {
+    return this.http.post<{ success: boolean; url: string; message: string }>(
+      `${this.apiUrl}/pages/${projectId}`,
+      {}
+    );
+  }
+
+  /**
+   * Get GitHub Pages status for a project
+   */
+  getPagesStatus(
+    projectId: string
+  ): Observable<{ enabled: boolean; url?: string; status?: string }> {
+    return this.http.get<{ enabled: boolean; url?: string; status?: string }>(
+      `${this.apiUrl}/pages/${projectId}`
+    );
+  }
 }

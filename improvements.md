@@ -2,6 +2,26 @@
 
 This document outlines architectural improvements to handle larger applications, token limits, and enhanced developer experience.
 
+## ✅ Recently Implemented
+
+### GitHub Integration (January 2025)
+- **GitHub OAuth:** Connect your GitHub account with proper scopes (`repo`, `workflow`, `user:email`)
+- **Repository Management:** Create new repos or connect to existing ones
+- **Push/Pull Sync:** Two-way synchronization using GitHub Contents API
+- **GitHub Pages Deployment:** One-click deployment with:
+  - Automatic workflow file generation (`.github/workflows/deploy-pages.yml`)
+  - Correct `--base-href` configuration for subdirectory hosting
+  - Auto-public repo conversion (required for free GitHub Pages)
+  - GitHub Actions as the build source
+
+### Figma Integration (January 2025)
+- **API Import:** Browse and import designs using Figma Personal Access Token
+- **Plugin Export:** Standalone Figma plugin for local exports without API limits
+- **Layer Selection:** Browse imported layers with preview highlighting
+- **Persistent Imports:** Imports saved with project for future reference
+
+---
+
 ## 1. Streaming Response for Large Token Support
 
 **The Problem:**

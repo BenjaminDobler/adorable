@@ -90,7 +90,11 @@ export class GitHubSyncService {
       'Authorization': `Bearer ${accessToken}`,
       'Accept': 'application/vnd.github.v3+json',
       'Content-Type': 'application/json',
+      'X-GitHub-Api-Version': '2022-11-28',
     };
+
+    console.log(`[GitHub Sync] Starting push to ${fullName}/${branch}`);
+    console.log(`[GitHub Sync] Using token: ${accessToken.substring(0, 10)}...`);
 
     // 1. Get the current commit SHA of the branch
     const refResponse = await fetch(
@@ -98,119 +102,141 @@ export class GitHubSyncService {
       { headers }
     );
 
-    if (!refResponse.ok) {
-      throw new Error(`Failed to get branch ref: ${refResponse.status}`);
+    let currentCommitSha: string | null = null;
+    let baseTreeSha: string | null = null;
+
+    if (refResponse.ok) {
+      const refData = await refResponse.json();
+      currentCommitSha = refData.object.sha;
+      console.log(`[GitHub Sync] Current commit SHA: ${currentCommitSha}`);
+
+      // 2. Get the tree SHA of the current commit
+      const commitResponse = await fetch(
+        `${GITHUB_API}/repos/${fullName}/git/commits/${currentCommitSha}`,
+        { headers }
+      );
+
+      if (commitResponse.ok) {
+        const commitData = await commitResponse.json();
+        baseTreeSha = commitData.tree.sha;
+        console.log(`[GitHub Sync] Base tree SHA: ${baseTreeSha}`);
+      }
+    } else if (refResponse.status === 404) {
+      // Repository is empty - no commits yet
+      console.log(`[GitHub Sync] Branch ${branch} not found - repo appears to be empty, will create initial commit`);
+    } else {
+      const errorText = await refResponse.text();
+      throw new Error(`Failed to get branch ref: ${refResponse.status} - ${errorText}`);
     }
 
-    const refData = await refResponse.json();
-    const currentCommitSha = refData.object.sha;
-
-    // 2. Get the tree SHA of the current commit
-    const commitResponse = await fetch(
-      `${GITHUB_API}/repos/${fullName}/git/commits/${currentCommitSha}`,
-      { headers }
-    );
-
-    if (!commitResponse.ok) {
-      throw new Error(`Failed to get commit: ${commitResponse.status}`);
-    }
-
-    const commitData = await commitResponse.json();
-    const baseTreeSha = commitData.tree.sha;
-
-    // 3. Create blobs for each file and build tree
+    // 3. Use Contents API to update files (more reliable than Git Data API)
     const flatFiles = this.flattenFiles(files);
-    const treeEntries: GitTreeEntry[] = [];
+
+    console.log(`[GitHub Sync] Processing ${flatFiles.length} files for push using Contents API`);
+
+    // Get current files in repo to find their SHAs (needed for updates)
+    const existingFiles = new Map<string, string>();
+    try {
+      const contentsResponse = await fetch(
+        `${GITHUB_API}/repos/${fullName}/git/trees/${branch}?recursive=1`,
+        { headers }
+      );
+      if (contentsResponse.ok) {
+        const contentsData = await contentsResponse.json();
+        for (const item of contentsData.tree) {
+          if (item.type === 'blob') {
+            existingFiles.set(item.path, item.sha);
+          }
+        }
+        console.log(`[GitHub Sync] Found ${existingFiles.size} existing files in repo`);
+      }
+    } catch (e) {
+      console.log(`[GitHub Sync] Could not fetch existing files, will create new`);
+    }
+
+    let successCount = 0;
+    let lastCommitSha = currentCommitSha;
 
     for (const file of flatFiles) {
-      // Skip certain files that shouldn't be in the repo
+      // Skip certain files
       if (file.path === 'node_modules' || file.path.startsWith('node_modules/')) continue;
       if (file.path === 'dist' || file.path.startsWith('dist/')) continue;
       if (file.path === '.angular' || file.path.startsWith('.angular/')) continue;
 
-      // Create blob for the file
-      const blobResponse = await fetch(
-        `${GITHUB_API}/repos/${fullName}/git/blobs`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            content: file.content,
-            encoding: file.encoding === 'base64' ? 'base64' : 'utf-8',
-          }),
-        }
-      );
+      const contentBase64 = file.encoding === 'base64'
+        ? file.content
+        : Buffer.from(file.content).toString('base64');
 
-      if (!blobResponse.ok) {
-        console.error(`Failed to create blob for ${file.path}`);
-        continue;
+      const payload: any = {
+        message: successCount === 0 ? commitMessage : `Update ${file.path}`,
+        content: contentBase64,
+        branch,
+      };
+
+      // If file exists, we need to provide its SHA
+      const existingSha = existingFiles.get(file.path);
+      if (existingSha) {
+        payload.sha = existingSha;
       }
 
-      const blobData = await blobResponse.json();
-      treeEntries.push({
-        path: file.path,
-        mode: '100644',
-        type: 'blob',
-        sha: blobData.sha,
+      // URL-encode each path segment but preserve slashes
+      const encodedPath = file.path.split('/').map(segment => encodeURIComponent(segment)).join('/');
+      const url = `${GITHUB_API}/repos/${fullName}/contents/${encodedPath}`;
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(payload),
       });
-    }
 
-    // 4. Create a new tree
-    const treeResponse = await fetch(
-      `${GITHUB_API}/repos/${fullName}/git/trees`,
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          base_tree: baseTreeSha,
-          tree: treeEntries,
-        }),
+      if (response.ok) {
+        const data = await response.json();
+        lastCommitSha = data.commit.sha;
+        successCount++;
+        // Update existing files map with new SHA for subsequent requests
+        existingFiles.set(file.path, data.content.sha);
+        if (successCount <= 3 || successCount % 5 === 0) {
+          console.log(`[GitHub Sync] Updated ${file.path} (${successCount}/${flatFiles.length})`);
+        }
+      } else {
+        const errorText = await response.text();
+        console.error(`[GitHub Sync] Failed to update ${file.path}: ${response.status} - ${errorText}`);
+        console.error(`[GitHub Sync] URL was: ${url}`);
+
+        // If 409 conflict, try to get the current SHA and retry
+        if (response.status === 409) {
+          console.log(`[GitHub Sync] Conflict detected, fetching current SHA...`);
+          try {
+            const getResponse = await fetch(url, { headers });
+            if (getResponse.ok) {
+              const getData = await getResponse.json();
+              payload.sha = getData.sha;
+              const retryResponse = await fetch(url, {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify(payload),
+              });
+              if (retryResponse.ok) {
+                const retryData = await retryResponse.json();
+                lastCommitSha = retryData.commit.sha;
+                successCount++;
+                console.log(`[GitHub Sync] Retry succeeded for ${file.path}`);
+              }
+            }
+          } catch (e) {
+            console.error(`[GitHub Sync] Retry failed for ${file.path}`);
+          }
+        }
       }
-    );
-
-    if (!treeResponse.ok) {
-      throw new Error(`Failed to create tree: ${treeResponse.status}`);
     }
 
-    const treeData = await treeResponse.json();
+    console.log(`[GitHub Sync] Successfully updated ${successCount} files`);
 
-    // 5. Create a new commit
-    const newCommitResponse = await fetch(
-      `${GITHUB_API}/repos/${fullName}/git/commits`,
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          message: commitMessage,
-          tree: treeData.sha,
-          parents: [currentCommitSha],
-        }),
-      }
-    );
-
-    if (!newCommitResponse.ok) {
-      throw new Error(`Failed to create commit: ${newCommitResponse.status}`);
+    if (successCount === 0) {
+      throw new Error('Failed to update any files');
     }
 
-    const newCommitData = await newCommitResponse.json();
-
-    // 6. Update the branch reference
-    const updateRefResponse = await fetch(
-      `${GITHUB_API}/repos/${fullName}/git/refs/heads/${branch}`,
-      {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({
-          sha: newCommitData.sha,
-        }),
-      }
-    );
-
-    if (!updateRefResponse.ok) {
-      throw new Error(`Failed to update ref: ${updateRefResponse.status}`);
-    }
-
-    return newCommitData.sha;
+    return lastCommitSha || currentCommitSha || '';
   }
 
   /**
@@ -325,6 +351,171 @@ export class GitHubSyncService {
 
     const data = await response.json();
     return data.files.map((f: any) => f.filename);
+  }
+
+  /**
+   * Generate GitHub Actions workflow for deploying to GitHub Pages
+   */
+  generatePagesWorkflow(repoName: string): string {
+    return `# Workflow to build and deploy Angular app to GitHub Pages
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build -- --base-href=/${repoName}/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist/app/browser'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: \${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+`;
+  }
+
+  /**
+   * Add GitHub Pages workflow to a repository
+   * This pushes a workflow file that will automatically build and deploy on push
+   */
+  async setupGitHubPagesWorkflow(
+    accessToken: string,
+    fullName: string,
+    branch: string,
+    files: WebContainerFiles
+  ): Promise<string> {
+    const repoName = fullName.split('/')[1];
+
+    // Create the workflow file content
+    const workflowContent = this.generatePagesWorkflow(repoName);
+
+    // Add the workflow file to the project files
+    const filesWithWorkflow = { ...files };
+    if (!filesWithWorkflow['.github']) {
+      filesWithWorkflow['.github'] = { directory: {} };
+    }
+    if (!filesWithWorkflow['.github'].directory!['workflows']) {
+      filesWithWorkflow['.github'].directory!['workflows'] = { directory: {} };
+    }
+    filesWithWorkflow['.github'].directory!['workflows'].directory!['deploy-pages.yml'] = {
+      file: { contents: workflowContent }
+    };
+
+    // Push the updated files
+    const commitSha = await this.pushToGitHub(
+      accessToken,
+      fullName,
+      branch,
+      filesWithWorkflow,
+      'Add GitHub Pages deployment workflow'
+    );
+
+    return commitSha;
+  }
+
+  /**
+   * Enable GitHub Pages using the new GitHub Actions deployment
+   */
+  async enableGitHubPagesWithActions(
+    accessToken: string,
+    fullName: string
+  ): Promise<{ url: string }> {
+    const headers = {
+      'Authorization': `Bearer ${accessToken}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json',
+    };
+
+    // First, make the repository public (required for GitHub Pages on free accounts)
+    console.log(`[GitHub Pages] Making repository ${fullName} public...`);
+    const visibilityResponse = await fetch(`${GITHUB_API}/repos/${fullName}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        private: false,
+      }),
+    });
+
+    if (!visibilityResponse.ok) {
+      const error = await visibilityResponse.text();
+      console.warn(`[GitHub Pages] Failed to make repo public: ${error}`);
+      // Continue anyway - might already be public or user has Pro account
+    } else {
+      console.log(`[GitHub Pages] Repository is now public`);
+    }
+
+    // Enable GitHub Pages with GitHub Actions as source
+    const response = await fetch(`${GITHUB_API}/repos/${fullName}/pages`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        build_type: 'workflow',
+      }),
+    });
+
+    // 409 means Pages already exists - try to update it
+    if (response.status === 409) {
+      const updateResponse = await fetch(`${GITHUB_API}/repos/${fullName}/pages`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          build_type: 'workflow',
+        }),
+      });
+
+      if (!updateResponse.ok && updateResponse.status !== 409) {
+        console.warn('Failed to update Pages config:', await updateResponse.text());
+      }
+    } else if (!response.ok) {
+      const error = await response.json();
+      // Don't throw - Pages might already be configured differently
+      console.warn('Failed to enable Pages:', error.message);
+    }
+
+    // Get the Pages URL
+    const [owner, repo] = fullName.split('/');
+    const pagesUrl = `https://${owner}.github.io/${repo}/`;
+
+    return { url: pagesUrl };
   }
 }
 

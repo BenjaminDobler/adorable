@@ -22,6 +22,10 @@
 *   **Visual Inspector 🔍:** Click elements in your live app to identify their Angular components and ask the AI for targeted visual edits.
 *   **Interactive Terminal 💻:** Subdivided terminal with dedicated tabs for **Server Logs**, **Interactive Shell**, and **Browser Console**.
 *   **One-Click Publishing 📤:** Build your app and publish it to a live, shareable URL instantly.
+*   **GitHub Integration 🐙:** Full GitHub sync and deployment support:
+    *   **Connect Repositories:** Link projects to new or existing GitHub repos.
+    *   **Push/Pull Sync:** Two-way sync between Adorable and GitHub.
+    *   **GitHub Pages Deployment:** One-click deploy to GitHub Pages with automatic workflow generation.
 *   **Monaco Editor:** A VS Code-powered editing experience with live sync to the preview.
 *   **Time Travel Snapshots:** Restore your project to any previous state in the chat history.
 
@@ -82,6 +86,23 @@ npx nx serve client
 3.  **Generate:** Type a prompt like *"Create a project management dashboard with signals"* in the Chat tab.
 4.  **Visual Edit:** Use the **Inspect** icon in the preview toolbar, click a UI element, and tell the AI what to change.
 5.  **Persistence:** In Local Docker mode, your code is persisted in `./storage/projects/${userId}` on your host machine, ensuring it survives container restarts.
+
+### GitHub Integration
+
+1.  **Connect GitHub:** Go to **Profile** and click **Connect GitHub** to authorize Adorable.
+2.  **Link a Repository:** In the editor, click the **GitHub** icon in the navbar.
+    *   Select an existing repository, or
+    *   Click **Create New Repository** to create one automatically.
+3.  **Sync Changes:**
+    *   **Push:** Send your project files to GitHub.
+    *   **Pull:** Fetch the latest changes from GitHub.
+4.  **Deploy to GitHub Pages:**
+    *   Click **Deploy to Pages** in the GitHub panel.
+    *   Adorable automatically:
+        *   Makes the repo public (required for free GitHub Pages)
+        *   Creates a GitHub Actions workflow with correct `--base-href`
+        *   Enables GitHub Pages
+    *   Your site will be live at `https://<username>.github.io/<repo-name>/`
 
 ### Figma Integration
 

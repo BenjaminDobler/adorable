@@ -218,12 +218,25 @@ router.post('/connect/:projectId', authenticate, async (req: any, res) => {
     }
 
     // Get repo info and default branch
+    console.log(`[GitHub Connect] Fetching repo info for ${repoFullName}`);
     const repo = await githubService.getRepository(user.githubAccessToken, repoFullName);
-    const latestCommit = await githubService.getLatestCommit(
-      user.githubAccessToken,
-      repoFullName,
-      repo.default_branch
-    );
+    console.log(`[GitHub Connect] Repo info:`, { id: repo.id, default_branch: repo.default_branch, empty: !repo.default_branch });
+
+    // For empty repos, default_branch might not be set - default to 'main'
+    const branch = repo.default_branch || 'main';
+
+    // Try to get latest commit (may be null for empty repos)
+    let latestCommit: string | null = null;
+    try {
+      latestCommit = await githubService.getLatestCommit(
+        user.githubAccessToken,
+        repoFullName,
+        branch
+      );
+      console.log(`[GitHub Connect] Latest commit: ${latestCommit}`);
+    } catch (e) {
+      console.log('[GitHub Connect] No commits found - repo is empty');
+    }
 
     // Create webhook for sync
     const webhookSecret = crypto.randomBytes(32).toString('hex');
@@ -247,11 +260,12 @@ router.post('/connect/:projectId', authenticate, async (req: any, res) => {
       data: {
         githubRepoId: String(repo.id),
         githubRepoFullName: repo.full_name,
-        githubBranch: repo.default_branch,
+        githubBranch: branch,
         githubLastCommitSha: latestCommit,
         githubSyncEnabled: true,
       },
     });
+    console.log(`[GitHub Connect] Project ${projectId} connected to ${repo.full_name}`);
 
     // Store webhook info if created
     if (webhookId) {
@@ -272,9 +286,10 @@ router.post('/connect/:projectId', authenticate, async (req: any, res) => {
     res.json({
       success: true,
       repoFullName: repo.full_name,
-      branch: repo.default_branch,
+      branch,
     });
   } catch (error: any) {
+    console.error('[GitHub Connect] Error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -481,6 +496,129 @@ router.post('/sync/:projectId/pull', authenticate, async (req: any, res) => {
     res.json({ success: true, commitSha, files });
   } catch (error: any) {
     console.error('Pull error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/github/pages/:projectId
+ * Deploy project to GitHub Pages
+ * This sets up a GitHub Actions workflow that builds and deploys automatically
+ */
+router.post('/pages/:projectId', authenticate, async (req: any, res) => {
+  try {
+    const { projectId } = req.params;
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { githubAccessToken: true },
+    });
+
+    if (!user?.githubAccessToken) {
+      return res.status(401).json({ error: 'GitHub not connected' });
+    }
+
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, userId: req.user.id },
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    if (!project.githubRepoFullName || !project.githubBranch) {
+      return res.status(400).json({ error: 'Project not connected to GitHub' });
+    }
+
+    // Parse project files
+    const files = JSON.parse(project.files);
+    const fileCount = Object.keys(files).length;
+    console.log(`[GitHub Pages] Project has ${fileCount} top-level files/directories`);
+
+    // Add the GitHub Actions workflow and push
+    console.log(`[GitHub Pages] Setting up workflow for ${project.githubRepoFullName} on branch ${project.githubBranch}`);
+    const commitSha = await syncService.setupGitHubPagesWorkflow(
+      user.githubAccessToken,
+      project.githubRepoFullName,
+      project.githubBranch,
+      files
+    );
+
+    // Enable GitHub Pages with Actions
+    console.log(`[GitHub Pages] Enabling Pages for ${project.githubRepoFullName}`);
+    const { url } = await syncService.enableGitHubPagesWithActions(
+      user.githubAccessToken,
+      project.githubRepoFullName
+    );
+
+    // Update project with Pages URL
+    await prisma.project.update({
+      where: { id: projectId },
+      data: {
+        githubPagesUrl: url,
+        githubLastSyncAt: new Date(),
+        githubLastCommitSha: commitSha,
+      },
+    });
+
+    res.json({
+      success: true,
+      url,
+      commitSha,
+      message: 'GitHub Pages deployment initiated. The site will be live in a few minutes after the workflow completes.',
+    });
+  } catch (error: any) {
+    console.error('GitHub Pages error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/github/pages/:projectId
+ * Get GitHub Pages status for a project
+ */
+router.get('/pages/:projectId', authenticate, async (req: any, res) => {
+  try {
+    const { projectId } = req.params;
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { githubAccessToken: true },
+    });
+
+    if (!user?.githubAccessToken) {
+      return res.status(401).json({ error: 'GitHub not connected' });
+    }
+
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, userId: req.user.id },
+      select: {
+        githubRepoFullName: true,
+        githubPagesUrl: true,
+      },
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    if (!project.githubRepoFullName) {
+      return res.json({ enabled: false });
+    }
+
+    // Check Pages status via GitHub API
+    const pagesStatus = await githubService.getPages(
+      user.githubAccessToken,
+      project.githubRepoFullName
+    );
+
+    res.json({
+      enabled: pagesStatus.enabled,
+      url: pagesStatus.url || project.githubPagesUrl,
+      status: pagesStatus.status,
+    });
+  } catch (error: any) {
+    console.error('GitHub Pages status error:', error);
     res.status(500).json({ error: error.message });
   }
 });
