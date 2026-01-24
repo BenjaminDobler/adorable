@@ -29,8 +29,10 @@ setInterval(() => {
 router.get('/auth', authenticate, (req: any, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   oauthStates.set(state, { userId: req.user.id, timestamp: Date.now() });
+  console.log('[GitHub Auth] Created state:', state, 'for user:', req.user.id);
 
   const authUrl = githubService.getAuthorizationUrl(state);
+  console.log('[GitHub Auth] Auth URL:', authUrl);
   res.json({ url: authUrl });
 });
 
@@ -40,13 +42,17 @@ router.get('/auth', authenticate, (req: any, res) => {
  */
 router.get('/callback', async (req, res) => {
   const { code, state } = req.query;
+  console.log('[GitHub Callback] code:', code, 'state:', state);
+  console.log('[GitHub Callback] Known states:', [...oauthStates.keys()]);
 
   if (!code || !state) {
+    console.log('[GitHub Callback] Missing params');
     return res.redirect('/?github_error=missing_params');
   }
 
   const stateData = oauthStates.get(state as string);
   if (!stateData) {
+    console.log('[GitHub Callback] Invalid state - state not found in map');
     return res.redirect('/?github_error=invalid_state');
   }
 
@@ -54,10 +60,13 @@ router.get('/callback', async (req, res) => {
 
   try {
     // Exchange code for access token
+    console.log('[GitHub Callback] Exchanging code for token...');
     const accessToken = await githubService.exchangeCodeForToken(code as string);
+    console.log('[GitHub Callback] Got access token:', accessToken ? 'yes' : 'no');
 
     // Get GitHub user info
     const githubUser = await githubService.getUser(accessToken);
+    console.log('[GitHub Callback] GitHub user:', githubUser.login);
 
     // Update user in database
     await prisma.user.update({
@@ -70,11 +79,13 @@ router.get('/callback', async (req, res) => {
       },
     });
 
-    // Redirect back to app with success
-    res.redirect('/profile?github_connected=true');
+    // Redirect back to client app with success
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
+    res.redirect(`${clientUrl}/profile?github_connected=true`);
   } catch (error: any) {
     console.error('GitHub OAuth error:', error);
-    res.redirect(`/?github_error=${encodeURIComponent(error.message)}`);
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
+    res.redirect(`${clientUrl}/?github_error=${encodeURIComponent(error.message)}`);
   }
 });
 

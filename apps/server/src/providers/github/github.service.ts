@@ -4,14 +4,17 @@ const GITHUB_API = 'https://api.github.com';
 const GITHUB_OAUTH = 'https://github.com/login/oauth';
 
 export class GitHubService {
-  private clientId: string;
-  private clientSecret: string;
-  private callbackUrl: string;
+  // Read env vars lazily to ensure dotenv has loaded
+  private get clientId(): string {
+    return process.env.GITHUB_CLIENT_ID || '';
+  }
 
-  constructor() {
-    this.clientId = process.env.GITHUB_CLIENT_ID || '';
-    this.clientSecret = process.env.GITHUB_CLIENT_SECRET || '';
-    this.callbackUrl = process.env.GITHUB_CALLBACK_URL || 'http://localhost:3333/api/github/callback';
+  private get clientSecret(): string {
+    return process.env.GITHUB_CLIENT_SECRET || '';
+  }
+
+  private get callbackUrl(): string {
+    return process.env.GITHUB_CALLBACK_URL || 'http://localhost:3333/api/github/callback';
   }
 
   getAuthorizationUrl(state: string): string {

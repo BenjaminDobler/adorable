@@ -45,8 +45,11 @@ export const containerProxy = createProxyMiddleware({
         const manager = containerRegistry.getManager(userId);
         containerRegistry.updateActivity(userId); // Track Heartbeat
         return await manager.getContainerUrl();
-      } catch (e) {
-        console.error('[Proxy Router] Error:', e.message);
+      } catch (e: any) {
+        // Only log unexpected errors, not "Container not started" which is normal
+        if (!e.message?.includes('Container not started')) {
+          console.error('[Proxy Router] Error:', e.message, '| URL:', req.url);
+        }
       }
     }
     return undefined;

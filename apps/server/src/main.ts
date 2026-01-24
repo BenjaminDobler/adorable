@@ -28,11 +28,21 @@ app.use(express.json({ limit: '50mb' }));
 
 // Apply Global Fallback Proxy
 app.use(async (req: any, res, next) => {
-  // Skip proxy for auth routes, API routes (except /api/proxy), static sites, and assets
+  // Skip proxy for API routes (except /api/proxy), static sites, assets, and client routes
   if (req.path.startsWith('/api/auth') ||
       (req.path.startsWith('/api') && !req.path.startsWith('/api/proxy')) ||
       req.path.startsWith('/sites') ||
-      req.path.startsWith('/assets')) {
+      req.path.startsWith('/assets') ||
+      // Skip browser noise that shouldn't go to container
+      req.path.startsWith('/.well-known') ||
+      req.path === '/favicon.ico' ||
+      // Skip client-side routes (Angular SPA routes)
+      req.path === '/profile' ||
+      req.path === '/dashboard' ||
+      req.path.startsWith('/chat/') ||
+      req.path === '/login' ||
+      req.path === '/register' ||
+      req.path === '/') {
     return next();
   }
 
@@ -40,13 +50,13 @@ app.use(async (req: any, res, next) => {
   if (userId) {
     const queryUser = new URL(req.url, `http://${req.headers.host}`).searchParams.get('user');
     const cookieUser = req.signedCookies?.['adorable_container_user'];
-    
+
     if (queryUser && queryUser !== cookieUser) {
-       res.cookie('adorable_container_user', queryUser, { 
-          signed: true, 
-          httpOnly: true, 
+       res.cookie('adorable_container_user', queryUser, {
+          signed: true,
+          httpOnly: true,
           sameSite: 'lax',
-          maxAge: 7 * 24 * 60 * 60 * 1000 
+          maxAge: 7 * 24 * 60 * 60 * 1000
        });
     }
     return (containerProxy as any)(req, res, next);
@@ -73,19 +83,23 @@ app.use((req, res, next) => {
   if (!req.url.startsWith('/api/proxy')) {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   }
+  // Debug: log when github callback is hit
+  if (req.url.includes('/api/github/callback')) {
+    console.log('[DEBUG] GitHub callback request reaching logging middleware');
+  }
   next();
 });
 
 // Routes
 app.use('/api/auth', authRouter);
 app.use('/api/projects', projectRouter);
+app.use('/api/github', githubRouter);  // Must be before aiRouter (which has global auth)
+app.use('/api/webhooks', webhooksRouter);  // Webhooks also don't need auth
 app.use('/api', aiRouter);
 app.use('/api/container', containerRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/skills', skillsRouter);
 app.use('/api/figma', figmaRouter);
-app.use('/api/github', githubRouter);
-app.use('/api/webhooks', webhooksRouter);
 
 const server = app.listen(PORT, () => {
   console.log(`Listening at http://localhost:${PORT}/api`);
