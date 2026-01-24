@@ -58,22 +58,22 @@ export const BASE_FILES = {
                     optimization: false,
                     assets: [
                       {
-                        "glob": "**/*",
-                        "input": "public"
-                      }
+                        glob: '**/*',
+                        input: 'public',
+                      },
                     ],
                     styles: ['src/styles.css'],
                     scripts: [],
                   },
                 },
-              serve: {
-                builder: '@angular/build:dev-server',
-                options: {
-                  buildTarget: 'app:build',
-                  hmr: true,
-                  allowedHosts: ["all"]
-                }
-              }
+                serve: {
+                  builder: '@angular/build:dev-server',
+                  options: {
+                    buildTarget: 'app:build',
+                    hmr: true,
+                    allowedHosts: ['all'],
+                  },
+                },
               },
             },
           },
@@ -137,12 +137,12 @@ export const BASE_FILES = {
       ),
     },
   },
-  'public': {
+  public: {
     directory: {
       '.gitkeep': {
-        file: { contents: '' }
-      }
-    }
+        file: { contents: '' },
+      },
+    },
   },
   src: {
     directory: {
@@ -173,7 +173,7 @@ bootstrapApplication(AppComponent).catch(err => console.error(err));`,
           contents: '/* Global styles */',
         },
       },
-      'app': {
+      app: {
         directory: {
           'app.component.ts': {
             file: {
@@ -186,18 +186,14 @@ import { CommonModule } from '@angular/common';
   standalone: true,
   imports: [CommonModule],
   template: \`
-    <div style="text-align: center; padding: 2rem; font-family: system-ui;">
-      <h1>Welcome to Adorable</h1>
-      <p>Enter a prompt to start building your app!</p>
-    </div>
   \`
 })
 export class AppComponent {}
-              `
-            }
-          }
-        }
-      }
+              `,
+            },
+          },
+        },
+      },
     },
   },
 };
