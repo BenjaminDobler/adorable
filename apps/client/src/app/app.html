@@ -240,6 +240,7 @@
           #previewFrame
           [src]="webContainerService.url() | safeUrl"
           allow="cross-origin-isolated"
+          [style.pointer-events]="isResizingSidebar || isResizingEditor ? 'none' : 'auto'"
         ></iframe>
       </div>
       } @else {
