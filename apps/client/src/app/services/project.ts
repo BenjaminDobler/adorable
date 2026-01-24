@@ -252,8 +252,12 @@ export class ProjectService {
            buildOptions.assets.push({ "glob": "**/*", "input": "public" });
         }
 
+        // Enable HMR (requires optimization: false in build options)
+        const buildOptions = appArchitect.build.options;
+        buildOptions.optimization = false;
+
         const serveOptions = appArchitect.serve.options;
-        serveOptions.hmr = false;
+        serveOptions.hmr = true;
         serveOptions.allowedHosts = ["all"];
 
         const newConfig = JSON.stringify(config, null, 2);

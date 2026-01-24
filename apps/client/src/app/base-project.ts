@@ -55,6 +55,7 @@ export const BASE_FILES = {
                     browser: 'src/main.ts',
                     polyfills: ['zone.js'],
                     tsConfig: 'tsconfig.app.json',
+                    optimization: false,
                     assets: [
                       {
                         "glob": "**/*",
@@ -69,7 +70,7 @@ export const BASE_FILES = {
                 builder: '@angular/build:dev-server',
                 options: {
                   buildTarget: 'app:build',
-                  hmr: false,
+                  hmr: true,
                   allowedHosts: ["all"]
                 }
               }

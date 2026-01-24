@@ -32,7 +32,16 @@ const SYSTEM_PROMPT =
 +"5. **Modularity:** Break down complex UIs into smaller, reusable components. Avoid monolithic 'app.component.ts'.\n"
 +"6. **Imports:** Ensure all imports are correct.\n"
 +"7. **Conciseness:** Minimize comments.\n"
-+"8. **Binary:** For small binary files (like icons), use the 'write_file' tool with base64 content. Prefer SVG for vector graphics.\n";
++"8. **Binary:** For small binary files (like icons), use the 'write_file' tool with base64 content. Prefer SVG for vector graphics.\n"
++"9. **Visual Editing IDs:** When generating HTML templates, add a unique `data-elements-id` attribute to EVERY element. Use a descriptive naming convention: `{component-prefix}-{element-type}-{index}`. Example:\n"
++"    ```html\n"
++"    <div data-elements-id=\"card-container-1\" class=\"card\">\n"
++"      <h2 data-elements-id=\"card-title-1\">Title</h2>\n"
++"      <p data-elements-id=\"card-desc-1\">Description</p>\n"
++"      <button data-elements-id=\"card-btn-1\">Click me</button>\n"
++"    </div>\n"
++"    ```\n"
++"    These IDs enable reliable visual editing. Maintain existing IDs when editing templates.\n";
 
 export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
   async generate(options: GenerateOptions): Promise<any> {

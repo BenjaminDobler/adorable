@@ -27,6 +27,10 @@ export const RUNTIME_SCRIPTS = `
     (function() {
       let active = false;
       let overlay;
+      let selectionOverlay;
+      let selectedElement = null;
+      let clickTimeout = null;
+      let pendingClickEvent = null;
 
       function createOverlay() {
         if (document.getElementById('inspector-overlay')) return;
@@ -42,13 +46,95 @@ export const RUNTIME_SCRIPTS = `
         document.body.appendChild(overlay);
       }
 
+      function createSelectionOverlay() {
+        if (document.getElementById('inspector-selection')) return;
+        selectionOverlay = document.createElement('div');
+        selectionOverlay.id = 'inspector-selection';
+        selectionOverlay.style.position = 'fixed';
+        selectionOverlay.style.border = '2px solid #3ecf8e';
+        selectionOverlay.style.backgroundColor = 'rgba(62, 207, 142, 0.1)';
+        selectionOverlay.style.zIndex = '999998';
+        selectionOverlay.style.pointerEvents = 'none';
+        selectionOverlay.style.display = 'none';
+        selectionOverlay.style.boxShadow = '0 0 0 4px rgba(62, 207, 142, 0.2)';
+        document.body.appendChild(selectionOverlay);
+
+        // Add a label to show element info
+        const label = document.createElement('div');
+        label.id = 'inspector-selection-label';
+        label.style.position = 'absolute';
+        label.style.top = '-24px';
+        label.style.left = '0';
+        label.style.background = '#3ecf8e';
+        label.style.color = '#000';
+        label.style.padding = '2px 8px';
+        label.style.fontSize = '11px';
+        label.style.fontFamily = 'monospace';
+        label.style.fontWeight = 'bold';
+        label.style.borderRadius = '4px 4px 0 0';
+        label.style.whiteSpace = 'nowrap';
+        selectionOverlay.appendChild(label);
+      }
+
+      function showSelectionOverlay(element) {
+        createSelectionOverlay();
+        selectedElement = element;
+        const sel = document.getElementById('inspector-selection');
+        const label = document.getElementById('inspector-selection-label');
+        if (!sel) return;
+
+        const rect = element.getBoundingClientRect();
+        sel.style.top = rect.top + 'px';
+        sel.style.left = rect.left + 'px';
+        sel.style.width = rect.width + 'px';
+        sel.style.height = rect.height + 'px';
+        sel.style.display = 'block';
+
+        // Update label
+        if (label) {
+          const tagName = element.tagName.toLowerCase();
+          const classes = element.className ? '.' + element.className.split(' ').slice(0, 2).join('.') : '';
+          label.textContent = '<' + tagName + '>' + classes;
+        }
+      }
+
+      function hideSelectionOverlay() {
+        const sel = document.getElementById('inspector-selection');
+        if (sel) sel.style.display = 'none';
+        selectedElement = null;
+      }
+
+      // Update selection position on scroll/resize
+      function updateSelectionPosition() {
+        if (!selectedElement) return;
+        const sel = document.getElementById('inspector-selection');
+        if (!sel || sel.style.display === 'none') return;
+
+        const rect = selectedElement.getBoundingClientRect();
+        sel.style.top = rect.top + 'px';
+        sel.style.left = rect.left + 'px';
+        sel.style.width = rect.width + 'px';
+        sel.style.height = rect.height + 'px';
+      }
+
+      window.addEventListener('scroll', updateSelectionPosition, true);
+      window.addEventListener('resize', updateSelectionPosition);
+
       window.addEventListener('message', (event) => {
         if (event.data.type === 'TOGGLE_INSPECTOR') {
           active = event.data.enabled;
           createOverlay();
-          if (!active && overlay) overlay.style.display = 'none';
+          if (!active) {
+            // Inspector turned off - hide hover overlay and selection
+            if (overlay) overlay.style.display = 'none';
+            hideSelectionOverlay();
+          }
         }
-        
+
+        if (event.data.type === 'CLEAR_SELECTION') {
+          hideSelectionOverlay();
+        }
+
         if (event.data.type === 'RELOAD_REQ') {
            window.location.reload();
         }
@@ -73,7 +159,18 @@ export const RUNTIME_SCRIPTS = `
         if (!active) return;
         e.preventDefault();
         e.stopPropagation();
-        
+
+        // Delay click processing to allow double-click to cancel it
+        pendingClickEvent = e;
+        if (clickTimeout) clearTimeout(clickTimeout);
+        clickTimeout = setTimeout(() => {
+          if (!pendingClickEvent) return; // Was cancelled by dblclick
+          processClick(pendingClickEvent);
+          pendingClickEvent = null;
+        }, 250);
+      });
+
+      function processClick(e) {
         const target = e.target;
         let componentName = null;
         let hostTag = null;
@@ -126,7 +223,10 @@ export const RUNTIME_SCRIPTS = `
         }
 
         const computedStyle = window.getComputedStyle(target);
-        
+
+        // Capture data-elements-id for reliable visual editing
+        const elementId = target.getAttribute('data-elements-id');
+
         // Calculate child index among siblings of same tag
         let childIndex = 0;
         if (target.parentNode) {
@@ -134,7 +234,23 @@ export const RUNTIME_SCRIPTS = `
            const sameTagSiblings = siblings.filter(s => s.tagName === target.tagName);
            childIndex = sameTagSiblings.indexOf(target);
         }
-        
+
+        // Build element hierarchy for breadcrumb navigation
+        const hierarchy = [];
+        let el = target;
+        while (el && el !== document.body && el !== document.documentElement) {
+           hierarchy.unshift({
+              tagName: el.tagName.toLowerCase(),
+              elementId: el.getAttribute('data-elements-id') || null,
+              text: el.innerText ? el.innerText.substring(0, 20).trim() : '',
+              classes: el.className || ''
+           });
+           el = el.parentElement;
+        }
+
+        // Show persistent selection overlay
+        showSelectionOverlay(target);
+
         window.parent.postMessage({
           type: 'ELEMENT_SELECTED',
           payload: {
@@ -142,25 +258,151 @@ export const RUNTIME_SCRIPTS = `
             text: target.innerText ? target.innerText.substring(0, 100).trim() : '',
             componentName: componentName,
             hostTag: hostTag,
+            elementId: elementId,
             childIndex: childIndex,
             parentTag: target.parentNode ? target.parentNode.tagName.toLowerCase() : null,
             classes: target.className,
+            hierarchy: hierarchy,
             attributes: {
                id: target.id,
                type: target.getAttribute('type')
             },
             styles: {
+                // Colors
                 color: computedStyle.color,
                 backgroundColor: computedStyle.backgroundColor,
-                borderRadius: computedStyle.borderRadius,
+                // Typography
                 fontSize: computedStyle.fontSize,
+                fontWeight: computedStyle.fontWeight,
+                textAlign: computedStyle.textAlign,
+                lineHeight: computedStyle.lineHeight,
+                // Spacing
                 padding: computedStyle.padding,
-                margin: computedStyle.margin
+                paddingTop: computedStyle.paddingTop,
+                paddingRight: computedStyle.paddingRight,
+                paddingBottom: computedStyle.paddingBottom,
+                paddingLeft: computedStyle.paddingLeft,
+                margin: computedStyle.margin,
+                marginTop: computedStyle.marginTop,
+                marginRight: computedStyle.marginRight,
+                marginBottom: computedStyle.marginBottom,
+                marginLeft: computedStyle.marginLeft,
+                // Border
+                borderRadius: computedStyle.borderRadius,
+                borderWidth: computedStyle.borderWidth,
+                borderColor: computedStyle.borderColor,
+                borderStyle: computedStyle.borderStyle,
+                // Layout (for containers)
+                display: computedStyle.display,
+                flexDirection: computedStyle.flexDirection,
+                justifyContent: computedStyle.justifyContent,
+                alignItems: computedStyle.alignItems,
+                gap: computedStyle.gap,
+                flexWrap: computedStyle.flexWrap
             }
           }
         }, '*');
-        
-        active = false;
+
+        // Keep inspector active - don't set active = false
+        // User can toggle it off with the inspect button
+      }
+
+      // In-place text editing (double-click)
+      document.addEventListener('dblclick', (e) => {
+        // Cancel the pending single-click
+        if (clickTimeout) {
+          clearTimeout(clickTimeout);
+          clickTimeout = null;
+        }
+        pendingClickEvent = null;
+
+        if (!active) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const target = e.target;
+        const text = target.textContent?.trim();
+
+        // Only allow on text-containing elements without child elements
+        if (!text || target.children.length > 0) return;
+
+        // Store original text for cancel
+        const originalText = target.textContent;
+        const elementId = target.getAttribute('data-elements-id');
+
+        // Build fingerprint for the element
+        let componentName = null;
+        let hostTag = null;
+        if (window.ng) {
+           let el = target;
+           while (el) {
+              let comp = window.ng.getComponent(el);
+              if (!comp) comp = window.ng.getOwningComponent(el);
+              if (comp && comp.constructor) {
+                 componentName = comp.constructor.name;
+                 if (componentName.startsWith('_')) componentName = componentName.substring(1);
+                 let hostEl = el;
+                 while(hostEl && (!hostEl.tagName.includes('-'))) hostEl = hostEl.parentElement;
+                 if (hostEl) hostTag = hostEl.tagName.toLowerCase();
+                 break;
+              }
+              el = el.parentElement;
+           }
+        }
+
+        // Make editable
+        target.setAttribute('contenteditable', 'true');
+        target.focus();
+
+        // Select all text
+        const range = document.createRange();
+        range.selectNodeContents(target);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+
+        // Style to show editing mode
+        target.style.outline = '2px solid #3ecf8e';
+        target.style.outlineOffset = '2px';
+        target.style.borderRadius = '2px';
+
+        // Save function
+        const save = () => {
+          target.removeAttribute('contenteditable');
+          target.style.outline = '';
+          target.style.outlineOffset = '';
+          target.style.borderRadius = '';
+
+          const newText = target.textContent?.trim();
+          if (newText && newText !== originalText.trim()) {
+            window.parent.postMessage({
+              type: 'INLINE_TEXT_EDIT',
+              payload: {
+                tagName: target.tagName.toLowerCase(),
+                text: originalText,
+                newText: newText,
+                elementId: elementId,
+                componentName: componentName,
+                hostTag: hostTag,
+                classes: target.className,
+                attributes: { id: target.id }
+              }
+            }, '*');
+          }
+        };
+
+        target.addEventListener('blur', save, { once: true });
+        target.addEventListener('keydown', (evt) => {
+          if (evt.key === 'Enter' && !evt.shiftKey) {
+            evt.preventDefault();
+            target.blur();
+          }
+          if (evt.key === 'Escape') {
+            target.textContent = originalText;
+            target.blur();
+          }
+        });
+
+        // Hide overlay during editing
         const overlayEl = document.getElementById('inspector-overlay');
         if (overlayEl) overlayEl.style.display = 'none';
       });

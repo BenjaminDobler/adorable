@@ -159,14 +159,8 @@ export class LocalContainerEngine extends ContainerEngine {
     this.status.set('Starting dev server...');
     const userId = JSON.parse(localStorage.getItem('adorable_user') || '{}').id;
     // Pass --host 0.0.0.0 to ensure it listens on all interfaces for Docker networking
-    const res = await this.exec('npm', ['start', '--', '--host=0.0.0.0', '--allowed-hosts=all'], { 
-        stream: true,
-        env: {
-            VITE_HMR_PROTOCOL: 'ws',
-            VITE_HMR_HOSTNAME: 'localhost',
-            VITE_HMR_PORT: '3333',
-            VITE_HMR_PATH: `/api/proxy/?user=${userId}`
-        }
+    const res = await this.exec('npm', ['start', '--', '--host=0.0.0.0', '--allowed-hosts=all'], {
+        stream: true
     });
     
     res.stream.subscribe(chunk => {

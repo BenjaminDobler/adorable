@@ -1,71 +1,244 @@
 @if (visualEditorData()) {
   <div class="visual-editor-panel">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-      <h3 style="margin: 0; color: var(--text-primary); font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em;">Properties</h3>
-      <button (click)="closeVisualEditor()" class="tool-btn" style="width: 24px; height: 24px;">✕</button>
-    </div>
-    
-    <div class="target-card" style="background: var(--bg-surface-2); border: 1px solid var(--panel-border); padding: 1rem; border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
-      <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; margin-bottom: 0.75rem;">Selected Element</div>
-      <div style="display: flex; gap: 0.75rem; align-items: center;">
-        <span style="color: var(--accent-color); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 600;">&lt;{{ visualEditorData().tagName }}&gt;</span>
-        @if (visualEditorData().componentName) {
-          <span style="background: var(--bg-surface-3); color: var(--text-secondary); padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; border: 1px solid var(--panel-border);">{{ visualEditorData().componentName }}</span>
-        }
-      </div>
+    <div class="panel-header">
+      <h3>Properties</h3>
+      <button (click)="closeVisualEditor()" class="tool-btn close-btn">✕</button>
     </div>
 
-    <!-- Text Edit -->
-    <div style="display: flex; flex-direction: column; gap: 0.625rem; margin-top: 0.5rem;">
-      <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Content</label>
-      <div style="display: flex; gap: 10px;">
-        <input 
-          [(ngModel)]="editText" 
+    <!-- Breadcrumb Navigation -->
+    @if (visualEditorData().hierarchy && visualEditorData().hierarchy.length > 0) {
+      <div class="breadcrumb-nav">
+        @for (item of visualEditorData().hierarchy; track $index; let last = $last) {
+          <button
+            class="breadcrumb-item"
+            [class.current]="last"
+            (click)="!last && selectFromBreadcrumb(item, $index)"
+            [disabled]="last">
+            {{ item.tagName }}
+          </button>
+          @if (!last) {
+            <span class="breadcrumb-sep">›</span>
+          }
+        }
+      </div>
+    }
+
+    <!-- Selected Element Info -->
+    <div class="target-card">
+      <div class="section-label">Selected Element</div>
+      <div class="element-info">
+        <span class="tag-name">&lt;{{ visualEditorData().tagName }}&gt;</span>
+        @if (visualEditorData().componentName) {
+          <span class="component-badge">{{ visualEditorData().componentName }}</span>
+        }
+        @if (visualEditorData().elementId) {
+          <span class="element-id-badge">{{ visualEditorData().elementId }}</span>
+        }
+      </div>
+      @if (visualEditorData().classes) {
+        <div class="classes-info">.{{ visualEditorData().classes.split(' ').slice(0, 3).join(' .') }}</div>
+      }
+    </div>
+
+    <!-- Content Section -->
+    <div class="property-section">
+      <div class="section-header">
+        <span class="section-icon">📝</span>
+        <span class="section-title">Content</span>
+      </div>
+      <div class="inline-hint">Double-click element in preview to edit directly</div>
+      <div class="input-row">
+        <input
+          [(ngModel)]="editText"
           (keydown.enter)="applyVisualEdit('text', editText)"
           placeholder="Element text..."
         />
-        <button (click)="applyVisualEdit('text', editText)" class="btn-apply" title="Apply Text">
-          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <button (click)="applyVisualEdit('text', editText)" class="btn-apply" title="Apply">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"></polyline></svg>
         </button>
       </div>
     </div>
 
-    <!-- Color Edit -->
-    <div style="display: flex; flex-direction: column; gap: 0.625rem; margin-top: 0.5rem;">
-      <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Text Color</label>
-      <div style="display: flex; gap: 10px; align-items: center;">
-        <div style="position: relative; width: 42px; height: 42px; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--panel-border); flex-shrink: 0;">
-          <input 
-            type="color" 
-            [(ngModel)]="editColor"
-            (change)="applyVisualEdit('style', editColor, 'color')"
-            style="position: absolute; top: -5px; left: -5px; width: 60px; height: 60px; border: none; background: none; cursor: pointer; padding: 0;"
-          />
+    <!-- Colors Section -->
+    <div class="property-section">
+      <div class="section-header">
+        <span class="section-icon">🎨</span>
+        <span class="section-title">Colors</span>
+      </div>
+      <div class="color-row">
+        <label>Text</label>
+        <div class="color-input-group">
+          <div class="color-swatch">
+            <input type="color" [(ngModel)]="editColor" (change)="applyVisualEdit('style', editColor, 'color')" />
+          </div>
+          <input [(ngModel)]="editColor" (keydown.enter)="applyVisualEdit('style', editColor, 'color')" placeholder="#000000" class="color-value" />
         </div>
-        <input 
-          [(ngModel)]="editColor"
-          (keydown.enter)="applyVisualEdit('style', editColor, 'color')"
-          placeholder="#000000" 
-          style="font-family: 'JetBrains Mono', monospace;"
-        />
+      </div>
+      <div class="color-row">
+        <label>Background</label>
+        <div class="color-input-group">
+          <div class="color-swatch">
+            <input type="color" [(ngModel)]="editBgColor" (change)="applyVisualEdit('style', editBgColor, 'background-color')" />
+          </div>
+          <input [(ngModel)]="editBgColor" (keydown.enter)="applyVisualEdit('style', editBgColor, 'background-color')" placeholder="transparent" class="color-value" />
+        </div>
       </div>
     </div>
 
-    <!-- AI Helper Fallback -->
-    <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--panel-border);">
-      <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem;">AI Modification</div>
-      <div class="input-container" style="margin: 0; box-shadow: none;">
-        <textarea 
-          [(ngModel)]="visualPrompt" 
-          placeholder="Ask AI to change layout, add classes..."
-          style="height: 80px;"
+    <!-- Typography Section -->
+    <div class="property-section">
+      <div class="section-header">
+        <span class="section-icon">📐</span>
+        <span class="section-title">Typography</span>
+      </div>
+      <div class="button-group-row">
+        <label>Size</label>
+        <div class="button-group">
+          <button [class.active]="editFontSize === '12px'" (click)="setFontSize('12px')">xs</button>
+          <button [class.active]="editFontSize === '14px'" (click)="setFontSize('14px')">sm</button>
+          <button [class.active]="editFontSize === '16px'" (click)="setFontSize('16px')">base</button>
+          <button [class.active]="editFontSize === '18px'" (click)="setFontSize('18px')">lg</button>
+          <button [class.active]="editFontSize === '24px'" (click)="setFontSize('24px')">xl</button>
+        </div>
+      </div>
+      <div class="button-group-row">
+        <label>Weight</label>
+        <div class="button-group">
+          <button [class.active]="editFontWeight === '300'" (click)="setFontWeight('300')">Light</button>
+          <button [class.active]="editFontWeight === '400'" (click)="setFontWeight('400')">Normal</button>
+          <button [class.active]="editFontWeight === '600'" (click)="setFontWeight('600')">Semi</button>
+          <button [class.active]="editFontWeight === '700'" (click)="setFontWeight('700')">Bold</button>
+        </div>
+      </div>
+      <div class="button-group-row">
+        <label>Align</label>
+        <div class="button-group">
+          <button [class.active]="editTextAlign === 'left'" (click)="setTextAlign('left')" title="Left">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><line x1="17" y1="10" x2="3" y2="10"></line><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="14" x2="3" y2="14"></line><line x1="17" y1="18" x2="3" y2="18"></line></svg>
+          </button>
+          <button [class.active]="editTextAlign === 'center'" (click)="setTextAlign('center')" title="Center">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="10" x2="6" y2="10"></line><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="14" x2="3" y2="14"></line><line x1="18" y1="18" x2="6" y2="18"></line></svg>
+          </button>
+          <button [class.active]="editTextAlign === 'right'" (click)="setTextAlign('right')" title="Right">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><line x1="21" y1="10" x2="7" y2="10"></line><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="14" x2="3" y2="14"></line><line x1="21" y1="18" x2="7" y2="18"></line></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Spacing Section -->
+    <div class="property-section">
+      <div class="section-header">
+        <span class="section-icon">📦</span>
+        <span class="section-title">Spacing</span>
+      </div>
+      <div class="spacing-box-container">
+        <div class="spacing-label">Margin</div>
+        <div class="spacing-box margin-box">
+          <input type="number" class="spacing-top" [(ngModel)]="editMarginTop" (change)="applySpacing('margin-top', editMarginTop)" placeholder="0" />
+          <div class="spacing-middle">
+            <input type="number" class="spacing-left" [(ngModel)]="editMarginLeft" (change)="applySpacing('margin-left', editMarginLeft)" placeholder="0" />
+            <div class="spacing-inner padding-box">
+              <input type="number" class="spacing-top" [(ngModel)]="editPaddingTop" (change)="applySpacing('padding-top', editPaddingTop)" placeholder="0" />
+              <div class="spacing-middle">
+                <input type="number" class="spacing-left" [(ngModel)]="editPaddingLeft" (change)="applySpacing('padding-left', editPaddingLeft)" placeholder="0" />
+                <div class="spacing-center"></div>
+                <input type="number" class="spacing-right" [(ngModel)]="editPaddingRight" (change)="applySpacing('padding-right', editPaddingRight)" placeholder="0" />
+              </div>
+              <input type="number" class="spacing-bottom" [(ngModel)]="editPaddingBottom" (change)="applySpacing('padding-bottom', editPaddingBottom)" placeholder="0" />
+            </div>
+            <input type="number" class="spacing-right" [(ngModel)]="editMarginRight" (change)="applySpacing('margin-right', editMarginRight)" placeholder="0" />
+          </div>
+          <input type="number" class="spacing-bottom" [(ngModel)]="editMarginBottom" (change)="applySpacing('margin-bottom', editMarginBottom)" placeholder="0" />
+        </div>
+        <div class="spacing-labels">
+          <span class="margin-label">Margin</span>
+          <span class="padding-label">Padding</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Border Section -->
+    <div class="property-section">
+      <div class="section-header">
+        <span class="section-icon">🔲</span>
+        <span class="section-title">Border</span>
+      </div>
+      <div class="slider-row">
+        <label>Radius</label>
+        <input type="range" min="0" max="32" [(ngModel)]="editBorderRadius" (input)="applyVisualEdit('style', editBorderRadius + 'px', 'border-radius')" />
+        <span class="slider-value">{{ editBorderRadius }}px</span>
+      </div>
+    </div>
+
+    <!-- Layout Section (for containers) -->
+    @if (isContainerElement()) {
+      <div class="property-section">
+        <div class="section-header">
+          <span class="section-icon">📐</span>
+          <span class="section-title">Layout</span>
+        </div>
+        <div class="button-group-row">
+          <label>Display</label>
+          <div class="button-group">
+            <button [class.active]="editDisplay === 'block'" (click)="setDisplay('block')">Block</button>
+            <button [class.active]="editDisplay === 'flex'" (click)="setDisplay('flex')">Flex</button>
+            <button [class.active]="editDisplay === 'grid'" (click)="setDisplay('grid')">Grid</button>
+          </div>
+        </div>
+        @if (editDisplay === 'flex') {
+          <div class="button-group-row">
+            <label>Direction</label>
+            <div class="button-group">
+              <button [class.active]="editFlexDirection === 'row'" (click)="setFlexDirection('row')" title="Row">→</button>
+              <button [class.active]="editFlexDirection === 'column'" (click)="setFlexDirection('column')" title="Column">↓</button>
+              <button [class.active]="editFlexDirection === 'row-reverse'" (click)="setFlexDirection('row-reverse')" title="Row Reverse">←</button>
+              <button [class.active]="editFlexDirection === 'column-reverse'" (click)="setFlexDirection('column-reverse')" title="Column Reverse">↑</button>
+            </div>
+          </div>
+          <div class="button-group-row">
+            <label>Justify</label>
+            <div class="button-group">
+              <button [class.active]="editJustifyContent === 'flex-start'" (click)="setJustifyContent('flex-start')" title="Start">⬛⬜⬜</button>
+              <button [class.active]="editJustifyContent === 'center'" (click)="setJustifyContent('center')" title="Center">⬜⬛⬜</button>
+              <button [class.active]="editJustifyContent === 'flex-end'" (click)="setJustifyContent('flex-end')" title="End">⬜⬜⬛</button>
+              <button [class.active]="editJustifyContent === 'space-between'" (click)="setJustifyContent('space-between')" title="Between">⬛⬜⬛</button>
+            </div>
+          </div>
+          <div class="button-group-row">
+            <label>Align</label>
+            <div class="button-group">
+              <button [class.active]="editAlignItems === 'flex-start'" (click)="setAlignItems('flex-start')" title="Start">⬛</button>
+              <button [class.active]="editAlignItems === 'center'" (click)="setAlignItems('center')" title="Center">◆</button>
+              <button [class.active]="editAlignItems === 'flex-end'" (click)="setAlignItems('flex-end')" title="End">⬜</button>
+              <button [class.active]="editAlignItems === 'stretch'" (click)="setAlignItems('stretch')" title="Stretch">▮</button>
+            </div>
+          </div>
+          <div class="slider-row">
+            <label>Gap</label>
+            <input type="range" min="0" max="48" [(ngModel)]="editGap" (input)="applyVisualEdit('style', editGap + 'px', 'gap')" />
+            <span class="slider-value">{{ editGap }}px</span>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- AI Modification -->
+    <div class="property-section ai-section">
+      <div class="section-header">
+        <span class="section-icon">✨</span>
+        <span class="section-title">AI Modification</span>
+      </div>
+      <div class="input-container ai-input">
+        <textarea
+          [(ngModel)]="visualPrompt"
+          placeholder="Describe changes: 'add shadow', 'make it rounded'..."
         ></textarea>
       </div>
-      <button (click)="applyVisualChanges(visualPrompt)" class="btn-generate" style="width: 100%; margin-top: 12px; height: 38px; font-size: 0.85rem; font-weight: 700; border-radius: var(--radius-md);">
+      <button (click)="applyVisualChanges(visualPrompt)" class="btn-generate ai-apply-btn">
         ✨ Apply with AI
       </button>
     </div>
-
   </div>
 } @else {
   <div class="chat-messages" #scrollContainer>

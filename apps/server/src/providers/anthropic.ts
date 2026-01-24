@@ -35,7 +35,16 @@ const SYSTEM_PROMPT =
 +"7. **Conciseness:** Minimize comments.\n"
 +"8. **Binary:** For small binary files (like icons), use the 'write_file' tool with base64 content. Prefer SVG for vector graphics.\n"
 +"9. **Efficiency:** You may batch SMALL file operations. However, for LARGE files (like full components with templates), perform them one at a time to avoid hitting token limits.\n"
-+"10. **Truncation:** If you receive an error about 'No content provided' or 'truncated JSON', it means your response was too long. You MUST retry by breaking the task into smaller steps, such as writing the component logic first and then using `edit_file` to add the template, or splitting large files into multiple components.\n";
++"10. **Truncation:** If you receive an error about 'No content provided' or 'truncated JSON', it means your response was too long. You MUST retry by breaking the task into smaller steps, such as writing the component logic first and then using `edit_file` to add the template, or splitting large files into multiple components.\n"
++"11. **Visual Editing IDs:** When generating HTML templates, add a unique `data-elements-id` attribute to EVERY element. Use a descriptive naming convention: `{component-prefix}-{element-type}-{index}`. Example:\n"
++"    ```html\n"
++"    <div data-elements-id=\"card-container-1\" class=\"card\">\n"
++"      <h2 data-elements-id=\"card-title-1\">Title</h2>\n"
++"      <p data-elements-id=\"card-desc-1\">Description</p>\n"
++"      <button data-elements-id=\"card-btn-1\">Click me</button>\n"
++"    </div>\n"
++"    ```\n"
++"    These IDs enable reliable visual editing. Maintain existing IDs when editing templates.\n";
 
 export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
   async generate(options: GenerateOptions): Promise<any> {

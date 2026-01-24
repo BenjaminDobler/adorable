@@ -9,9 +9,12 @@ export interface ElementFingerprint {
   text?: string;
   classes?: string;
   id?: string;
+  elementId?: string; // data-elements-id for reliable visual editing
   attributes?: Record<string, string>;
   childIndex?: number;
   parentTag?: string;
+  // Element hierarchy for breadcrumb navigation
+  hierarchy?: Array<{ tagName: string; elementId?: string; text?: string }>;
 }
 
 export interface ModificationResult {
@@ -19,6 +22,7 @@ export interface ModificationResult {
   path: string;
   success: boolean;
   error?: string;
+  isInsideLoop?: boolean;
 }
 
 @Injectable({
@@ -29,6 +33,8 @@ export class TemplateService {
 
   findAndModify(fingerprint: ElementFingerprint, modification: { type: 'text' | 'style' | 'class', value: string, property?: string }): ModificationResult {
     const files = this.projectService.files();
+    console.log('[TemplateService] findAndModify called with fingerprint:', fingerprint);
+    console.log('[TemplateService] Files loaded:', !!files, files ? Object.keys(files) : []);
     if (!files) return { content: '', path: '', success: false, error: 'No files loaded' };
 
     let componentFile;
@@ -50,7 +56,13 @@ export class TemplateService {
        componentFile = this.findComponentFile(files, 'AppComponent');
     }
 
+    // 4. Ultimate fallback: Search ALL template files for the matching element
     if (!componentFile) {
+       console.log('[TemplateService] No component found, searching all templates...');
+       const result = this.searchAllTemplates(files, fingerprint, modification);
+       if (result) {
+          return result;
+       }
        const target = fingerprint.componentName || fingerprint.hostTag || 'unknown';
        return { content: '', path: '', success: false, error: `Could not locate component source for "${target}"` };
     }
@@ -72,10 +84,17 @@ export class TemplateService {
     }
 
     // 3. Find the matching node
-    const match = this.findNode(rootNodes, fingerprint);
-    
-    if (!match) {
+    const matchResult = this.findNodeWithContext(rootNodes, fingerprint);
+
+    if (!matchResult || !matchResult.node) {
       return { content: '', path: templatePath, success: false, error: 'Could not find matching element in template' };
+    }
+
+    const { node: match, isInsideLoop } = matchResult;
+
+    // Warn if element is inside a loop
+    if (isInsideLoop) {
+      console.warn('[TemplateService] Element is inside a @for loop - all instances will be affected');
     }
 
     // 4. Apply Modification
@@ -119,16 +138,25 @@ export class TemplateService {
        finalFileContent = this.replaceRange(tsContent, templateOffset, templateOffset + templateContent.length, modifiedTemplate);
     }
 
-    return { content: finalFileContent, path: isInline ? componentFile.path : templatePath, success: true };
+    return { content: finalFileContent, path: isInline ? componentFile.path : templatePath, success: true, isInsideLoop };
   }
 
-  private findNode(nodes: any[], fingerprint: ElementFingerprint, depth = 0, parent: any = null): any {
+  private findNodeWithContext(nodes: any[], fingerprint: ElementFingerprint, depth = 0, parent: any = null, insideLoop = false): { node: any, isInsideLoop: boolean } | null {
+     const result = this.findNode(nodes, fingerprint, depth, parent, insideLoop);
+     return result;
+  }
+
+  private findNode(nodes: any[], fingerprint: ElementFingerprint, depth = 0, parent: any = null, insideLoop = false): { node: any, isInsideLoop: boolean } | null {
      const prefix = '  '.repeat(depth);
-     
-     const candidates = [];
-     
+
+     const candidates: { node: any, isInsideLoop: boolean }[] = [];
+
      for (const node of nodes) {
-        if (node.name) { // Element
+        // Check if this is a @for block (angular-html-parser marks them as Block nodes)
+        const isForBlock = node.type === 'block' && node.name === 'for';
+        const currentInsideLoop = insideLoop || isForBlock;
+
+        if (node.name && node.type !== 'block') { // Element (not a block)
            // Check Parent Tag if provided
            if (fingerprint.parentTag && parent) {
               if (parent.name && parent.name.toLowerCase() !== fingerprint.parentTag) {
@@ -137,105 +165,240 @@ export class TemplateService {
            }
 
            // Debug log the current node being checked
+           const elemIdAttr = node.attrs?.find((a: any) => a.name === 'data-elements-id')?.value;
            const idAttr = node.attrs?.find((a: any) => a.name === 'id')?.value;
            const classAttr = node.attrs?.find((a: any) => a.name === 'class')?.value;
            const textContent = (node.children || [])
               .filter((c: any) => c.value) // Text nodes have value
               .map((c: any) => c.value.trim())
               .join(' ');
-              
-           console.log(`${prefix}checking <${node.name}> id="${idAttr || ''}" class="${classAttr || ''}" text="${textContent.substring(0, 20)}..."`);
+
+           console.log(`${prefix}checking <${node.name}> elemId="${elemIdAttr || ''}" id="${idAttr || ''}" class="${classAttr || ''}" text="${textContent.substring(0, 20)}..." ${currentInsideLoop ? '[IN LOOP]' : ''}`);
 
            if (this.isMatch(node, fingerprint)) {
-              console.log(`${prefix}✅ Candidate Found`);
-              candidates.push(node);
+              console.log(`${prefix}✅ Candidate Found ${currentInsideLoop ? '(inside @for loop)' : ''}`);
+              candidates.push({ node, isInsideLoop: currentInsideLoop });
            }
         }
-        
+
         // Recurse into children for Elements, Blocks (@for, @if), etc.
         if (node.children && node.children.length > 0) {
-           const logicalParent = node.name ? node : parent;
-           const childMatch = this.findNode(node.children, fingerprint, depth + 1, logicalParent);
+           const logicalParent = node.name && node.type !== 'block' ? node : parent;
+           const childMatch = this.findNode(node.children, fingerprint, depth + 1, logicalParent, currentInsideLoop);
            if (childMatch) return childMatch;
         }
      }
-     
+
      // Disambiguate
      if (candidates.length > 0) {
         if (fingerprint.childIndex !== undefined && candidates.length > 1) {
            const sameTagSiblings = nodes.filter(n => n.name === fingerprint.tagName);
            const targetNode = sameTagSiblings[fingerprint.childIndex];
-           
-           if (targetNode && candidates.includes(targetNode)) {
+
+           const match = candidates.find(c => c.node === targetNode);
+           if (match) {
               console.log(`${prefix}✅ MATCH FOUND by Index [${fingerprint.childIndex}]`);
-              return targetNode;
+              return match;
            }
         }
-        
+
         console.log(`${prefix}✅ MATCH FOUND (First Candidate)`);
         return candidates[0];
      }
-     
+
      return null;
   }
 
   private isMatch(node: any, fingerprint: ElementFingerprint): boolean {
      if (node.name.toLowerCase() !== fingerprint.tagName.toLowerCase()) return false;
-     
-     // 1. Strongest Match: ID
+
+     // 0. Strongest Match: data-elements-id (Visual Editing ID)
+     if (fingerprint.elementId) {
+        const elemIdAttr = node.attrs?.find((a: any) => a.name === 'data-elements-id');
+        if (elemIdAttr && elemIdAttr.value === fingerprint.elementId) {
+           console.log(`[TemplateService] ✅ Matched by data-elements-id: ${fingerprint.elementId}`);
+           return true;
+        }
+        // If elementId was provided but doesn't match, this is NOT the node
+        // (Don't fall through to weaker matching)
+        return false;
+     }
+
+     // 1. Strong Match: HTML ID attribute
      if (fingerprint.id) {
-        const idAttr = node.attrs.find((a: any) => a.name === 'id');
+        const idAttr = node.attrs?.find((a: any) => a.name === 'id');
         if (idAttr && idAttr.value === fingerprint.id) {
            return true;
         }
      }
 
+     // Get the template text content
+     const nodeText = (node.children || [])
+        .filter((c: any) => c.value)
+        .map((c: any) => c.value.trim())
+        .join(' ')
+        .trim();
+
+     // Check if the template has Angular interpolation ({{ ... }})
+     const hasInterpolation = /\{\{.*?\}\}/.test(nodeText);
+
      // 2. Text Match (Normalized)
      if (fingerprint.text) {
-        const nodeText = (node.children || [])
-           .filter((c: any) => c.value)
-           .map((c: any) => c.value.trim())
-           .join(' ')
-           .trim();
-        
         const targetText = fingerprint.text.trim();
-        
-        if (nodeText === targetText || nodeText.includes(targetText) || targetText.includes(nodeText)) {
-           // If we have a text match, and classes also match (or aren't provided), it's a win
+
+        // If template has interpolation, we can't match by text content directly
+        // because the runtime shows rendered values like "Product Sold" but
+        // the template has "{{ data().title }}"
+        if (hasInterpolation) {
+           // Skip strict text matching for interpolated content
+           // Fall through to class matching instead
+        } else if (nodeText === targetText || nodeText.includes(targetText) || targetText.includes(nodeText)) {
+           // Direct text match for static content
            if (!fingerprint.classes) return true;
         } else {
-           // If text is provided but doesn't match at all, this is likely not the node
-           // Unless it's a very small node where text might be dynamic
-           if (targetText.length > 3) return false;
+           // Text doesn't match and no interpolation - not this node
+           if (targetText.length > 3 && nodeText.length > 0) return false;
         }
      }
 
      // 3. Class Match (Fuzzy/Intersection)
      if (fingerprint.classes) {
-        const classAttr = node.attrs.find((a: any) => a.name === 'class');
+        const classAttr = node.attrs?.find((a: any) => a.name === 'class');
         if (classAttr) {
            const templateClasses = classAttr.value.split(/\s+/).filter(Boolean);
            const fingerprintClasses = fingerprint.classes.split(/\s+/).filter(Boolean);
-           
+
            const intersection = templateClasses.filter((c: string) => fingerprintClasses.includes(c));
-           
+
            // If most classes match, consider it a hit
-           if (intersection.length >= Math.min(fingerprintClasses.length, 2)) {
+           if (intersection.length >= Math.min(fingerprintClasses.length, 1)) {
               return true;
            }
-        } else if (!fingerprint.classes) {
-           // Both have no classes
-           return true;
         }
      }
 
-     // 4. Fallback for structural match (Tag + Parent + Index)
+     // 4. For elements with interpolation but no classes, match by tag + position
+     // This is a weak match but necessary for dynamic content
+     if (hasInterpolation && !fingerprint.classes && fingerprint.text) {
+        // We have dynamic content, tag matches, accept it as a candidate
+        return true;
+     }
+
+     // 5. Fallback for structural match (Tag + Parent + Index)
      // If we reached here, and no text/classes were provided, we rely on findNode's index logic
      if (!fingerprint.text && !fingerprint.classes && !fingerprint.id) {
         return true;
      }
 
      return false;
+  }
+
+  /**
+   * Fallback: Search ALL template files (.html and inline templates) for a matching element
+   */
+  private searchAllTemplates(files: any, fingerprint: ElementFingerprint, modification: { type: 'text' | 'style' | 'class', value: string, property?: string }): ModificationResult | null {
+    const templates = this.collectAllTemplates(files);
+    console.log(`[TemplateService] Found ${templates.length} templates to search:`, templates.map(t => t.path));
+
+    for (const template of templates) {
+      try {
+        const parsed = parse(template.content);
+        const matchResult = this.findNode(parsed.rootNodes, fingerprint);
+
+        if (matchResult && matchResult.node) {
+          const { node: match, isInsideLoop } = matchResult;
+          console.log(`[TemplateService] Found match in: ${template.path}${isInsideLoop ? ' (inside loop)' : ''}`);
+
+          let modifiedTemplate = template.content;
+
+          if (modification.type === 'text') {
+            const textNode = match.children?.find((c: any) => c.value);
+            if (textNode) {
+              modifiedTemplate = this.replaceRange(template.content, textNode.sourceSpan.start.offset, textNode.sourceSpan.end.offset, modification.value);
+            } else if (match.endSourceSpan) {
+              modifiedTemplate = this.replaceRange(template.content, match.startSourceSpan.end.offset, match.endSourceSpan.start.offset, modification.value);
+            } else {
+              continue; // Can't edit, try next template
+            }
+          } else if (modification.type === 'style') {
+            const styleAttr = match.attrs?.find((a: any) => a.name === 'style');
+            const styleDecl = `${modification.property}: ${modification.value};`;
+
+            if (styleAttr) {
+              const oldStyle = styleAttr.value;
+              const propRegex = new RegExp(`${modification.property}\\s*:[^;]+;?`, 'gi');
+              let newStyle = oldStyle;
+              if (propRegex.test(oldStyle)) {
+                newStyle = oldStyle.replace(propRegex, styleDecl);
+              } else {
+                newStyle = oldStyle + (oldStyle.trim().endsWith(';') ? ' ' : '; ') + styleDecl;
+              }
+              modifiedTemplate = this.replaceRange(template.content, styleAttr.sourceSpan.start.offset, styleAttr.sourceSpan.end.offset, `style="${newStyle}"`);
+            } else {
+              const insertPos = match.sourceSpan.start.offset + match.name.length + 1;
+              modifiedTemplate = this.insertAt(template.content, insertPos, ` style="${styleDecl}"`);
+            }
+          }
+
+          // If it's an inline template, we need to put it back in the TS file
+          let finalContent = modifiedTemplate;
+          let finalPath = template.path;
+
+          if (template.isInline && template.tsPath && template.tsContent !== undefined && template.offset !== undefined) {
+            finalContent = this.replaceRange(template.tsContent, template.offset, template.offset + template.content.length, modifiedTemplate);
+            finalPath = template.tsPath;
+          }
+
+          return { content: finalContent, path: finalPath, success: true, isInsideLoop };
+        }
+      } catch (e) {
+        console.warn(`[TemplateService] Failed to parse template ${template.path}:`, e);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Collect all templates from the project (both .html files and inline templates)
+   */
+  private collectAllTemplates(files: any, currentPath = ''): Array<{ path: string, content: string, isInline: boolean, tsPath?: string, tsContent?: string, offset?: number }> {
+    const templates: Array<{ path: string, content: string, isInline: boolean, tsPath?: string, tsContent?: string, offset?: number }> = [];
+
+    for (const key in files) {
+      const node = files[key];
+      const fullPath = currentPath ? `${currentPath}/${key}` : key;
+
+      if (node.file) {
+        const content = node.file.contents;
+
+        // Check for .html template files
+        if (fullPath.endsWith('.html') && !fullPath.includes('index.html')) {
+          templates.push({ path: fullPath, content, isInline: false });
+        }
+
+        // Check for inline templates in .ts files
+        if (fullPath.endsWith('.ts')) {
+          const inlineMatch = content.match(/template\s*:\s*`([\s\S]*?)`/);
+          if (inlineMatch) {
+            const templateContent = inlineMatch[1];
+            const offset = inlineMatch.index! + inlineMatch[0].indexOf(templateContent);
+            templates.push({
+              path: fullPath + ' (inline)',
+              content: templateContent,
+              isInline: true,
+              tsPath: fullPath,
+              tsContent: content,
+              offset
+            });
+          }
+        }
+      } else if (node.directory) {
+        templates.push(...this.collectAllTemplates(node.directory, fullPath));
+      }
+    }
+
+    return templates;
   }
 
   private findComponentFile(files: any, componentName: string): { path: string, content: string } | null {

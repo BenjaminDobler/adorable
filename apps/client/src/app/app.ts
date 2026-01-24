@@ -27,6 +27,7 @@ import { TerminalComponent } from './terminal/terminal.component';
 import { ScreenshotService } from './services/screenshot';
 import { FigmaPanelComponent } from './figma/figma-panel.component';
 import { FigmaImportPayload } from '@adorable/shared-types';
+import { TemplateService } from './services/template';
 
 @Component({
   standalone: true,
@@ -52,6 +53,7 @@ export class AppComponent implements AfterViewChecked {
   public layoutService = inject(LayoutService);
   private toastService = inject(ToastService);
   private screenshotService = inject(ScreenshotService);
+  private templateService = inject(TemplateService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
 
@@ -139,6 +141,18 @@ export class AppComponent implements AfterViewChecked {
       }
     });
 
+    // Clear selection highlight when properties panel is closed
+    effect(() => {
+      const data = this.visualEditorData();
+      if (!data) {
+        // Properties panel closed - clear selection in iframe
+        const iframe = document.querySelector('iframe');
+        if (iframe && iframe.contentWindow) {
+          iframe.contentWindow.postMessage({ type: 'CLEAR_SELECTION' }, '*');
+        }
+      }
+    });
+
     // Handle Route Params
     this.route.params.subscribe((params) => {
       const projectId = params['id'];
@@ -183,7 +197,50 @@ export class AppComponent implements AfterViewChecked {
 
       if (event.data.type === 'ELEMENT_SELECTED') {
         this.visualEditorData.set(event.data.payload);
-        this.isInspectionActive.set(false);
+        // Keep inspection mode active - user can toggle it off with the button
+      }
+
+      // Handle in-place text editing
+      if (event.data.type === 'INLINE_TEXT_EDIT') {
+        const payload = event.data.payload;
+        const fingerprint = {
+          tagName: payload.tagName,
+          text: payload.text,
+          elementId: payload.elementId,
+          componentName: payload.componentName,
+          hostTag: payload.hostTag,
+          classes: payload.classes,
+          id: payload.attributes?.id
+        };
+
+        console.log('[AppComponent] INLINE_TEXT_EDIT received:', {
+          fingerprint,
+          newText: payload.newText,
+          filesLoaded: !!this.projectService.files()
+        });
+
+        const result = this.templateService.findAndModify(fingerprint, {
+          type: 'text',
+          value: payload.newText
+        });
+
+        console.log('[AppComponent] findAndModify result:', result);
+
+        if (result.success) {
+          // Update the file in the store
+          this.projectService.fileStore.updateFile(result.path, result.content);
+          // Write to container (no reload needed - text already updated in DOM)
+          this.webContainerService.writeFile(result.path, result.content);
+
+          if (result.isInsideLoop) {
+            this.toastService.show('Text updated (all instances in loop affected)', 'info');
+          } else {
+            this.toastService.show('Text updated', 'success');
+          }
+        } else {
+          console.error('[AppComponent] In-place edit failed:', result.error);
+          this.toastService.show('Failed to update text: ' + result.error, 'error');
+        }
       }
     });
   }
