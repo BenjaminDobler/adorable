@@ -54,6 +54,7 @@ export class ProjectService {
   buildError = signal<string | null>(null);
   debugLogs = signal<any[]>([]);
   figmaImports = signal<FigmaImportPayload[]>([]);
+  agentMode = signal(false);
 
   // Computed
   hasProject = computed(() => !!this.projectId() && this.projectId() !== 'new');

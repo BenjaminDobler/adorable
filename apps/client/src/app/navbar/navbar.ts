@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { AuthService } from '../services/auth';
@@ -35,6 +35,9 @@ export class NavbarComponent {
   githubCreateMode = signal(false);
   githubPagesUrl = signal<string | null>(null);
   githubPagesDeploying = signal(false);
+
+  // Agent Mode - only available in Docker mode
+  isDockerMode = computed(() => this.webContainerService.mode() === 'local');
 
   constructor() {
     // Load GitHub connection status on startup

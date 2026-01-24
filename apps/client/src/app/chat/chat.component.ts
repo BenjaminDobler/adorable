@@ -82,11 +82,9 @@ export class ChatComponent {
   editAlignItems = 'stretch';
   editGap = 0;
   
-  // Agent Mode State
-  agentMode = signal(false);
+  // UI State
   compactMode = signal(true); // Default to compact
-  isDockerMode = computed(() => this.webContainerService.mode() === 'local');
-  
+
   shouldAddToAssets = signal(true);
   attachedFile: File | null = null;
   attachedFileContent: string | null = null;
@@ -169,8 +167,8 @@ export class ChatComponent {
 
     // Disable agent mode if switching away from Docker
     effect(() => {
-       if (!this.isDockerMode()) {
-          this.agentMode.set(false);
+       if (this.webContainerService.mode() !== 'local') {
+          this.projectService.agentMode.set(false);
        }
     });
   }
@@ -720,7 +718,7 @@ Analyze the attached design images carefully and create matching Angular compone
       images: allImages.length > 0 ? allImages : undefined,
       smartRouting: this.appSettings?.smartRouting,
       openFiles: this.getContextFiles(),
-      use_container_context: this.agentMode(),
+      use_container_context: this.projectService.agentMode(),
       forcedSkill: this.selectedSkill()?.name
     }).subscribe({
       next: async (event) => {
