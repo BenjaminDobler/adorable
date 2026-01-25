@@ -260,6 +260,216 @@ class EnhancedSkillRegistry extends SkillRegistry {
 4. **Version Control**: Each resource file can be tracked independently
 5. **Tooling**: YAML/JSON files can be validated, generated, or synced from external sources
 
+### Skill Upload & Distribution Methods
+
+Since enhanced skills are folders (not single files), we need new ways to create and distribute them:
+
+#### Option A: ZIP Upload
+
+The simplest approach - users upload a `.zip` file containing the skill folder.
+
+```
+acme-components.zip
+└── acme-components/
+    ├── SKILL.md
+    ├── components.yaml
+    └── templates/
+        └── service.template.ts
+```
+
+**UI Flow:**
+1. User clicks "Import Skill"
+2. Selects a .zip file
+3. Server extracts to `storage/users/{userId}/skills/`
+4. Skill appears in the list
+
+**Implementation:**
+```typescript
+// Server endpoint
+router.post('/skills/import', upload.single('file'), async (req, res) => {
+  const zip = new AdmZip(req.file.buffer);
+  const extractPath = `storage/users/${req.user.id}/skills/`;
+  zip.extractAllTo(extractPath, true);
+  res.json({ success: true });
+});
+```
+
+#### Option B: Git Repository Sync
+
+Skills live in a Git repository and are synced automatically.
+
+```yaml
+# User settings or .adorable/config.yaml
+skills:
+  repositories:
+    - url: "https://github.com/acme/adorable-skills.git"
+      branch: "main"
+      path: "skills/"  # Optional subdirectory
+```
+
+**Benefits:**
+- Version controlled
+- Team collaboration
+- CI/CD integration (validate skills before merge)
+- Easy updates (git pull)
+
+**Implementation:**
+```typescript
+class GitSkillSync {
+  async sync(repoUrl: string, targetPath: string) {
+    // Clone or pull the repository
+    if (await this.exists(targetPath)) {
+      await exec(`git -C ${targetPath} pull`);
+    } else {
+      await exec(`git clone ${repoUrl} ${targetPath}`);
+    }
+  }
+}
+```
+
+#### Option C: UI-Based Skill Builder
+
+A multi-step wizard to build skills with resources.
+
+**Step 1: Basic Info**
+```
+┌─────────────────────────────────────┐
+│  Create New Skill                   │
+├─────────────────────────────────────┤
+│  Name: [acme-components          ]  │
+│  Description: [ACME component... ]  │
+│  Triggers: [acme, company        ]  │
+│                                     │
+│  [Next →]                           │
+└─────────────────────────────────────┘
+```
+
+**Step 2: Instructions (Markdown Editor)**
+```
+┌─────────────────────────────────────┐
+│  Instructions                       │
+├─────────────────────────────────────┤
+│  ┌─────────────────────────────┐    │
+│  │ # ACME Components           │    │
+│  │                             │    │
+│  │ Use {{components}} for...   │    │
+│  │                             │    │
+│  └─────────────────────────────┘    │
+│  [← Back] [Next →]                  │
+└─────────────────────────────────────┘
+```
+
+**Step 3: Resources**
+```
+┌─────────────────────────────────────┐
+│  Resources                          │
+├─────────────────────────────────────┤
+│  Components Registry:               │
+│  [📁 Drop components.yaml here   ]  │
+│                                     │
+│  Design Tokens:                     │
+│  [📁 Drop tokens.json here       ]  │
+│                                     │
+│  Templates:                         │
+│  [+ Add Template]                   │
+│  ├─ service.template.ts    [🗑️]    │
+│  └─ component.template.ts  [🗑️]    │
+│                                     │
+│  [← Back] [Save Skill]              │
+└─────────────────────────────────────┘
+```
+
+#### Option D: NPM-Style Packages
+
+Skills are published as npm packages with a specific structure.
+
+```json
+// package.json of a skill package
+{
+  "name": "@acme/adorable-skill-components",
+  "version": "1.0.0",
+  "adorable-skill": {
+    "name": "acme-components",
+    "entry": "./SKILL.md"
+  },
+  "files": ["SKILL.md", "components.yaml", "templates/"]
+}
+```
+
+**Installation:**
+```bash
+# In project directory
+npm install @acme/adorable-skill-components
+```
+
+**Discovery:**
+```typescript
+// SkillRegistry scans node_modules for adorable-skill packages
+async discoverNpmSkills(projectPath: string) {
+  const packageJson = await fs.readFile(`${projectPath}/package.json`);
+  const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+
+  for (const [name, version] of Object.entries(deps)) {
+    const pkgPath = `${projectPath}/node_modules/${name}/package.json`;
+    const pkg = await fs.readFile(pkgPath);
+    if (pkg['adorable-skill']) {
+      await this.loadSkillFromPath(`${projectPath}/node_modules/${name}`);
+    }
+  }
+}
+```
+
+#### Option E: Skill Marketplace (Future)
+
+A central registry where skills can be published and discovered.
+
+```
+┌─────────────────────────────────────────────────────┐
+│  🛒 Skill Marketplace                               │
+├─────────────────────────────────────────────────────┤
+│  [🔍 Search skills...                            ]  │
+│                                                     │
+│  Popular Skills                                     │
+│  ┌─────────────────┐ ┌─────────────────┐           │
+│  │ Angular Expert  │ │ Tailwind CSS    │           │
+│  │ ⭐ 4.8 (120)    │ │ ⭐ 4.9 (89)     │           │
+│  │ [Install]       │ │ [Install]       │           │
+│  └─────────────────┘ └─────────────────┘           │
+│                                                     │
+│  Enterprise Skills (Private)                        │
+│  ┌─────────────────┐                               │
+│  │ ACME Components │                               │
+│  │ 🔒 Internal     │                               │
+│  │ [Install]       │                               │
+│  └─────────────────┘                               │
+└─────────────────────────────────────────────────────┘
+```
+
+**API:**
+```typescript
+// Marketplace API
+GET  /api/marketplace/skills          // List public skills
+GET  /api/marketplace/skills/:id      // Get skill details
+POST /api/marketplace/skills          // Publish a skill
+GET  /api/marketplace/org/:org/skills // List org's private skills
+```
+
+#### Recommended Approach
+
+| Method | Best For | Effort |
+|--------|----------|--------|
+| ZIP Upload | Quick start, individual users | Low |
+| Git Sync | Teams, version control needed | Medium |
+| UI Builder | Non-technical users | Medium |
+| NPM Packages | Developer-focused, ecosystem | Medium |
+| Marketplace | Platform scale, monetization | High |
+
+**Suggested Implementation Order:**
+1. **ZIP Upload** - Quick win, enables folder-based skills immediately
+2. **Git Sync** - Best for enterprise teams
+3. **UI Builder** - Improves UX for all users
+4. **NPM/Marketplace** - Long-term ecosystem play
+
 ---
 
 ## Approach 2: Custom Knowledge Base
