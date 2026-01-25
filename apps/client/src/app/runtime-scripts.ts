@@ -138,6 +138,112 @@ export const RUNTIME_SCRIPTS = `
         if (event.data.type === 'RELOAD_REQ') {
            window.location.reload();
         }
+
+        if (event.data.type === 'SELECT_ELEMENT') {
+           // Select an element from breadcrumb navigation
+           const { elementId, tagName, index } = event.data;
+           let target = null;
+
+           // Try to find by data-elements-id first
+           if (elementId) {
+              target = document.querySelector('[data-elements-id="' + elementId + '"]');
+           }
+
+           // Fallback: find by walking up from currently selected element
+           if (!target && selectedElement && index !== undefined) {
+              // Walk up the hierarchy from selected element
+              let el = selectedElement;
+              const hierarchy = [];
+              while (el && el !== document.body && el !== document.documentElement) {
+                 hierarchy.unshift(el);
+                 el = el.parentElement;
+              }
+              // Index is the position in the hierarchy (0 = root, last = current)
+              if (index >= 0 && index < hierarchy.length) {
+                 target = hierarchy[index];
+              }
+           }
+
+           if (target) {
+              selectedElement = target;
+              showSelectionOverlay(target);
+
+              // Gather element data and send back
+              const computedStyle = window.getComputedStyle(target);
+              let componentName = null;
+              let hostTag = null;
+
+              if (window.ng) {
+                 let el = target;
+                 while (el) {
+                    let comp = window.ng.getComponent(el);
+                    if (!comp) comp = window.ng.getOwningComponent(el);
+                    if (comp && comp.constructor) {
+                       componentName = comp.constructor.name;
+                       if (componentName.startsWith('_')) componentName = componentName.substring(1);
+                       let hostEl = el;
+                       while(hostEl && (!hostEl.tagName.includes('-'))) {
+                          hostEl = hostEl.parentElement;
+                       }
+                       if (hostEl) hostTag = hostEl.tagName.toLowerCase();
+                       break;
+                    }
+                    el = el.parentElement;
+                 }
+              }
+
+              // Build new hierarchy from selected element
+              const newHierarchy = [];
+              let hierEl = target;
+              while (hierEl && hierEl !== document.body && hierEl !== document.documentElement) {
+                 newHierarchy.unshift({
+                    tagName: hierEl.tagName.toLowerCase(),
+                    elementId: hierEl.getAttribute('data-elements-id') || null,
+                    text: hierEl.innerText ? hierEl.innerText.substring(0, 20).trim() : '',
+                    classes: hierEl.className || ''
+                 });
+                 hierEl = hierEl.parentElement;
+              }
+
+              window.parent.postMessage({
+                 type: 'ELEMENT_SELECTED',
+                 payload: {
+                    tagName: target.tagName.toLowerCase(),
+                    text: target.innerText ? target.innerText.substring(0, 100).trim() : '',
+                    componentName: componentName,
+                    hostTag: hostTag,
+                    elementId: target.getAttribute('data-elements-id'),
+                    classes: target.className,
+                    hierarchy: newHierarchy,
+                    attributes: {
+                       id: target.id,
+                       type: target.getAttribute('type')
+                    },
+                    styles: {
+                       color: computedStyle.color,
+                       backgroundColor: computedStyle.backgroundColor,
+                       fontSize: computedStyle.fontSize,
+                       fontWeight: computedStyle.fontWeight,
+                       textAlign: computedStyle.textAlign,
+                       marginTop: computedStyle.marginTop,
+                       marginRight: computedStyle.marginRight,
+                       marginBottom: computedStyle.marginBottom,
+                       marginLeft: computedStyle.marginLeft,
+                       paddingTop: computedStyle.paddingTop,
+                       paddingRight: computedStyle.paddingRight,
+                       paddingBottom: computedStyle.paddingBottom,
+                       paddingLeft: computedStyle.paddingLeft,
+                       borderRadius: computedStyle.borderRadius,
+                       display: computedStyle.display,
+                       flexDirection: computedStyle.flexDirection,
+                       justifyContent: computedStyle.justifyContent,
+                       alignItems: computedStyle.alignItems,
+                       gap: computedStyle.gap
+                    }
+                 }
+              }, '*');
+           }
+        }
       });
 
       // Inspector Events
