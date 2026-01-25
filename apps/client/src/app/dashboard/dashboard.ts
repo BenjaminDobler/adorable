@@ -6,11 +6,12 @@ import { AuthService } from '../services/auth';
 import { ToastService } from '../services/toast';
 import { SkillsService, Skill } from '../services/skills';
 import { SkillDialogComponent } from './skill-dialog/skill-dialog.component';
+import { GitHubSkillDialogComponent } from './github-skill-dialog/github-skill-dialog.component';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, SkillDialogComponent],
+  imports: [CommonModule, RouterModule, SkillDialogComponent, GitHubSkillDialogComponent],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss',
 })
@@ -24,8 +25,10 @@ export class DashboardComponent {
   projects = signal<any[]>([]);
   skills = signal<Skill[]>([]);
   loading = signal(true);
-  
+
+  activeTab = signal<'projects' | 'skills'>('projects');
   showSkillDialog = signal(false);
+  showGitHubDialog = signal(false);
   editingSkill = signal<Skill | null>(null);
 
   constructor() {

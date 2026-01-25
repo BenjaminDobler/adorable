@@ -1,94 +1,133 @@
 <div class="dashboard-container">
   <main class="content">
-    <header class="page-header">
-      <div class="title-area">
-        <h1>Projects</h1>
-        <p>Manage and create your Adorables.</p>
+    <div class="tabs-header">
+      <div class="tabs">
+        <button
+          class="tab"
+          [class.active]="activeTab() === 'projects'"
+          (click)="activeTab.set('projects')">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+            <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>
+          </svg>
+          Projects
+          <span class="badge">{{ projects().length }}</span>
+        </button>
+        <button
+          class="tab"
+          [class.active]="activeTab() === 'skills'"
+          (click)="activeTab.set('skills')">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+          Skills
+          <span class="badge">{{ skills().length }}</span>
+        </button>
       </div>
-      <button class="btn-create" (click)="createProject()">
-        <span>New Adorable</span>
-      </button>
-    </header>
+
+      @if (activeTab() === 'projects') {
+        <button class="btn-create" (click)="createProject()">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>New Adorable</span>
+        </button>
+      } @else {
+        <div class="skill-actions">
+          <input type="file" #skillUpload (change)="onSkillUpload($event)" accept=".md" style="display: none">
+          <button class="btn-icon" (click)="showGitHubDialog.set(true)" title="Install from skills.sh">
+            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+          </button>
+          <button class="btn-icon" (click)="skillUpload.click()" title="Upload SKILL.md">
+            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          </button>
+          <button class="btn-create" (click)="createSkill()">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>New Skill</span>
+          </button>
+        </div>
+      }
+    </div>
 
     @if (loading()) {
       <div class="loading-state">
         <div class="spinner"></div>
-        <p>Loading your projects...</p>
+        <p>Loading...</p>
       </div>
     } @else {
-      <div class="project-grid">
-        @for (project of projects(); track project.id) {
-          <div class="project-card" [routerLink]="['/editor', project.id]">
-            <div class="project-preview">
-              @if (project.thumbnail) {
-                <img [src]="project.thumbnail" alt="Project Preview" />
-              } @else {
-                <div class="no-preview">
-                  <div class="placeholder-icon">Angular</div>
+      <!-- Projects Tab -->
+      @if (activeTab() === 'projects') {
+        <div class="tab-content">
+          <div class="project-grid">
+            @for (project of projects(); track project.id) {
+              <div class="project-card" [routerLink]="['/editor', project.id]">
+                <div class="project-preview">
+                  @if (project.thumbnail) {
+                    <img [src]="project.thumbnail" alt="Project Preview" />
+                  } @else {
+                    <div class="no-preview">
+                      <div class="placeholder-icon">Angular</div>
+                    </div>
+                  }
                 </div>
-              }
-            </div>
-            <div class="project-card-body">
-              <div class="project-main-info">
-                <h3>{{ project.name }}</h3>
-                <span class="timestamp">Updated {{ project.updatedAt | date:'short' }}</span>
+                <div class="project-card-body">
+                  <div class="project-main-info">
+                    <h3>{{ project.name }}</h3>
+                    <span class="timestamp">Updated {{ project.updatedAt | date:'short' }}</span>
+                  </div>
+                  <button class="btn-delete" (click)="deleteProject(project.id, $event)" title="Delete Project">
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                  </button>
+                </div>
               </div>
-              <button class="btn-delete" (click)="deleteProject(project.id, $event)" title="Delete Project">
-                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-              </button>
-            </div>
+            } @empty {
+              <div class="empty-state">
+                <div class="empty-icon">📁</div>
+                <h2>No projects yet</h2>
+                <p>Get started by creating your first AI-generated Angular app.</p>
+                <button class="btn-create" (click)="createProject()">Create Project</button>
+              </div>
+            }
           </div>
-        } @empty {
-          <div class="empty-state">
-            <div class="empty-icon">📁</div>
-            <h2>No projects yet</h2>
-            <p>Get started by creating your first AI-generated Angular app.</p>
-            <button class="btn-create" (click)="createProject()">Create Project</button>
-          </div>
-        }
-      </div>
-
-      <div class="divider"></div>
-
-      <header class="section-header">
-        <div class="title-area">
-          <h2>Expert Skills</h2>
-          <p>Teach your AI new capabilities or use built-in experts.</p>
         </div>
-        <div style="display: flex; gap: 8px;">
-          <input type="file" #skillUpload (change)="onSkillUpload($event)" accept=".md" style="display: none">
-          <button class="btn-create-secondary" (click)="skillUpload.click()" title="Upload SKILL.md">
-            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-          </button>
-          <button class="btn-create-secondary" (click)="createSkill()">
-            <span>New Skill</span>
-          </button>
-        </div>
-      </header>
-  
-      <div class="skills-grid">
-         @for (skill of skills(); track skill.name) {
-            <div class="skill-card">
-               <div class="skill-icon">⚡</div>
-               <div class="skill-info">
-                 <h3>{{ skill.name }}</h3>
-                 <p>{{ skill.description }}</p>
-                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: auto;">
+      }
+
+      <!-- Skills Tab -->
+      @if (activeTab() === 'skills') {
+        <div class="tab-content">
+          <div class="skills-grid">
+            @for (skill of skills(); track skill.name) {
+              <div class="skill-card">
+                <div class="skill-icon">⚡</div>
+                <div class="skill-info">
+                  <h3>{{ skill.name }}</h3>
+                  <p>{{ skill.description }}</p>
+                  <div class="skill-footer">
                     <span class="skill-badge" [class.system]="skill.sourcePath?.includes('assets/skills')">
                       {{ skill.sourcePath?.includes('assets/skills') ? 'System' : 'User' }}
                     </span>
                     @if (!skill.sourcePath?.includes('assets/skills')) {
-                       <button class="btn-delete-small" (click)="deleteSkill(skill.name, $event)" title="Delete Skill">
-                          <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                       </button>
+                      <button class="btn-delete-small" (click)="deleteSkill(skill.name, $event)" title="Delete Skill">
+                        <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                      </button>
                     }
-                 </div>
-               </div>
-            </div>
-         } @empty {
-            <div class="empty-skills">No skills available.</div>
-         }
-      </div>
+                  </div>
+                </div>
+              </div>
+            } @empty {
+              <div class="empty-state">
+                <div class="empty-icon">⚡</div>
+                <h2>No skills yet</h2>
+                <p>Install skills from GitHub or create your own to teach the AI new capabilities.</p>
+                <button class="btn-create" (click)="showGitHubDialog.set(true)">Install from GitHub</button>
+              </div>
+            }
+          </div>
+        </div>
+      }
     }
   </main>
 
@@ -98,5 +137,12 @@
       (save)="onSaveSkill($event)"
       (cancel)="showSkillDialog.set(false)">
     </app-skill-dialog>
+  }
+
+  @if (showGitHubDialog()) {
+    <app-github-skill-dialog
+      (close)="showGitHubDialog.set(false)"
+      (installed)="loadData()">
+    </app-github-skill-dialog>
   }
 </div>

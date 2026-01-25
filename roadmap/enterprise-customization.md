@@ -454,21 +454,153 @@ POST /api/marketplace/skills          // Publish a skill
 GET  /api/marketplace/org/:org/skills // List org's private skills
 ```
 
+#### Option F: Integrate with Existing Skill Ecosystem (Recommended) ✅ IMPLEMENTED
+
+There's already a growing ecosystem of skill CLI tools and repositories that we can leverage:
+
+**Popular Skill Repositories:**
+- [analogjs/angular-skills](https://github.com/analogjs/angular-skills) - Angular v20+ patterns
+- [anthropics/skills](https://github.com/anthropics/skills) - Official Anthropic skills
+- [vercel-labs/agent-skills](https://github.com/vercel-labs/agent-skills) - Vercel agent skills
+
+**CLI Tools for Installing Skills:**
+
+| Tool | Command | Description |
+|------|---------|-------------|
+| [add-skill](https://github.com/vercel-labs/add-skill) | `npx add-skill analogjs/angular-skills` | Vercel's tool, supports 21+ agents |
+| [openskills](https://github.com/numman-ali/openskills) | `npx openskills install anthropics/skills` | Universal skills loader |
+| [ai-agent-skills](https://github.com/maulvi-zm/agent-skills) | `npx ai-agent-skills install pdf` | Multi-agent installer |
+
+**How These Tools Work:**
+```bash
+# Install all skills from a repo
+npx add-skill analogjs/angular-skills
+
+# Install specific skill
+npx add-skill analogjs/angular-skills/skills/angular-signals
+
+# Install to specific location
+npx add-skill analogjs/angular-skills --global  # ~/.claude/skills/
+npx add-skill analogjs/angular-skills           # ./.claude/skills/
+```
+
+**Skills are installed to:**
+- `.claude/skills/` (project-level) - Already supported by Adorable!
+- `~/.claude/skills/` (global/user-level)
+
+**Integration Strategy for Adorable:**
+
+1. **Already Compatible**: Adorable's `SkillRegistry` already scans `.claude/skills/` and `.adorable/skills/`
+
+2. **Add UI Integration**: Add a "Install from GitHub" button in the skills panel:
+   ```
+   ┌─────────────────────────────────────────────┐
+   │  📦 Install Skill from GitHub               │
+   ├─────────────────────────────────────────────┤
+   │  Repository: [analogjs/angular-skills    ]  │
+   │  Skill Path: [skills/angular-signals     ]  │
+   │  (leave empty for all skills)               │
+   │                                             │
+   │  [Install]                                  │
+   └─────────────────────────────────────────────┘
+   ```
+
+3. **Server-Side Installation**:
+   ```typescript
+   // Use the add-skill CLI or implement similar logic
+   router.post('/skills/install-github', async (req, res) => {
+     const { repo, skillPath } = req.body;
+     const targetDir = `storage/users/${req.user.id}/skills/`;
+
+     // Option 1: Shell out to add-skill
+     await exec(`npx add-skill ${repo}/${skillPath} --target ${targetDir}`);
+
+     // Option 2: Implement GitHub fetch directly
+     await fetchSkillFromGitHub(repo, skillPath, targetDir);
+   });
+   ```
+
+4. **Curated Skill Gallery**: Show popular skills from known repositories:
+   ```
+   ┌─────────────────────────────────────────────────────┐
+   │  🎯 Recommended Skills                              │
+   ├─────────────────────────────────────────────────────┤
+   │  Angular Skills (analogjs/angular-skills)           │
+   │  ├─ 📘 angular-signals      [Install]              │
+   │  ├─ 📘 angular-forms        [Install]              │
+   │  ├─ 📘 angular-routing      [Install]              │
+   │  └─ 📘 angular-testing      [Install]              │
+   │                                                     │
+   │  Claude Skills (anthropics/skills)                  │
+   │  ├─ 📘 code-review          [Install]              │
+   │  └─ 📘 debugging            [Install]              │
+   └─────────────────────────────────────────────────────┘
+   ```
+
+**Skill Repository Structure** (analogjs/angular-skills format):
+```
+angular-skills/
+├── skills/
+│   ├── angular-signals/
+│   │   ├── SKILL.md              # Main skill file
+│   │   └── references/
+│   │       └── signals-patterns.md  # Additional patterns
+│   ├── angular-forms/
+│   │   ├── SKILL.md
+│   │   └── references/
+│   │       └── forms-patterns.md
+│   └── angular-component/
+│       └── SKILL.md
+└── README.md
+```
+
+**Benefits of Ecosystem Integration:**
+- Leverage existing high-quality skills (Angular, React, etc.)
+- Community-driven skill development
+- No need to build our own marketplace immediately
+- Users familiar with Claude Code skills can reuse them
+
+**Implementation Status (January 2026):**
+
+The following has been implemented:
+
+1. **Extended Skill Interface** - Added skills.sh compatible fields:
+   - `license`, `compatibility`, `metadata`, `allowedTools`
+   - `references[]` for loading supporting documentation
+
+2. **SkillRegistry Updates** (`apps/server/src/providers/skills/skill-registry.ts`):
+   - Parses all skills.sh frontmatter fields
+   - Loads `references/` directory content automatically
+   - Supports progressive disclosure (references loaded on demand)
+
+3. **GitHub Installation Endpoint** (`apps/server/src/routes/skills.routes.ts`):
+   - `GET /api/skills/list-remote?repo=owner/repo` - List skills in a repository
+   - `POST /api/skills/install` - Install skills from GitHub
+   - Auto-discovers skills in common locations (skills/, .claude/skills/, etc.)
+
+4. **UI Integration** (`apps/client/src/app/dashboard/`):
+   - GitHub icon button to open installation dialog
+   - Dialog to browse and install skills from any GitHub repo
+   - Pre-configured popular repos (analogjs/angular-skills, vercel-labs/agent-skills)
+   - Skill selection with checkboxes
+
 #### Recommended Approach
 
 | Method | Best For | Effort |
 |--------|----------|--------|
-| ZIP Upload | Quick start, individual users | Low |
+| **Ecosystem Integration** | Immediate value, community skills | **Low** |
+| ZIP Upload | Custom company skills | Low |
 | Git Sync | Teams, version control needed | Medium |
 | UI Builder | Non-technical users | Medium |
 | NPM Packages | Developer-focused, ecosystem | Medium |
 | Marketplace | Platform scale, monetization | High |
 
 **Suggested Implementation Order:**
-1. **ZIP Upload** - Quick win, enables folder-based skills immediately
-2. **Git Sync** - Best for enterprise teams
-3. **UI Builder** - Improves UX for all users
-4. **NPM/Marketplace** - Long-term ecosystem play
+1. **Ecosystem Integration** - Leverage existing skills immediately (analogjs, anthropics, etc.)
+2. **ZIP Upload** - Enable custom company skills
+3. **Git Sync** - Best for enterprise teams
+4. **UI Builder** - Improves UX for all users
+5. **NPM/Marketplace** - Long-term ecosystem play
 
 ---
 

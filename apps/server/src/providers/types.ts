@@ -52,4 +52,19 @@ export interface Skill {
   triggers?: string[];
   // Path where it was found (for debugging/context)
   sourcePath?: string;
+
+  // skills.sh compatible fields
+  license?: string;
+  compatibility?: string;
+  metadata?: Record<string, string>;
+  allowedTools?: string[];  // space-delimited in SKILL.md, parsed to array
+
+  // Enhanced skill support
+  references?: SkillReference[];  // Loaded from references/ directory
+}
+
+export interface SkillReference {
+  name: string;
+  path: string;
+  content: string;
 }
