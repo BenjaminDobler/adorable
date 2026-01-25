@@ -360,10 +360,14 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
                     case 'write_file':
                         if (!toolArgs.content) throw new Error('No content provided for file.');
                         await fs.writeFile(toolArgs.path, toolArgs.content);
+                        callbacks.onFileWritten?.(toolArgs.path, toolArgs.content);
                         content = 'File created successfully.';
                         break;
                     case 'edit_file':
                         await fs.editFile(toolArgs.path, toolArgs.old_str, toolArgs.new_str);
+                        // Read the updated content to emit file_written event
+                        const updatedContent = await fs.readFile(toolArgs.path);
+                        callbacks.onFileWritten?.(toolArgs.path, updatedContent);
                         content = 'File edited successfully.';
                         break;
                     case 'read_file':

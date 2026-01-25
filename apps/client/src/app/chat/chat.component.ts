@@ -7,6 +7,8 @@ import { ApiService } from '../services/api';
 import { ToastService } from '../services/toast';
 import { TemplateService } from '../services/template';
 import { SkillsService, Skill } from '../services/skills';
+import { HMRTriggerService } from '../services/hmr-trigger.service';
+import { ProgressiveEditorStore } from '../services/progressive-editor.store';
 import { SafeUrlPipe } from '../pipes/safe-url.pipe';
 import { BASE_FILES } from '../base-project';
 import { FigmaImportPayload } from '@adorable/shared-types';
@@ -25,6 +27,8 @@ export class ChatComponent {
   private toastService = inject(ToastService);
   private templateService = inject(TemplateService);
   private skillsService = inject(SkillsService);
+  private hmrTrigger = inject(HMRTriggerService);
+  private progressiveStore = inject(ProgressiveEditorStore);
 
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
   @ViewChild('fileInput') fileInput!: ElementRef;
@@ -802,6 +806,16 @@ Analyze the attached design images carefully and create matching Angular compone
              newMsgs[assistantMsgIndex].usage = event.usage;
              return newMsgs;
            });
+        } else if (event.type === 'file_written') {
+           // Progressive streaming: trigger HMR update immediately
+           this.hmrTrigger.triggerUpdate(event.path, event.content);
+           this.progressiveStore.updateProgress(event.path, event.content, true);
+
+           // Also update the file store for editor display
+           this.projectService.fileStore.updateFile(event.path, event.content);
+        } else if (event.type === 'file_progress') {
+           // Progressive streaming: update store with partial content
+           this.progressiveStore.updateProgress(event.path, event.content, event.isComplete);
         } else if (event.type === 'result') {
           hasResult = true;
           try {
@@ -813,10 +827,10 @@ Analyze the attached design images carefully and create matching Angular compone
             this.figmaImages.set([]);
 
             const res = event.content;
-            
+
             const current = this.projectService.files() || BASE_FILES;
             const projectFiles = this.projectService.mergeFiles(current, res.files);
-            
+
             this.messages.update(msgs => {
               const newMsgs = [...msgs];
               newMsgs[assistantMsgIndex].files = projectFiles;
@@ -825,7 +839,10 @@ Analyze the attached design images carefully and create matching Angular compone
               return newMsgs;
             });
 
-            await this.projectService.reloadPreview(projectFiles);
+            // Progressive streaming already handled HMR updates via file_written events
+            // Just sync the final merged state to the file store without full reload
+            this.projectService.fileStore.setFiles(projectFiles);
+            this.loading.set(false);
 
           } catch (err) {
             console.error('WebContainer error:', err);
@@ -852,6 +869,8 @@ Analyze the attached design images carefully and create matching Angular compone
             newMsgs[assistantMsgIndex].status = undefined;
             return newMsgs;
         });
+        // Clear progressive streaming state
+        this.progressiveStore.markAllComplete();
       }
     });
   }

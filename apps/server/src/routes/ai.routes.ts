@@ -230,6 +230,12 @@ router.post('/generate-stream', async (req: any, res) => {
           },
           onTokenUsage: (usage) => {
               res.write(`data: ${JSON.stringify({ type: 'usage', usage })}\n\n`);
+          },
+          onFileWritten: (path, content) => {
+              res.write(`data: ${JSON.stringify({ type: 'file_written', path, content })}\n\n`);
+          },
+          onFileProgress: (path, content, isComplete) => {
+              res.write(`data: ${JSON.stringify({ type: 'file_progress', path, content, isComplete })}\n\n`);
           }
       });
       

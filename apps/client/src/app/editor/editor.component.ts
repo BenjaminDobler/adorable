@@ -1,5 +1,6 @@
-import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, input, output, effect, untracked } from '@angular/core';
+import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, input, output, effect, untracked, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ProgressiveEditorStore } from '../services/progressive-editor.store';
 
 declare const monaco: any;
 
@@ -23,12 +24,16 @@ declare const monaco: any;
 })
 export class EditorComponent implements AfterViewInit, OnDestroy {
   @ViewChild('editorContainer') editorContainer!: ElementRef;
-  
+
+  private progressiveStore = inject(ProgressiveEditorStore);
+
   content = input.required<string>();
   fileName = input.required<string>();
   contentChange = output<string>();
 
   private editorInstance: any;
+  private lastStreamedLength = 0;
+  isStreaming = signal(false);
 
   constructor() {
     effect(() => {
@@ -38,6 +43,7 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
         const currentValue = this.editorInstance.getValue();
         if (currentValue !== value) {
           this.editorInstance.setValue(value);
+          this.lastStreamedLength = value.length;
         }
       }
     });
@@ -48,6 +54,62 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
         this.updateLanguage();
       }
     });
+
+    // Progressive streaming effect
+    effect(() => {
+      const streamingFiles = this.progressiveStore.streamingFiles();
+      const currentFileName = this.fileName();
+
+      // Check if the current file is being streamed
+      const streamingFile = streamingFiles.get(currentFileName);
+
+      if (streamingFile && this.editorInstance) {
+        this.isStreaming.set(!streamingFile.isComplete);
+
+        if (streamingFile.content.length > this.lastStreamedLength) {
+          this.appendStreamingContent(streamingFile.content);
+        }
+
+        if (streamingFile.isComplete) {
+          this.lastStreamedLength = 0;
+        }
+      } else {
+        this.isStreaming.set(false);
+      }
+    });
+  }
+
+  private appendStreamingContent(newContent: string): void {
+    if (!this.editorInstance) return;
+
+    const model = this.editorInstance.getModel();
+    if (!model) return;
+
+    const currentContent = model.getValue();
+
+    // Only append if new content is longer (streaming mode)
+    if (newContent.length > currentContent.length) {
+      const delta = newContent.substring(currentContent.length);
+      const lastLine = model.getLineCount();
+      const lastCol = model.getLineMaxColumn(lastLine);
+
+      // Use pushEditOperations for smooth append without cursor disruption
+      model.pushEditOperations(
+        [],
+        [{
+          range: {
+            startLineNumber: lastLine,
+            startColumn: lastCol,
+            endLineNumber: lastLine,
+            endColumn: lastCol
+          },
+          text: delta
+        }],
+        () => null
+      );
+
+      this.lastStreamedLength = newContent.length;
+    }
   }
 
   ngAfterViewInit() {

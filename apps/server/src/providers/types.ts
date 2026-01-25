@@ -24,6 +24,9 @@ export interface StreamCallbacks {
   onToolCall?: (index: number, name: string, args: any) => void;
   onToolResult?: (tool_use_id: string, result: any, name?: string) => void;
   onTokenUsage?: (usage: TokenUsage) => void;
+  // Progressive streaming callbacks
+  onFileWritten?: (path: string, content: string) => void;
+  onFileProgress?: (path: string, content: string, isComplete: boolean) => void;
 }
 
 export interface LLMProvider {

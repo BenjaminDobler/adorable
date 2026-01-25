@@ -105,3 +105,17 @@ export interface GitHubSyncStatus {
   lastSyncAt?: string;
   pendingChanges?: number;
 }
+
+// Progressive Streaming Events
+export interface FileWrittenEvent {
+  type: 'file_written';
+  path: string;
+  content: string;
+}
+
+export interface FileProgressEvent {
+  type: 'file_progress';
+  path: string;
+  content: string;
+  isComplete: boolean;
+}
