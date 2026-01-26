@@ -1,6 +1,7 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 import { ApiService } from '../services/api';
 import { Router, ActivatedRoute } from '@angular/router';
 import { ThemeService, ThemeMode } from '../services/theme';
@@ -40,7 +41,7 @@ export interface AppSettings {
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './profile.html',
   styleUrl: './profile.scss',
 })
@@ -54,7 +55,8 @@ export class ProfileComponent implements OnInit {
 
   user = signal<any>(null);
   name = signal('');
-  
+  activeTab = signal<'account' | 'providers' | 'integrations'>('account');
+
   settings = signal<AppSettings>({
     profiles: [
       {

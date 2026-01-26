@@ -116,6 +116,19 @@ export class DockerManager {
     return this.container !== null;
   }
 
+  async getContainerInfo(): Promise<{ containerId: string; containerName: string; hostProjectPath: string; containerWorkDir: string; status: string } | null> {
+    if (!this.container) return null;
+    const info = await this.container.inspect();
+    const hostPath = path.resolve(process.cwd(), 'storage', 'projects', this.userId || 'unknown');
+    return {
+      containerId: info.Id,
+      containerName: info.Name.replace(/^\//, ''),
+      hostProjectPath: hostPath,
+      containerWorkDir: '/app',
+      status: info.State.Status
+    };
+  }
+
   async getContainerUrl(): Promise<string> {
     if (!this.container) throw new Error('Container not started');
     

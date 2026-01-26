@@ -1,6 +1,7 @@
 import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../services/auth';
 import { ProjectService } from '../services/project';
 import { ContainerEngine } from '../services/container-engine';
@@ -9,6 +10,14 @@ import { SmartContainerEngine } from '../services/smart-container.engine';
 import { GitHubService } from '../services/github.service';
 import { ToastService } from '../services/toast';
 import { GitHubRepository, GitHubProjectSync } from '@adorable/shared-types';
+
+interface ContainerInfo {
+  containerId: string;
+  containerName: string;
+  hostProjectPath: string;
+  containerWorkDir: string;
+  status: string;
+}
 
 @Component({
   selector: 'app-navbar',
@@ -24,6 +33,10 @@ export class NavbarComponent {
   public githubService = inject(GitHubService);
   private toastService = inject(ToastService);
   private router = inject(Router);
+  private http = inject(HttpClient);
+
+  // VS Code integration
+  vscodePanelOpen = signal(false);
 
   // GitHub sync state
   githubPanelOpen = signal(false);
@@ -254,6 +267,43 @@ export class NavbarComponent {
         }
       },
       error: () => {}
+    });
+  }
+
+  // VS Code Integration
+  toggleVSCodePanel() {
+    this.vscodePanelOpen.set(!this.vscodePanelOpen());
+  }
+
+  openInVSCodeFolder() {
+    this.vscodePanelOpen.set(false);
+    this.http.get<ContainerInfo>('http://localhost:3333/api/container/info').subscribe({
+      next: (info) => {
+        const uri = `vscode://file/${info.hostProjectPath}`;
+        window.open(uri, '_blank');
+        this.toastService.show('Opening project folder in VS Code...', 'success');
+      },
+      error: () => {
+        this.toastService.show('Container not running. Start the dev server first.', 'error');
+      }
+    });
+  }
+
+  openInVSCodeContainer() {
+    this.vscodePanelOpen.set(false);
+    this.http.get<ContainerInfo>('http://localhost:3333/api/container/info').subscribe({
+      next: (info) => {
+        // Hex-encode the container ID for the Dev Containers URI
+        const hexId = Array.from(new TextEncoder().encode(info.containerId))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+        const uri = `vscode://vscode-remote/attached-container+${hexId}/app`;
+        window.open(uri, '_blank');
+        this.toastService.show('Opening container in VS Code...', 'success');
+      },
+      error: () => {
+        this.toastService.show('Container not running. Start the dev server first.', 'error');
+      }
     });
   }
 }

@@ -26,6 +26,7 @@
     *   **Connect Repositories:** Link projects to new or existing GitHub repos.
     *   **Push/Pull Sync:** Two-way sync between Adorable and GitHub.
     *   **GitHub Pages Deployment:** One-click deploy to GitHub Pages with automatic workflow generation.
+*   **Open in VS Code 💻:** (Docker Mode) Open your project directly in VS Code — either as a local folder or by attaching to the running Docker container with Dev Containers.
 *   **Monaco Editor:** A VS Code-powered editing experience with live sync to the preview.
 *   **Time Travel Snapshots:** Restore your project to any previous state in the chat history.
 
@@ -123,6 +124,19 @@ npx nx serve client
 *   Click an import to browse its layers with preview thumbnails.
 *   Hover over layers to highlight them on the preview image.
 *   Click **Use** on any layer to send just that layer (with cropped image) to chat.
+
+### Open in VS Code (Docker Mode)
+
+When running in **Local Docker** mode, you can open your project directly in VS Code from the navbar.
+
+1.  Click the **VS Code** icon in the navbar (only visible in Docker mode).
+2.  Choose one of two options:
+    *   **Open Folder** — Opens the project directory on your host machine (`./storage/projects/${userId}`) in VS Code. No additional setup required.
+    *   **Attach Container** — Attaches VS Code to the running Docker container via the [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension, giving you a full containerized development environment with integrated terminal access.
+
+**Requirements:**
+*   **Open Folder:** VS Code installed with [command line tools](https://code.visualstudio.com/docs/setup/mac#_launching-from-the-command-line) enabled.
+*   **Attach Container:** The [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) VS Code extension must be installed.
 
 ## ⚡ Performance & Efficiency
 

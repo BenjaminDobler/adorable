@@ -32,6 +32,22 @@ router.post('/start', async (req: any, res) => {
   }
 });
 
+router.get('/info', async (req: any, res) => {
+  try {
+    const manager = containerRegistry.getManager(req.user.id);
+    if (!manager.isRunning()) {
+      return res.status(404).json({ error: 'No container running' });
+    }
+    const info = await manager.getContainerInfo();
+    if (!info) {
+      return res.status(404).json({ error: 'Container info unavailable' });
+    }
+    res.json(info);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.post('/stop', async (req: any, res) => {
   try {
     await containerRegistry.removeManager(req.user.id);

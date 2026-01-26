@@ -1,309 +1,331 @@
 <div class="profile-container">
-  <div class="profile-card">
-    <div class="header">
-      <button class="btn-back" (click)="goBack()">← Dashboard</button>
-      <h1>Profile & AI Settings</h1>
+  <main class="content">
+    <div class="tabs-header">
+      <div class="tabs">
+        <button
+          class="tab"
+          [class.active]="activeTab() === 'account'"
+          (click)="activeTab.set('account')">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          Account
+        </button>
+        <button
+          class="tab"
+          [class.active]="activeTab() === 'providers'"
+          (click)="activeTab.set('providers')">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+            <path d="M2 17l10 5 10-5"/>
+            <path d="M2 12l10 5 10-5"/>
+          </svg>
+          AI Providers
+        </button>
+        <button
+          class="tab"
+          [class.active]="activeTab() === 'integrations'"
+          (click)="activeTab.set('integrations')">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+          Integrations
+        </button>
+      </div>
+
+      <button class="btn-back" routerLink="/dashboard">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        Dashboard
+      </button>
     </div>
 
-    <section class="section">
-      <h3>👤 User Information</h3>
-      <div class="form-group">
-        <label>Email</label>
-        <div class="read-only">{{ user()?.email }}</div>
-      </div>
-
-      <div class="form-group">
-        <label>Display Name</label>
-        <input type="text" [(ngModel)]="name" placeholder="Your name" />
-      </div>
-    </section>
-
-    <hr class="divider" />
-
-    <section class="section">
-      <h3>🎨 Appearance</h3>
-      <div class="theme-toggle-group" style="display: flex; gap: 12px; margin-top: 12px;">
-        <button 
-          (click)="updateTheme('dark')" 
-          [class.active]="settings().theme === 'dark'"
-          style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--panel-border); background: var(--bg-surface-2); color: var(--text-primary); display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;"
-          [style.border-color]="settings().theme === 'dark' ? 'var(--accent-color)' : 'var(--panel-border)'"
-          [style.background]="settings().theme === 'dark' ? 'var(--accent-glow)' : 'var(--bg-surface-2)'"
-        >
-          <span>🌙 Dark Mode</span>
-        </button>
-        <button 
-          (click)="updateTheme('light')" 
-          [class.active]="settings().theme === 'light'"
-          style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--panel-border); background: var(--bg-surface-2); color: var(--text-primary); display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;"
-          [style.border-color]="settings().theme === 'light' ? 'var(--accent-color)' : 'var(--panel-border)'"
-          [style.background]="settings().theme === 'light' ? 'var(--accent-glow)' : 'var(--bg-surface-2)'"
-        >
-          <span>☀️ Light Mode</span>
-        </button>
-      </div>
-    </section>
-
-    <hr class="divider" />
-
-    <section class="section">
-      <h3>⚙️ AI Provider Settings</h3>
-
-      <div class="providers-grid">
-        @for (profile of getAIProfiles(); track profile.id) {
-          <div class="provider-card" [class.active]="settings().activeProfileId === profile.id">
-            <div class="card-header" (click)="setActive(profile.id)">
-              <div class="header-left">
-                <div class="radio-circle">
-                  @if (settings().activeProfileId === profile.id) {
-                    <div class="radio-inner"></div>
-                  }
-                </div>
-                <span class="provider-name">{{ profile.name }}</span>
-              </div>
-              @if (settings().activeProfileId === profile.id) {
-                <span class="badge">Active</span>
-              }
+    <!-- Account Tab -->
+    @if (activeTab() === 'account') {
+      <div class="tab-content">
+        <section class="settings-card">
+          <div class="card-header">
+            <h3>User Information</h3>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label>Email</label>
+              <div class="read-only">{{ user()?.email }}</div>
             </div>
 
-            <div class="card-body">
-              <div class="form-group">
-                <label>API Key</label>
-                <input
-                  type="password"
-                  [name]="'apiKey-' + profile.id"
-                  [ngModel]="profile.apiKey"
-                  (ngModelChange)="updateProfile(profile.id, {apiKey: $event})"
-                  placeholder="sk-..."
-                  autocomplete="new-password"
-                />
-              </div>
-
-              <div class="form-group">
-                <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                  <label>Model</label>
-                  <button class="btn-link" style="font-size: 11px; background: none; border: none; color: var(--accent-color); cursor: pointer; padding: 0;" (click)="fetchModels(profile)">↻ Refresh</button>
-                </div>
-                <select
-                  [name]="'model-' + profile.id"
-                  [ngModel]="profile.model"
-                  (ngModelChange)="updateProfile(profile.id, {model: $event})"
-                >
-                  @if (fetchedModels()[profile.id]) {
-                    @for (model of fetchedModels()[profile.id]; track model) {
-                      <option [value]="model">{{ model }}</option>
-                    }
-                  } @else {
-                    @if (profile.provider === 'anthropic') {
-                      @for (model of anthropicModels; track model) {
-                        <option [value]="model">{{ model }}</option>
-                      }
-                    } @else {
-                      @for (model of geminiModels; track model) {
-                        <option [value]="model">{{ model }}</option>
-                      }
-                    }
-                  }
-                </select>
-              </div>
+            <div class="form-group">
+              <label>Display Name</label>
+              <input type="text" [(ngModel)]="name" placeholder="Your name" />
             </div>
           </div>
-        }
+        </section>
+
+        <section class="settings-card">
+          <div class="card-header">
+            <h3>Appearance</h3>
+          </div>
+          <div class="card-body">
+            <div class="theme-toggle-group">
+              <button
+                class="theme-btn"
+                [class.active]="settings().theme === 'dark'"
+                (click)="updateTheme('dark')">
+                <span class="theme-icon">🌙</span>
+                <span>Dark</span>
+              </button>
+              <button
+                class="theme-btn"
+                [class.active]="settings().theme === 'light'"
+                (click)="updateTheme('light')">
+                <span class="theme-icon">☀️</span>
+                <span>Light</span>
+              </button>
+            </div>
+          </div>
+        </section>
       </div>
-    </section>
+    }
 
-    <hr class="divider" />
+    <!-- AI Providers Tab -->
+    @if (activeTab() === 'providers') {
+      <div class="tab-content">
+        <section class="settings-card">
+          <div class="card-header">
+            <h3>AI Provider Settings</h3>
+            <p>Configure your AI providers and select the active one.</p>
+          </div>
+          <div class="card-body">
+            <div class="providers-grid">
+              @for (profile of getAIProfiles(); track profile.id) {
+                <div class="provider-card" [class.active]="settings().activeProfileId === profile.id">
+                  <div class="provider-header" (click)="setActive(profile.id)">
+                    <div class="header-left">
+                      <div class="radio-circle">
+                        @if (settings().activeProfileId === profile.id) {
+                          <div class="radio-inner"></div>
+                        }
+                      </div>
+                      <span class="provider-name">{{ profile.name }}</span>
+                    </div>
+                    @if (settings().activeProfileId === profile.id) {
+                      <span class="badge active-badge">Active</span>
+                    }
+                  </div>
 
-    <!-- GitHub Integration Section -->
-    <section class="section">
-      <h3>🐙 GitHub Integration</h3>
-      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
-        Connect your GitHub account to sync projects with repositories.
-      </p>
+                  <div class="provider-body">
+                    <div class="form-group">
+                      <label>API Key</label>
+                      <input
+                        type="password"
+                        [name]="'apiKey-' + profile.id"
+                        [ngModel]="profile.apiKey"
+                        (ngModelChange)="updateProfile(profile.id, {apiKey: $event})"
+                        placeholder="sk-..."
+                        autocomplete="new-password"
+                      />
+                    </div>
 
-      <div class="github-config" style="background: var(--bg-surface-2); padding: 20px; border-radius: 12px; border: 1px solid var(--panel-border);">
-        @if (githubService.connection().connected) {
-          <div style="display: flex; align-items: center; justify-content: space-between;">
-            <div style="display: flex; align-items: center; gap: 12px;">
-              @if (githubService.connection().avatarUrl) {
-                <img
-                  [src]="githubService.connection().avatarUrl"
-                  alt="GitHub Avatar"
-                  style="width: 40px; height: 40px; border-radius: 50%;"
-                />
+                    <div class="form-group">
+                      <div class="label-row">
+                        <label>Model</label>
+                        <button class="btn-link" (click)="fetchModels(profile)">↻ Refresh</button>
+                      </div>
+                      <select
+                        [name]="'model-' + profile.id"
+                        [ngModel]="profile.model"
+                        (ngModelChange)="updateProfile(profile.id, {model: $event})"
+                      >
+                        @if (fetchedModels()[profile.id]) {
+                          @for (model of fetchedModels()[profile.id]; track model) {
+                            <option [value]="model">{{ model }}</option>
+                          }
+                        } @else {
+                          @if (profile.provider === 'anthropic') {
+                            @for (model of anthropicModels; track model) {
+                              <option [value]="model">{{ model }}</option>
+                            }
+                          } @else {
+                            @for (model of geminiModels; track model) {
+                              <option [value]="model">{{ model }}</option>
+                            }
+                          }
+                        }
+                      </select>
+                    </div>
+                  </div>
+                </div>
               }
+            </div>
+          </div>
+        </section>
+
+        <section class="settings-card">
+          <div class="card-header">
+            <div class="header-with-toggle">
               <div>
-                <div style="font-weight: 600; color: var(--text-primary);">
-                  {{ githubService.connection().username }}
-                </div>
-                <div style="font-size: 0.8rem; color: var(--text-muted);">
-                  Connected to GitHub
-                </div>
+                <h3>Smart Routing</h3>
+                <p>Automatically select the best model based on task complexity.</p>
               </div>
+              <label class="switch">
+                <input
+                  type="checkbox"
+                  [ngModel]="settings().smartRouting?.enabled"
+                  (ngModelChange)="updateSmartRouting({enabled: $event})"
+                >
+                <span class="slider round"></span>
+              </label>
             </div>
-            <button
-              class="btn-disconnect"
-              (click)="disconnectGitHub()"
-              style="padding: 8px 16px; border-radius: 6px; border: 1px solid var(--error-color); background: transparent; color: var(--error-color); cursor: pointer; font-size: 0.85rem;"
-            >
-              Disconnect
-            </button>
           </div>
-          <div style="margin-top: 16px; padding: 12px; background: rgba(62, 207, 142, 0.1); border-radius: 8px; display: flex; align-items: center; gap: 8px;">
-            <span style="color: var(--accent-color);">✓</span>
-            <span style="font-size: 0.85rem; color: var(--text-secondary);">
-              You can now sync projects with GitHub repositories. Go to a project and use the GitHub sync feature.
-            </span>
+          <div class="card-body" [class.disabled]="!settings().smartRouting?.enabled">
+            <div class="routing-grid">
+              @for (tier of ['router', 'simple', 'complex', 'vision']; track tier) {
+                <div class="routing-row">
+                  <div class="tier-info">
+                    <span class="tier-name">{{ tier | titlecase }}</span>
+                    <span class="tier-desc">
+                      @if (tier === 'router') { Fast model used to classify the task. }
+                      @else if (tier === 'simple') { For typos, small edits, and explanations. }
+                      @else if (tier === 'complex') { For logic, refactoring, and new features. }
+                      @else if (tier === 'vision') { For tasks with image attachments. }
+                    </span>
+                  </div>
+
+                  <div class="tier-selection">
+                    <select
+                      [ngModel]="getTierConfig(tier)?.provider"
+                      (ngModelChange)="updateSmartRoutingTier($any(tier), {provider: $event})"
+                    >
+                      <option value="anthropic">Anthropic</option>
+                      <option value="gemini">Google</option>
+                    </select>
+
+                    <select
+                      [ngModel]="getTierConfig(tier)?.model"
+                      (ngModelChange)="updateSmartRoutingTier($any(tier), {model: $event})"
+                    >
+                      @let provider = getTierConfig(tier)?.provider;
+                      @let models = provider ? fetchedModels()[provider] : [];
+
+                      @if (models && models.length > 0) {
+                        @for (model of models; track model) {
+                          <option [value]="model">{{ model }}</option>
+                        }
+                      } @else {
+                        @if (provider === 'anthropic') {
+                          @for (model of anthropicModels; track model) {
+                            <option [value]="model">{{ model }}</option>
+                          }
+                        } @else {
+                          @for (model of geminiModels; track model) {
+                            <option [value]="model">{{ model }}</option>
+                          }
+                        }
+                      }
+                    </select>
+                  </div>
+                </div>
+              }
+            </div>
           </div>
-        } @else {
-          <div style="text-align: center; padding: 20px;">
-            <div style="font-size: 2rem; margin-bottom: 12px;">🔗</div>
-            <p style="color: var(--text-muted); margin-bottom: 16px; font-size: 0.9rem;">
-              Connect your GitHub account to enable two-way sync between your Adorable projects and GitHub repositories.
-            </p>
-            <button
-              class="btn-github"
-              (click)="connectGitHub()"
-              [disabled]="githubService.loading()"
-              style="padding: 12px 24px; border-radius: 8px; border: none; background: #24292e; color: white; cursor: pointer; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 8px;"
-            >
-              <svg height="20" viewBox="0 0 16 16" width="20" style="fill: currentColor;">
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-              </svg>
-              {{ githubService.loading() ? 'Connecting...' : 'Connect with GitHub' }}
-            </button>
-          </div>
-        }
+        </section>
       </div>
-    </section>
+    }
 
-    <hr class="divider" />
-
-    <!-- Figma Integration Section -->
-    <section class="section">
-      <h3>🎨 Figma Integration</h3>
-      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
-        Connect your Figma account to import designs directly into your projects.
-      </p>
-
-      @if (getFigmaProfile(); as figma) {
-        <div class="figma-config" style="background: var(--bg-surface-2); padding: 20px; border-radius: 12px; border: 1px solid var(--panel-border);">
-          <div class="form-group">
-            <label style="display: flex; align-items: center; gap: 8px;">
-              Personal Access Token
-              <a
-                href="https://www.figma.com/developers/api#access-tokens"
-                target="_blank"
-                rel="noopener"
-                style="font-size: 0.75rem; color: var(--accent-color); text-decoration: none;"
-              >
-                How to get one →
-              </a>
-            </label>
-            <input
-              type="password"
-              name="figma-token"
-              [ngModel]="figma.apiKey"
-              (ngModelChange)="updateProfile('figma', {apiKey: $event})"
-              placeholder="figd_..."
-              autocomplete="new-password"
-              style="font-family: monospace;"
-            />
-            <small style="color: var(--text-muted); font-size: 0.75rem; margin-top: 4px; display: block;">
-              Go to Figma → Settings → Account → Personal Access Tokens
-            </small>
+    <!-- Integrations Tab -->
+    @if (activeTab() === 'integrations') {
+      <div class="tab-content">
+        <section class="settings-card">
+          <div class="card-header">
+            <h3>GitHub Integration</h3>
+            <p>Connect your GitHub account to sync projects with repositories.</p>
           </div>
-
-          @if (figma.apiKey && !figma.apiKey.includes('...')) {
-            <div style="margin-top: 12px; padding: 12px; background: rgba(62, 207, 142, 0.1); border-radius: 8px; display: flex; align-items: center; gap: 8px;">
-              <span style="color: var(--accent-color);">✓</span>
-              <span style="font-size: 0.85rem; color: var(--text-secondary);">Token configured. Go to the Figma tab in a project to import designs.</span>
-            </div>
-          } @else if (figma.apiKey && figma.apiKey.includes('...')) {
-            <div style="margin-top: 12px; padding: 12px; background: rgba(62, 207, 142, 0.1); border-radius: 8px; display: flex; align-items: center; gap: 8px;">
-              <span style="color: var(--accent-color);">✓</span>
-              <span style="font-size: 0.85rem; color: var(--text-secondary);">Token saved. Go to the Figma tab in a project to import designs.</span>
-            </div>
-          }
-        </div>
-      }
-    </section>
-
-    <hr class="divider" />
-
-    <!-- Smart Routing Section -->
-    <section class="section">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <h3>✨ Smart Routing</h3>
-        <label class="switch">
-          <input 
-            type="checkbox" 
-            [ngModel]="settings().smartRouting?.enabled" 
-            (ngModelChange)="updateSmartRouting({enabled: $event})"
-          >
-          <span class="slider round"></span>
-        </label>
-      </div>
-      
-      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">Automatically selects the best model based on task complexity. Maps tiers to your configured models.</p>
-
-      <div class="routing-grid" [class.disabled]="!settings().smartRouting?.enabled" style="display: flex; flex-direction: column; gap: 16px;">
-        @for (tier of ['router', 'simple', 'complex', 'vision']; track tier) {
-          <div class="routing-row" style="display: flex; justify-content: space-between; align-items: center; gap: 20px;">
-            <div class="tier-info" style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
-              <span class="tier-name" style="font-weight: 700; font-size: 0.95rem; color: var(--text-primary);">{{ tier | titlecase }}</span>
-              <span class="tier-desc" style="font-size: 0.8rem; color: var(--text-muted);">
-                @if (tier === 'router') { Fast model used to classify the task. }
-                @else if (tier === 'simple') { For typos, small edits, and explanations. }
-                @else if (tier === 'complex') { For logic, refactoring, and new features. }
-                @else if (tier === 'vision') { For tasks with image attachments. }
-              </span>
-            </div>
-            
-            <div class="tier-selection" style="display: flex; gap: 12px; width: 320px;">
-              <select 
-                [ngModel]="getTierConfig(tier)?.provider"
-                (ngModelChange)="updateSmartRoutingTier($any(tier), {provider: $event})"
-                style="width: 120px;"
-              >
-                <option value="anthropic">Anthropic</option>
-                <option value="gemini">Google</option>
-              </select>
-
-              <select 
-                [ngModel]="getTierConfig(tier)?.model"
-                (ngModelChange)="updateSmartRoutingTier($any(tier), {model: $event})"
-                style="flex: 1;"
-              >
-                @let provider = getTierConfig(tier)?.provider;
-                @let models = provider ? fetchedModels()[provider] : [];
-                
-                @if (models && models.length > 0) {
-                   @for (model of models; track model) {
-                     <option [value]="model">{{ model }}</option>
-                   }
-                } @else {
-                  @if (provider === 'anthropic') {
-                    @for (model of anthropicModels; track model) {
-                      <option [value]="model">{{ model }}</option>
+          <div class="card-body">
+            <div class="integration-box">
+              @if (githubService.connection().connected) {
+                <div class="integration-connected">
+                  <div class="integration-user">
+                    @if (githubService.connection().avatarUrl) {
+                      <img [src]="githubService.connection().avatarUrl" alt="GitHub Avatar" class="avatar" />
                     }
-                  } @else {
-                    @for (model of geminiModels; track model) {
-                      <option [value]="model">{{ model }}</option>
-                    }
-                  }
+                    <div class="user-info">
+                      <span class="username">{{ githubService.connection().username }}</span>
+                      <span class="status">Connected to GitHub</span>
+                    </div>
+                  </div>
+                  <button class="btn-disconnect" (click)="disconnectGitHub()">Disconnect</button>
+                </div>
+                <div class="success-message">
+                  <span class="icon">✓</span>
+                  <span>You can now sync projects with GitHub repositories.</span>
+                </div>
+              } @else {
+                <div class="integration-cta">
+                  <div class="cta-icon">🔗</div>
+                  <p>Connect your GitHub account to enable two-way sync between your projects and repositories.</p>
+                  <button class="btn-github" (click)="connectGitHub()" [disabled]="githubService.loading()">
+                    <svg height="20" viewBox="0 0 16 16" width="20" fill="currentColor">
+                      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                    </svg>
+                    {{ githubService.loading() ? 'Connecting...' : 'Connect with GitHub' }}
+                  </button>
+                </div>
+              }
+            </div>
+          </div>
+        </section>
+
+        <section class="settings-card">
+          <div class="card-header">
+            <h3>Figma Integration</h3>
+            <p>Connect your Figma account to import designs directly into your projects.</p>
+          </div>
+          <div class="card-body">
+            @if (getFigmaProfile(); as figma) {
+              <div class="integration-box">
+                <div class="form-group">
+                  <div class="label-row">
+                    <label>Personal Access Token</label>
+                    <a
+                      href="https://www.figma.com/developers/api#access-tokens"
+                      target="_blank"
+                      rel="noopener"
+                      class="help-link"
+                    >
+                      How to get one →
+                    </a>
+                  </div>
+                  <input
+                    type="password"
+                    name="figma-token"
+                    [ngModel]="figma.apiKey"
+                    (ngModelChange)="updateProfile('figma', {apiKey: $event})"
+                    placeholder="figd_..."
+                    autocomplete="new-password"
+                    class="mono-input"
+                  />
+                  <small class="help-text">Go to Figma → Settings → Account → Personal Access Tokens</small>
+                </div>
+
+                @if (figma.apiKey) {
+                  <div class="success-message">
+                    <span class="icon">✓</span>
+                    <span>Token configured. Go to the Figma tab in a project to import designs.</span>
+                  </div>
                 }
-              </select>
-            </div>
+              </div>
+            }
           </div>
-        }
+        </section>
       </div>
-    </section>
+    }
 
     <div class="actions">
       <button class="btn-save" (click)="save()" [disabled]="loading()">
-        {{ loading() ? 'Saving...' : 'Save All Changes' }}
+        {{ loading() ? 'Saving...' : 'Save Changes' }}
       </button>
     </div>
-  </div>
+  </main>
 </div>
