@@ -20,13 +20,14 @@
 *   **Smart Lifecycle Management 🧠:** (Local Mode) Background reaper automatically pauses idle containers (15m) and hibernates them (2h) to save CPU/RAM.
 *   **Streaming XML Protocol:** Ultra-fast, token-efficient code generation using a custom streaming protocol.
 *   **Visual Inspector 🔍:** Click elements in your live app to identify their Angular components and ask the AI for targeted visual edits.
+*   **Annotation Overlay ✏️:** Draw directly on the preview to communicate design intent to the AI — freehand pen, arrows, rectangles, and editable text labels with drag-to-move, double-click-to-edit, and delete support.
 *   **Interactive Terminal 💻:** Subdivided terminal with dedicated tabs for **Server Logs**, **Interactive Shell**, and **Browser Console**.
 *   **One-Click Publishing 📤:** Build your app and publish it to a live, shareable URL instantly.
 *   **GitHub Integration 🐙:** Full GitHub sync and deployment support:
     *   **Connect Repositories:** Link projects to new or existing GitHub repos.
     *   **Push/Pull Sync:** Two-way sync between Adorable and GitHub.
     *   **GitHub Pages Deployment:** One-click deploy to GitHub Pages with automatic workflow generation.
-*   **Open in VS Code 💻:** (Docker Mode) Open your project directly in VS Code — either as a local folder or by attaching to the running Docker container with Dev Containers.
+*   **Open in VS Code 💻:** (Docker Mode) Open your project directly in VS Code — either as a local folder or by attaching to the running Docker container with Dev Containers. File changes made in VS Code are automatically synced back to Adorable's file tree in real-time.
 *   **Monaco Editor:** A VS Code-powered editing experience with live sync to the preview.
 *   **Time Travel Snapshots:** Restore your project to any previous state in the chat history.
 
@@ -86,7 +87,8 @@ npx nx serve client
 2.  **Choose Engine:** In the IDE header, toggle between **Browser** (WebContainer) and **Local Docker** mode.
 3.  **Generate:** Type a prompt like *"Create a project management dashboard with signals"* in the Chat tab.
 4.  **Visual Edit:** Use the **Inspect** icon in the preview toolbar, click a UI element, and tell the AI what to change.
-5.  **Persistence:** In Local Docker mode, your code is persisted in `./storage/projects/${userId}` on your host machine, ensuring it survives container restarts.
+5.  **Annotate:** Click the **pencil** icon in the preview toolbar to enter annotation mode. Draw on the preview to highlight areas, point out issues, or label elements — the annotated screenshot is sent to the AI as context.
+6.  **Persistence:** In Local Docker mode, your code is persisted in `./storage/projects/${userId}` on your host machine, ensuring it survives container restarts.
 
 ### GitHub Integration
 
@@ -125,6 +127,24 @@ npx nx serve client
 *   Hover over layers to highlight them on the preview image.
 *   Click **Use** on any layer to send just that layer (with cropped image) to chat.
 
+### Annotation Overlay
+
+Annotate the live preview to visually communicate design intent to the AI.
+
+1.  Click the **pencil** icon in the preview toolbar to enter annotation mode.
+2.  Use the floating toolbar to select a tool:
+    *   **Pen** — Freehand drawing for highlighting or circling elements.
+    *   **Arrow** — Point at specific elements or indicate direction.
+    *   **Rectangle** — Draw bounding boxes around areas of interest.
+    *   **Text** — Click to place a text label, type your note, and press **Enter** to commit.
+3.  **Edit text labels** after placing them:
+    *   **Click** a label to select it (dashed outline appears).
+    *   **Drag** a selected label to reposition it.
+    *   **Double-click** a label to re-edit its text.
+    *   **Delete/Backspace** removes the selected label.
+4.  Pick colors from the palette and use **Undo** (Ctrl+Z) or **Clear** to adjust.
+5.  Click **Done** to capture the annotated screenshot — it's automatically attached to the chat for the AI to see.
+
 ### Open in VS Code (Docker Mode)
 
 When running in **Local Docker** mode, you can open your project directly in VS Code from the navbar.
@@ -133,6 +153,7 @@ When running in **Local Docker** mode, you can open your project directly in VS 
 2.  Choose one of two options:
     *   **Open Folder** — Opens the project directory on your host machine (`./storage/projects/${userId}`) in VS Code. No additional setup required.
     *   **Attach Container** — Attaches VS Code to the running Docker container via the [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension, giving you a full containerized development environment with integrated terminal access.
+3.  **Live File Sync:** Any files you edit in VS Code are automatically detected and synced back to Adorable's file tree in real-time via a file watcher. The preview updates via HMR, and the file explorer reflects your changes immediately.
 
 **Requirements:**
 *   **Open Folder:** VS Code installed with [command line tools](https://code.visualstudio.com/docs/setup/mac#_launching-from-the-command-line) enabled.
