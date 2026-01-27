@@ -1,0 +1,94 @@
+@if (active()) {
+  <div class="annotation-overlay" [style.cursor]="getCursor()">
+    <!-- Floating Toolbar -->
+    <div class="annotation-toolbar" (mousedown)="$event.stopPropagation()">
+      <!-- Tools -->
+      <button [class.active]="currentTool() === 'pen'" (click)="currentTool.set('pen')" title="Pen (freehand)">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+          <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+          <path d="M2 2l7.586 7.586"></path>
+          <circle cx="11" cy="11" r="2"></circle>
+        </svg>
+      </button>
+      <button [class.active]="currentTool() === 'arrow'" (click)="currentTool.set('arrow')" title="Arrow">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+          <polyline points="12 5 19 12 12 19"></polyline>
+        </svg>
+      </button>
+      <button [class.active]="currentTool() === 'rect'" (click)="currentTool.set('rect')" title="Rectangle">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+        </svg>
+      </button>
+      <button [class.active]="currentTool() === 'text'" (click)="currentTool.set('text')" title="Text label">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 7 4 4 20 4 20 7"></polyline>
+          <line x1="9" y1="20" x2="15" y2="20"></line>
+          <line x1="12" y1="4" x2="12" y2="20"></line>
+        </svg>
+      </button>
+
+      <div class="separator"></div>
+
+      <!-- Colors -->
+      @for (color of colors; track color) {
+        <button class="color-swatch"
+          [style.background]="color"
+          [class.active]="currentColor() === color"
+          (click)="currentColor.set(color)"
+          [title]="color">
+        </button>
+      }
+
+      <div class="separator"></div>
+
+      <!-- Actions -->
+      <button (click)="undo()" [disabled]="strokes().length === 0" title="Undo (Ctrl+Z)">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="1 4 1 10 7 10"></polyline>
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+        </svg>
+      </button>
+      <button (click)="clearAll()" [disabled]="strokes().length === 0" title="Clear all">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+      </button>
+
+      <div class="separator"></div>
+
+      <button class="cancel-btn" (click)="cancel()" title="Cancel (Esc)">Cancel</button>
+      <button class="done-btn" (click)="finish()" title="Capture annotation">Done</button>
+    </div>
+
+    <!-- Canvas -->
+    <canvas #annotationCanvas
+      (mousedown)="onMouseDown($event)"
+      (mousemove)="onMouseMove($event)"
+      (mouseup)="onMouseUp()"
+      (mouseleave)="onMouseUp()"
+      (dblclick)="onDoubleClick($event)">
+    </canvas>
+
+    <!-- Text input popup -->
+    @if (showTextInput()) {
+      <div class="text-input-popup"
+        [style.left.px]="popupLeft"
+        [style.top.px]="popupTop"
+        [class.dragging]="isDraggingText"
+        (mousedown)="$event.stopPropagation()">
+        <div class="drag-handle" (mousedown)="onTextDragStart($event)">
+          <span class="drag-dots">⋮⋮</span>
+        </div>
+        <input #textInput type="text"
+          [(ngModel)]="textValue"
+          (keydown.enter)="commitText()"
+          (keydown.escape)="cancelText()"
+          placeholder="Type label..." />
+      </div>
+    }
+  </div>
+}

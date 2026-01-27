@@ -3,11 +3,19 @@ import { Readable, Writable } from 'stream';
 import * as tar from 'tar-stream';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { EventEmitter } from 'events';
+import { watch, type FSWatcher } from 'chokidar';
 
 export class DockerManager {
   private docker: Docker;
   private container: Docker.Container | null = null;
   private userId: string | null = null;
+
+  // File watcher
+  public readonly events = new EventEmitter();
+  private watcher: FSWatcher | null = null;
+  private recentWrites = new Set<string>();
+  private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor() {
     const socketPath =
@@ -129,6 +137,81 @@ export class DockerManager {
     };
   }
 
+  startWatcher(): void {
+    if (this.watcher) return; // Already watching
+    const hostPath = path.resolve(process.cwd(), 'storage', 'projects', this.userId || 'unknown');
+    console.log(`[Docker] Starting file watcher on ${hostPath}`);
+
+    this.watcher = watch(hostPath, {
+      ignoreInitial: true,
+      ignored: [
+        '**/node_modules/**',
+        '**/.angular/**',
+        '**/.nx/**',
+        '**/dist/**',
+        '**/.git/**',
+        '**/.cache/**',
+        '**/tmp/**',
+      ],
+      awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
+    });
+
+    this.watcher.on('error', (err: Error) => {
+      console.warn('[Docker] File watcher error (non-fatal):', err.message);
+    });
+
+    const handleChange = (type: 'changed' | 'deleted', filePath: string) => {
+      const relative = path.relative(hostPath, filePath);
+      // Skip files we wrote ourselves (feedback loop prevention)
+      if (this.recentWrites.has(relative)) return;
+
+      // Debounce per-file
+      const existing = this.debounceTimers.get(relative);
+      if (existing) clearTimeout(existing);
+
+      this.debounceTimers.set(relative, setTimeout(async () => {
+        this.debounceTimers.delete(relative);
+        if (type === 'changed') {
+          try {
+            const content = await fs.readFile(filePath, 'utf-8');
+            this.events.emit('file-changed', { path: relative, content });
+          } catch {
+            // File may have been deleted between detection and read
+          }
+        } else {
+          this.events.emit('file-deleted', { path: relative });
+        }
+      }, 300));
+    };
+
+    this.watcher.on('add', (fp: string) => handleChange('changed', fp));
+    this.watcher.on('change', (fp: string) => handleChange('changed', fp));
+    this.watcher.on('unlink', (fp: string) => handleChange('deleted', fp));
+  }
+
+  stopWatcher(): void {
+    if (this.watcher) {
+      this.watcher.close();
+      this.watcher = null;
+      this.debounceTimers.forEach(t => clearTimeout(t));
+      this.debounceTimers.clear();
+      console.log(`[Docker] Stopped file watcher`);
+    }
+  }
+
+  private trackRecentWrites(files: any, prefix = '') {
+    for (const key in files) {
+      const node = files[key];
+      const filePath = prefix + key;
+      if (node.file) {
+        this.recentWrites.add(filePath);
+        setTimeout(() => this.recentWrites.delete(filePath), 2000);
+      } else if (node.directory) {
+        this.trackRecentWrites(node.directory, filePath + '/');
+      }
+    }
+  }
+
   async getContainerUrl(): Promise<string> {
     if (!this.container) throw new Error('Container not started');
     
@@ -169,6 +252,9 @@ export class DockerManager {
 
   async copyFiles(files: any) {
     if (!this.container) throw new Error('Container not started');
+
+    // Track writes to prevent watcher feedback loop
+    this.trackRecentWrites(files);
 
     const pack = tar.pack();
 
@@ -321,6 +407,7 @@ export class DockerManager {
   }
 
   async stop() {
+    this.stopWatcher();
     if (this.container) {
       await this.container.stop();
       await this.container.remove();

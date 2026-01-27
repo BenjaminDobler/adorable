@@ -235,13 +235,37 @@
               ></path>
             </svg>
           </button>
+          <button
+            [class.active]="isAnnotating()"
+            (click)="toggleAnnotation()"
+            title="Annotate Preview"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              stroke="currentColor"
+              stroke-width="2"
+              fill="none"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+            </svg>
+          </button>
         </div>
         <iframe
           #previewFrame
           [src]="webContainerService.url() | safeUrl"
           allow="cross-origin-isolated"
-          [style.pointer-events]="isResizingSidebar || isResizingEditor ? 'none' : 'auto'"
+          [style.pointer-events]="isResizingSidebar || isResizingEditor || isAnnotating() ? 'none' : 'auto'"
         ></iframe>
+        <app-annotation-overlay
+          [active]="isAnnotating()"
+          (done)="onAnnotationDone($event)"
+          (cancelled)="isAnnotating.set(false)"
+        />
       </div>
       } @else {
       <div class="placeholder-state">

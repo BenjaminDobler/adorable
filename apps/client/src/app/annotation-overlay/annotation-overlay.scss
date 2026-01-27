@@ -1,0 +1,185 @@
+.annotation-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+
+  canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.annotation-toolbar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: rgba(20, 20, 20, 0.9);
+  backdrop-filter: blur(8px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+
+  button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    &.active {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+    }
+
+    &:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+  }
+
+  .color-swatch {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    padding: 0;
+
+    &.active {
+      border-color: #fff;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+    }
+
+    &:hover:not(:disabled) {
+      border-color: rgba(255, 255, 255, 0.6);
+      background: inherit;
+    }
+  }
+
+  .separator {
+    width: 1px;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.15);
+    margin: 0 4px;
+  }
+
+  .cancel-btn,
+  .done-btn {
+    width: auto;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+
+  .cancel-btn {
+    color: rgba(255, 255, 255, 0.6);
+
+    &:hover {
+      color: #fff;
+    }
+  }
+
+  .done-btn {
+    background: var(--accent-color, #3ecf8e);
+    color: #000;
+    font-weight: 600;
+
+    &:hover:not(:disabled) {
+      background: var(--accent-hover, #35b87d);
+      color: #000;
+    }
+  }
+}
+
+.text-input-popup {
+  position: absolute;
+  z-index: 35;
+  display: flex;
+  align-items: stretch;
+
+  &.dragging {
+    cursor: grabbing;
+  }
+
+  .drag-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-right: none;
+    border-radius: 6px 0 0 6px;
+    cursor: grab;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 10px;
+    user-select: none;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    &:active {
+      cursor: grabbing;
+    }
+
+    .drag-dots {
+      letter-spacing: -3px;
+      line-height: 1;
+    }
+  }
+
+  input {
+    padding: 6px 10px;
+    font-size: 16px;
+    font-weight: bold;
+    font-family: sans-serif;
+    background: rgba(0, 0, 0, 0.7);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-left: none;
+    border-radius: 0 6px 6px 0;
+    color: #fff;
+    outline: none;
+    min-width: 120px;
+
+    &:focus {
+      border-color: var(--accent-color, #3ecf8e);
+    }
+
+    &::placeholder {
+      color: rgba(255, 255, 255, 0.3);
+    }
+  }
+
+  // When focused, sync border colors
+  &:focus-within {
+    .drag-handle {
+      border-color: var(--accent-color, #3ecf8e);
+    }
+  }
+}

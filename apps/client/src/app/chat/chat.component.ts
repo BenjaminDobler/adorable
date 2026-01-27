@@ -1,4 +1,4 @@
-import { Component, inject, signal, ElementRef, ViewChild, Output, EventEmitter, Input, effect, computed } from '@angular/core';
+import { Component, inject, signal, ElementRef, ViewChild, Output, EventEmitter, Input, effect, computed, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ProjectService, ChatMessage } from '../services/project';
@@ -29,6 +29,7 @@ export class ChatComponent {
   private skillsService = inject(SkillsService);
   private hmrTrigger = inject(HMRTriggerService);
   private progressiveStore = inject(ProgressiveEditorStore);
+  private cdr = inject(ChangeDetectorRef);
 
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
   @ViewChild('fileInput') fileInput!: ElementRef;
@@ -108,7 +109,9 @@ export class ChatComponent {
   figmaImages = signal<string[]>([]);
 
   get isAttachedImage(): boolean {
-    return this.attachedFile?.type.startsWith('image/') ?? false;
+    if (this.attachedFile?.type.startsWith('image/')) return true;
+    if (this.attachedFileContent?.startsWith('data:image/')) return true;
+    return false;
   }
 
   quickStarters = [
@@ -244,6 +247,7 @@ export class ChatComponent {
   setImage(image: string) {
     this.attachedFileContent = image;
     this.isDragging = false;
+    this.cdr.markForCheck();
   }
 
   closeVisualEditor() {

@@ -287,6 +287,7 @@
 }
 
 .preview-frame-container {
+  position: relative;
   flex: 1;
   background: var(--bg-surface-1);
   border-radius: var(--radius-lg);

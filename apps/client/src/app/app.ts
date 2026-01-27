@@ -18,7 +18,6 @@ import { ProjectService } from './services/project';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FileExplorerComponent } from './file-explorer/file-explorer';
 import { EditorComponent } from './editor/editor.component';
-import { TerminalFormatterPipe } from './pipes/terminal-formatter.pipe';
 import { SafeUrlPipe } from './pipes/safe-url.pipe';
 import { LayoutService } from './services/layout';
 import { ToastService } from './services/toast';
@@ -28,6 +27,7 @@ import { ScreenshotService } from './services/screenshot';
 import { FigmaPanelComponent } from './figma/figma-panel.component';
 import { FigmaImportPayload } from '@adorable/shared-types';
 import { TemplateService } from './services/template';
+import { AnnotationOverlayComponent } from './annotation-overlay/annotation-overlay';
 
 @Component({
   standalone: true,
@@ -37,10 +37,10 @@ import { TemplateService } from './services/template';
     SafeUrlPipe,
     FileExplorerComponent,
     EditorComponent,
-    TerminalFormatterPipe,
     ChatComponent,
     TerminalComponent,
     FigmaPanelComponent,
+    AnnotationOverlayComponent,
   ],
   selector: 'app-root',
   templateUrl: './app.html',
@@ -89,6 +89,7 @@ export class AppComponent implements AfterViewChecked {
   isResizingSidebar = false;
 
   isInspectionActive = signal(false);
+  isAnnotating = signal(false);
   visualEditorData = signal<any>(null);
 
   showDebug = signal(false);
@@ -249,6 +250,9 @@ export class AppComponent implements AfterViewChecked {
     const isActive = !this.isInspectionActive();
     this.isInspectionActive.set(isActive);
 
+    // Disable annotation mode when enabling inspector
+    if (isActive) this.isAnnotating.set(false);
+
     const iframe = document.querySelector('iframe');
     if (iframe && iframe.contentWindow) {
       iframe.contentWindow.postMessage(
@@ -259,6 +263,49 @@ export class AppComponent implements AfterViewChecked {
         '*',
       );
     }
+  }
+
+  toggleAnnotation() {
+    const newState = !this.isAnnotating();
+    this.isAnnotating.set(newState);
+    // Disable inspector when entering annotation mode
+    if (newState && this.isInspectionActive()) {
+      this.toggleInspection();
+    }
+  }
+
+  async onAnnotationDone(canvasDataUrl: string) {
+    this.isAnnotating.set(false);
+    const iframeScreenshot = await this.screenshotService.captureThumbnail();
+    if (!iframeScreenshot) {
+      this.toastService.show('Failed to capture preview screenshot', 'error');
+      return;
+    }
+    const composited = await this.compositeImages(iframeScreenshot, canvasDataUrl);
+    if (this.chatComponent) {
+      this.chatComponent.setImage(composited);
+      this.toastService.show('Annotation attached to chat', 'success');
+    }
+  }
+
+  private compositeImages(base: string, overlay: string): Promise<string> {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d')!;
+      const baseImg = new Image();
+      baseImg.onload = () => {
+        canvas.width = baseImg.width;
+        canvas.height = baseImg.height;
+        ctx.drawImage(baseImg, 0, 0);
+        const overlayImg = new Image();
+        overlayImg.onload = () => {
+          ctx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        overlayImg.src = overlay;
+      };
+      baseImg.src = base;
+    });
   }
 
   ngAfterViewChecked() {

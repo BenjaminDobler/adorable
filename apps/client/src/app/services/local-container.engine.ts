@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { ContainerEngine, ProcessOutput } from './container-engine';
+import { FileSystemStore } from './file-system.store';
 import { WebContainerFiles } from '@adorable/shared-types';
 import { Observable, of } from 'rxjs';
 
@@ -9,7 +10,9 @@ import { Observable, of } from 'rxjs';
 })
 export class LocalContainerEngine extends ContainerEngine {
   private http = inject(HttpClient);
+  private fileStore = inject(FileSystemStore);
   private apiUrl = 'http://localhost:3333/api/container';
+  private watchAbort: AbortController | null = null;
 
   // State
   public mode = signal<'browser' | 'local'>('local');
@@ -41,7 +44,54 @@ export class LocalContainerEngine extends ContainerEngine {
     }
   }
 
+  startFileWatcher(): void {
+    this.stopFileWatcher();
+    const token = localStorage.getItem('adorable_token');
+    const abort = new AbortController();
+    this.watchAbort = abort;
+
+    fetch(`${this.apiUrl}/watch`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      credentials: 'include',
+      signal: abort.signal,
+    }).then(response => {
+      const reader = response.body?.getReader();
+      if (!reader) return;
+      const decoder = new TextDecoder();
+
+      const push = () => {
+        reader.read().then(({ done, value }) => {
+          if (done) return;
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.substring(6));
+                if (data.type === 'changed') {
+                  this.fileStore.updateFile(data.path, data.content);
+                } else if (data.type === 'deleted') {
+                  this.fileStore.deleteFile(data.path);
+                }
+              } catch { /* partial JSON, skip */ }
+            }
+          }
+          push();
+        }).catch(() => { /* aborted or connection lost */ });
+      };
+      push();
+    }).catch(() => { /* aborted or network error */ });
+  }
+
+  stopFileWatcher(): void {
+    if (this.watchAbort) {
+      this.watchAbort.abort();
+      this.watchAbort = null;
+    }
+  }
+
   async teardown(): Promise<void> {
+    this.stopFileWatcher();
     await this.http.post(`${this.apiUrl}/stop`, {}).toPromise();
     this.status.set('Stopped');
   }
@@ -175,8 +225,9 @@ export class LocalContainerEngine extends ContainerEngine {
              
              // Small delay before setting URL to ensure server is actually listening and stable
              setTimeout(() => {
-                this.url.set(proxyUrl); 
+                this.url.set(proxyUrl);
                 this.status.set('Ready');
+                this.startFileWatcher();
                 this.onServerReady(4200, proxyUrl);
              }, 2000);
         }
@@ -189,6 +240,7 @@ export class LocalContainerEngine extends ContainerEngine {
     if (this.isStopping) return;
     this.isStopping = true;
 
+    this.stopFileWatcher();
     this.status.set('Stopping dev server...');
     this.url.set(null); // Clear URL immediately
     try {

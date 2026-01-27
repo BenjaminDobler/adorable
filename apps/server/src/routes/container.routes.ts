@@ -58,6 +58,47 @@ router.post('/stop', async (req: any, res) => {
   }
 });
 
+router.get('/watch', async (req: any, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  try {
+    const manager = containerRegistry.getManager(req.user.id);
+    if (!manager.isRunning()) {
+      res.write(`data: ${JSON.stringify({ error: 'No container running' })}\n\n`);
+      res.end();
+      return;
+    }
+
+    manager.startWatcher();
+
+    const onChanged = (data: { path: string; content: string }) => {
+      res.write(`data: ${JSON.stringify({ type: 'changed', path: data.path, content: data.content })}\n\n`);
+    };
+    const onDeleted = (data: { path: string }) => {
+      res.write(`data: ${JSON.stringify({ type: 'deleted', path: data.path })}\n\n`);
+    };
+
+    manager.events.on('file-changed', onChanged);
+    manager.events.on('file-deleted', onDeleted);
+
+    // Send heartbeat to keep connection alive
+    const heartbeat = setInterval(() => {
+      res.write(`: heartbeat\n\n`);
+    }, 30000);
+
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      manager.events.off('file-changed', onChanged);
+      manager.events.off('file-deleted', onDeleted);
+    });
+  } catch (e) {
+    res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
+    res.end();
+  }
+});
+
 router.post('/mount', async (req: any, res) => {
   const { files } = req.body;
   try {
