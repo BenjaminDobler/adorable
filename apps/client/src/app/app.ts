@@ -27,7 +27,7 @@ import { ScreenshotService } from './services/screenshot';
 import { FigmaPanelComponent } from './figma/figma-panel.component';
 import { FigmaImportPayload } from '@adorable/shared-types';
 import { TemplateService } from './services/template';
-import { AnnotationOverlayComponent } from './annotation-overlay/annotation-overlay';
+import { AnnotationOverlayComponent, AnnotationResult } from './annotation-overlay/annotation-overlay';
 
 @Component({
   standalone: true,
@@ -274,16 +274,16 @@ export class AppComponent implements AfterViewChecked {
     }
   }
 
-  async onAnnotationDone(canvasDataUrl: string) {
+  async onAnnotationDone(result: AnnotationResult) {
     this.isAnnotating.set(false);
     const iframeScreenshot = await this.screenshotService.captureThumbnail();
     if (!iframeScreenshot) {
       this.toastService.show('Failed to capture preview screenshot', 'error');
       return;
     }
-    const composited = await this.compositeImages(iframeScreenshot, canvasDataUrl);
+    const composited = await this.compositeImages(iframeScreenshot, result.imageDataUrl);
     if (this.chatComponent) {
-      this.chatComponent.setImage(composited);
+      this.chatComponent.setAnnotatedImage(composited, result.annotations);
       this.toastService.show('Annotation attached to chat', 'success');
     }
   }

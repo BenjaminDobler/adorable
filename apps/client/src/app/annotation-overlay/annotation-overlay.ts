@@ -12,6 +12,16 @@ type Stroke =
   | { type: 'rect'; color: string; width: number; start: Point; end: Point }
   | { type: 'text'; color: string; position: Point; text: string; fontSize: number };
 
+export interface AnnotationResult {
+  imageDataUrl: string;
+  annotations: {
+    texts: string[];
+    hasArrows: boolean;
+    hasRectangles: boolean;
+    hasFreehand: boolean;
+  };
+}
+
 @Component({
   selector: 'app-annotation-overlay',
   standalone: true,
@@ -21,7 +31,7 @@ type Stroke =
 })
 export class AnnotationOverlayComponent implements OnDestroy {
   active = input<boolean>(false);
-  done = output<string>();
+  done = output<AnnotationResult>();
   cancelled = output<void>();
 
   @ViewChild('annotationCanvas') canvasRef!: ElementRef<HTMLCanvasElement>;
@@ -350,7 +360,17 @@ export class AnnotationOverlayComponent implements OnDestroy {
     // Clear selection indicator before exporting
     this.selectedStrokeIndex.set(-1);
     this.redrawCanvas();
-    this.done.emit(canvas.toDataURL('image/png'));
+
+    const allStrokes = this.strokes();
+    this.done.emit({
+      imageDataUrl: canvas.toDataURL('image/png'),
+      annotations: {
+        texts: allStrokes.filter(s => s.type === 'text').map(s => (s as Extract<Stroke, { type: 'text' }>).text),
+        hasArrows: allStrokes.some(s => s.type === 'arrow'),
+        hasRectangles: allStrokes.some(s => s.type === 'rect'),
+        hasFreehand: allStrokes.some(s => s.type === 'pen'),
+      },
+    });
   }
 
   cancel() {

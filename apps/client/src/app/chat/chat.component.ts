@@ -93,6 +93,7 @@ export class ChatComponent {
   shouldAddToAssets = signal(true);
   attachedFile: File | null = null;
   attachedFileContent: string | null = null;
+  annotationContext: string | null = null;
   isDragging = false;
 
   availableModels = signal<any[]>([
@@ -246,6 +247,29 @@ export class ChatComponent {
 
   setImage(image: string) {
     this.attachedFileContent = image;
+    this.annotationContext = null;
+    this.isDragging = false;
+    this.cdr.markForCheck();
+  }
+
+  setAnnotatedImage(image: string, annotations: { texts: string[]; hasArrows: boolean; hasRectangles: boolean; hasFreehand: boolean }) {
+    this.attachedFileContent = image;
+
+    // Build structured annotation context for the AI prompt
+    const parts: string[] = [];
+    const markTypes: string[] = [];
+    if (annotations.hasArrows) markTypes.push('arrows pointing to elements');
+    if (annotations.hasRectangles) markTypes.push('rectangles highlighting areas');
+    if (annotations.hasFreehand) markTypes.push('freehand marks');
+
+    if (markTypes.length > 0) {
+      parts.push(`The user drew ${markTypes.join(', ')} on the screenshot.`);
+    }
+    if (annotations.texts.length > 0) {
+      parts.push(`Text labels on the screenshot: ${annotations.texts.map(t => `"${t}"`).join(', ')}.`);
+    }
+
+    this.annotationContext = parts.length > 0 ? parts.join(' ') : null;
     this.isDragging = false;
     this.cdr.markForCheck();
   }
@@ -453,6 +477,7 @@ export class ChatComponent {
   removeAttachment() {
     this.attachedFileContent = null;
     this.attachedFile = null;
+    this.annotationContext = null;
   }
 
   removeFigmaAttachment() {
@@ -649,6 +674,14 @@ ${simplifiedContext}
 Analyze the attached design images carefully and create matching Angular components. The summary above provides structural hints.`;
     }
 
+    // Append annotation context if the attached image is an annotated screenshot
+    if (this.annotationContext) {
+      currentPrompt += `
+
+[Annotated Screenshot: The attached image is a screenshot of the user's live app with visual annotations drawn on top. The colored marks (arrows, rectangles, freehand strokes, text labels) are the user's annotations — NOT part of the actual app UI. ${this.annotationContext} Interpret these annotations as instructions for what the user wants changed in the code.]`;
+      this.annotationContext = null;
+    }
+
     // Placeholder for assistant
     const assistantMsgIndex = this.messages().length;
     this.messages.update(msgs => [...msgs, {
@@ -826,6 +859,7 @@ Analyze the attached design images carefully and create matching Angular compone
             // Clear attachments
             this.attachedFileContent = null;
             this.attachedFile = null;
+            this.annotationContext = null;
             // Clear Figma context
             this.figmaContext.set(null);
             this.figmaImages.set([]);
