@@ -13,7 +13,7 @@ export interface DevServerInfo {
 }
 
 export abstract class ContainerEngine {
-  abstract mode: Signal<'browser' | 'local'>;
+  abstract mode: Signal<'browser' | 'local' | 'native'>;
   abstract status: Signal<string>;
   abstract url: Signal<string | null>;
   abstract buildError: Signal<string | null>;

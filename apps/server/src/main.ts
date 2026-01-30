@@ -16,6 +16,8 @@ import { skillsRouter } from './routes/skills.routes';
 import { figmaRouter } from './routes/figma.routes';
 import { githubRouter } from './routes/github.routes';
 import { webhooksRouter } from './routes/webhooks.routes';
+// Native routes are handled by the desktop local agent, not the cloud server
+// import { nativeRouter } from './routes/native.routes';
 
 const app = express();
 
@@ -78,6 +80,7 @@ fs.mkdir(SITES_DIR, { recursive: true }).catch(console.error);
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use('/sites', express.static(SITES_DIR));
 
+
 // Logging middleware
 app.use((req, res, next) => {
   if (!req.url.startsWith('/api/proxy')) {
@@ -100,6 +103,8 @@ app.use('/api/container', containerRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/skills', skillsRouter);
 app.use('/api/figma', figmaRouter);
+// app.use('/api/native', nativeRouter); // Handled by desktop local agent
+
 
 const server = app.listen(PORT, () => {
   console.log(`Listening at http://localhost:${PORT}/api`);

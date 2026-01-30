@@ -6,7 +6,7 @@ import { AuthService } from '../services/auth';
 import { ProjectService } from '../services/project';
 import { ContainerEngine } from '../services/container-engine';
 import { FormsModule } from '@angular/forms';
-import { SmartContainerEngine } from '../services/smart-container.engine';
+import { SmartContainerEngine, isDesktopApp } from '../services/smart-container.engine';
 import { GitHubService } from '../services/github.service';
 import { ToastService } from '../services/toast';
 import { GitHubRepository, GitHubProjectSync } from '@adorable/shared-types';
@@ -49,8 +49,9 @@ export class NavbarComponent {
   githubPagesUrl = signal<string | null>(null);
   githubPagesDeploying = signal(false);
 
-  // Agent Mode - only available in Docker mode
+  // Agent Mode - available in Docker and Native modes
   isDockerMode = computed(() => this.webContainerService.mode() === 'local');
+  isDesktop = isDesktopApp();
 
   constructor() {
     // Load GitHub connection status on startup
@@ -65,10 +66,12 @@ export class NavbarComponent {
     this.authService.logout();
   }
 
+  isNativeMode = computed(() => this.webContainerService.mode() === 'native');
+
   toggleEngine(event: Event) {
     const select = event.target as HTMLSelectElement;
     if (this.webContainerService instanceof SmartContainerEngine) {
-       this.webContainerService.setMode(select.value as 'browser' | 'local');
+       this.webContainerService.setMode(select.value as 'browser' | 'local' | 'native');
        this.projectService.reloadPreview(this.projectService.files());
     }
   }

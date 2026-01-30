@@ -14,7 +14,7 @@ export class BrowserContainerEngine extends ContainerEngine {
   private lastPackageJson: string | null = null;
   
   // Public Signals
-  public mode = signal<'browser' | 'local'>('browser');
+  public mode = signal<'browser' | 'local' | 'native'>('browser');
   public status = signal<string>('Idle');
   public isBooting = signal<boolean>(false);
   public serverOutput = signal<string>('');

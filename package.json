@@ -2,7 +2,9 @@
   "name": "@adorable/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "start:desktop": "npx nx build client && npx tsc -p apps/desktop/tsconfig.json && npx electron dist/apps/desktop/main.js"
+  },
   "private": true,
   "devDependencies": {
     "@angular-devkit/core": "~21.0.0",
@@ -61,7 +63,9 @@
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.40.0",
     "vitest": "^4.0.8",
-    "webpack-cli": "^5.1.4"
+    "webpack-cli": "^5.1.4",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8"
   },
   "dependencies": {
     "@angular/common": "~21.0.0",

@@ -14,10 +14,15 @@
             placeholder="Project Name"
           />
           <div class="status-group">
-            <select [value]="webContainerService.mode()" (change)="toggleEngine($event)" class="engine-select">
-              <option value="browser">Browser</option>
-              <option value="local">Docker</option>
-            </select>
+            @if (isDesktop) {
+              <span class="engine-badge">Desktop</span>
+            } @else {
+              <select [value]="webContainerService.mode()" (change)="toggleEngine($event)" class="engine-select">
+                <option value="browser">Browser</option>
+                <option value="local">Docker</option>
+                <option value="native">Native</option>
+              </select>
+            }
             <div
               class="status-badge"
               [class.active]="webContainerService.url()"
@@ -64,8 +69,8 @@
             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           </button>
 
-          <!-- Agent Mode (Docker only) -->
-          @if (isDockerMode()) {
+          <!-- Agent Mode (Docker/Native only) -->
+          @if (isDockerMode() || isNativeMode()) {
             <button
               (click)="projectService.agentMode.set(!projectService.agentMode())"
               class="icon-btn"
@@ -83,8 +88,8 @@
             </button>
           }
 
-          <!-- VS Code (Docker only) -->
-          @if (isDockerMode()) {
+          <!-- VS Code (Docker/Native only) -->
+          @if (isDockerMode() || isNativeMode()) {
             <div class="vscode-wrapper">
               <button
                 (click)="toggleVSCodePanel()"

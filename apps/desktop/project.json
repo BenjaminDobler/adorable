@@ -1,0 +1,38 @@
+{
+  "name": "desktop",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/desktop",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "npx tsc -p apps/desktop/tsconfig.json"
+        ],
+        "parallel": false
+      },
+      "dependsOn": ["client:build", "server:build"]
+    },
+    "package": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "npx electron-builder --config apps/desktop/package.json --project dist/apps/desktop"
+        ],
+        "parallel": false
+      },
+      "dependsOn": ["build"]
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "npx tsc -p apps/desktop/tsconfig.json && npx electron dist/apps/desktop/main.js"
+        ],
+        "parallel": false
+      },
+      "dependsOn": ["client:build", "server:build"]
+    }
+  }
+}

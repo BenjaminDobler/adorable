@@ -2,8 +2,21 @@ import { Injectable, inject, signal, computed, Signal } from '@angular/core';
 import { ContainerEngine, ProcessOutput } from './container-engine';
 import { BrowserContainerEngine } from './browser-container.engine';
 import { LocalContainerEngine } from './local-container.engine';
+import { NativeContainerEngine } from './native-container.engine';
 import { WebContainerFiles } from '@adorable/shared-types';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+
+export type ContainerMode = 'browser' | 'local' | 'native';
+
+/** Detect if running inside Electron desktop app */
+export function isDesktopApp(): boolean {
+  return !!(window as any).electronAPI?.isDesktop;
+}
+
+function getDefaultMode(): ContainerMode {
+  if (isDesktopApp()) return 'native';
+  return (localStorage.getItem('container_mode') as ContainerMode) || 'browser';
+}
 
 @Injectable({
   providedIn: 'root'
@@ -11,13 +24,18 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 export class SmartContainerEngine extends ContainerEngine {
   private browserEngine = inject(BrowserContainerEngine);
   private localEngine = inject(LocalContainerEngine);
+  private nativeEngine = inject(NativeContainerEngine);
 
-  // Active Engine Mode
-  public mode = signal<'browser' | 'local'>((localStorage.getItem('container_mode') as 'browser' | 'local') || 'browser');
-  
-  private activeEngine = computed(() => 
-    this.mode() === 'local' ? this.localEngine : this.browserEngine
-  );
+  // Active Engine Mode — desktop app forces native
+  public mode = signal<ContainerMode>(getDefaultMode());
+
+  private activeEngine = computed(() => {
+    switch (this.mode()) {
+      case 'local': return this.localEngine;
+      case 'native': return this.nativeEngine;
+      default: return this.browserEngine;
+    }
+  });
 
   // --- Proxy Signals ---
   
@@ -69,14 +87,12 @@ export class SmartContainerEngine extends ContainerEngine {
   async stopDevServer() { await this.activeEngine().stopDevServer(); }
   
   on(event: 'server-ready', callback: (port: number, url: string) => void) {
-    // This is tricky. We need to re-bind listener when engine changes?
-    // For now, assume listener is attached once.
-    // Better: Forward the event.
     this.browserEngine.on(event, callback);
     this.localEngine.on(event, callback);
+    this.nativeEngine.on(event, callback);
   }
-  
-  setMode(mode: 'browser' | 'local') {
+
+  setMode(mode: ContainerMode) {
       console.log('Switching Container Engine to:', mode);
       const prev = this.activeEngine();
       prev.stopDevServer(); 

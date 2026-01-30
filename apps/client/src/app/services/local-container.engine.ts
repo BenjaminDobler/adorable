@@ -15,7 +15,7 @@ export class LocalContainerEngine extends ContainerEngine {
   private watchAbort: AbortController | null = null;
 
   // State
-  public mode = signal<'browser' | 'local'>('local');
+  public mode = signal<'browser' | 'local' | 'native'>('local');
   public status = signal<string>('Idle');
   public url = signal<string | null>(null);
   public buildError = signal<string | null>(null);
