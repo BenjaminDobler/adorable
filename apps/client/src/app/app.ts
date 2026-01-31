@@ -16,7 +16,7 @@ import { ContainerEngine } from './services/container-engine';
 import { SmartContainerEngine } from './services/smart-container.engine';
 import { ProjectService } from './services/project';
 import { ActivatedRoute, Router } from '@angular/router';
-import { FileExplorerComponent } from './file-explorer/file-explorer';
+import { FileExplorerComponent, FileAction } from './file-explorer/file-explorer';
 import { EditorComponent } from './editor/editor.component';
 import { SafeUrlPipe } from './pipes/safe-url.pipe';
 import { LayoutService } from './services/layout';
@@ -454,6 +454,58 @@ export class AppComponent implements AfterViewChecked {
     this.selectedFileName.set(event.name);
     this.selectedFilePath.set(event.path);
     this.selectedFileContent.set(event.content);
+  }
+
+  async onFileAction(action: FileAction) {
+    switch (action.type) {
+      case 'create-file':
+        this.projectService.fileStore.createFile(action.path);
+        try { await this.webContainerService.writeFile(action.path, ''); } catch {}
+        break;
+      case 'create-folder':
+        this.projectService.fileStore.createFolder(action.path);
+        try { await this.webContainerService.mkdir(action.path); } catch {}
+        break;
+      case 'delete':
+        this.projectService.fileStore.deleteFile(action.path);
+        try { await this.webContainerService.deleteFile(action.path); } catch {}
+        // Clear editor if deleted file was selected
+        if (this.selectedFilePath() === action.path) {
+          this.selectedFileName.set('');
+          this.selectedFilePath.set('');
+          this.selectedFileContent.set('');
+        }
+        break;
+      case 'rename':
+        if (action.newPath) {
+          const content = this.projectService.fileStore.getFileContent(action.path) || '';
+          this.projectService.fileStore.renameFile(action.path, action.newPath);
+          try {
+            await this.webContainerService.writeFile(action.newPath, content);
+            await this.webContainerService.deleteFile(action.path);
+          } catch {}
+          // Update editor if renamed file was selected
+          if (this.selectedFilePath() === action.path) {
+            const name = action.newPath.split('/').pop() || '';
+            this.selectedFileName.set(name);
+            this.selectedFilePath.set(action.newPath);
+          }
+        }
+        break;
+      case 'upload':
+        if (action.content) {
+          this.projectService.fileStore.updateFile(action.path, action.content);
+          try {
+            let writeContent: string | Uint8Array = action.content;
+            if (action.content.startsWith('data:')) {
+              writeContent = this.projectService.dataURIToUint8Array(action.content);
+            }
+            await this.webContainerService.writeFile(action.path, writeContent);
+          } catch {}
+          this.toastService.show(`Uploaded ${action.path.split('/').pop()}`, 'success');
+        }
+        break;
+    }
   }
 
   isImage(filename: string): boolean {

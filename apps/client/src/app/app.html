@@ -51,8 +51,8 @@
       ></app-chat>
       } @if (activeTab() === 'terminal') {
       <app-terminal (toggleDebug)="showDebug.set(true)"></app-terminal>
-      } @if (activeTab() === 'files') {
-      <div class="file-explorer-view">
+      }
+      <div class="file-explorer-view" [hidden]="activeTab() !== 'files'">
         <div class="upload-action-bar">
           <input
             type="file"
@@ -82,9 +82,10 @@
         <app-file-explorer
           [files]="projectService.files()"
           (fileSelect)="onFileSelect($event)"
+          (fileAction)="onFileAction($event)"
         ></app-file-explorer>
       </div>
-      } @if (activeTab() === 'figma') {
+      @if (activeTab() === 'figma') {
       <app-figma-panel
         [storedImports]="projectService.figmaImports()"
         (importToChat)="onFigmaImport($event)"

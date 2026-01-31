@@ -33,16 +33,18 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
 
   private editorInstance: any;
   private lastStreamedLength = 0;
+  private static tsConfigured = false;
+  private get tsConfigured() { return EditorComponent.tsConfigured; }
+  private set tsConfigured(v: boolean) { EditorComponent.tsConfigured = v; }
   isStreaming = signal(false);
 
   constructor() {
     effect(() => {
       const value = this.content();
       if (this.editorInstance) {
-        // Only update if value is different to avoid cursor jumps
-        const currentValue = this.editorInstance.getValue();
-        if (currentValue !== value) {
-          this.editorInstance.setValue(value);
+        const model = this.editorInstance.getModel();
+        if (model && model.getValue() !== value) {
+          model.setValue(value);
           this.lastStreamedLength = value.length;
         }
       }
@@ -50,8 +52,12 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
 
     effect(() => {
       const name = this.fileName();
+      const value = this.content();
       if (this.editorInstance) {
-        this.updateLanguage();
+        const model = this.getOrCreateModel(name, value);
+        if (this.editorInstance.getModel() !== model) {
+          this.editorInstance.setModel(model);
+        }
       }
     });
 
@@ -127,11 +133,14 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
   private initEditor() {
     if (!this.editorContainer) return;
 
-    // Use untracked to access signal value once without subscribing
+    this.configureTypeScript();
+
     const initialContent = untracked(this.content);
+    const initialFileName = untracked(this.fileName);
+    const model = this.getOrCreateModel(initialFileName, initialContent);
 
     this.editorInstance = monaco.editor.create(this.editorContainer.nativeElement, {
-      value: initialContent,
+      model,
       theme: 'vs-dark',
       automaticLayout: true,
       minimap: { enabled: false },
@@ -140,35 +149,126 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
       lineHeight: 24,
       fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
       renderWhitespace: 'selection',
-      tabSize: 2
+      tabSize: 2,
+      quickSuggestions: true,
+      suggestOnTriggerCharacters: true,
+      parameterHints: { enabled: true },
+      wordBasedSuggestions: 'currentDocument'
     });
-    
+
     this.editorInstance.onDidChangeModelContent(() => {
       const value = this.editorInstance.getValue();
       this.contentChange.emit(value);
     });
-    
-    this.updateLanguage();
+  }
+
+  private getOrCreateModel(fileName: string, content: string) {
+    const uri = monaco.Uri.parse('file:///' + fileName);
+    let model = monaco.editor.getModel(uri);
+    if (model) {
+      if (model.getValue() !== content) {
+        model.setValue(content);
+      }
+    } else {
+      const language = this.getLanguage(fileName);
+      model = monaco.editor.createModel(content, language, uri);
+    }
+    return model;
+  }
+
+  private getLanguage(fileName: string): string {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      case 'ts': return 'typescript';
+      case 'js': return 'javascript';
+      case 'html': return 'html';
+      case 'css': return 'css';
+      case 'scss': return 'scss';
+      case 'json': return 'json';
+      case 'md': return 'markdown';
+      default: return 'plaintext';
+    }
+  }
+
+  private configureTypeScript() {
+    if (this.tsConfigured) return;
+    this.tsConfigured = true;
+
+    const tsDefaults = monaco.languages.typescript?.typescriptDefaults;
+    const jsDefaults = monaco.languages.typescript?.javascriptDefaults;
+
+    if (tsDefaults) {
+      tsDefaults.setCompilerOptions({
+        target: monaco.languages.typescript.ScriptTarget.ESNext,
+        module: monaco.languages.typescript.ModuleKind.ESNext,
+        moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+        allowNonTsExtensions: true,
+        allowJs: true,
+        strict: false,
+        jsx: monaco.languages.typescript.JsxEmit.React,
+        experimentalDecorators: true,
+        noEmit: true
+      });
+      tsDefaults.setDiagnosticsOptions({
+        noSemanticValidation: false,
+        noSyntaxValidation: false
+      });
+      tsDefaults.setEagerModelSync(true);
+    }
+
+    if (jsDefaults) {
+      jsDefaults.setDiagnosticsOptions({
+        noSemanticValidation: false,
+        noSyntaxValidation: false
+      });
+      jsDefaults.setEagerModelSync(true);
+    }
+
+    // Register HTML completion for Angular template syntax
+    if (!monaco.languages._angularRegistered) {
+      monaco.languages._angularRegistered = true;
+      monaco.languages.registerCompletionItemProvider('html', {
+        triggerCharacters: ['@', '(', '[', '*', '#'],
+        provideCompletionItems: (model: any, position: any) => {
+          const word = model.getWordUntilPosition(position);
+          const range = {
+            startLineNumber: position.lineNumber,
+            startColumn: word.startColumn,
+            endLineNumber: position.lineNumber,
+            endColumn: word.endColumn
+          };
+          const lineContent = model.getLineContent(position.lineNumber);
+          const charBefore = lineContent[position.column - 2];
+
+          const suggestions: any[] = [];
+          const Kind = monaco.languages.CompletionItemKind;
+
+          if (charBefore === '@') {
+            for (const kw of ['if', 'else', 'for', 'switch', 'case', 'default', 'defer', 'placeholder', 'loading', 'empty']) {
+              suggestions.push({ label: kw, kind: Kind.Keyword, insertText: kw, range });
+            }
+          } else {
+            // Common Angular directives and bindings
+            const directives = [
+              { label: 'ngIf', insertText: '*ngIf="$1"', kind: Kind.Snippet },
+              { label: 'ngFor', insertText: '*ngFor="let $1 of $2"', kind: Kind.Snippet },
+              { label: 'ngClass', insertText: '[ngClass]="$1"', kind: Kind.Snippet },
+              { label: 'ngStyle', insertText: '[ngStyle]="$1"', kind: Kind.Snippet },
+              { label: 'ngModel', insertText: '[(ngModel)]="$1"', kind: Kind.Snippet },
+              { label: 'routerLink', insertText: '[routerLink]="[\'$1\']"', kind: Kind.Snippet },
+              { label: 'click', insertText: '(click)="$1"', kind: Kind.Snippet },
+              { label: 'ngSubmit', insertText: '(ngSubmit)="$1"', kind: Kind.Snippet },
+            ];
+            for (const d of directives) {
+              suggestions.push({ ...d, range, insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet });
+            }
+          }
+          return { suggestions };
+        }
+      });
+    }
   }
   
-  private updateLanguage() {
-      if (!this.editorInstance) return;
-      
-      const ext = this.fileName().split('.').pop()?.toLowerCase();
-      let language = 'plaintext';
-      
-      switch (ext) {
-          case 'ts': language = 'typescript'; break;
-          case 'js': language = 'javascript'; break;
-          case 'html': language = 'html'; break;
-          case 'css': language = 'css'; break;
-          case 'scss': language = 'scss'; break;
-          case 'json': language = 'json'; break;
-          case 'md': language = 'markdown'; break;
-      }
-      
-      monaco.editor.setModelLanguage(this.editorInstance.getModel(), language);
-  }
 
   private loadMonaco(): Promise<void> {
     return new Promise((resolve) => {

@@ -289,6 +289,9 @@ export class NativeContainerEngine extends ContainerEngine {
   async readFile(path: string): Promise<string> { return ''; }
   async readBinaryFile(path: string): Promise<Uint8Array> { return new Uint8Array(); }
   async deleteFile(path: string): Promise<void> {}
+  async mkdir(path: string): Promise<void> {
+    await this.exec('mkdir', ['-p', path]);
+  }
   async startShell(): Promise<void> {}
   async writeToShell(data: string): Promise<void> {}
   async runBuild(args?: string[]): Promise<number> { return 0; }

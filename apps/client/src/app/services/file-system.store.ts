@@ -33,6 +33,40 @@ export class FileSystemStore {
     });
   }
 
+  createFile(path: string, content = '') {
+    this._files.update(current => {
+      const newState = structuredClone(current);
+      this.setFileInTree(newState, path, content);
+      return newState;
+    });
+  }
+
+  createFolder(path: string) {
+    this._files.update(current => {
+      const newState = structuredClone(current);
+      const parts = path.split('/');
+      let cur = newState;
+      for (const part of parts) {
+        if (!cur[part]) {
+          cur[part] = { directory: {} };
+        }
+        cur = cur[part].directory!;
+      }
+      return newState;
+    });
+  }
+
+  renameFile(oldPath: string, newPath: string) {
+    this._files.update(current => {
+      const newState = structuredClone(current);
+      const node = this.extractNode(newState, oldPath);
+      if (node) {
+        this.insertNode(newState, newPath, node);
+      }
+      return newState;
+    });
+  }
+
   getFileContent(path: string): string | null {
     const node = this.findNode(this.files(), path);
     return node?.file?.contents ?? null;
@@ -71,6 +105,30 @@ export class FileSystemStore {
     }
     
     delete current[fileName];
+  }
+
+  private extractNode(root: WebContainerFiles, path: string): any | null {
+    const parts = path.split('/');
+    const name = parts.pop()!;
+    let current = root;
+    for (const part of parts) {
+      if (!current[part]?.directory) return null;
+      current = current[part].directory!;
+    }
+    const node = current[name];
+    if (node) delete current[name];
+    return node;
+  }
+
+  private insertNode(root: WebContainerFiles, path: string, node: any) {
+    const parts = path.split('/');
+    const name = parts.pop()!;
+    let current = root;
+    for (const part of parts) {
+      if (!current[part]) current[part] = { directory: {} };
+      current = current[part].directory!;
+    }
+    current[name] = node;
   }
 
   private findNode(root: WebContainerFiles, path: string): FileSystemNode | null {

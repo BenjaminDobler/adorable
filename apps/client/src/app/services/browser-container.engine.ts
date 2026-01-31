@@ -214,6 +214,10 @@ export class BrowserContainerEngine extends ContainerEngine {
       await this.webcontainerInstance!.fs.rm(path, { recursive: true });
   }
 
+  async mkdir(path: string): Promise<void> {
+      await this.webcontainerInstance!.fs.mkdir(path, { recursive: true });
+  }
+
   async exec(cmd: string, args: string[], options?: any): Promise<ProcessOutput> {
       // Not fully implemented for generic exec yet, specialized methods used
       // But creating a wrapper:
