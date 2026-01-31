@@ -260,7 +260,7 @@
           #previewFrame
           [src]="webContainerService.url() | safeUrl"
           allow="cross-origin-isolated"
-          [style.pointer-events]="isResizingSidebar || isResizingEditor || isAnnotating() ? 'none' : 'auto'"
+          [style.pointer-events]="isResizingSidebar || isResizingEditor || isAnnotating() || isSelecting ? 'none' : 'auto'"
         ></iframe>
         <app-annotation-overlay
           [active]="isAnnotating()"
