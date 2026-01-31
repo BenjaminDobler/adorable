@@ -464,8 +464,8 @@
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 10001;
-  background: #1e1e2e;
-  border: 1px solid #333;
+  background: var(--bg-surface-1);
+  border: 1px solid var(--panel-border);
   border-radius: 12px;
   padding: 1.5rem 2rem;
   min-width: 340px;
@@ -488,14 +488,14 @@
   .btn-cancel {
     padding: 6px 16px;
     border-radius: 6px;
-    border: 1px solid #444;
+    border: 1px solid var(--panel-border);
     background: transparent;
     color: var(--text-secondary);
     font-size: 0.85rem;
     cursor: pointer;
 
     &:hover {
-      background: #2a2a3a;
+      background: var(--bg-surface-2);
       color: var(--text-primary);
     }
   }
