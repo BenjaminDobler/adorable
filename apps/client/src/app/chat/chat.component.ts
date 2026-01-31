@@ -5,6 +5,7 @@ import { ProjectService, ChatMessage } from '../services/project';
 import { ContainerEngine } from '../services/container-engine';
 import { ApiService } from '../services/api';
 import { ToastService } from '../services/toast';
+import { ConfirmService } from '../services/confirm';
 import { TemplateService } from '../services/template';
 import { SkillsService, Skill } from '../services/skills';
 import { HMRTriggerService } from '../services/hmr-trigger.service';
@@ -25,6 +26,7 @@ export class ChatComponent {
   public webContainerService = inject(ContainerEngine);
   public projectService = inject(ProjectService);
   private toastService = inject(ToastService);
+  private confirmService = inject(ConfirmService);
   private templateService = inject(TemplateService);
   private skillsService = inject(SkillsService);
   private hmrTrigger = inject(HMRTriggerService);
@@ -430,7 +432,12 @@ export class ChatComponent {
 
   async restoreVersion(files: any) {
     if (!files || this.loading()) return;
-    if (confirm('Are you sure you want to restore this version? Current unsaved changes might be lost.')) {
+    const confirmed = await this.confirmService.confirm(
+      'Are you sure you want to restore this version? Current unsaved changes might be lost.',
+      'Restore',
+      'Cancel'
+    );
+    if (confirmed) {
       this.loading.set(true);
       await this.projectService.reloadPreview(files);
       this.projectService.addSystemMessage('Restored project to previous version.');

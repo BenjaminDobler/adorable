@@ -27,6 +27,7 @@ import { ScreenshotService } from './services/screenshot';
 import { FigmaPanelComponent } from './figma/figma-panel.component';
 import { FigmaImportPayload } from '@adorable/shared-types';
 import { TemplateService } from './services/template';
+import { ConfirmService } from './services/confirm';
 import { AnnotationOverlayComponent, AnnotationResult } from './annotation-overlay/annotation-overlay';
 
 @Component({
@@ -54,6 +55,7 @@ export class AppComponent implements AfterViewChecked {
   private toastService = inject(ToastService);
   private screenshotService = inject(ScreenshotService);
   private templateService = inject(TemplateService);
+  public confirmService = inject(ConfirmService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
 

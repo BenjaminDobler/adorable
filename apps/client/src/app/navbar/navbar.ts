@@ -9,6 +9,7 @@ import { FormsModule } from '@angular/forms';
 import { SmartContainerEngine, isDesktopApp } from '../services/smart-container.engine';
 import { GitHubService } from '../services/github.service';
 import { ToastService } from '../services/toast';
+import { ConfirmService } from '../services/confirm';
 import { GitHubRepository, GitHubProjectSync } from '@adorable/shared-types';
 
 interface ContainerInfo {
@@ -32,6 +33,7 @@ export class NavbarComponent {
   public webContainerService = inject(ContainerEngine);
   public githubService = inject(GitHubService);
   private toastService = inject(ToastService);
+  private confirmService = inject(ConfirmService);
   private router = inject(Router);
   private http = inject(HttpClient);
 
@@ -180,11 +182,12 @@ export class NavbarComponent {
     });
   }
 
-  disconnectFromGitHub() {
+  async disconnectFromGitHub() {
     const projectId = this.projectService.projectId();
     if (!projectId) return;
 
-    if (!confirm('Disconnect this project from GitHub?')) return;
+    const confirmed = await this.confirmService.confirm('Disconnect this project from GitHub?', 'Disconnect', 'Cancel');
+    if (!confirmed) return;
 
     this.githubSyncing.set(true);
     this.githubService.disconnectProject(projectId).subscribe({

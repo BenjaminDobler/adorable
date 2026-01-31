@@ -4,6 +4,7 @@ import { Router, RouterModule } from '@angular/router';
 import { ApiService } from '../services/api';
 import { AuthService } from '../services/auth';
 import { ToastService } from '../services/toast';
+import { ConfirmService } from '../services/confirm';
 import { SkillsService, Skill } from '../services/skills';
 import { SkillDialogComponent } from './skill-dialog/skill-dialog.component';
 import { GitHubSkillDialogComponent } from './github-skill-dialog/github-skill-dialog.component';
@@ -20,6 +21,7 @@ export class DashboardComponent {
   private skillsService = inject(SkillsService);
   private authService = inject(AuthService);
   private toastService = inject(ToastService);
+  private confirmService = inject(ConfirmService);
   private router = inject(Router);
 
   projects = signal<any[]>([]);
@@ -132,9 +134,10 @@ export class DashboardComponent {
     });
   }
 
-  deleteSkill(name: string, event: Event) {
+  async deleteSkill(name: string, event: Event) {
     event.stopPropagation();
-    if (confirm(`Are you sure you want to delete the skill "${name}"?`)) {
+    const confirmed = await this.confirmService.confirm(`Are you sure you want to delete the skill "${name}"?`, 'Delete', 'Cancel');
+    if (confirmed) {
       this.skillsService.deleteSkill(name).subscribe({
         next: () => {
           this.toastService.show('Skill deleted', 'success');
@@ -145,9 +148,10 @@ export class DashboardComponent {
     }
   }
 
-  deleteProject(id: string, event: Event) {
+  async deleteProject(id: string, event: Event) {
     event.stopPropagation();
-    if (confirm('Are you sure you want to delete this project?')) {
+    const confirmed = await this.confirmService.confirm('Are you sure you want to delete this project?', 'Delete', 'Cancel');
+    if (confirmed) {
       this.apiService.deleteProject(id).subscribe({
         next: () => {
           this.toastService.show('Project deleted', 'success');
