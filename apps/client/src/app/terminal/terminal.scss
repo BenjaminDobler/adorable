@@ -79,7 +79,27 @@
           border-color: var(--accent-color);
         }
       }
+
+      &.restart {
+        color: var(--warning-color, #eab308);
+        border-color: rgba(234, 179, 8, 0.3);
+        &:hover {
+          background: rgba(234, 179, 8, 0.1);
+          border-color: var(--warning-color, #eab308);
+        }
+        &:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+          transform: none;
+          svg { animation: spin 1s linear infinite; }
+        }
+      }
     }
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
 
   .terminal-window {

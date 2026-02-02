@@ -175,11 +175,10 @@ export class ChatComponent {
        }
     });
 
-    // Disable agent mode if switching away from Docker
+    // Auto-enable agent mode for Docker/Native, disable for WebContainer
     effect(() => {
-       if (this.webContainerService.mode() !== 'local') {
-          this.projectService.agentMode.set(false);
-       }
+       const mode = this.webContainerService.mode();
+       this.projectService.agentMode.set(mode === 'local' || mode === 'native');
     });
   }
 
@@ -740,9 +739,10 @@ Analyze the attached design images carefully and create matching Angular compone
                apiKey = profileForProvider.apiKey;
            }
         }
-    } else {
+    } else if (this.appSettings?.smartRouting?.enabled) {
         model = 'auto';
     }
+    // else: keep provider/model from active profile
 
     // Collect all images (attached file + Figma imports)
     const allImages: string[] = [];

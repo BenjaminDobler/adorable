@@ -142,17 +142,14 @@ export class DockerManager {
     const hostPath = path.resolve(process.cwd(), 'storage', 'projects', this.userId || 'unknown');
     console.log(`[Docker] Starting file watcher on ${hostPath}`);
 
+    const ignoredDirs = new Set(['node_modules', '.angular', '.nx', 'dist', '.git', '.cache', 'tmp']);
     this.watcher = watch(hostPath, {
       ignoreInitial: true,
-      ignored: [
-        '**/node_modules/**',
-        '**/.angular/**',
-        '**/.nx/**',
-        '**/dist/**',
-        '**/.git/**',
-        '**/.cache/**',
-        '**/tmp/**',
-      ],
+      ignored: (filePath: string) => {
+        const relative = path.relative(hostPath, filePath);
+        const parts = relative.split(path.sep);
+        return parts.some(p => ignoredDirs.has(p));
+      },
       awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
     });
 

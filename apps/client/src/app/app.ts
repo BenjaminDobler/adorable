@@ -15,7 +15,7 @@ import { ApiService } from './services/api';
 import { ContainerEngine } from './services/container-engine';
 import { SmartContainerEngine } from './services/smart-container.engine';
 import { ProjectService } from './services/project';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 import { FileExplorerComponent, FileAction } from './file-explorer/file-explorer';
 import { EditorComponent } from './editor/editor.component';
 import { SafeUrlPipe } from './pipes/safe-url.pipe';
@@ -128,6 +128,13 @@ export class AppComponent implements AfterViewChecked {
   constructor() {
 
     this.fetchSettings();
+
+    // Re-fetch settings when navigating back from profile
+    this.router.events.subscribe(event => {
+      if (event instanceof NavigationEnd && event.url === '/dashboard') {
+        this.fetchSettings();
+      }
+    });
 
     window.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'd') {

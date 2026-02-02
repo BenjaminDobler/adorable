@@ -1,55 +1,11 @@
-import { GenerateOptions, LLMProvider, StreamCallbacks, FileSystemInterface } from './types';
+import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
 import Anthropic from '@anthropic-ai/sdk';
-import { jsonrepair } from 'jsonrepair';
-import { BaseLLMProvider } from './base';
-import { ANGULAR_KNOWLEDGE_BASE } from './knowledge-base';
-import { TOOLS } from './tools';
-import { DebugLogger } from './debug-logger';
+import { BaseLLMProvider, SYSTEM_PROMPT, ANGULAR_KNOWLEDGE_BASE, AgentLoopContext } from './base';
 import { MemoryFileSystem } from './filesystem/memory-filesystem';
-import { SkillRegistry } from './skills/skill-registry';
-
-const SYSTEM_PROMPT =
-"You are an expert Angular developer.\n"
-+"Your task is to generate or modify the SOURCE CODE for an Angular application.\n\n"
-+"**CRITICAL: Tool Use & Context**\n"
-+"- **SKILLS:** Check the `activate_skill` tool. If a skill matches the user's request (e.g. 'angular-expert' for Angular tasks), you **MUST** activate it immediately before generating code.\n"
-+"- You have access to the **FILE STRUCTURE ONLY** initially.\n"
-+"- You **MUST** use the `read_file` tool to inspect the code of any file you plan to modify or need to understand.\n"
-+"- **NEVER** guess the content of a file. Always read it first to ensure you have the latest version.\n"
-+"- Use `write_file` to create or update files.\n"
-+"- Use `edit_file` for precise modifications when you want to change a specific part of a file without rewriting the whole content. `old_str` must match exactly.\n"
-+"- Use `run_command` if available to execute shell commands. **MANDATORY:** After creating or modifying components, you MUST run `npm run build` to verify compilation. Do NOT assume your code works. If the build fails (exit code != 0), read the error output, fix the file(s), and RE-RUN the build to confirm the fix.\n\n"
-+"**RESTRICTED FILES (DO NOT EDIT):**\n"
-+"- `package.json`, `angular.json`, `tsconfig.json`, `tsconfig.app.json`: Do NOT modify these files unless you are explicitly adding a dependency or changing a build configuration.\n"
-+"- **NEVER** overwrite `package.json` with a generic template. The project is already set up with Angular 21.\n\n"
-+"Input Context:\n"
-+"- You will receive the \"Current File Structure\".\n"
-+"- If the user asks for a change, ONLY return the files that need to be modified or created.\n\n"
-+"RULES:\n"
-+"1. **Root Component:** Ensure 'src/app/app.component.ts' exists and has selector 'app-root'.\n"
-+"2. **Features:** Use Angular 21+ Standalone components and signals.\n"
-+"3. **Styling:** Use external stylesheets ('.scss' or '.css') for components. Do NOT use inline styles unless trivial.\n"
-+"4. **Templates:** Use external templates ('.html') for components. Do NOT use inline templates unless trivial.\n"
-+"5. **Modularity:** Break down complex UIs into smaller, reusable components. Avoid monolithic 'app.component.ts'.\n"
-+"6. **Imports:** Ensure all imports are correct.\n"
-+"7. **Conciseness:** Minimize comments.\n"
-+"8. **Binary:** For small binary files (like icons), use the 'write_file' tool with base64 content. Prefer SVG for vector graphics.\n"
-+"9. **Efficiency:** You may batch SMALL file operations. However, for LARGE files (like full components with templates), perform them one at a time to avoid hitting token limits.\n"
-+"10. **Truncation:** If you receive an error about 'No content provided' or 'truncated JSON', it means your response was too long. You MUST retry by breaking the task into smaller steps, such as writing the component logic first and then using `edit_file` to add the template, or splitting large files into multiple components.\n"
-+"11. **Visual Editing IDs:** When generating HTML templates, add a unique `data-elements-id` attribute to EVERY element. Use a descriptive naming convention: `{component-prefix}-{element-type}-{index}`. Example:\n"
-+"    ```html\n"
-+"    <div data-elements-id=\"card-container-1\" class=\"card\">\n"
-+"      <h2 data-elements-id=\"card-title-1\">Title</h2>\n"
-+"      <p data-elements-id=\"card-desc-1\">Description</p>\n"
-+"      <button data-elements-id=\"card-btn-1\">Click me</button>\n"
-+"    </div>\n"
-+"    ```\n"
-+"    These IDs enable reliable visual editing. Maintain existing IDs when editing templates.\n";
 
 export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
   async generate(options: GenerateOptions): Promise<any> {
-    // Non-streaming fallback - deprecated or simple use cases
-    const { prompt, previousFiles, apiKey, model, fileSystem } = options;
+    const { prompt, previousFiles, apiKey, model } = options;
     if (!apiKey) throw new Error('Anthropic API Key is required');
 
     let modelToUse = model || 'claude-3-5-sonnet-20240620';
@@ -58,12 +14,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     }
 
     const anthropic = new Anthropic({ apiKey });
-    
-    // Default to MemoryFileSystem if not provided
-    const fs = fileSystem || new MemoryFileSystem(this.flattenFiles(previousFiles || {}));
+    const fs = options.fileSystem || new MemoryFileSystem(this.flattenFiles(previousFiles || {}));
 
-    // TODO: We could use listDir() from fs to generate tree summary, 
-    // but for now relying on previousFiles if available is faster for initial context.
     let userMessage = prompt;
     if (previousFiles) {
       const treeSummary = this.generateTreeSummary(previousFiles);
@@ -71,29 +23,22 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     }
 
     const messages: any[] = [{ role: 'user', content: [{ type: 'text', text: userMessage, cache_control: { type: 'ephemeral' } }] }];
-    
-    // Add images if present
+
     if (options.images && options.images.length > 0) {
       options.images.forEach(img => {
         const match = img.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
         if (match) {
           messages[0].content.push({
             type: 'image',
-            source: {
-              type: 'base64',
-              media_type: `image/${match[1]}` as any,
-              data: match[2]
-            }
+            source: { type: 'base64', media_type: `image/${match[1]}` as any, data: match[2] }
           });
         }
       });
     }
 
-    // Note: This non-streaming implementation is basic and doesn't loop tools. 
-    // It's recommended to use streamGenerate for full agent capabilities.
     const response = await anthropic.messages.create({
       model: modelToUse,
-      max_tokens: 8192,
+      max_tokens: 16384,
       system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }] as any,
       messages: messages as any,
     });
@@ -107,8 +52,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
   }
 
   async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any> {
-    const logger = new DebugLogger('anthropic');
-    const { prompt, previousFiles, apiKey, model, fileSystem } = options;
+    const { apiKey, model } = options;
     if (!apiKey) throw new Error('Anthropic API Key is required');
 
     let modelToUse = model || 'claude-3-5-sonnet-20240620';
@@ -120,49 +64,23 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       apiKey,
       defaultHeaders: { 'anthropic-beta': 'pdfs-2024-09-25' }
     });
-    
-    // Initialize File System (Abstracted)
-    const fs: FileSystemInterface = fileSystem || new MemoryFileSystem(this.flattenFiles(previousFiles || {}));
 
-    // Prepare initial context
-    let userMessage = prompt;
+    // Prepare shared context
+    const { fs, skillRegistry, availableTools, userMessage, logger, maxTurns } = this.prepareAgentContext(options, 'anthropic');
+    const skills = await this.addSkillTools(availableTools, skillRegistry, fs, options.userId);
 
-    // Discover Skills
-    const skillRegistry = new SkillRegistry();
-    const skills = await skillRegistry.discover(fs, options.userId);
+    logger.log('START', { model: modelToUse, promptLength: options.prompt.length, totalMessageLength: userMessage.length });
 
-    // Handle Forced Skill
-    if (options.forcedSkill) {
-       const skill = skillRegistry.getSkill(options.forcedSkill);
-       if (skill) {
-          userMessage += `\n\n[SYSTEM INJECTION] The user has explicitly enabled the '${skill.name}' skill. You MUST follow these instructions:\n${skill.instructions}`;
-       }
-    }
-    
-    // If we have previous files structure, provide summary
-    if (previousFiles) {
-      const treeSummary = this.generateTreeSummary(previousFiles);
-      userMessage += `\n\n--- Current File Structure ---\n${treeSummary}`;
-    }
-
-    if (options.openFiles) {
-      userMessage += `\n\n--- Explicit Context (Files the user is looking at) ---\n`;
-      for (const [path, content] of Object.entries(options.openFiles)) {
-        userMessage += `<file path="${path}">\n${content}\n</file>\n`;
-      }
-    }
-
-    logger.log('START', { model: modelToUse, promptLength: prompt.length, totalMessageLength: userMessage.length });
-
-    const messages: any[] = [{ 
-      role: 'user', 
-      content: [{ 
-        type: 'text', 
+    // Build initial messages
+    const messages: any[] = [{
+      role: 'user',
+      content: [{
+        type: 'text',
         text: userMessage,
-        cache_control: { type: 'ephemeral' } 
-      }] 
+        cache_control: { type: 'ephemeral' }
+      }]
     }];
-    
+
     // Handle Attachments
     if (options.images && options.images.length > 0) {
       options.images.forEach(dataUri => {
@@ -170,81 +88,44 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         if (match) {
           const mimeType = match[1];
           const data = match[2];
-
           if (['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(mimeType)) {
-             messages[0].content.push({
-               type: 'image',
-               source: { type: 'base64', media_type: mimeType as any, data: data }
-             });
+            messages[0].content.push({
+              type: 'image',
+              source: { type: 'base64', media_type: mimeType as any, data }
+            });
           } else if (mimeType === 'application/pdf') {
-             messages[0].content.push({
-               type: 'document',
-               source: { type: 'base64', media_type: 'application/pdf', data: data }
-             });
+            messages[0].content.push({
+              type: 'document',
+              source: { type: 'base64', media_type: 'application/pdf', data }
+            });
           } else if (mimeType.startsWith('text/') || mimeType === 'application/json') {
-             try {
-                const textContent = Buffer.from(data, 'base64').toString('utf-8');
-                messages[0].content.push({
-                   type: 'text',
-                   text: `\n[Attached File Content (${mimeType})]:\n${textContent}\n`
-                });
-             } catch(e) { console.error('Failed to decode text attachment', e); }
+            try {
+              const textContent = Buffer.from(data, 'base64').toString('utf-8');
+              messages[0].content.push({
+                type: 'text',
+                text: `\n[Attached File Content (${mimeType})]:\n${textContent}\n`
+              });
+            } catch (e) { console.error('Failed to decode text attachment', e); }
           }
         }
       });
     }
 
-    let fullExplanation = '';
-    let turnCount = 0;
-    const MAX_TURNS = 10;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
 
-    // Define available tools based on FS capabilities
-    const availableTools: any[] = [...TOOLS];
-    
-    // Discover Skills (Already done above)
-    // const skillRegistry = new SkillRegistry();
-    // const skills = await skillRegistry.discover(fs, options.userId);
+    const ctx: AgentLoopContext = {
+      fs, callbacks, skillRegistry, availableTools, logger,
+      hasRunBuild: false, hasWrittenFiles: false, buildNudgeSent: false, fullExplanation: ''
+    };
 
-    if (fs.exec) {
-       availableTools.push({
-          name: "run_command",
-          description: "Execute a shell command in the project environment. Use this to run build commands, tests, or grep for information. Returns stdout, stderr and exit code.",
-          input_schema: {
-             type: "object",
-             properties: {
-                command: { type: "string", description: "The shell command to execute (e.g. 'npm run build', 'grep -r \"Component\" src')" }
-             },
-             required: ["command"]
-          }
-       });
-    }
+    let turnCount = 0;
 
-    if (skills.length > 0) {
-      const skillDescriptions = skills.map(s => `- "${s.name}": ${s.description}`).join('\n');
-      availableTools.push({
-        name: 'activate_skill',
-        description: `Activates a specialized agent skill. Choose from:\n${skillDescriptions}`,
-        input_schema: {
-          type: 'object',
-          properties: {
-            name: {
-              type: 'string',
-              description: 'The name of the skill to activate.',
-              enum: skills.map(s => s.name)
-            }
-          },
-          required: ['name']
-        }
-      });
-    }
-
-    while (turnCount < MAX_TURNS) {
+    while (turnCount < maxTurns) {
       logger.log('TURN_START', { turn: turnCount });
       const stream = await anthropic.messages.create({
         model: modelToUse,
-        max_tokens: 8192,
+        max_tokens: 16384,
         system: [
           { type: 'text', text: ANGULAR_KNOWLEDGE_BASE, cache_control: { type: 'ephemeral' } },
           { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }
@@ -260,14 +141,13 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
 
       for await (const event of stream) {
         if (event.type === 'message_start' && event.message.usage) {
-           totalInputTokens += event.message.usage.input_tokens;
-           callbacks.onTokenUsage?.({ inputTokens: totalInputTokens, outputTokens: totalOutputTokens, totalTokens: totalInputTokens + totalOutputTokens });
+          totalInputTokens += event.message.usage.input_tokens;
+          callbacks.onTokenUsage?.({ inputTokens: totalInputTokens, outputTokens: totalOutputTokens, totalTokens: totalInputTokens + totalOutputTokens });
         }
         if (event.type === 'message_delta' && event.usage) {
-           totalOutputTokens += event.usage.output_tokens;
-           callbacks.onTokenUsage?.({ inputTokens: totalInputTokens, outputTokens: totalOutputTokens, totalTokens: totalInputTokens + totalOutputTokens });
+          totalOutputTokens += event.usage.output_tokens;
+          callbacks.onTokenUsage?.({ inputTokens: totalInputTokens, outputTokens: totalOutputTokens, totalTokens: totalInputTokens + totalOutputTokens });
         }
-
         if (event.type === 'content_block_start') {
           if (event.content_block.type === 'tool_use') {
             currentToolUse = { id: event.content_block.id, name: event.content_block.name, input: '' };
@@ -278,147 +158,69 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
             assistantMessageContent.push({ type: 'text', text: '' });
           }
         }
-
         if (event.type === 'content_block_delta') {
           if (event.delta.type === 'text_delta') {
-            const text = event.delta.text;
-            fullExplanation += text;
-            callbacks.onText?.(text);
+            ctx.fullExplanation += event.delta.text;
+            callbacks.onText?.(event.delta.text);
             const lastBlock = assistantMessageContent[assistantMessageContent.length - 1];
-            if (lastBlock?.type === 'text') lastBlock.text += text;
+            if (lastBlock?.type === 'text') lastBlock.text += event.delta.text;
           } else if (event.delta.type === 'input_json_delta') {
             if (currentToolUse) {
-               currentToolUse.input += event.delta.partial_json;
-               callbacks.onToolDelta?.(assistantMessageContent.length - 1, event.delta.partial_json);
+              currentToolUse.input += event.delta.partial_json;
+              callbacks.onToolDelta?.(assistantMessageContent.length - 1, event.delta.partial_json);
             }
           }
         }
       }
 
-      logger.log('ASSISTANT_RESPONSE', { content: assistantMessageContent });
-
       // Parse tool inputs
       for (const block of assistantMessageContent) {
         if (block.type === 'tool_use') {
-           const tool = toolUses.find(t => t.id === block.id);
-           if (tool) {
-              try {
-                block.input = JSON.parse(tool.input);
-              } catch (e) {
-                 try {
-                    const repaired = jsonrepair(tool.input);
-                    logger.log('JSON_REPAIR_USED_IN_HISTORY', { original: tool.input, repaired });
-                    block.input = JSON.parse(repaired);
-                 } catch (repairError) {
-                    logger.log('JSON_PARSE_ERROR', { input: tool.input, error: e.message });
-                    block.input = {}; 
-                 }
-              }
-           }
+          const tool = toolUses.find(t => t.id === block.id);
+          if (tool) {
+            block.input = this.parseToolInput(tool.input);
+          }
         }
       }
 
       messages.push({ role: 'assistant', content: assistantMessageContent });
 
-      if (toolUses.length === 0) {
-        logger.log('TURN_END_NO_TOOLS', { turn: turnCount });
-        break; 
-      }
+      console.log(`[AutoBuild] Turn ${turnCount}: toolUses=${toolUses.length} [${toolUses.map(t => t.name).join(', ')}]`);
 
-      // Execute all tools via FileSystemInterface
-      const toolResults: any[] = [];
-      for (const tool of toolUses) {
-        let toolArgs: any = {};
-        let parseError = false;
-        try {
-          toolArgs = JSON.parse(tool.input);
-          callbacks.onToolCall?.(0, tool.name, toolArgs);
-        } catch (e) {
-          try {
-             const repaired = jsonrepair(tool.input);
-             logger.log('JSON_REPAIR_USED_IN_EXECUTION', { original: tool.input, repaired });
-             toolArgs = JSON.parse(repaired);
-             callbacks.onToolCall?.(0, tool.name, toolArgs);
-          } catch (repairError) {
-             console.error('Failed to parse tool input', e);
-             logger.log('TOOL_INPUT_PARSE_ERROR', { tool: tool.name, input: tool.input });
-             parseError = true;
+      if (toolUses.length === 0) {
+        // Auto-build check
+        if (fs.exec && ctx.hasWrittenFiles && !ctx.hasRunBuild && !ctx.buildNudgeSent && turnCount < maxTurns - 2) {
+          ctx.buildNudgeSent = true;
+          console.log(`[AutoBuild] Running npm run build...`);
+          callbacks.onText?.('\n\nVerifying build...\n');
+          const buildResult = await fs.exec('npm run build');
+          console.log(`[AutoBuild] Build result: exitCode=${buildResult.exitCode}`);
+          if (buildResult.exitCode !== 0) {
+            callbacks.onText?.('Build failed. Fixing errors...\n');
+            const errorOutput = (buildResult.stderr || '') + '\n' + (buildResult.stdout || '');
+            messages.push({ role: 'user', content: [{ type: 'text', text: `The build failed with the following errors. You MUST fix ALL errors and then run \`npm run build\` again to verify.\n\n\`\`\`\n${errorOutput.slice(0, 4000)}\n\`\`\`` }] });
+            ctx.hasRunBuild = false;
+            turnCount++;
+            continue;
+          } else {
+            callbacks.onText?.('Build successful.\n');
+            ctx.hasRunBuild = true;
           }
         }
-        
+        break;
+      }
+
+      // Execute tools
+      const toolResults: any[] = [];
+      for (const tool of toolUses) {
+        const toolArgs = this.parseToolInput(tool.input);
+        callbacks.onToolCall?.(0, tool.name, toolArgs);
         logger.log('EXECUTING_TOOL', { name: tool.name, args: toolArgs });
 
-        let content = '';
-        let isError = false;
-
-        if (parseError) {
-           content = 'Error: Invalid JSON input for tool.';
-           isError = true;
-        } else {
-            try {
-                switch (tool.name) {
-                    case 'write_file':
-                        if (!toolArgs.content) throw new Error('No content provided for file.');
-                        await fs.writeFile(toolArgs.path, toolArgs.content);
-                        callbacks.onFileWritten?.(toolArgs.path, toolArgs.content);
-                        content = 'File created successfully.';
-                        break;
-                    case 'edit_file':
-                        await fs.editFile(toolArgs.path, toolArgs.old_str, toolArgs.new_str);
-                        // Read the updated content to emit file_written event
-                        const updatedContent = await fs.readFile(toolArgs.path);
-                        callbacks.onFileWritten?.(toolArgs.path, updatedContent);
-                        content = 'File edited successfully.';
-                        break;
-                    case 'read_file':
-                        content = await fs.readFile(toolArgs.path);
-                        break;
-                    case 'list_dir':
-                        const items = await fs.listDir(toolArgs.path);
-                        content = items.length ? items.join('\n') : 'Directory is empty or not found.';
-                        break;
-                    case 'glob':
-                        const matches = await fs.glob(toolArgs.pattern);
-                        content = matches.length ? matches.join('\n') : 'No files matched the pattern.';
-                        break;
-                    case 'grep':
-                        const grepResults = await fs.grep(toolArgs.pattern, toolArgs.path, toolArgs.case_sensitive);
-                        content = grepResults.length ? grepResults.join('\n') : 'No matches found.';
-                        break;
-                    case 'activate_skill':
-                        const skill = skillRegistry.getSkill(toolArgs.name);
-                        if (skill) {
-                           content = `<activated_skill name="${skill.name}">\n${skill.instructions}\n</activated_skill>`;
-                        } else {
-                           content = `Error: Skill '${toolArgs.name}' not found.`;
-                           isError = true;
-                        }
-                        break;
-                    case 'run_command':
-                        if (!fs.exec) throw new Error('run_command is not supported in this environment.');
-                        const res = await fs.exec(toolArgs.command);
-                        content = `Exit Code: ${res.exitCode}\n\nSTDOUT:\n${res.stdout}\n\nSTDERR:\n${res.stderr}`;
-                        if (res.exitCode !== 0) isError = true;
-                        break;
-                    default:
-                        content = `Error: Unknown tool ${tool.name}`;
-                        isError = true;
-                }
-            } catch (err: any) {
-                content = `Error: ${err.message}`;
-                isError = true;
-            }
-        }
+        const { content, isError } = await this.executeTool(tool.name, toolArgs, ctx);
 
         logger.log('TOOL_RESULT', { id: tool.id, result: content, isError });
-
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: tool.id,
-          content,
-          is_error: isError
-        });
-        
+        toolResults.push({ type: 'tool_result', tool_use_id: tool.id, content, is_error: isError });
         callbacks.onToolResult?.(tool.id, content, tool.name);
       }
 
@@ -426,36 +228,64 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       turnCount++;
     }
 
-    return { explanation: fullExplanation, files: fs.getAccumulatedFiles(), model: modelToUse };
-  }
+    // Post-loop build check
+    await this.postLoopBuildCheck(ctx, async (userMessage) => {
+      messages.push({ role: 'user', content: [{ type: 'text', text: userMessage }] });
+      const stream = await anthropic.messages.create({
+        model: modelToUse, max_tokens: 16384,
+        system: [
+          { type: 'text', text: ANGULAR_KNOWLEDGE_BASE, cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }
+        ] as any,
+        messages: messages as any, tools: availableTools as any, stream: true,
+      });
 
-  // Legacy helper - mostly replaced by MemoryFileSystem logic but kept for non-streaming fallback
-  private flattenFiles(structure: any, prefix = ''): Record<string, string> {
-    const map: Record<string, string> = {};
-    for (const key in structure) {
-      const node = structure[key];
-      const path = prefix + key;
-      if (node.file) {
-        map[path] = node.file.contents;
-      } else if (node.directory) {
-        Object.assign(map, this.flattenFiles(node.directory, path + '/'));
-      }
-    }
-    return map;
-  }
+      const toolCalls: { name: string; args: any; id: string }[] = [];
+      const assistantContent: any[] = [];
+      const toolUsesRaw: { id: string; name: string; input: string }[] = [];
+      let currentTool: { id: string; name: string; input: string } | null = null;
 
-  private generateTreeSummary(structure: any, prefix = ''): string {
-    let summary = '';
-    const entries = Object.entries(structure).sort((a, b) => a[0].localeCompare(b[0]));
-    
-    for (const [key, node] of entries) {
-      const path = prefix + key;
-      if ((node as any).file) {
-        summary += `${path}\n`;
-      } else if ((node as any).directory) {
-        summary += this.generateTreeSummary((node as any).directory, path + '/');
+      for await (const event of stream) {
+        if (event.type === 'content_block_start') {
+          if (event.content_block.type === 'tool_use') {
+            currentTool = { id: event.content_block.id, name: event.content_block.name, input: '' };
+            toolUsesRaw.push(currentTool);
+            assistantContent.push(event.content_block);
+            callbacks.onToolStart?.(assistantContent.length - 1, event.content_block.name);
+          } else if (event.content_block.type === 'text') {
+            assistantContent.push({ type: 'text', text: '' });
+          }
+        }
+        if (event.type === 'content_block_delta') {
+          if (event.delta.type === 'text_delta') {
+            ctx.fullExplanation += event.delta.text;
+            callbacks.onText?.(event.delta.text);
+            const lastBlock = assistantContent[assistantContent.length - 1];
+            if (lastBlock?.type === 'text') lastBlock.text += event.delta.text;
+          } else if (event.delta.type === 'input_json_delta') {
+            if (currentTool) {
+              currentTool.input += event.delta.partial_json;
+              callbacks.onToolDelta?.(assistantContent.length - 1, event.delta.partial_json);
+            }
+          }
+        }
       }
-    }
-    return summary;
+
+      for (const block of assistantContent) {
+        if (block.type === 'tool_use') {
+          const t = toolUsesRaw.find(r => r.id === block.id);
+          if (t) block.input = this.parseToolInput(t.input);
+        }
+      }
+      messages.push({ role: 'assistant', content: assistantContent });
+
+      for (const t of toolUsesRaw) {
+        toolCalls.push({ name: t.name, args: this.parseToolInput(t.input), id: t.id });
+      }
+
+      return { toolCalls, text: '' };
+    });
+
+    return { explanation: ctx.fullExplanation, files: fs.getAccumulatedFiles(), model: modelToUse };
   }
 }

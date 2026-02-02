@@ -182,19 +182,18 @@ router.post('/generate-stream', async (req: any, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
+    // Auto-enable agent mode when a container is available (Docker/Native)
     let fileSystem;
-    if (use_container_context) {
-       // Agent Mode: Use the user's active container
-       try {
-          const manager = containerRegistry.getManager(user.id);
-          // Check if container is actually running/ready? ContainerFileSystem handles execution errors.
-          // Note: If no container exists, DockerManager will create a definition but it won't be running.
-          // The exec() call inside ContainerFileSystem will fail or auto-start (based on DockerManager logic).
-          // Assuming DockerManager auto-starts or throws meaningful error.
+    try {
+       const manager = containerRegistry.getManager(user.id);
+       if (manager && manager.isRunning()) {
           fileSystem = new ContainerFileSystem(manager);
-          console.log(`[AgentMode] Enabled for user ${user.id}`);
-       } catch (e) {
-          console.warn(`[AgentMode] Failed to initialize container FS: ${e.message}. Falling back to Memory.`);
+          console.log(`[AgentMode] Auto-enabled for user ${user.id}`);
+       }
+    } catch (e) {
+       // No container available — fall back to memory mode (WebContainer)
+       if (use_container_context) {
+          console.warn(`[AgentMode] Requested but no container available: ${e.message}. Using memory mode.`);
        }
     }
 

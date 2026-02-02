@@ -21,6 +21,19 @@ export class TerminalComponent {
 
   @Output() toggleDebug = new EventEmitter<void>();
 
+  restarting = signal(false);
+
+  async restartDevServer() {
+    this.restarting.set(true);
+    try {
+      await this.webContainerService.stopDevServer();
+      await new Promise(r => setTimeout(r, 1000));
+      await this.webContainerService.startDevServer();
+    } finally {
+      this.restarting.set(false);
+    }
+  }
+
   sendTerminalCommand() {
     if (!this.terminalInput) return;
     this.webContainerService.writeToShell(this.terminalInput + '\n');

@@ -234,6 +234,7 @@ export class ProfileComponent implements OnInit {
       ...s,
       activeProfileId: id
     }));
+    this.save();
   }
 
   updateProfile(id: string, updates: Partial<AIProfile>) {

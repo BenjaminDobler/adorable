@@ -69,23 +69,19 @@
             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           </button>
 
-          <!-- Agent Mode (Docker/Native only) -->
+          <!-- Agent Mode indicator (Docker/Native only, always on) -->
           @if (isDockerMode() || isNativeMode()) {
-            <button
-              (click)="projectService.agentMode.set(!projectService.agentMode())"
-              class="icon-btn"
-              [class.active]="projectService.agentMode()"
-              [title]="projectService.agentMode() ? 'Disable Agent Mode' : 'Enable Agent Mode (Full Container Access)'"
+            <span
+              class="icon-btn active"
+              title="Agent Mode (always active for Docker/Native)"
             >
               <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 2a10 10 0 1 0 10 10H12V2z"></path>
-                <path d="M12 2a10 10 0 0 1 10 10h-10V2z" [style.fill]="projectService.agentMode() ? 'var(--accent-color)' : 'none'" [style.opacity]="projectService.agentMode() ? '0.3' : '1'"></path>
-                <circle cx="12" cy="12" r="3" [style.fill]="projectService.agentMode() ? 'var(--accent-color)' : 'none'"></circle>
+                <path d="M12 2a10 10 0 0 1 10 10h-10V2z" style="fill: var(--accent-color); opacity: 0.3"></path>
+                <circle cx="12" cy="12" r="3" style="fill: var(--accent-color)"></circle>
               </svg>
-              @if (projectService.agentMode()) {
-                <span class="connected-dot"></span>
-              }
-            </button>
+              <span class="connected-dot"></span>
+            </span>
           }
 
           <!-- VS Code (Docker/Native only) -->

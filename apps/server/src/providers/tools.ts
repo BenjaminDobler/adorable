@@ -18,8 +18,36 @@ export const TOOLS = [
     }
   },
   {
+    name: 'write_files',
+    description: 'Creates or updates MULTIPLE files at once. Use this instead of write_file when you need to create several files — it is much faster.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          description: 'Array of files to write.',
+          items: {
+            type: 'object',
+            properties: {
+              path: {
+                type: 'string',
+                description: 'The full path to the file, relative to the project root.'
+              },
+              content: {
+                type: 'string',
+                description: 'The full content of the file.'
+              }
+            },
+            required: ['path', 'content']
+          }
+        }
+      },
+      required: ['files']
+    }
+  },
+  {
     name: 'read_file',
-    description: 'Reads the content of a file from the project to understand its context before editing.',
+    description: 'Reads the content of a single file. Prefer read_files when you need to read multiple files.',
     input_schema: {
       type: 'object',
       properties: {
@@ -29,6 +57,23 @@ export const TOOLS = [
         }
       },
       required: ['path']
+    }
+  },
+  {
+    name: 'read_files',
+    description: 'Reads MULTIPLE files at once. Use this instead of read_file when you need to inspect several files — it is much faster.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        paths: {
+          type: 'array',
+          description: 'Array of file paths to read.',
+          items: {
+            type: 'string'
+          }
+        }
+      },
+      required: ['paths']
     }
   },
   {

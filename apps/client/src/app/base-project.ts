@@ -185,11 +185,15 @@ import { CommonModule } from '@angular/common';
   selector: 'app-root',
   standalone: true,
   imports: [CommonModule],
-  template: \`
-  \`
+  templateUrl: './app.component.html'
 })
 export class AppComponent {}
               `,
+            },
+          },
+          'app.component.html': {
+            file: {
+              contents: `<!-- App root template -->`,
             },
           },
         },
