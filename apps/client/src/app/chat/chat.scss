@@ -4,6 +4,26 @@
   flex: 1;
   min-height: 0;
   background: var(--bg-surface-1);
+  position: relative;
+
+  /* Subtle ambient gradient */
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 150px;
+    background: linear-gradient(180deg, rgba(52, 211, 153, 0.03) 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+}
+
+:host-context(body.light-mode) {
+  &::before {
+    background: linear-gradient(180deg, rgba(5, 150, 105, 0.04) 0%, transparent 100%);
+  }
 }
 
 .visual-editor-panel {
@@ -478,6 +498,8 @@
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  position: relative;
+  z-index: 1;
 }
 
 .message {
@@ -486,15 +508,15 @@
   gap: 0.35rem;
   max-width: 90%;
   min-width: 0;
-  animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: slideIn 0.35s var(--ease-out-expo);
 
   &.user {
     align-self: flex-end;
     .message-content {
-      background: var(--bg-surface-2);
+      background: linear-gradient(135deg, var(--bg-surface-2) 0%, var(--bg-surface-3) 100%);
       border: 1px solid var(--panel-border);
-      border-radius: 1.25rem 1.25rem 0.25rem 1.25rem;
-      box-shadow: var(--shadow-sm);
+      border-radius: var(--radius-xl) var(--radius-xl) var(--radius-xs) var(--radius-xl);
+      box-shadow: var(--shadow-md);
     }
     .message-time {
       align-self: flex-end;
@@ -504,10 +526,10 @@
   &.assistant {
     align-self: flex-start;
     .message-content {
-      background: var(--bg-surface-3);
+      background: var(--bg-surface-2);
       border: 1px solid var(--panel-border-glow);
-      border-radius: 1.25rem 1.25rem 1.25rem 0.25rem;
-      box-shadow: var(--shadow-sm);
+      border-radius: var(--radius-xl) var(--radius-xl) var(--radius-xl) var(--radius-xs);
+      box-shadow: var(--shadow-md);
     }
   }
 
@@ -515,25 +537,26 @@
     align-self: center;
     max-width: 100%;
     .message-content {
-      background: rgba(239, 68, 68, 0.05);
-      border: 1px solid rgba(239, 68, 68, 0.2);
+      background: rgba(248, 113, 113, 0.05);
+      border: 1px solid rgba(248, 113, 113, 0.2);
       color: var(--error-color);
       font-size: 0.75rem;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: 'Space Mono', monospace;
       padding: 0.5rem 1rem;
       border-radius: var(--radius-md);
     }
   }
 
   .message-content {
-    padding: 0.875rem 1.125rem;
+    padding: 1rem 1.25rem;
     color: var(--text-primary);
     font-size: 0.9rem;
-    line-height: 1.6;
+    line-height: 1.65;
     white-space: pre-wrap;
     word-break: break-word;
     overflow-x: hidden;
     min-width: 0;
+    position: relative;
   }
 
   .message-actions {
@@ -599,19 +622,21 @@
   margin: 0 1.25rem 1.25rem 1.25rem;
   background: var(--bg-surface-2);
   border: 1px solid var(--panel-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   display: flex;
   flex-direction: column;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s var(--ease-out-expo);
   flex-shrink: 0;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
+  position: relative;
+  z-index: 1;
 
   &:focus-within {
     border-color: var(--accent-color);
     background: var(--bg-surface-3);
-    box-shadow: 0 0 0 3px var(--accent-glow);
-    transform: translateY(-1px);
+    box-shadow: 0 0 0 3px var(--accent-glow), var(--shadow-xl);
+    transform: translateY(-2px);
   }
 
   &.dragging {
@@ -622,20 +647,23 @@
 
   textarea {
     width: 100%;
-    height: 56px;
-    max-height: 160px;
+    height: 60px;
+    max-height: 180px;
     background: transparent;
     border: none;
     border-radius: 0;
     color: var(--text-primary);
-    padding: 1rem 1.25rem;
+    padding: 1.125rem 1.375rem;
     resize: none;
-    font-size: 0.95rem;
-    line-height: 1.5;
+    font-size: 0.9375rem;
+    line-height: 1.55;
     box-shadow: none;
+    font-family: inherit;
+
     &::placeholder {
       color: var(--text-muted);
     }
+
     &:focus {
       background: transparent;
       box-shadow: none;
@@ -643,12 +671,12 @@
   }
 
   .input-footer {
-    padding: 0.625rem 1rem;
+    padding: 0.75rem 1.125rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
     border-top: 1px solid var(--panel-border);
-    background: rgba(0,0,0,0.05);
+    background: rgba(0, 0, 0, 0.1);
   }
 }
 
@@ -734,62 +762,64 @@
   background: var(--accent-color);
   color: #000;
   border: none;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 0 10px var(--accent-glow);
-  
+  box-shadow: 0 0 15px var(--accent-glow);
+  transition: all 0.25s var(--ease-out-expo);
+
   &:hover:not(:disabled) {
     background: var(--accent-hover);
-    transform: scale(1.05);
-    box-shadow: 0 0 15px var(--accent-glow);
+    transform: scale(1.08);
+    box-shadow: 0 0 25px var(--accent-glow-intense);
   }
-  
+
   &:active:not(:disabled) {
     transform: scale(0.95);
   }
-  
+
   &:disabled {
-    background: var(--panel-border);
+    background: var(--bg-surface-3);
     color: var(--text-muted);
     cursor: not-allowed;
     box-shadow: none;
   }
 
   &.btn-cancel {
-    background: var(--error-color, #ef4444);
-    box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+    background: var(--error-color);
+    box-shadow: 0 0 15px var(--error-glow);
 
     &:hover {
-      background: #dc2626;
-      box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+      background: #ef4444;
+      box-shadow: 0 0 25px var(--error-glow);
     }
   }
 }
 
 .typing-indicator {
   display: flex;
-  gap: 4px;
-  padding: 0.75rem 1rem;
-  background: var(--bg-surface-3);
+  gap: 5px;
+  padding: 0.875rem 1.125rem;
+  background: var(--bg-surface-2);
   border-radius: var(--radius-xl);
   width: fit-content;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--panel-border-glow);
   margin-left: 1.5rem;
   margin-bottom: 1rem;
+  box-shadow: var(--shadow-md);
 
   span {
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
     background: var(--accent-color);
     border-radius: 50%;
     animation: bounce 1.4s infinite ease-in-out both;
-    opacity: 0.6;
-    
+    box-shadow: 0 0 8px var(--accent-glow);
+
     &:nth-child(1) { animation-delay: -0.32s; }
     &:nth-child(2) { animation-delay: -0.16s; }
   }
@@ -801,8 +831,16 @@
 }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateY(12px); filter: blur(4px); }
-  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
 }
 
 // Markdown styling for AI responses
@@ -843,33 +881,33 @@
 
   // Code blocks
   pre {
-    background: #0d0d0d;
+    background: #08080a;
     border: 1px solid var(--panel-border);
-    border-radius: var(--radius-md);
-    padding: 0.875rem 1rem;
-    margin: 0.75em 0;
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.125rem;
+    margin: 0.875em 0;
     overflow-x: auto;
     max-width: 100%;
-    font-family: 'JetBrains Mono', 'Fira Code', monospace;
-    font-size: 0.8rem;
-    line-height: 1.5;
+    font-family: 'Space Mono', 'JetBrains Mono', monospace;
+    font-size: 0.8125rem;
+    line-height: 1.55;
 
     code {
       background: none;
       padding: 0;
       border: none;
-      color: #e0e0e0;
+      color: #e8e8e8;
       word-break: normal;
     }
   }
 
   // Inline code
   code {
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--panel-border);
-    border-radius: 4px;
-    padding: 0.15em 0.4em;
-    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    background: rgba(52, 211, 153, 0.08);
+    border: 1px solid rgba(52, 211, 153, 0.15);
+    border-radius: var(--radius-sm);
+    padding: 0.15em 0.45em;
+    font-family: 'Space Mono', 'JetBrains Mono', monospace;
     font-size: 0.85em;
     color: var(--accent-color);
     word-break: break-all;
