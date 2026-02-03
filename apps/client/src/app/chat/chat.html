@@ -241,7 +241,7 @@
     </div>
   </div>
 } @else {
-  <div class="chat-messages" #scrollContainer>
+  <div class="chat-messages" #scrollContainer (scroll)="onScroll()">
     @for (msg of messages(); track msg) {
       <div class="message" [class.user]="msg.role === 'user'" [class.assistant]="msg.role === 'assistant'" [class.system]="msg.role === 'system'">
         @if (msg.role === 'assistant') {

@@ -96,6 +96,7 @@ export class ChatComponent implements OnDestroy {
   
   // UI State
   compactMode = signal(true); // Default to compact
+  private isUserAtBottom = true; // Track scroll position
 
   shouldAddToAssets = signal(true);
   attachedFile: File | null = null;
@@ -149,9 +150,13 @@ export class ChatComponent implements OnDestroy {
     this.loadSkills();
 
     effect(() => {
-        // Auto-scroll when messages change
+        // Auto-scroll when messages change, but only if user is at bottom
         this.messages();
-        setTimeout(() => this.scrollToBottom(), 0);
+        setTimeout(() => {
+          if (this.isUserAtBottom) {
+            this.scrollToBottom();
+          }
+        }, 0);
     });
     
     effect(() => {
@@ -584,6 +589,14 @@ Please analyze the design images and structure, then create the corresponding An
       const textarea = document.querySelector('.input-container textarea');
       if (textarea) (textarea as HTMLElement).focus();
     }, 0);
+  }
+
+  onScroll(): void {
+    if (!this.scrollContainer) return;
+    const el = this.scrollContainer.nativeElement;
+    // Consider "at bottom" if within 100px of the bottom
+    const threshold = 100;
+    this.isUserAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
   }
 
   scrollToBottom(): void {
