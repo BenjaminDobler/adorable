@@ -1,4 +1,5 @@
-import { Component, inject, signal, ElementRef, ViewChild, Output, EventEmitter, Input, effect, computed, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, signal, ElementRef, ViewChild, Output, EventEmitter, Input, effect, computed, ChangeDetectorRef, OnDestroy } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ProjectService, ChatMessage } from '../services/project';
@@ -11,17 +12,19 @@ import { SkillsService, Skill } from '../services/skills';
 import { HMRTriggerService } from '../services/hmr-trigger.service';
 import { ProgressiveEditorStore } from '../services/progressive-editor.store';
 import { SafeUrlPipe } from '../pipes/safe-url.pipe';
+import { MarkdownPipe } from '../pipes/markdown.pipe';
 import { BASE_FILES } from '../base-project';
 import { FigmaImportPayload } from '@adorable/shared-types';
 
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule, SafeUrlPipe],
+  imports: [CommonModule, FormsModule, SafeUrlPipe, MarkdownPipe],
   templateUrl: './chat.html',
   styleUrls: ['./chat.scss']
 })
-export class ChatComponent {
+export class ChatComponent implements OnDestroy {
+  private activeSubscription: Subscription | null = null;
   private apiService = inject(ApiService);
   public webContainerService = inject(ContainerEngine);
   public projectService = inject(ProjectService);
@@ -648,8 +651,9 @@ Please analyze the design images and structure, then create the corresponding An
     }]);
 
     let currentPrompt = this.prompt;
-    this.prompt = ''; 
+    this.prompt = '';
     this.loading.set(true);
+    const generationStartTime = Date.now();
 
     if (this.attachedFileContent && this.attachedFile) {
       // Emitting event instead of calling onFileContentChange directly
@@ -759,7 +763,7 @@ Analyze the attached design images carefully and create matching Angular compone
       hasFigmaContext: !!this.figmaContext()
     });
 
-    this.apiService.generateStream(currentPrompt, previousFiles, {
+    this.activeSubscription = this.apiService.generateStream(currentPrompt, previousFiles, {
       provider,
       apiKey,
       model,
@@ -880,6 +884,7 @@ Analyze the attached design images carefully and create matching Angular compone
               const newMsgs = [...msgs];
               newMsgs[assistantMsgIndex].files = projectFiles;
               newMsgs[assistantMsgIndex].model = res.model; // Capture the model actually used
+              newMsgs[assistantMsgIndex].duration = Date.now() - generationStartTime;
               newMsgs[assistantMsgIndex].status = undefined; // Clear status on completion
               return newMsgs;
             });
@@ -916,7 +921,30 @@ Analyze the attached design images carefully and create matching Angular compone
         });
         // Clear progressive streaming state
         this.progressiveStore.markAllComplete();
+        this.activeSubscription = null;
       }
     });
+  }
+
+  cancelGeneration() {
+    if (this.activeSubscription) {
+      this.activeSubscription.unsubscribe();
+      this.activeSubscription = null;
+    }
+    this.loading.set(false);
+    this.messages.update(msgs => {
+      const newMsgs = [...msgs];
+      const last = newMsgs[newMsgs.length - 1];
+      if (last?.role === 'assistant') {
+        last.status = undefined;
+        last.text = (last.text || '') + '\n\n*[Generation cancelled]*';
+      }
+      return newMsgs;
+    });
+    this.progressiveStore.markAllComplete();
+  }
+
+  ngOnDestroy() {
+    this.activeSubscription?.unsubscribe();
   }
 }

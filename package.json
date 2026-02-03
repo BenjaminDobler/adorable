@@ -44,6 +44,8 @@
     "@types/supertest": "^6.0.3",
     "@typescript-eslint/utils": "^8.40.0",
     "angular-eslint": "^21.0.1",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
     "eslint": "^9.8.0",
     "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-playwright": "^1.6.2",
@@ -63,9 +65,7 @@
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.40.0",
     "vitest": "^4.0.8",
-    "webpack-cli": "^5.1.4",
-    "electron": "^33.3.1",
-    "electron-builder": "^25.1.8"
+    "webpack-cli": "^5.1.4"
   },
   "dependencies": {
     "@angular/common": "~21.0.0",
@@ -103,6 +103,7 @@
     "jsonrepair": "^3.13.1",
     "jsonwebtoken": "^9.0.3",
     "jszip": "^3.10.1",
+    "marked": "^17.0.1",
     "minimatch": "^10.1.1",
     "monaco-editor": "^0.55.1",
     "rxjs": "~7.8.0"
