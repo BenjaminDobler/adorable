@@ -5,6 +5,7 @@ import { decrypt } from '../utils/crypto';
 import { authenticate } from '../middleware/auth';
 import { containerRegistry } from '../providers/container/container-registry';
 import { ContainerFileSystem } from '../providers/filesystem/container-filesystem';
+import { screenshotManager } from '../providers/screenshot-manager';
 
 const router = express.Router();
 const aiSmartRouter = new SmartRouter();
@@ -235,6 +236,9 @@ router.post('/generate-stream', async (req: any, res) => {
           },
           onFileProgress: (path, content, isComplete) => {
               res.write(`data: ${JSON.stringify({ type: 'file_progress', path, content, isComplete })}\n\n`);
+          },
+          onScreenshotRequest: (requestId) => {
+              res.write(`data: ${JSON.stringify({ type: 'screenshot_request', requestId })}\n\n`);
           }
       });
       
@@ -245,6 +249,24 @@ router.post('/generate-stream', async (req: any, res) => {
       res.write(`data: ${JSON.stringify({ type: 'error', content: error.message })}\n\n`);
       res.end();
     }
+});
+
+// Screenshot endpoint - client POSTs captured screenshot here
+router.post('/screenshot/:requestId', async (req: any, res) => {
+    const { requestId } = req.params;
+    const { imageData, error } = req.body;
+
+    if (error) {
+        const resolved = screenshotManager.rejectScreenshot(requestId, error);
+        return res.json({ success: resolved, message: resolved ? 'Error reported' : 'No pending request' });
+    }
+
+    if (!imageData) {
+        return res.status(400).json({ success: false, message: 'No imageData provided' });
+    }
+
+    const resolved = screenshotManager.resolveScreenshot(requestId, imageData);
+    res.json({ success: resolved, message: resolved ? 'Screenshot received' : 'No pending request found' });
 });
 
 export const aiRouter = router;

@@ -40,6 +40,28 @@ export class ContainerFileSystem implements FileSystemInterface {
     await this.writeFile(path, newContent);
   }
 
+  async deleteFile(path: string): Promise<void> {
+    const { exitCode, output } = await this.manager.exec(['rm', '-f', path]);
+    if (exitCode !== 0) {
+      throw new Error(`Failed to delete file: ${path} - ${output}`);
+    }
+    // Mark as deleted in accumulated files for client sync
+    this.markFileDeleted(this.accumulatedFiles, path);
+  }
+
+  private markFileDeleted(root: any, path: string) {
+    const parts = path.split('/');
+    let current = root;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!current[part]) current[part] = { directory: {} };
+      else if (!current[part].directory) current[part] = { directory: {} };
+      current = current[part].directory;
+    }
+    const fileName = parts[parts.length - 1];
+    current[fileName] = { deleted: true };
+  }
+
   getAccumulatedFiles() {
     return this.accumulatedFiles;
   }

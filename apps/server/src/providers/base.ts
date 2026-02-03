@@ -5,6 +5,7 @@ import { ANGULAR_KNOWLEDGE_BASE } from './knowledge-base';
 import { SkillRegistry } from './skills/skill-registry';
 import { MemoryFileSystem } from './filesystem/memory-filesystem';
 import { DebugLogger } from './debug-logger';
+import { screenshotManager } from './screenshot-manager';
 
 export const SYSTEM_PROMPT =
 "You are an expert Angular developer.\n"
@@ -17,6 +18,7 @@ export const SYSTEM_PROMPT =
 +"- **DO NOT over-explore.** Read only the files you need to modify. Do NOT recursively list every directory. If you have the file structure, use `read_files` directly on the files you need. Start writing code as soon as possible — do not spend more than 2-3 turns reading/exploring.\n"
 +"- Use `write_files` (plural) to create or update multiple files in a single call. This is MUCH faster. Always prefer `write_files` over `write_file`.\n"
 +"- Use `edit_file` for precise modifications when you want to change a specific part of a file without rewriting the whole content. `old_str` must match exactly.\n"
++"- Use `delete_file` to remove files from the project. Use `rename_file` to move or rename files. Use `copy_file` to duplicate files.\n"
 +"- Use `run_command` to execute shell commands. **MANDATORY:** After you finish creating or modifying ALL components, you MUST run `npm run build` as your FINAL step to verify compilation. Do NOT end your turn without running the build. If the build fails (exit code != 0), read the error output, fix the file(s), and RE-RUN the build until it succeeds. If `run_command` is not available, you MUST manually verify: every import references an existing file, every `templateUrl` and `styleUrl` points to a file you created, every component used in a template is imported in that component's `imports` array, and the root `app.component.html` contains the correct top-level markup with router-outlet or child component selectors.\n\n"
 +"**RESTRICTED FILES (DO NOT EDIT):**\n"
 +"- `package.json`, `angular.json`, `tsconfig.json`, `tsconfig.app.json`: Do NOT modify these files unless you are explicitly adding a dependency or changing a build configuration.\n"
@@ -35,7 +37,7 @@ export const SYSTEM_PROMPT =
 +"8. **Binary:** For small binary files (like icons), use the 'write_file' tool with base64 content. Prefer SVG for vector graphics.\n"
 +"9. **Efficiency:** ALWAYS use `write_files` (plural) to write ALL files in as few calls as possible. Batch everything — component .ts, .html, .scss files all in one `write_files` call. Only fall back to single `write_file` if a single file is very large and risks truncation.\n"
 +"10. **Truncation:** If you receive an error about 'No content provided' or 'truncated JSON', it means your response was too long. You MUST retry by breaking the task into smaller steps, such as writing the component logic first and then using `edit_file` to add the template, or splitting large files into multiple components.\n"
-+"11. **Visual Editing IDs:** When generating HTML templates, add a unique `data-elements-id` attribute to EVERY element. Use a descriptive naming convention: `{component-prefix}-{element-type}-{index}`. Example:\n"
++"11. **Visual Editing IDs:** Add a `data-elements-id` attribute to EVERY HTML element. Use ONLY static string values — NEVER use interpolation (`{{ }}`), property binding (`[attr.data-elements-id]`), or any dynamic expression. Use a descriptive naming convention: `{component}-{element}-{number}`. Example:\n"
 +"    ```html\n"
 +"    <div data-elements-id=\"card-container-1\" class=\"card\">\n"
 +"      <h2 data-elements-id=\"card-title-1\">Title</h2>\n"
@@ -43,7 +45,13 @@ export const SYSTEM_PROMPT =
 +"      <button data-elements-id=\"card-btn-1\">Click me</button>\n"
 +"    </div>\n"
 +"    ```\n"
-+"    These IDs enable reliable visual editing. Maintain existing IDs when editing templates.\n";
++"    Inside `@for` loops, use the SAME static ID for the repeated element (do NOT append `$index`):\n"
++"    ```html\n"
++"    @for (item of items; track item.id) {\n"
++"      <div data-elements-id=\"card-item-1\">{{ item.name }}</div>\n"
++"    }\n"
++"    ```\n"
++"    These IDs enable visual editing. Maintain existing IDs when editing templates.\n";
 
 export { ANGULAR_KNOWLEDGE_BASE };
 
@@ -227,6 +235,56 @@ export abstract class BaseLLMProvider {
             }
           }
           break;
+        case 'delete_file':
+          {
+            const protectedFiles = ['package.json', 'angular.json', 'tsconfig.json', 'tsconfig.app.json'];
+            const fileName = toolArgs.path.split('/').pop();
+            if (protectedFiles.includes(fileName)) {
+              content = `Error: Cannot delete protected file: ${toolArgs.path}`;
+              isError = true;
+            } else {
+              await fs.deleteFile(toolArgs.path);
+              content = `File deleted: ${toolArgs.path}`;
+            }
+          }
+          break;
+        case 'rename_file':
+          {
+            const fileContent = await fs.readFile(toolArgs.old_path);
+            await fs.writeFile(toolArgs.new_path, fileContent);
+            callbacks.onFileWritten?.(toolArgs.new_path, fileContent);
+            await fs.deleteFile(toolArgs.old_path);
+            content = `File renamed from ${toolArgs.old_path} to ${toolArgs.new_path}`;
+          }
+          break;
+        case 'copy_file':
+          {
+            const fileContent = await fs.readFile(toolArgs.source_path);
+            await fs.writeFile(toolArgs.destination_path, fileContent);
+            callbacks.onFileWritten?.(toolArgs.destination_path, fileContent);
+            content = `File copied from ${toolArgs.source_path} to ${toolArgs.destination_path}`;
+          }
+          break;
+        case 'take_screenshot':
+          {
+            if (!callbacks.onScreenshotRequest) {
+              content = 'Screenshot capture is not available in this environment.';
+              isError = true;
+            } else {
+              try {
+                const imageData = await screenshotManager.requestScreenshot(
+                  (requestId) => callbacks.onScreenshotRequest!(requestId)
+                );
+                // Return a special marker with the image data that the provider can parse
+                // Format: [SCREENSHOT:<base64>]
+                content = `[SCREENSHOT:${imageData}]`;
+              } catch (err: any) {
+                content = `Failed to capture screenshot: ${err.message}`;
+                isError = true;
+              }
+            }
+          }
+          break;
         case 'run_command':
           if (!fs.exec) throw new Error('run_command is not supported in this environment.');
           {
@@ -304,6 +362,50 @@ export abstract class BaseLLMProvider {
         await fs.exec('cp src/main.ts src/main.ts.bak && echo "// nudge" >> src/main.ts && sleep 2 && mv src/main.ts.bak src/main.ts');
       } catch {
         // Ignore
+      }
+    }
+  }
+
+  /**
+   * Truncate older messages to stay within context limits.
+   * Keeps the first message (user prompt) and last N messages intact,
+   * truncates large tool inputs/results in the middle.
+   */
+  protected pruneMessages(messages: any[], keepRecentCount = 6): void {
+    if (messages.length <= keepRecentCount + 1) return;
+
+    const truncateThreshold = 2000; // chars
+    const truncateTarget = 200;
+
+    // Prune everything except first message and last keepRecentCount messages
+    for (let i = 1; i < messages.length - keepRecentCount; i++) {
+      const msg = messages[i];
+      if (!msg.content || !Array.isArray(msg.content)) continue;
+
+      for (const block of msg.content) {
+        // Truncate tool_use inputs — keep schema-valid structure
+        if (block.type === 'tool_use' && block.input) {
+          if (block.name === 'write_files' && block.input.files) {
+            block.input.files = block.input.files.map((f: any) => ({
+              path: f.path,
+              content: '[truncated]'
+            }));
+          } else if (block.name === 'write_file' && block.input.content?.length > truncateThreshold) {
+            block.input.content = '[truncated]';
+          } else if (block.name === 'read_files' || block.name === 'read_file') {
+            // These are small, keep as-is
+          } else if (block.name === 'run_command') {
+            // Small, keep as-is
+          }
+        }
+        // Truncate tool_result content (user messages)
+        if (block.type === 'tool_result' && typeof block.content === 'string' && block.content.length > truncateThreshold) {
+          block.content = block.content.slice(0, truncateTarget) + `\n...[truncated ${block.content.length} chars]`;
+        }
+        // Truncate text blocks
+        if (block.type === 'text' && typeof block.text === 'string' && block.text.length > truncateThreshold) {
+          block.text = block.text.slice(0, truncateTarget) + `\n...[truncated ${block.text.length} chars]`;
+        }
       }
     }
   }

@@ -123,6 +123,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
 
     while (turnCount < maxTurns) {
       logger.log('TURN_START', { turn: turnCount });
+      this.pruneMessages(messages);
       const stream = await anthropic.messages.create({
         model: modelToUse,
         max_tokens: 16384,
@@ -219,7 +220,39 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
 
         const { content, isError } = await this.executeTool(tool.name, toolArgs, ctx);
 
-        logger.log('TOOL_RESULT', { id: tool.id, result: content, isError });
+        logger.log('TOOL_RESULT', { id: tool.id, result: content.substring(0, 200), isError });
+
+        // Check if this is a screenshot result with embedded image data
+        const screenshotMatch = content.match(/^\[SCREENSHOT:(data:image\/[^;]+;base64,(.+))\]$/);
+        if (screenshotMatch && !isError) {
+          const dataUri = screenshotMatch[1];
+          const mimeMatch = dataUri.match(/^data:image\/([^;]+);base64,(.+)$/);
+          if (mimeMatch) {
+            // Return image content for the AI to analyze
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: tool.id,
+              content: [
+                {
+                  type: 'image',
+                  source: {
+                    type: 'base64',
+                    media_type: `image/${mimeMatch[1]}` as any,
+                    data: mimeMatch[2]
+                  }
+                },
+                {
+                  type: 'text',
+                  text: 'Screenshot captured successfully. Analyze this image to verify the application appearance.'
+                }
+              ],
+              is_error: false
+            });
+            callbacks.onToolResult?.(tool.id, 'Screenshot captured (image attached)', tool.name);
+            continue;
+          }
+        }
+
         toolResults.push({ type: 'tool_result', tool_use_id: tool.id, content, is_error: isError });
         callbacks.onToolResult?.(tool.id, content, tool.name);
       }
@@ -231,6 +264,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     // Post-loop build check
     await this.postLoopBuildCheck(ctx, async (userMessage) => {
       messages.push({ role: 'user', content: [{ type: 'text', text: userMessage }] });
+      this.pruneMessages(messages);
       const stream = await anthropic.messages.create({
         model: modelToUse, max_tokens: 16384,
         system: [

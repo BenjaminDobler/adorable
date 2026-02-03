@@ -35,6 +35,14 @@ export class MemoryFileSystem implements FileSystemInterface {
     await this.writeFile(path, newContent);
   }
 
+  async deleteFile(path: string): Promise<void> {
+    if (this.fileMap[path] === undefined) {
+      throw new Error(`File not found: ${path}`);
+    }
+    delete this.fileMap[path];
+    this.markFileDeleted(this.accumulatedFiles, path);
+  }
+
   async listDir(path: string): Promise<string[]> {
     let dir = path;
     if (dir === '.' || dir === './') dir = '';
@@ -94,5 +102,19 @@ export class MemoryFileSystem implements FileSystemInterface {
     }
     const fileName = parts[parts.length - 1];
     current[fileName] = { file: { contents: content } };
+  }
+
+  private markFileDeleted(root: any, path: string) {
+    const parts = path.split('/');
+    let current = root;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!current[part]) current[part] = { directory: {} };
+      else if (!current[part].directory) current[part] = { directory: {} };
+      current = current[part].directory;
+    }
+    const fileName = parts[parts.length - 1];
+    // Mark as deleted so the client can sync the deletion
+    current[fileName] = { deleted: true };
   }
 }

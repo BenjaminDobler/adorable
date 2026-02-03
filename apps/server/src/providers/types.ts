@@ -27,6 +27,8 @@ export interface StreamCallbacks {
   // Progressive streaming callbacks
   onFileWritten?: (path: string, content: string) => void;
   onFileProgress?: (path: string, content: string, isComplete: boolean) => void;
+  // Screenshot request callback - sends request to client via SSE
+  onScreenshotRequest?: (requestId: string) => void;
 }
 
 export interface LLMProvider {
@@ -38,6 +40,7 @@ export interface FileSystemInterface {
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
   editFile(path: string, oldStr: string, newStr: string): Promise<void>;
+  deleteFile(path: string): Promise<void>;
   listDir(path: string): Promise<string[]>;
   glob(pattern: string): Promise<string[]>;
   grep(pattern: string, path?: string, caseSensitive?: boolean): Promise<string[]>;

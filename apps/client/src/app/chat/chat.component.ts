@@ -11,6 +11,7 @@ import { TemplateService } from '../services/template';
 import { SkillsService, Skill } from '../services/skills';
 import { HMRTriggerService } from '../services/hmr-trigger.service';
 import { ProgressiveEditorStore } from '../services/progressive-editor.store';
+import { ScreenshotService } from '../services/screenshot';
 import { SafeUrlPipe } from '../pipes/safe-url.pipe';
 import { MarkdownPipe } from '../pipes/markdown.pipe';
 import { BASE_FILES } from '../base-project';
@@ -34,6 +35,7 @@ export class ChatComponent implements OnDestroy {
   private skillsService = inject(SkillsService);
   private hmrTrigger = inject(HMRTriggerService);
   private progressiveStore = inject(ProgressiveEditorStore);
+  private screenshotService = inject(ScreenshotService);
   private cdr = inject(ChangeDetectorRef);
 
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
@@ -864,6 +866,9 @@ Analyze the attached design images carefully and create matching Angular compone
         } else if (event.type === 'file_progress') {
            // Progressive streaming: update store with partial content
            this.progressiveStore.updateProgress(event.path, event.content, event.isComplete);
+        } else if (event.type === 'screenshot_request') {
+           // AI requested a screenshot of the preview
+           this.handleScreenshotRequest(event.requestId);
         } else if (event.type === 'result') {
           hasResult = true;
           try {
@@ -942,6 +947,59 @@ Analyze the attached design images carefully and create matching Angular compone
       return newMsgs;
     });
     this.progressiveStore.markAllComplete();
+  }
+
+  /**
+   * Handle screenshot request from the AI.
+   * Captures the preview iframe and POSTs the image back to the server.
+   */
+  private async handleScreenshotRequest(requestId: string) {
+    console.log('[Screenshot] Request received:', requestId);
+
+    try {
+      const imageData = await this.screenshotService.captureThumbnail();
+
+      if (!imageData) {
+        // Report error to server
+        await fetch(`http://localhost:3333/api/screenshot/${requestId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('adorable_token')}`
+          },
+          body: JSON.stringify({ error: 'Failed to capture screenshot - preview may not be available' })
+        });
+        return;
+      }
+
+      // Send screenshot to server
+      const response = await fetch(`http://localhost:3333/api/screenshot/${requestId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adorable_token')}`
+        },
+        body: JSON.stringify({ imageData })
+      });
+
+      const result = await response.json();
+      console.log('[Screenshot] Response:', result);
+    } catch (err) {
+      console.error('[Screenshot] Error handling request:', err);
+      // Try to notify server of error
+      try {
+        await fetch(`http://localhost:3333/api/screenshot/${requestId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('adorable_token')}`
+          },
+          body: JSON.stringify({ error: `Screenshot capture failed: ${err}` })
+        });
+      } catch {
+        // Ignore
+      }
+    }
   }
 
   ngOnDestroy() {
