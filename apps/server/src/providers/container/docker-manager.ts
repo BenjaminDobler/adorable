@@ -317,10 +317,15 @@ export class DockerManager {
 
     return new Promise((resolve, reject) => {
       let output = '';
+      let settled = false;
 
-      // Demuxing to separate stdout/stderr if needed, but here combining.
-
-      // Using 'any' cast for modem/stream because dockerode types are tricky with streams.
+      const timeout = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          console.warn(`[Docker] exec timed out after 120s: ${cmd.join(' ')}`);
+          resolve({ output: output + '\n[Command timed out after 120s]', exitCode: 124 });
+        }
+      }, 120_000);
 
       this.container?.modem.demuxStream(
         stream as any,
@@ -333,12 +338,19 @@ export class DockerManager {
       );
 
       (stream as any).on('end', async () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         const inspect = await exec.inspect();
-
         resolve({ output, exitCode: inspect.ExitCode });
       });
 
-      (stream as any).on('error', reject);
+      (stream as any).on('error', (err: any) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        reject(err);
+      });
     });
   }
 
