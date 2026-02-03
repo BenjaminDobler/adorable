@@ -5,41 +5,9 @@
   "main": "main.js",
   "author": "Adorable",
   "license": "MIT",
-  "build": {
-    "appId": "com.adorable.desktop",
-    "productName": "Adorable",
-    "directories": {
-      "output": "../../dist/desktop-release"
-    },
-    "files": [
-      "**/*",
-      "!**/*.ts",
-      "!tsconfig.json"
-    ],
-    "extraResources": [
-      {
-        "from": "../../dist/apps/client/browser",
-        "to": "client"
-      },
-      {
-        "from": "../../dist/apps/server",
-        "to": "server"
-      },
-      {
-        "from": "../../prisma",
-        "to": "prisma"
-      }
-    ],
-    "mac": {
-      "target": ["dmg"],
-      "category": "public.app-category.developer-tools"
-    },
-    "win": {
-      "target": ["nsis"]
-    },
-    "linux": {
-      "target": ["AppImage"],
-      "category": "Development"
-    }
+  "dependencies": {
+    "express": "^4.21.2",
+    "cors": "^2.8.5",
+    "chokidar": "^4.0.3"
   }
 }

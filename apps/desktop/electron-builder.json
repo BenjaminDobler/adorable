@@ -1,0 +1,48 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.adorable.desktop",
+  "productName": "Adorable",
+  "directories": {
+    "output": "dist/desktop-release",
+    "app": "dist/apps/desktop"
+  },
+  "files": [
+    "**/*",
+    "!**/*.ts",
+    "!tsconfig.json",
+    "!electron-builder.json"
+  ],
+  "npmRebuild": true,
+  "extraResources": [
+    {
+      "from": "dist/apps/client/browser",
+      "to": "client/browser"
+    },
+    {
+      "from": "dist/apps/server",
+      "to": "server"
+    },
+    {
+      "from": "prisma",
+      "to": "prisma"
+    },
+    {
+      "from": "apps/desktop/icons",
+      "to": "icons"
+    }
+  ],
+  "mac": {
+    "target": ["dmg"],
+    "category": "public.app-category.developer-tools",
+    "icon": "apps/desktop/icons/icon.icns"
+  },
+  "win": {
+    "target": ["nsis"],
+    "icon": "apps/desktop/icons/icon.ico"
+  },
+  "linux": {
+    "target": ["AppImage"],
+    "category": "Development",
+    "icon": "apps/desktop/icons/icon.png"
+  }
+}

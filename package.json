@@ -3,7 +3,12 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "start:desktop": "npx nx build client && npx tsc -p apps/desktop/tsconfig.json && npx electron dist/apps/desktop/main.js"
+    "start:desktop": "npx nx build client && npx tsc -p apps/desktop/tsconfig.json && npx electron dist/apps/desktop/main.js",
+    "build:desktop": "npx nx build client --configuration=production && npx nx build server --configuration=production && npx tsc -p apps/desktop/tsconfig.json && cp apps/desktop/package.json dist/apps/desktop/ && cd dist/apps/desktop && npm install --omit=dev",
+    "package:desktop": "npm run build:desktop && npx electron-builder --config apps/desktop/electron-builder.json",
+    "package:desktop:mac": "npm run build:desktop && npx electron-builder --config apps/desktop/electron-builder.json --mac",
+    "package:desktop:win": "npm run build:desktop && npx electron-builder --config apps/desktop/electron-builder.json --win",
+    "package:desktop:linux": "npm run build:desktop && npx electron-builder --config apps/desktop/electron-builder.json --linux"
   },
   "private": true,
   "devDependencies": {
@@ -55,9 +60,11 @@
     "jsdom": "^27.1.0",
     "jsonc-eslint-parser": "^2.1.0",
     "nx": "22.3.3",
+    "png-to-ico": "^3.0.1",
     "prettier": "~3.6.2",
     "prisma": "^6.4.1",
     "react-refresh": "^0.10.0",
+    "sharp": "^0.34.5",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.0",
     "ts-node": "10.9.1",

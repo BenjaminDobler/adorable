@@ -62,8 +62,11 @@ export class ProjectService {
 
   async loadProject(id: string) {
     this.loading.set(true);
-    // Clear current preview state immediately
-    await this.webContainerService.stopDevServer();
+    // Clear current preview state immediately (with timeout to prevent hanging)
+    await Promise.race([
+      this.webContainerService.stopDevServer(),
+      new Promise(resolve => setTimeout(resolve, 5000))
+    ]);
 
     this.apiService.loadProject(id).subscribe({
       next: async (project) => {
@@ -223,12 +226,30 @@ export class ProjectService {
 
   async reloadPreview(files: any) {
     this.loading.set(true);
+
+    // Yield to allow loading state to render
+    await new Promise(resolve => setTimeout(resolve, 0));
+
     try {
-      await this.webContainerService.stopDevServer();
+      // Stop with timeout to prevent hanging
+      await Promise.race([
+        this.webContainerService.stopDevServer(),
+        new Promise(resolve => setTimeout(resolve, 5000))
+      ]);
       await this.webContainerService.clean();
 
+      // Yield before heavy sync operations
+      await new Promise(resolve => setTimeout(resolve, 0));
+
       const mergedFiles = this.mergeFiles(BASE_FILES, files || {});
+
+      // Yield before updating store (triggers change detection)
+      await new Promise(resolve => setTimeout(resolve, 0));
+
       this.fileStore.setFiles(mergedFiles);
+
+      // Yield before preparing mount tree
+      await new Promise(resolve => setTimeout(resolve, 0));
 
       const { tree, binaries } = this.prepareFilesForMount(mergedFiles);
 

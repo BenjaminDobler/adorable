@@ -103,7 +103,24 @@ export class NativeContainerEngine extends ContainerEngine {
       await this.boot();
     }
     this.status.set('Mounting files...');
-    await this.http.post(`${this.apiUrl}/mount`, { files }).toPromise();
+
+    // Use setTimeout to move JSON.stringify off the current call stack
+    // This allows the UI to remain responsive during serialization
+    await new Promise<void>((resolve, reject) => {
+      setTimeout(async () => {
+        try {
+          const body = JSON.stringify({ files });
+          await fetch(`${this.apiUrl}/mount`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body
+          });
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      }, 0);
+    });
   }
 
   async exec(cmd: string, args: string[], options?: any): Promise<ProcessOutput> {
@@ -245,14 +262,24 @@ export class NativeContainerEngine extends ContainerEngine {
     this.stopFileWatcher();
     this.status.set('Stopping dev server...');
     this.url.set(null);
+
     try {
-      // Kill node/npm processes in the project directory
-      const res = await this.exec('sh', ['-c', 'pkill -f "ng serve" || pkill -f "npm start" || true']);
-      await res.exit;
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Call the native stop endpoint with a timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      await fetch(`${this.apiUrl}/stop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal
+      }).catch(() => {});
+
+      clearTimeout(timeoutId);
       this.status.set('Server stopped');
     } catch (e) {
-      console.warn('Failed to stop dev server', e);
+      // Ignore errors - project may already be stopped or timed out
+      console.warn('Stop dev server timeout/error (continuing anyway)', e);
+      this.status.set('Idle');
     } finally {
       this.isStopping = false;
     }

@@ -49,23 +49,39 @@ class NativeManager {
   async copyFiles(files: Record<string, any>): Promise<void> {
     if (!this.projectPath) throw new Error('Project not initialized');
     this.trackRecentWrites(files);
-    await this.writeTree(files, this.projectPath);
+
+    // Collect all file operations first, then execute in parallel batches
+    const operations: Array<{ path: string; content: Buffer | string; encoding?: string }> = [];
+    this.collectFileOps(files, this.projectPath, operations);
+
+    // Write files in parallel batches to avoid blocking event loop
+    const BATCH_SIZE = 20;
+    for (let i = 0; i < operations.length; i += BATCH_SIZE) {
+      const batch = operations.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(async (op) => {
+        await fs.mkdir(path.dirname(op.path), { recursive: true });
+        await fs.writeFile(op.path, op.content);
+      }));
+      // Yield to event loop between batches
+      await new Promise(resolve => setImmediate(resolve));
+    }
   }
 
-  private async writeTree(tree: Record<string, any>, basePath: string): Promise<void> {
+  private collectFileOps(
+    tree: Record<string, any>,
+    basePath: string,
+    operations: Array<{ path: string; content: Buffer | string }>
+  ): void {
     for (const key in tree) {
       const node = tree[key];
       const fullPath = path.join(basePath, key);
       if (node.file) {
-        await fs.mkdir(path.dirname(fullPath), { recursive: true });
-        if (node.file.encoding === 'base64') {
-          await fs.writeFile(fullPath, Buffer.from(node.file.contents, 'base64'));
-        } else {
-          await fs.writeFile(fullPath, node.file.contents, 'utf-8');
-        }
+        const content = node.file.encoding === 'base64'
+          ? Buffer.from(node.file.contents, 'base64')
+          : node.file.contents;
+        operations.push({ path: fullPath, content });
       } else if (node.directory) {
-        await fs.mkdir(fullPath, { recursive: true });
-        await this.writeTree(node.directory, fullPath);
+        this.collectFileOps(node.directory, fullPath, operations);
       }
     }
   }
@@ -88,7 +104,13 @@ class NativeManager {
     const cwd = workDir || this.projectPath;
     const mergedEnv = { ...process.env, ...env };
     return new Promise((resolve, reject) => {
-      const child = spawn(cmd[0], cmd.slice(1), { cwd, env: mergedEnv, shell: true, stdio: ['pipe', 'pipe', 'pipe'] });
+      const child = spawn(cmd[0], cmd.slice(1), {
+        cwd,
+        env: mergedEnv,
+        shell: true,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        detached: true  // Create process group for clean termination
+      });
       this.childProcesses.push(child);
       let output = '';
       child.stdout?.on('data', (chunk) => { output += chunk.toString(); });
@@ -109,7 +131,13 @@ class NativeManager {
     const cwd = workDir || this.projectPath;
     const mergedEnv = { ...process.env, ...env };
     return new Promise((resolve, reject) => {
-      const child = spawn(cmd[0], cmd.slice(1), { cwd, env: mergedEnv, shell: true, stdio: ['pipe', 'pipe', 'pipe'] });
+      const child = spawn(cmd[0], cmd.slice(1), {
+        cwd,
+        env: mergedEnv,
+        shell: true,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        detached: true  // Create process group for clean termination
+      });
       this.childProcesses.push(child);
       child.stdout?.on('data', (chunk) => { onData(chunk.toString()); });
       child.stderr?.on('data', (chunk) => { onData(chunk.toString()); });
@@ -165,9 +193,22 @@ class NativeManager {
 
   async stop(): Promise<void> {
     this.stopWatcher();
+
+    // Kill all tracked child processes - fire and forget, don't wait
     for (const child of this.childProcesses) {
-      try { child.kill('SIGTERM'); } catch { /* already dead */ }
+      if (!child.pid) continue;
+
+      try {
+        // Try to kill the process group first
+        process.kill(-child.pid, 'SIGKILL');
+      } catch {
+        try {
+          child.kill('SIGKILL');
+        } catch { /* already dead */ }
+      }
     }
+
+    // Clear immediately - don't wait for processes to actually exit
     this.childProcesses = [];
     this.projectPath = null;
   }
@@ -210,7 +251,9 @@ app.post('/api/native/stop', async (_req, res) => {
     await manager.stop();
     res.json({ success: true });
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    // Always return success for stop - even if already stopped
+    console.warn('[Local Agent] Stop warning:', e.message);
+    res.json({ success: true, warning: e.message });
   }
 });
 

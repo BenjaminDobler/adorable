@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as https from 'https';
 import * as os from 'os';
 
-const NODE_VERSION = 'v20.18.1';
+const NODE_VERSION = 'v22.13.1';
 const NODE_BASE_URL = `https://nodejs.org/dist/${NODE_VERSION}`;
 
 function getNodeDir(): string {
@@ -34,13 +34,130 @@ function getDownloadUrl(): string {
   return `${NODE_BASE_URL}/node-${NODE_VERSION}-${platformArch}.tar.gz`;
 }
 
-function isNodeAvailable(): boolean {
-  try {
-    execSync('node --version', { stdio: 'pipe' });
-    return true;
-  } catch {
-    return false;
+/**
+ * Find system Node.js by checking common installation paths.
+ * Packaged Electron apps don't inherit the full shell PATH.
+ */
+function findSystemNode(): string | null {
+  const home = os.homedir();
+
+  // Build list of common paths
+  const commonPaths: string[] = [];
+
+  if (process.platform === 'win32') {
+    commonPaths.push(
+      'C:\\Program Files\\nodejs\\node.exe',
+      'C:\\Program Files (x86)\\nodejs\\node.exe',
+      path.join(home, 'AppData', 'Roaming', 'nvm', 'current', 'node.exe'),
+    );
+  } else {
+    // Standard paths
+    commonPaths.push(
+      '/usr/local/bin/node',
+      '/usr/bin/node',
+      '/opt/homebrew/bin/node',  // Homebrew on Apple Silicon
+      '/opt/local/bin/node',      // MacPorts
+    );
+
+    // Volta
+    commonPaths.push(path.join(home, '.volta', 'bin', 'node'));
+
+    // fnm
+    commonPaths.push(path.join(home, '.fnm', 'current', 'bin', 'node'));
+    commonPaths.push(path.join(home, 'Library', 'Application Support', 'fnm', 'current', 'bin', 'node'));
+
+    // nvm - check for default alias or find latest installed version
+    const nvmDir = path.join(home, '.nvm', 'versions', 'node');
+    if (fs.existsSync(nvmDir)) {
+      try {
+        const versions = fs.readdirSync(nvmDir).filter(v => v.startsWith('v')).sort().reverse();
+        for (const version of versions) {
+          commonPaths.push(path.join(nvmDir, version, 'bin', 'node'));
+        }
+      } catch { /* ignore */ }
+    }
+    // Also check nvm alias/default symlink
+    commonPaths.push(path.join(home, '.nvm', 'current', 'bin', 'node'));
+
+    // asdf
+    const asdfNodeDir = path.join(home, '.asdf', 'installs', 'nodejs');
+    if (fs.existsSync(asdfNodeDir)) {
+      try {
+        const versions = fs.readdirSync(asdfNodeDir).sort().reverse();
+        for (const version of versions) {
+          commonPaths.push(path.join(asdfNodeDir, version, 'bin', 'node'));
+        }
+      } catch { /* ignore */ }
+    }
+
+    // mise (formerly rtx)
+    const miseNodeDir = path.join(home, '.local', 'share', 'mise', 'installs', 'node');
+    if (fs.existsSync(miseNodeDir)) {
+      try {
+        const versions = fs.readdirSync(miseNodeDir).sort().reverse();
+        for (const version of versions) {
+          commonPaths.push(path.join(miseNodeDir, version, 'bin', 'node'));
+        }
+      } catch { /* ignore */ }
+    }
   }
+
+  // First try shell lookup to get the user's configured node
+  const shellMethods = process.platform === 'win32'
+    ? ['where node']
+    : [
+        // Try different shells and methods
+        '/bin/zsh -l -c "which node"',
+        '/bin/bash -l -c "which node"',
+        '/bin/sh -c "which node"',
+        // Direct PATH check with common profile sources
+        '/bin/bash -c "source ~/.bashrc 2>/dev/null; source ~/.bash_profile 2>/dev/null; which node"',
+        '/bin/zsh -c "source ~/.zshrc 2>/dev/null; which node"',
+      ];
+
+  for (const cmd of shellMethods) {
+    try {
+      const result = execSync(cmd, {
+        stdio: 'pipe',
+        encoding: 'utf-8',
+        timeout: 5000,
+        env: { ...process.env, HOME: home }
+      }).trim();
+      const nodePath = result.split('\n')[0];
+      if (nodePath && fs.existsSync(nodePath)) {
+        console.log(`[Node Bootstrap] Found node via shell: ${nodePath}`);
+        return nodePath;
+      }
+    } catch (e) {
+      // This shell method failed, try next
+    }
+  }
+
+  // Fall back to checking common paths directly
+  for (const nodePath of commonPaths) {
+    if (fs.existsSync(nodePath)) {
+      console.log(`[Node Bootstrap] Found node at common path: ${nodePath}`);
+      return nodePath;
+    }
+  }
+
+  console.log('[Node Bootstrap] Could not find system Node.js');
+  return null;
+}
+
+function isNodeAvailable(): { available: boolean; nodePath?: string } {
+  const nodePath = findSystemNode();
+  if (nodePath) {
+    // Verify it works and check version
+    try {
+      const version = execSync(`"${nodePath}" --version`, { stdio: 'pipe', encoding: 'utf-8' }).trim();
+      console.log(`[Node Bootstrap] Found system Node.js ${version} at ${nodePath}`);
+      return { available: true, nodePath };
+    } catch {
+      return { available: false };
+    }
+  }
+  return { available: false };
 }
 
 function isBundledNodeAvailable(): boolean {
@@ -106,8 +223,15 @@ function prependNodeToPath(): void {
 
 export async function ensureNode(): Promise<void> {
   // 1. Check if system Node.js exists
-  if (isNodeAvailable()) {
-    console.log('[Node Bootstrap] System Node.js found');
+  const systemNode = isNodeAvailable();
+  if (systemNode.available && systemNode.nodePath) {
+    // Add the system node's directory to PATH so child processes can find it
+    const nodeDir = path.dirname(systemNode.nodePath);
+    const sep = process.platform === 'win32' ? ';' : ':';
+    if (!process.env.PATH?.includes(nodeDir)) {
+      process.env.PATH = `${nodeDir}${sep}${process.env.PATH}`;
+      console.log(`[Node Bootstrap] Added system Node.js to PATH: ${nodeDir}`);
+    }
     return;
   }
 
