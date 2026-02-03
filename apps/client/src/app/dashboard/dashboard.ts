@@ -21,7 +21,7 @@ export class DashboardComponent {
   private skillsService = inject(SkillsService);
   private authService = inject(AuthService);
   private toastService = inject(ToastService);
-  private confirmService = inject(ConfirmService);
+  confirmService = inject(ConfirmService);
   private router = inject(Router);
 
   projects = signal<any[]>([]);
