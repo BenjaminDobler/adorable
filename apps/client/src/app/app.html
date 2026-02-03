@@ -174,8 +174,45 @@
       style="display: flex; flex: 1; flex-direction: column; min-height: 0"
     >
       @if (webContainerService.url()) {
-      <div class="preview-frame-container">
+      <div class="preview-frame-container" [class]="'device-' + previewDevice()">
         <div class="preview-toolbar">
+          <!-- Responsive preview buttons -->
+          <div class="device-buttons">
+            <button
+              [class.active]="previewDevice() === 'phone'"
+              (click)="previewDevice.set('phone')"
+              title="Phone (375px)"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                <line x1="12" y1="18" x2="12.01" y2="18"></line>
+              </svg>
+            </button>
+            <button
+              [class.active]="previewDevice() === 'tablet'"
+              (click)="previewDevice.set('tablet')"
+              title="Tablet (768px)"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
+                <line x1="12" y1="18" x2="12.01" y2="18"></line>
+              </svg>
+            </button>
+            <button
+              [class.active]="previewDevice() === 'desktop'"
+              (click)="previewDevice.set('desktop')"
+              title="Desktop (100%)"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+            </button>
+          </div>
+
+          <div class="toolbar-separator"></div>
+
           <button
             [class.active]="isInspectionActive()"
             (click)="toggleInspection()"
@@ -256,12 +293,14 @@
             </svg>
           </button>
         </div>
-        <iframe
-          #previewFrame
-          [src]="webContainerService.url() | safeUrl"
-          allow="cross-origin-isolated"
-          [style.pointer-events]="isResizingSidebar || isResizingEditor || isAnnotating() || isSelecting ? 'none' : 'auto'"
-        ></iframe>
+        <div class="iframe-wrapper">
+          <iframe
+            #previewFrame
+            [src]="webContainerService.url() | safeUrl"
+            allow="cross-origin-isolated"
+            [style.pointer-events]="isResizingSidebar || isResizingEditor || isAnnotating() || isSelecting ? 'none' : 'auto'"
+          ></iframe>
+        </div>
         <app-annotation-overlay
           [active]="isAnnotating()"
           (done)="onAnnotationDone($event)"

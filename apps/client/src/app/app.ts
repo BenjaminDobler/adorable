@@ -94,6 +94,9 @@ export class AppComponent implements AfterViewChecked {
   isAnnotating = signal(false);
   visualEditorData = signal<any>(null);
 
+  // Responsive preview
+  previewDevice = signal<'desktop' | 'tablet' | 'phone'>('desktop');
+
   showDebug = signal(false);
 
   loadingMessages = [
