@@ -40,6 +40,7 @@ export class ChatComponent implements OnDestroy {
 
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
   @ViewChild('fileInput') fileInput!: ElementRef;
+  @ViewChild('promptTextarea') private promptTextarea!: ElementRef;
 
   // App settings (retrieved from profile)
   private _appSettings: any = null;
@@ -251,8 +252,11 @@ export class ChatComponent implements OnDestroy {
   useQuickStarter(prompt: string) {
     this.prompt = prompt;
     setTimeout(() => {
-        const textarea = document.querySelector('.input-container textarea');
-        if (textarea) (textarea as HTMLElement).focus();
+        const textarea = this.promptTextarea?.nativeElement;
+        if (textarea) {
+          textarea.focus();
+          this.autoResize();
+        }
     }, 0);
   }
 
@@ -584,10 +588,13 @@ ${frameList}
 
 Please analyze the design images and structure, then create the corresponding Angular components with accurate styling.`;
 
-    // Focus the textarea
+    // Focus the textarea and auto-resize
     setTimeout(() => {
-      const textarea = document.querySelector('.input-container textarea');
-      if (textarea) (textarea as HTMLElement).focus();
+      const textarea = this.promptTextarea?.nativeElement;
+      if (textarea) {
+        textarea.focus();
+        this.autoResize();
+      }
     }, 0);
   }
 
@@ -605,6 +612,35 @@ Please analyze the design images and structure, then create the corresponding An
         this.scrollContainer.nativeElement.scrollTop = this.scrollContainer.nativeElement.scrollHeight;
       }
     } catch(err) { }
+  }
+
+  onTextareaKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      this.generate();
+    }
+  }
+
+  autoResize(): void {
+    const textarea = this.promptTextarea?.nativeElement;
+    if (!textarea) return;
+    // Disable transition to prevent animated resize
+    textarea.style.transition = 'none';
+    // Collapse to 0 to get true scrollHeight
+    textarea.style.height = '0px';
+    const scrollH = textarea.scrollHeight;
+    // Clamp between min 60px and max 300px
+    textarea.style.height = Math.max(60, Math.min(scrollH, 300)) + 'px';
+    // Show scrollbar only when content exceeds max
+    textarea.style.overflowY = scrollH > 300 ? 'auto' : 'hidden';
+  }
+
+  private resetTextareaHeight(): void {
+    const textarea = this.promptTextarea?.nativeElement;
+    if (!textarea) return;
+    textarea.style.transition = 'none';
+    textarea.style.height = '60px';
+    textarea.style.overflowY = 'hidden';
   }
 
   getActivatedSkills(msg: ChatMessage): string[] {
@@ -667,6 +703,7 @@ Please analyze the design images and structure, then create the corresponding An
 
     let currentPrompt = this.prompt;
     this.prompt = '';
+    this.resetTextareaHeight();
     this.loading.set(true);
     const generationStartTime = Date.now();
 

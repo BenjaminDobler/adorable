@@ -410,11 +410,13 @@
        (dragover)="onDragOver($event)"
        (dragleave)="onDragLeave($event)">
     
-    <textarea 
-      [(ngModel)]="prompt" 
+    <textarea
+      #promptTextarea
+      [(ngModel)]="prompt"
       placeholder="Describe what you want to build..."
       [disabled]="loading()"
-      (keydown.enter)="$event.preventDefault(); generate()">
+      (input)="autoResize()"
+      (keydown)="onTextareaKeydown($event)">
     </textarea>
     
     <div class="input-footer">
