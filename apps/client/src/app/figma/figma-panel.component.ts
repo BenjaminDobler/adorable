@@ -131,7 +131,7 @@ export class FigmaPanelComponent implements OnInit {
     this.figmaService.importSelection(fileKey, selectedIds).subscribe({
       next: (payload) => {
         this.importing.set(false);
-        this.storeAndEmitPayload(payload);
+        this.storePayload(payload);
       },
       error: (err) => {
         this.importing.set(false);
@@ -140,19 +140,24 @@ export class FigmaPanelComponent implements OnInit {
     });
   }
 
-  // Store payload and emit to chat
-  private storeAndEmitPayload(payload: FigmaImportPayload) {
+  // Store payload and navigate to import preview (no emit to chat)
+  private storePayload(payload: FigmaImportPayload) {
     // Add to stored imports (avoid duplicates by fileKey + selection)
     const existing = this.importedPayloads();
-    const isDuplicate = existing.some(
+    const duplicateIndex = existing.findIndex(
       p => p.fileKey === payload.fileKey &&
            JSON.stringify(p.selection) === JSON.stringify(payload.selection)
     );
-    if (!isDuplicate) {
+    if (duplicateIndex === -1) {
       this.importedPayloads.update(payloads => [...payloads, payload]);
       this.importsChanged.emit(this.importedPayloads());
+      // Navigate to the newly added import's detail view
+      this.selectedImportIndex.set(this.importedPayloads().length - 1);
+    } else {
+      // Navigate to the existing duplicate's detail view
+      this.selectedImportIndex.set(duplicateIndex);
     }
-    this.importToChat.emit(payload);
+    this.expandedImportNodes.set(new Set());
   }
 
   // View a stored import
@@ -480,7 +485,7 @@ export class FigmaPanelComponent implements OnInit {
         });
 
         this.importing.set(false);
-        this.storeAndEmitPayload(payload);
+        this.storePayload(payload);
       } catch (err) {
         console.error('Failed to parse Figma export file:', err);
         this.error.set('Failed to parse export file. Make sure it was exported from the Adorable Figma Plugin.');
