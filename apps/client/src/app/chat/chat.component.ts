@@ -337,12 +337,7 @@ export class ChatComponent implements OnDestroy {
       ? `This change likely involves ${data.componentName}.`
       : '';
 
-    this.prompt = `Visual Edit Request:
-    Target Element: <${data.tagName}> class="${data.classes}"
-    Original Text: "${data.text}"
-    ${specificContext}
-
-    Instruction: ${prompt}`;
+    this.prompt = `Visual Edit Request:\nTarget Element: \`<${data.tagName}>\` class=\`"${data.classes}"\`\nOriginal Text: \`"${data.text}"\`\n${specificContext}\n\nInstruction: ${prompt}`;
 
     this.generate();
     this.closeVisualEditor();
