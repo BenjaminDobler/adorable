@@ -79,6 +79,7 @@ export const RUNTIME_SCRIPTS = `
       function showSelectionOverlay(element) {
         createSelectionOverlay();
         selectedElement = element;
+        selectedElementId = element.getAttribute('data-elements-id');
         const sel = document.getElementById('inspector-selection');
         const label = document.getElementById('inspector-selection-label');
         if (!sel) return;
@@ -96,25 +97,83 @@ export const RUNTIME_SCRIPTS = `
           const classes = element.className ? '.' + element.className.split(' ').slice(0, 2).join('.') : '';
           label.textContent = '<' + tagName + '>' + classes;
         }
+
+        // Start observing element for size/content changes
+        startObserving(element);
       }
+
+      let resizeObserver = null;
+      let selectedElementId = null;
+      let domObserver = null;
 
       function hideSelectionOverlay() {
         const sel = document.getElementById('inspector-selection');
         if (sel) sel.style.display = 'none';
+        stopObserving();
         selectedElement = null;
+        selectedElementId = null;
       }
 
-      // Update selection position on scroll/resize
+      // Update selection position on scroll/resize/element changes
       function updateSelectionPosition() {
         if (!selectedElement) return;
         const sel = document.getElementById('inspector-selection');
         if (!sel || sel.style.display === 'none') return;
+
+        // Check if element is still in DOM, if not try to re-find by ID
+        if (!document.body.contains(selectedElement) && selectedElementId) {
+          const newElement = document.querySelector('[data-elements-id="' + selectedElementId + '"]');
+          if (newElement) {
+            selectedElement = newElement;
+            startObserving(newElement);
+          } else {
+            return; // Element gone, wait for it to reappear
+          }
+        }
 
         const rect = selectedElement.getBoundingClientRect();
         sel.style.top = rect.top + 'px';
         sel.style.left = rect.left + 'px';
         sel.style.width = rect.width + 'px';
         sel.style.height = rect.height + 'px';
+      }
+
+      function startObserving(element) {
+        // Stop previous element observer
+        if (resizeObserver) {
+          resizeObserver.disconnect();
+        }
+
+        // Watch for size changes on the element
+        resizeObserver = new ResizeObserver(() => {
+          updateSelectionPosition();
+        });
+        resizeObserver.observe(element);
+
+        // Start DOM observer if not already running
+        if (!domObserver) {
+          domObserver = new MutationObserver(() => {
+            // Debounce updates
+            requestAnimationFrame(updateSelectionPosition);
+          });
+          domObserver.observe(document.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['style', 'class']
+          });
+        }
+      }
+
+      function stopObserving() {
+        if (resizeObserver) {
+          resizeObserver.disconnect();
+          resizeObserver = null;
+        }
+        if (domObserver) {
+          domObserver.disconnect();
+          domObserver = null;
+        }
       }
 
       window.addEventListener('scroll', updateSelectionPosition, true);

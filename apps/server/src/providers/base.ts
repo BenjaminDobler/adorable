@@ -385,7 +385,7 @@ export abstract class BaseLLMProvider {
       for (const block of msg.content) {
         // Truncate tool_use inputs — keep schema-valid structure
         if (block.type === 'tool_use' && block.input) {
-          if (block.name === 'write_files' && block.input.files) {
+          if (block.name === 'write_files' && Array.isArray(block.input.files)) {
             block.input.files = block.input.files.map((f: any) => ({
               path: f.path,
               content: '[truncated]'
