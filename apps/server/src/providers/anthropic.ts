@@ -174,6 +174,13 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         }
       }
 
+      // Detect tools with empty input (possible truncation or streaming interruption)
+      for (const tool of toolUses) {
+        if (!tool.input || !tool.input.trim()) {
+          console.warn(`[Anthropic] Tool '${tool.name}' (id: ${tool.id}) received empty input - possible truncation or streaming interruption`);
+        }
+      }
+
       // Parse tool inputs
       for (const block of assistantMessageContent) {
         if (block.type === 'tool_use') {
@@ -302,6 +309,13 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
               callbacks.onToolDelta?.(assistantContent.length - 1, event.delta.partial_json);
             }
           }
+        }
+      }
+
+      // Detect tools with empty input (possible truncation or streaming interruption)
+      for (const t of toolUsesRaw) {
+        if (!t.input || !t.input.trim()) {
+          console.warn(`[Anthropic] Tool '${t.name}' (id: ${t.id}) received empty input in build-fix loop - possible truncation`);
         }
       }
 

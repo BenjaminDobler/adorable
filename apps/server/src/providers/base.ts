@@ -11,6 +11,7 @@ export const SYSTEM_PROMPT =
 "You are an expert Angular developer.\n"
 +"Your task is to generate or modify the SOURCE CODE for an Angular application.\n\n"
 +"**CONCISENESS:** Keep explanations brief (1-2 sentences). Focus on code, not commentary. Only provide detailed explanations if the user explicitly asks.\n\n"
++"**MINIMAL CHANGES:** Make ONLY the changes necessary to fulfill the user's request. Do not refactor, reorganize, or 'improve' code that already works. Once the build passes, your task is complete — do not continue making changes.\n\n"
 +"**CRITICAL: Tool Use & Context**\n"
 +"- **SKILLS:** Check the `activate_skill` tool. If a skill matches the user's request (e.g. 'angular-expert' for Angular tasks), you **MUST** activate it immediately before generating code.\n"
 +"- The **full file structure** is already provided below. You do NOT need to call `list_dir` to explore it — it's already there. Only use `list_dir` if you need to check a specific directory that may have changed after writing files.\n"
@@ -41,6 +42,12 @@ export const SYSTEM_PROMPT =
 +"8. **Binary:** For small binary files (like icons), use the 'write_file' tool with base64 content. Prefer SVG for vector graphics.\n"
 +"9. **Efficiency:** ALWAYS use `write_files` (plural) to write ALL files in as few calls as possible. Batch everything — component .ts, .html, .scss files all in one `write_files` call. Only fall back to single `write_file` if a single file is very large and risks truncation.\n"
 +"10. **Truncation:** If you receive an error about 'No content provided' or 'truncated JSON', it means your response was too long. You MUST retry by breaking the task into smaller steps, such as writing the component logic first and then using `edit_file` to add the template, or splitting large files into multiple components.\n"
++"12. **STOP WHEN DONE:** Once the build passes and the requested feature works, STOP. Do NOT:\n"
++"    - Refactor working code 'for clarity' or 'best practices'\n"
++"    - Add features, improvements, or optimizations the user didn't ask for\n"
++"    - Rewrite code that already works just because you'd write it differently\n"
++"    - Keep iterating after a successful build — the task is COMPLETE\n"
++"    If the user wants changes, they will ask. Your job is to implement what was requested, verify it builds, and stop.\n"
 +"11. **Visual Editing IDs:** Add a `data-elements-id` attribute to EVERY HTML element. Use ONLY static string values — NEVER use interpolation (`{{ }}`), property binding (`[attr.data-elements-id]`), or any dynamic expression. Use a descriptive naming convention: `{component}-{element}-{number}`. Example:\n"
 +"    ```html\n"
 +"    <div data-elements-id=\"card-container-1\" class=\"card\">\n"
@@ -160,9 +167,17 @@ export abstract class BaseLLMProvider {
     let isError = false;
 
     try {
+      // Validate required arguments for each tool before execution
+      let validationError: string | null = null;
+
       switch (toolName) {
         case 'write_file':
-          if (!toolArgs.content) throw new Error('No content provided for file.');
+          validationError = this.validateToolArgs(toolName, toolArgs, ['path', 'content']);
+          if (validationError) {
+            content = validationError;
+            isError = true;
+            break;
+          }
           await fs.writeFile(toolArgs.path, toolArgs.content);
           callbacks.onFileWritten?.(toolArgs.path, toolArgs.content);
           ctx.hasWrittenFiles = true;
@@ -174,17 +189,31 @@ export abstract class BaseLLMProvider {
             isError = true;
           } else {
             let written = 0;
+            const skipped: string[] = [];
             for (const f of toolArgs.files) {
-              if (!f.path || !f.content) continue;
+              if (!f.path || !f.content) {
+                skipped.push(f.path || 'unknown');
+                continue;
+              }
               await fs.writeFile(f.path, f.content);
               callbacks.onFileWritten?.(f.path, f.content);
               written++;
             }
             ctx.hasWrittenFiles = true;
-            content = `${written} of ${toolArgs.files.length} files written successfully.`;
+            if (skipped.length > 0) {
+              content = `${written} of ${toolArgs.files.length} files written. Skipped ${skipped.length} files with missing path or content (possible truncation): ${skipped.join(', ')}`;
+            } else {
+              content = `${written} of ${toolArgs.files.length} files written successfully.`;
+            }
           }
           break;
         case 'edit_file':
+          validationError = this.validateToolArgs(toolName, toolArgs, ['path', 'old_str', 'new_str']);
+          if (validationError) {
+            content = validationError;
+            isError = true;
+            break;
+          }
           await fs.editFile(toolArgs.path, toolArgs.old_str, toolArgs.new_str);
           {
             const updatedContent = await fs.readFile(toolArgs.path);
@@ -193,10 +222,21 @@ export abstract class BaseLLMProvider {
           content = 'File edited successfully.';
           break;
         case 'read_file':
+          validationError = this.validateToolArgs(toolName, toolArgs, ['path']);
+          if (validationError) {
+            content = validationError;
+            isError = true;
+            break;
+          }
           content = await fs.readFile(toolArgs.path);
           break;
         case 'read_files':
-          if (!toolArgs.paths || !Array.isArray(toolArgs.paths)) throw new Error('No paths array provided.');
+          validationError = this.validateToolArgs(toolName, toolArgs, ['paths']);
+          if (validationError || !Array.isArray(toolArgs.paths)) {
+            content = validationError || "Error: Tool 'read_files' requires 'paths' to be an array. Your response may have been truncated.";
+            isError = true;
+            break;
+          }
           {
             const readResults: string[] = [];
             for (const p of toolArgs.paths) {
@@ -211,24 +251,48 @@ export abstract class BaseLLMProvider {
           }
           break;
         case 'list_dir':
+          validationError = this.validateToolArgs(toolName, toolArgs, ['path']);
+          if (validationError) {
+            content = validationError;
+            isError = true;
+            break;
+          }
           {
             const items = await fs.listDir(toolArgs.path);
             content = items.length ? items.join('\n') : 'Directory is empty or not found.';
           }
           break;
         case 'glob':
+          validationError = this.validateToolArgs(toolName, toolArgs, ['pattern']);
+          if (validationError) {
+            content = validationError;
+            isError = true;
+            break;
+          }
           {
             const matches = await fs.glob(toolArgs.pattern);
             content = matches.length ? matches.join('\n') : 'No files matched the pattern.';
           }
           break;
         case 'grep':
+          validationError = this.validateToolArgs(toolName, toolArgs, ['pattern']);
+          if (validationError) {
+            content = validationError;
+            isError = true;
+            break;
+          }
           {
             const grepResults = await fs.grep(toolArgs.pattern, toolArgs.path, toolArgs.case_sensitive);
             content = grepResults.length ? grepResults.join('\n') : 'No matches found.';
           }
           break;
         case 'activate_skill':
+          validationError = this.validateToolArgs(toolName, toolArgs, ['name']);
+          if (validationError) {
+            content = validationError;
+            isError = true;
+            break;
+          }
           {
             const skill = skillRegistry.getSkill(toolArgs.name);
             if (skill) {
@@ -240,6 +304,12 @@ export abstract class BaseLLMProvider {
           }
           break;
         case 'delete_file':
+          validationError = this.validateToolArgs(toolName, toolArgs, ['path']);
+          if (validationError) {
+            content = validationError;
+            isError = true;
+            break;
+          }
           {
             const protectedFiles = ['package.json', 'angular.json', 'tsconfig.json', 'tsconfig.app.json'];
             const fileName = toolArgs.path.split('/').pop();
@@ -253,6 +323,12 @@ export abstract class BaseLLMProvider {
           }
           break;
         case 'rename_file':
+          validationError = this.validateToolArgs(toolName, toolArgs, ['old_path', 'new_path']);
+          if (validationError) {
+            content = validationError;
+            isError = true;
+            break;
+          }
           {
             const fileContent = await fs.readFile(toolArgs.old_path);
             await fs.writeFile(toolArgs.new_path, fileContent);
@@ -262,6 +338,12 @@ export abstract class BaseLLMProvider {
           }
           break;
         case 'copy_file':
+          validationError = this.validateToolArgs(toolName, toolArgs, ['source_path', 'destination_path']);
+          if (validationError) {
+            content = validationError;
+            isError = true;
+            break;
+          }
           {
             const fileContent = await fs.readFile(toolArgs.source_path);
             await fs.writeFile(toolArgs.destination_path, fileContent);
@@ -291,6 +373,12 @@ export abstract class BaseLLMProvider {
           break;
         case 'run_command':
           if (!fs.exec) throw new Error('run_command is not supported in this environment.');
+          validationError = this.validateToolArgs(toolName, toolArgs, ['command']);
+          if (validationError) {
+            content = validationError;
+            isError = true;
+            break;
+          }
           {
             const res = await fs.exec(toolArgs.command);
             content = `Exit Code: ${res.exitCode}\n\nSTDOUT:\n${res.stdout}\n\nSTDERR:\n${res.stderr}`;
@@ -415,6 +503,13 @@ export abstract class BaseLLMProvider {
   }
 
   protected parseToolInput(input: string): any {
+    // Handle empty input gracefully - this can happen when streaming is interrupted
+    // after tool_use starts but before any input_json_delta events arrive
+    if (!input || !input.trim()) {
+      console.warn(`[ParseTool] Empty tool input received - possible streaming interruption or truncation`);
+      return {};
+    }
+
     try {
       return JSON.parse(input);
     } catch {
@@ -428,6 +523,18 @@ export abstract class BaseLLMProvider {
         return {};
       }
     }
+  }
+
+  /**
+   * Validates that required arguments are present for a tool call.
+   * Returns an error message if validation fails, or null if valid.
+   */
+  protected validateToolArgs(toolName: string, toolArgs: any, required: string[]): string | null {
+    const missing = required.filter(key => toolArgs[key] === undefined || toolArgs[key] === null || toolArgs[key] === '');
+    if (missing.length > 0) {
+      return `Error: Tool '${toolName}' missing required arguments: ${missing.join(', ')}. Your response may have been truncated. Try breaking the task into smaller steps.`;
+    }
+    return null;
   }
 
   protected parseResponse(text: string): any {
