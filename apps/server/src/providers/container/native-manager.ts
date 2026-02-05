@@ -183,6 +183,7 @@ export class NativeManager {
         '**/.git/**',
         '**/.cache/**',
         '**/tmp/**',
+        '**/.DS_Store',
       ],
       awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
     });

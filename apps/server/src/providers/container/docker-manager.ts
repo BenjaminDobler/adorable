@@ -143,12 +143,14 @@ export class DockerManager {
     console.log(`[Docker] Starting file watcher on ${hostPath}`);
 
     const ignoredDirs = new Set(['node_modules', '.angular', '.nx', 'dist', '.git', '.cache', 'tmp']);
+    const ignoredFiles = new Set(['.DS_Store']);
     this.watcher = watch(hostPath, {
       ignoreInitial: true,
       ignored: (filePath: string) => {
         const relative = path.relative(hostPath, filePath);
         const parts = relative.split(path.sep);
-        return parts.some(p => ignoredDirs.has(p));
+        const fileName = parts[parts.length - 1];
+        return parts.some(p => ignoredDirs.has(p)) || ignoredFiles.has(fileName);
       },
       awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
     });
@@ -257,6 +259,7 @@ export class DockerManager {
 
     const addFiles = (tree: any, prefix = '') => {
       for (const key in tree) {
+        if (key === '.DS_Store') continue; // Skip macOS metadata files
         const node = tree[key];
         const path = prefix + key;
         if (node.file) {

@@ -104,6 +104,7 @@ export class ChatComponent implements OnDestroy {
   attachedFileContent: string | null = null;
   annotationContext: string | null = null;
   isDragging = false;
+  previewImageUrl = signal<string | null>(null);
 
   availableModels = signal<any[]>([
     { id: 'auto', name: '✨ Auto (Smart)', provider: 'auto' }

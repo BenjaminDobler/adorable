@@ -162,6 +162,7 @@ export class GitHubSyncService {
       if (file.path === 'node_modules' || file.path.startsWith('node_modules/')) continue;
       if (file.path === 'dist' || file.path.startsWith('dist/')) continue;
       if (file.path === '.angular' || file.path.startsWith('.angular/')) continue;
+      if (file.path.endsWith('.DS_Store')) continue;
 
       const contentBase64 = file.encoding === 'base64'
         ? file.content
@@ -279,9 +280,10 @@ export class GitHubSyncService {
     for (const item of treeData.tree) {
       if (item.type !== 'blob') continue;
 
-      // Skip node_modules and dist
+      // Skip node_modules, dist, and system files
       if (item.path.startsWith('node_modules/') || item.path.startsWith('dist/')) continue;
       if (item.path.startsWith('.git/')) continue;
+      if (item.path.endsWith('.DS_Store')) continue;
 
       const blobResponse = await fetch(
         `${GITHUB_API}/repos/${fullName}/git/blobs/${item.sha}`,

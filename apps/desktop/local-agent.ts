@@ -73,6 +73,7 @@ class NativeManager {
     operations: Array<{ path: string; content: Buffer | string }>
   ): void {
     for (const key in tree) {
+      if (key === '.DS_Store') continue; // Skip macOS metadata files
       const node = tree[key];
       const fullPath = path.join(basePath, key);
       if (node.file) {
@@ -156,7 +157,7 @@ class NativeManager {
     if (this.watcher || !this.projectPath) return;
     this.watcher = watch(this.projectPath, {
       ignoreInitial: true,
-      ignored: ['**/node_modules/**', '**/.angular/**', '**/.nx/**', '**/dist/**', '**/.git/**', '**/.cache/**', '**/tmp/**'],
+      ignored: ['**/node_modules/**', '**/.angular/**', '**/.nx/**', '**/dist/**', '**/.git/**', '**/.cache/**', '**/tmp/**', '**/.DS_Store'],
       awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
     });
     this.watcher.on('error', (err: Error) => console.warn('[Agent] Watcher error:', err.message));
