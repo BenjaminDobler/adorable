@@ -285,7 +285,7 @@ export class NavbarComponent {
     this.vscodePanelOpen.set(false);
     this.http.get<ContainerInfo>('http://localhost:3333/api/container/info').subscribe({
       next: (info) => {
-        const uri = `vscode://file/${info.hostProjectPath}`;
+        const uri = `vscode://file/${info.hostProjectPath}?windowId=_blank`;
         window.open(uri, '_blank');
         this.toastService.show('Opening project folder in VS Code...', 'success');
       },
@@ -303,7 +303,7 @@ export class NavbarComponent {
         const hexId = Array.from(new TextEncoder().encode(info.containerId))
           .map(b => b.toString(16).padStart(2, '0'))
           .join('');
-        const uri = `vscode://vscode-remote/attached-container+${hexId}/app`;
+        const uri = `vscode://vscode-remote/attached-container+${hexId}/app?windowId=_blank`;
         window.open(uri, '_blank');
         this.toastService.show('Opening container in VS Code...', 'success');
       },
