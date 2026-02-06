@@ -33,6 +33,17 @@
           </svg>
           Integrations
         </button>
+        <button
+          class="tab"
+          [class.active]="activeTab() === 'mcp'"
+          (click)="activeTab.set('mcp')">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+          MCP Servers
+        </button>
       </div>
 
       <button class="btn-back" routerLink="/dashboard">
@@ -319,6 +330,204 @@
             }
           </div>
         </section>
+      </div>
+    }
+
+    <!-- MCP Servers Tab -->
+    @if (activeTab() === 'mcp') {
+      <div class="tab-content">
+        <section class="settings-card">
+          <div class="card-header">
+            <div class="header-with-toggle">
+              <div>
+                <h3>MCP Servers</h3>
+                <p>Connect to MCP (Model Context Protocol) servers to extend AI capabilities with custom tools.</p>
+              </div>
+              <button class="btn-add" (click)="addMcpServer()">+ Add Server</button>
+            </div>
+          </div>
+          <div class="card-body">
+            @if (mcpServers().length === 0) {
+              <div class="mcp-empty">
+                <div class="mcp-empty-icon">🔌</div>
+                <h4>No MCP Servers Configured</h4>
+                <p>MCP servers extend Adorable with custom tools like GitHub integration, database access, and more.</p>
+                <button class="btn-add-large" (click)="addMcpServer()">+ Add Your First Server</button>
+              </div>
+            } @else {
+              <div class="mcp-server-list">
+                @for (server of mcpServers(); track server.id) {
+                  <div class="mcp-server-card" [class.disabled]="!server.enabled" [class.has-error]="server.lastError">
+                    <div class="server-toggle">
+                      <label class="switch">
+                        <input
+                          type="checkbox"
+                          [checked]="server.enabled"
+                          (change)="toggleMcpServer(server.id)"
+                        >
+                        <span class="slider round"></span>
+                      </label>
+                    </div>
+                    <div class="server-info">
+                      <span class="server-name">{{ server.name }}</span>
+                      <span class="server-url">
+                        @if (server.transport === 'stdio') {
+                          <span class="transport-badge">stdio</span> {{ server.command }}
+                        } @else {
+                          {{ server.url }}
+                        }
+                      </span>
+                      @if (server.lastError) {
+                        <span class="server-error">{{ server.lastError }}</span>
+                      }
+                    </div>
+                    <div class="server-actions">
+                      <button class="btn-icon" (click)="editMcpServer(server)" title="Edit">Edit</button>
+                      <button class="btn-icon btn-delete" (click)="deleteMcpServer(server.id)" title="Delete">Delete</button>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </section>
+      </div>
+    }
+
+    <!-- MCP Edit Modal -->
+    @if (editingMcpServer()) {
+      <div class="mcp-edit-modal" (click)="cancelMcpEdit()">
+        <div class="mcp-edit-content" (click)="$event.stopPropagation()">
+          <h3>{{ editingMcpServer()!.url || editingMcpServer()!.command ? 'Edit' : 'Add' }} MCP Server</h3>
+
+          <div class="form-group">
+            <label>Server Name</label>
+            <input
+              type="text"
+              [ngModel]="editingMcpServer()!.name"
+              (ngModelChange)="updateEditingMcpServer({name: $event})"
+              placeholder="My MCP Server"
+            />
+          </div>
+
+          <!-- Transport selector (stdio only available in desktop mode) -->
+          <div class="form-group">
+            <label>Transport</label>
+            <select
+              [ngModel]="editingMcpServer()!.transport || 'http'"
+              (ngModelChange)="updateEditingMcpServer({transport: $event})"
+            >
+              <option value="http">HTTP (Remote server)</option>
+              @if (isDesktopMode()) {
+                <option value="stdio">stdio (Local process)</option>
+              }
+            </select>
+          </div>
+
+          <!-- HTTP Transport Fields -->
+          @if ((editingMcpServer()!.transport || 'http') === 'http') {
+            <div class="form-group">
+              <label>Server URL</label>
+              <input
+                type="url"
+                [ngModel]="editingMcpServer()!.url"
+                (ngModelChange)="updateEditingMcpServer({url: $event})"
+                placeholder="https://api.example.com/mcp/"
+              />
+            </div>
+
+            <div class="form-group">
+              <label>Authentication</label>
+              <select
+                [ngModel]="editingMcpServer()!.authType"
+                (ngModelChange)="updateEditingMcpServer({authType: $event})"
+              >
+                <option value="none">None</option>
+                <option value="bearer">Bearer Token</option>
+              </select>
+            </div>
+
+            @if (editingMcpServer()!.authType === 'bearer') {
+              <div class="form-group">
+                <label>API Key / Token</label>
+                <input
+                  type="password"
+                  [ngModel]="editingMcpServer()!.apiKey"
+                  (ngModelChange)="updateEditingMcpServer({apiKey: $event})"
+                  placeholder="Your API key or personal access token"
+                  autocomplete="new-password"
+                />
+              </div>
+            }
+          }
+
+          <!-- stdio Transport Fields -->
+          @if (editingMcpServer()!.transport === 'stdio') {
+            <div class="form-group">
+              <label>Command</label>
+              <input
+                type="text"
+                [ngModel]="editingMcpServer()!.command"
+                (ngModelChange)="updateEditingMcpServer({command: $event})"
+                placeholder="npx or /path/to/executable"
+              />
+              <small class="help-text">The command to run (e.g., npx, node, python)</small>
+            </div>
+
+            <div class="form-group">
+              <label>Arguments</label>
+              <input
+                type="text"
+                [ngModel]="formatArgs(editingMcpServer()!.args)"
+                (ngModelChange)="updateEditingMcpServer({args: parseArgs($event)})"
+                placeholder="-y @modelcontextprotocol/server-filesystem /path/to/dir"
+              />
+              <small class="help-text">Space-separated arguments for the command</small>
+            </div>
+
+            <div class="form-group">
+              <label>Environment Variables (optional)</label>
+              <textarea
+                [ngModel]="formatEnvVars(editingMcpServer()!.env)"
+                (ngModelChange)="updateEditingMcpServer({env: parseEnvVars($event)})"
+                placeholder="KEY=value&#10;ANOTHER_KEY=another_value"
+                rows="3"
+              ></textarea>
+              <small class="help-text">One per line in KEY=value format</small>
+            </div>
+          }
+
+          <div class="test-connection">
+            <button
+              class="btn-test"
+              (click)="testMcpConnection()"
+              [disabled]="testingConnection() || (editingMcpServer()!.transport === 'stdio' ? !editingMcpServer()!.command : !editingMcpServer()!.url)"
+            >
+              {{ testingConnection() ? 'Testing...' : 'Test Connection' }}
+            </button>
+
+            @if (connectionTestResult()) {
+              <div class="test-result" [class.success]="connectionTestResult()!.success" [class.error]="!connectionTestResult()!.success">
+                @if (connectionTestResult()!.success) {
+                  <span>Connected! {{ connectionTestResult()!.toolCount }} tool(s) available</span>
+                } @else {
+                  <span>{{ connectionTestResult()!.error }}</span>
+                }
+              </div>
+            }
+          </div>
+
+          <div class="mcp-edit-actions">
+            <button class="btn-cancel" (click)="cancelMcpEdit()">Cancel</button>
+            <button
+              class="btn-save"
+              (click)="saveMcpServer()"
+              [disabled]="!editingMcpServer()!.name || (editingMcpServer()!.transport === 'stdio' ? !editingMcpServer()!.command : !editingMcpServer()!.url)"
+            >
+              Save Server
+            </button>
+          </div>
+        </div>
       </div>
     }
 

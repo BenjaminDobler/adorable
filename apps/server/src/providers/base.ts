@@ -6,6 +6,8 @@ import { SkillRegistry } from './skills/skill-registry';
 import { MemoryFileSystem } from './filesystem/memory-filesystem';
 import { DebugLogger } from './debug-logger';
 import { screenshotManager } from './screenshot-manager';
+import { MCPManager } from '../mcp/mcp-manager';
+import { MCPToolResult } from '../mcp/types';
 
 export const SYSTEM_PROMPT =
 "You are an expert Angular developer.\n"
@@ -76,18 +78,20 @@ export interface AgentLoopContext {
   hasWrittenFiles: boolean;
   buildNudgeSent: boolean;
   fullExplanation: string;
+  mcpManager?: MCPManager;
 }
 
 export abstract class BaseLLMProvider {
 
-  protected prepareAgentContext(options: GenerateOptions, providerName: string): {
+  protected async prepareAgentContext(options: GenerateOptions, providerName: string): Promise<{
     fs: FileSystemInterface;
     skillRegistry: SkillRegistry;
     availableTools: any[];
     userMessage: string;
     logger: DebugLogger;
     maxTurns: number;
-  } {
+    mcpManager?: MCPManager;
+  }> {
     const logger = new DebugLogger(providerName);
     const fs: FileSystemInterface = options.fileSystem || new MemoryFileSystem(this.flattenFiles(options.previousFiles || {}));
 
@@ -129,9 +133,34 @@ export abstract class BaseLLMProvider {
       });
     }
 
+    // Initialize MCP Manager if configs provided
+    let mcpManager: MCPManager | undefined;
+    if (options.mcpConfigs && options.mcpConfigs.length > 0) {
+      mcpManager = new MCPManager();
+      try {
+        await mcpManager.initialize(options.mcpConfigs);
+        const mcpTools = await mcpManager.getAllTools();
+
+        // Add MCP tools to available tools with [MCP] prefix in description
+        for (const tool of mcpTools) {
+          availableTools.push({
+            name: tool.name,
+            description: `[MCP] ${tool.description}`,
+            input_schema: tool.inputSchema
+          });
+        }
+
+        if (mcpTools.length > 0) {
+          logger.log('MCP_INITIALIZED', { toolCount: mcpTools.length, serverCount: mcpManager.serverCount });
+        }
+      } catch (error) {
+        logger.log('MCP_INIT_ERROR', { error: error instanceof Error ? error.message : 'Unknown error' });
+      }
+    }
+
     const maxTurns = fs.exec ? 200 : 25;
 
-    return { fs, skillRegistry, availableTools, userMessage, logger, maxTurns };
+    return { fs, skillRegistry, availableTools, userMessage, logger, maxTurns, mcpManager };
   }
 
   protected async addSkillTools(availableTools: any[], skillRegistry: SkillRegistry, fs: FileSystemInterface, userId?: string) {
@@ -157,11 +186,58 @@ export abstract class BaseLLMProvider {
     return skills;
   }
 
+  /**
+   * Execute an MCP tool and format the result
+   */
+  protected async executeMCPTool(
+    toolName: string,
+    toolArgs: any,
+    ctx: AgentLoopContext
+  ): Promise<{ content: string; isError: boolean }> {
+    if (!ctx.mcpManager) {
+      return { content: 'MCP Manager not initialized', isError: true };
+    }
+
+    try {
+      const result: MCPToolResult = await ctx.mcpManager.callTool(toolName, toolArgs);
+
+      // Format MCP response for AI consumption
+      const formattedContent = result.content
+        .map(item => {
+          if (item.type === 'text' && item.text) {
+            return item.text;
+          } else if (item.type === 'image' && item.data) {
+            return `[Image: ${item.mimeType || 'image/png'}]`;
+          } else if (item.type === 'resource') {
+            return `[Resource: ${item.mimeType || 'unknown'}]`;
+          }
+          return '';
+        })
+        .filter(Boolean)
+        .join('\n');
+
+      return {
+        content: formattedContent || 'Tool executed successfully',
+        isError: result.isError || false
+      };
+    } catch (error) {
+      return {
+        content: `MCP tool error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        isError: true
+      };
+    }
+  }
+
   protected async executeTool(
     toolName: string,
     toolArgs: any,
     ctx: AgentLoopContext
   ): Promise<{ content: string; isError: boolean }> {
+    // Check if this is an MCP tool
+    if (ctx.mcpManager && ctx.mcpManager.isMCPTool(toolName)) {
+      return this.executeMCPTool(toolName, toolArgs, ctx);
+    }
+
     const { fs, callbacks, skillRegistry } = ctx;
     let content = '';
     let isError = false;

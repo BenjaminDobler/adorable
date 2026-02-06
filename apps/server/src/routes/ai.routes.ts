@@ -6,11 +6,38 @@ import { authenticate } from '../middleware/auth';
 import { containerRegistry } from '../providers/container/container-registry';
 import { ContainerFileSystem } from '../providers/filesystem/container-filesystem';
 import { screenshotManager } from '../providers/screenshot-manager';
+import { MCPServerConfig } from '../mcp/types';
 
 const router = express.Router();
 const aiSmartRouter = new SmartRouter();
 
 router.use(authenticate);
+
+/**
+ * Load and decrypt MCP server configs from user settings
+ */
+function loadMCPConfigs(userSettings: any): MCPServerConfig[] {
+  if (!userSettings?.mcpServers || !Array.isArray(userSettings.mcpServers)) {
+    return [];
+  }
+
+  return userSettings.mcpServers
+    .filter((server: MCPServerConfig) => server.enabled)
+    .map((server: MCPServerConfig) => {
+      // Decrypt API key if present and encrypted
+      if (server.apiKey && !server.apiKey.includes('...')) {
+        try {
+          // Check if it looks encrypted (contains colon separator for iv:encrypted format)
+          if (server.apiKey.includes(':')) {
+            return { ...server, apiKey: decrypt(server.apiKey) };
+          }
+        } catch (e) {
+          console.error(`Failed to decrypt MCP API key for server "${server.name}":`, e);
+        }
+      }
+      return server;
+    });
+}
 
 router.get('/models/:provider', async (req: any, res) => {
   const { provider } = req.params;
@@ -115,6 +142,9 @@ router.post('/generate', async (req: any, res) => {
       if (!finalModel || finalModel === 'auto') finalModel = userSettings.model;
       if (!finalModel || finalModel === 'auto') finalModel = 'claude-3-5-sonnet-20240620';
 
+      // Load MCP configs
+      const mcpConfigs = loadMCPConfigs(userSettings);
+
       const result = await llm.generate({
           prompt,
           previousFiles,
@@ -122,9 +152,10 @@ router.post('/generate', async (req: any, res) => {
           model: finalModel,
           images,
           openFiles,
-          userId: user.id
+          userId: user.id,
+          mcpConfigs
       });
-      
+
       res.json(result);
     } catch (error) {
       console.error('Error calling LLM:', error);
@@ -200,10 +231,17 @@ router.post('/generate-stream', async (req: any, res) => {
 
     try {
       const llm = ProviderFactory.getProvider(provider);
-      
+
       let finalModel = model;
       if (!finalModel || finalModel === 'auto') finalModel = userSettings.model;
       if (!finalModel || finalModel === 'auto') finalModel = 'claude-3-5-sonnet-20240620';
+
+      // Load MCP configs
+      const mcpConfigs = loadMCPConfigs(userSettings);
+      console.log(`[AI] Loaded ${mcpConfigs.length} MCP server config(s)`);
+      if (mcpConfigs.length > 0) {
+        console.log(`[AI] MCP servers:`, mcpConfigs.map(c => ({ name: c.name, url: c.url, enabled: c.enabled })));
+      }
 
       const result = await llm.streamGenerate({
           prompt,
@@ -214,7 +252,8 @@ router.post('/generate-stream', async (req: any, res) => {
           openFiles,
           fileSystem,
           userId: user.id,
-          forcedSkill
+          forcedSkill,
+          mcpConfigs
       }, {
           onText: (text) => {
               res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);

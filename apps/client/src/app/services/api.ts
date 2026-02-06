@@ -99,6 +99,31 @@ export class ApiService {
   publish(projectId: string, files: any) {
     return this.http.post<any>(`${this.apiUrl}/projects/publish/${projectId}`, { files });
   }
+
+  // MCP Server methods
+  testMcpConnection(config: {
+    transport?: 'http' | 'stdio';
+    url?: string;
+    authType?: string;
+    apiKey?: string;
+    name?: string;
+    command?: string;
+    args?: string[];
+    env?: Record<string, string>;
+  }): Observable<{ success: boolean; error?: string; toolCount?: number }> {
+    return this.http.post<{ success: boolean; error?: string; toolCount?: number }>(`${this.apiUrl}/mcp/test`, config);
+  }
+
+  getMcpTools(config: { url: string; authType: string; apiKey?: string; name?: string }): Observable<{ tools: { name: string; originalName: string; description: string }[] }> {
+    return this.http.post<{ tools: { name: string; originalName: string; description: string }[] }>(`${this.apiUrl}/mcp/tools`, config);
+  }
+
+  getAvailableMcpTools(): Observable<{
+    servers: { id: string; name: string; url: string; enabled: boolean }[];
+    tools: { name: string; originalName: string; description: string; serverId: string }[]
+  }> {
+    return this.http.get<any>(`${this.apiUrl}/mcp/available-tools`);
+  }
 }
 
   

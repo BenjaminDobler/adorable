@@ -1,135 +1,294 @@
 <div class="modal-overlay" (click)="close.emit()">
   <div class="modal-content" (click)="$event.stopPropagation()">
-    <h2>⚙️ Settings</h2>
-    
-    <div class="providers-grid">
-      @for (profile of settings().profiles; track profile.id) {
-        <div class="provider-card" [class.active]="settings().activeProfileId === profile.id">
-          <div class="card-header" (click)="setActive(profile.id)">
-            <div class="header-left">
-              <div class="radio-circle">
+    <h2>Settings</h2>
+
+    <!-- Tab Navigation -->
+    <div class="tabs">
+      <button
+        class="tab"
+        [class.active]="activeTab() === 'providers'"
+        (click)="setActiveTab('providers')"
+      >
+        AI Providers
+      </button>
+      <button
+        class="tab"
+        [class.active]="activeTab() === 'mcp'"
+        (click)="setActiveTab('mcp')"
+      >
+        MCP Servers
+      </button>
+    </div>
+
+    <!-- Providers Tab -->
+    @if (activeTab() === 'providers') {
+      <div class="tab-content">
+        <div class="providers-grid">
+          @for (profile of settings().profiles; track profile.id) {
+            <div class="provider-card" [class.active]="settings().activeProfileId === profile.id">
+              <div class="card-header" (click)="setActive(profile.id)">
+                <div class="header-left">
+                  <div class="radio-circle">
+                    @if (settings().activeProfileId === profile.id) {
+                      <div class="radio-inner"></div>
+                    }
+                  </div>
+                  <span class="provider-name">{{ profile.name }}</span>
+                </div>
                 @if (settings().activeProfileId === profile.id) {
-                  <div class="radio-inner"></div>
+                  <span class="badge">Active</span>
                 }
               </div>
-              <span class="provider-name">{{ profile.name }}</span>
+
+              <div class="card-body">
+                <div class="form-group">
+                  <label>API Key</label>
+                  <input
+                    type="password"
+                    [name]="'apiKey-' + profile.id"
+                    [ngModel]="profile.apiKey"
+                    (ngModelChange)="updateProfile(profile.id, {apiKey: $event})"
+                    placeholder="sk-..."
+                    autocomplete="new-password"
+                  />
+                </div>
+
+                <div class="form-group">
+                  <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <label>Model</label>
+                    <button class="btn-link" style="font-size: 11px; background: none; border: none; color: var(--accent-color); cursor: pointer; padding: 0;" (click)="fetchModels(profile)">Refresh</button>
+                  </div>
+                  <select
+                    [name]="'model-' + profile.id"
+                    [ngModel]="profile.model"
+                    (ngModelChange)="updateProfile(profile.id, {model: $event})"
+                  >
+                    @if (fetchedModels()[profile.id]) {
+                      @for (model of fetchedModels()[profile.id]; track model) {
+                        <option [value]="model">{{ model }}</option>
+                      }
+                    } @else {
+                      @if (profile.provider === 'anthropic') {
+                        @for (model of anthropicModels; track model) {
+                          <option [value]="model">{{ model }}</option>
+                        }
+                      } @else {
+                        @for (model of geminiModels; track model) {
+                          <option [value]="model">{{ model }}</option>
+                        }
+                      }
+                    }
+                  </select>
+                </div>
+              </div>
             </div>
-            @if (settings().activeProfileId === profile.id) {
-              <span class="badge">Active</span>
-            }
+          }
+        </div>
+
+        <!-- Smart Routing Section -->
+        <div class="smart-routing-section">
+          <div class="section-header">
+            <h3>Smart Routing</h3>
+            <label class="switch">
+              <input
+                type="checkbox"
+                [ngModel]="settings().smartRouting?.enabled"
+                (ngModelChange)="updateSmartRouting({enabled: $event})"
+              >
+              <span class="slider round"></span>
+            </label>
           </div>
 
-          <div class="card-body">
+          <p class="section-desc">Automatically selects the best model based on task complexity. Maps tiers to your configured models.</p>
+
+          <div class="routing-grid" [class.disabled]="!settings().smartRouting?.enabled">
+            @for (tier of ['router', 'simple', 'complex', 'vision']; track tier) {
+              <div class="routing-row">
+                <div class="tier-info">
+                  <span class="tier-name">{{ tier | titlecase }}</span>
+                  <span class="tier-desc">
+                    @if (tier === 'router') { Fast model used to classify the task. }
+                    @else if (tier === 'simple') { For typos, small edits, and explanations. }
+                    @else if (tier === 'complex') { For logic, refactoring, and new features. }
+                    @else if (tier === 'vision') { For tasks with image attachments. }
+                  </span>
+                </div>
+
+                <div class="tier-selection">
+                  <select
+                    [ngModel]="getTierConfig(tier)?.provider"
+                    (ngModelChange)="updateSmartRoutingTier($any(tier), {provider: $event})"
+                  >
+                    <option value="anthropic">Anthropic</option>
+                    <option value="gemini">Google</option>
+                  </select>
+
+                  <select
+                    [ngModel]="getTierConfig(tier)?.model"
+                    (ngModelChange)="updateSmartRoutingTier($any(tier), {model: $event})"
+                  >
+                    @let provider = getTierConfig(tier)?.provider;
+                    @let models = provider ? fetchedModels()[provider] : [];
+
+                    @if (models && models.length > 0) {
+                       @for (model of models; track model) {
+                         <option [value]="model">{{ model }}</option>
+                       }
+                    } @else {
+                      @if (provider === 'anthropic') {
+                        @for (model of anthropicModels; track model) {
+                          <option [value]="model">{{ model }}</option>
+                        }
+                      } @else {
+                        @for (model of geminiModels; track model) {
+                          <option [value]="model">{{ model }}</option>
+                        }
+                      }
+                    }
+                  </select>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- MCP Servers Tab -->
+    @if (activeTab() === 'mcp') {
+      <div class="tab-content">
+        <div class="mcp-section">
+          <div class="section-header">
+            <div>
+              <h3>MCP Servers</h3>
+              <p class="section-desc">Connect to MCP (Model Context Protocol) servers to extend AI capabilities with custom tools.</p>
+            </div>
+            <button class="btn-add" (click)="addMcpServer()">+ Add Server</button>
+          </div>
+
+          @if (mcpServers().length === 0) {
+            <div class="mcp-empty">
+              <div class="mcp-empty-icon">🔌</div>
+              <h4>No MCP Servers Configured</h4>
+              <p>MCP servers extend Adorable with custom tools like GitHub integration, database access, and more.</p>
+              <button class="btn-add-large" (click)="addMcpServer()">+ Add Your First Server</button>
+            </div>
+          } @else {
+            <div class="mcp-server-list">
+              @for (server of mcpServers(); track server.id) {
+                <div class="mcp-server-card" [class.disabled]="!server.enabled" [class.has-error]="server.lastError">
+                  <div class="server-toggle">
+                    <label class="switch">
+                      <input
+                        type="checkbox"
+                        [checked]="server.enabled"
+                        (change)="toggleMcpServer(server.id)"
+                      >
+                      <span class="slider round"></span>
+                    </label>
+                  </div>
+                  <div class="server-info">
+                    <span class="server-name">{{ server.name }}</span>
+                    <span class="server-url">{{ server.url }}</span>
+                    @if (server.lastError) {
+                      <span class="server-error">{{ server.lastError }}</span>
+                    }
+                  </div>
+                  <div class="server-actions">
+                    <button class="btn-icon" (click)="editMcpServer(server)" title="Edit">Edit</button>
+                    <button class="btn-icon btn-delete" (click)="deleteMcpServer(server.id)" title="Delete">Delete</button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- MCP Edit Modal -->
+    @if (editingMcpServer()) {
+      <div class="mcp-edit-modal" (click)="cancelMcpEdit()">
+        <div class="mcp-edit-content" (click)="$event.stopPropagation()">
+          <h3>{{ editingMcpServer()!.url ? 'Edit' : 'Add' }} MCP Server</h3>
+
+          <div class="form-group">
+            <label>Server Name</label>
+            <input
+              type="text"
+              [ngModel]="editingMcpServer()!.name"
+              (ngModelChange)="updateEditingMcpServer({name: $event})"
+              placeholder="My MCP Server"
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Server URL</label>
+            <input
+              type="url"
+              [ngModel]="editingMcpServer()!.url"
+              (ngModelChange)="updateEditingMcpServer({url: $event})"
+              placeholder="https://api.githubcopilot.com/mcp/"
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Authentication</label>
+            <select
+              [ngModel]="editingMcpServer()!.authType"
+              (ngModelChange)="updateEditingMcpServer({authType: $event})"
+            >
+              <option value="none">None</option>
+              <option value="bearer">Bearer Token</option>
+            </select>
+          </div>
+
+          @if (editingMcpServer()!.authType === 'bearer') {
             <div class="form-group">
-              <label>API Key</label>
-              <input 
-                type="password" 
-                [name]="'apiKey-' + profile.id"
-                [ngModel]="profile.apiKey"
-                (ngModelChange)="updateProfile(profile.id, {apiKey: $event})" 
-                placeholder="sk-..."
+              <label>API Key / Token</label>
+              <input
+                type="password"
+                [ngModel]="editingMcpServer()!.apiKey"
+                (ngModelChange)="updateEditingMcpServer({apiKey: $event})"
+                placeholder="Your API key or personal access token"
                 autocomplete="new-password"
               />
             </div>
+          }
 
-            <div class="form-group">
-              <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                <label>Model</label>
-                <button class="btn-link" style="font-size: 11px; background: none; border: none; color: var(--accent-color); cursor: pointer; padding: 0;" (click)="fetchModels(profile)">↻ Refresh</button>
-              </div>
-              <select 
-                [name]="'model-' + profile.id"
-                [ngModel]="profile.model"
-                (ngModelChange)="updateProfile(profile.id, {model: $event})"
-              >
-                @if (fetchedModels()[profile.id]) {
-                  @for (model of fetchedModels()[profile.id]; track model) {
-                    <option [value]="model">{{ model }}</option>
-                  }
+          <div class="test-connection">
+            <button
+              class="btn-test"
+              (click)="testMcpConnection()"
+              [disabled]="testingConnection() || !editingMcpServer()!.url"
+            >
+              {{ testingConnection() ? 'Testing...' : 'Test Connection' }}
+            </button>
+
+            @if (connectionTestResult()) {
+              <div class="test-result" [class.success]="connectionTestResult()!.success" [class.error]="!connectionTestResult()!.success">
+                @if (connectionTestResult()!.success) {
+                  <span>Connected! {{ connectionTestResult()!.toolCount }} tool(s) available</span>
                 } @else {
-                  @if (profile.provider === 'anthropic') {
-                    @for (model of anthropicModels; track model) {
-                      <option [value]="model">{{ model }}</option>
-                    }
-                  } @else {
-                    @for (model of geminiModels; track model) {
-                      <option [value]="model">{{ model }}</option>
-                    }
-                  }
+                  <span>{{ connectionTestResult()!.error }}</span>
                 }
-              </select>
-            </div>
+              </div>
+            }
+          </div>
+
+          <div class="mcp-edit-actions">
+            <button class="btn-cancel" (click)="cancelMcpEdit()">Cancel</button>
+            <button
+              class="btn-save"
+              (click)="saveMcpServer()"
+              [disabled]="!editingMcpServer()!.name || !editingMcpServer()!.url"
+            >
+              Save Server
+            </button>
           </div>
         </div>
-      }
-    </div>
-
-    <!-- Smart Routing Section -->
-    <div class="smart-routing-section">
-      <div class="section-header">
-        <h3>✨ Smart Routing</h3>
-        <label class="switch">
-          <input 
-            type="checkbox" 
-            [ngModel]="settings().smartRouting?.enabled" 
-            (ngModelChange)="updateSmartRouting({enabled: $event})"
-          >
-          <span class="slider round"></span>
-        </label>
       </div>
-      
-      <p class="section-desc">Automatically selects the best model based on task complexity. Maps tiers to your configured models.</p>
-
-      <div class="routing-grid" [class.disabled]="!settings().smartRouting?.enabled">
-        @for (tier of ['router', 'simple', 'complex', 'vision']; track tier) {
-          <div class="routing-row">
-            <div class="tier-info">
-              <span class="tier-name">{{ tier | titlecase }}</span>
-              <span class="tier-desc">
-                @if (tier === 'router') { Fast model used to classify the task. }
-                @else if (tier === 'simple') { For typos, small edits, and explanations. }
-                @else if (tier === 'complex') { For logic, refactoring, and new features. }
-                @else if (tier === 'vision') { For tasks with image attachments. }
-              </span>
-            </div>
-            
-            <div class="tier-selection">
-              <select 
-                [ngModel]="getTierConfig(tier)?.provider"
-                (ngModelChange)="updateSmartRoutingTier($any(tier), {provider: $event})"
-              >
-                <option value="anthropic">Anthropic</option>
-                <option value="gemini">Google</option>
-              </select>
-
-              <select 
-                [ngModel]="getTierConfig(tier)?.model"
-                (ngModelChange)="updateSmartRoutingTier($any(tier), {model: $event})"
-              >
-                @let provider = getTierConfig(tier)?.provider;
-                @let models = provider ? fetchedModels()[provider] : [];
-                
-                @if (models && models.length > 0) {
-                   @for (model of models; track model) {
-                     <option [value]="model">{{ model }}</option>
-                   }
-                } @else {
-                  @if (provider === 'anthropic') {
-                    @for (model of anthropicModels; track model) {
-                      <option [value]="model">{{ model }}</option>
-                    }
-                  } @else {
-                    @for (model of geminiModels; track model) {
-                      <option [value]="model">{{ model }}</option>
-                    }
-                  }
-                }
-              </select>
-            </div>
-          </div>
-        }
-      </div>
-    </div>
+    }
 
     <div class="actions">
       <button class="btn-cancel" (click)="close.emit()" [disabled]="loading()">Cancel</button>

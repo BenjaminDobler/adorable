@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../services/api';
 
 export type ProviderType = 'anthropic' | 'gemini';
+export type MCPAuthType = 'none' | 'bearer';
 
 export interface AIProfile {
   id: string; // 'anthropic' | 'gemini'
@@ -26,10 +27,21 @@ export interface SmartRoutingConfig {
   vision: SmartRoutingTier;
 }
 
+export interface MCPServerConfig {
+  id: string;
+  name: string;
+  url: string;
+  authType: MCPAuthType;
+  apiKey?: string;
+  enabled: boolean;
+  lastError?: string;
+}
+
 export interface AppSettings {
   profiles: AIProfile[];
   activeProfileId: string;
   smartRouting?: SmartRoutingConfig;
+  mcpServers?: MCPServerConfig[];
 }
 
 @Component({
@@ -78,6 +90,15 @@ export class SettingsComponent {
   loading = signal(false);
   fetchedModels = signal<Record<string, string[]>>({});
 
+  // Tab navigation
+  activeTab = signal<'providers' | 'mcp'>('providers');
+
+  // MCP Server management
+  mcpServers = signal<MCPServerConfig[]>([]);
+  editingMcpServer = signal<MCPServerConfig | null>(null);
+  testingConnection = signal(false);
+  connectionTestResult = signal<{success: boolean; error?: string; toolCount?: number} | null>(null);
+
   // Fallback defaults if fetch fails
   anthropicModels = [
     'claude-3-5-sonnet-20240620',
@@ -124,13 +145,18 @@ export class SettingsComponent {
           return loaded ? { ...def, ...loaded, id: def.id } : def; // Force ID consistency
         });
 
+        // Load MCP servers
+        const mcpServers = parsed.mcpServers || [];
+        this.mcpServers.set(mcpServers);
+
         this.settings.set({
           profiles: mergedProfiles,
           activeProfileId: parsed.activeProfileId || 'anthropic',
           smartRouting: {
             ...this.settings().smartRouting!,
             ...(parsed.smartRouting || {})
-          }
+          },
+          mcpServers
         });
 
         // Fetch models
@@ -194,6 +220,115 @@ export class SettingsComponent {
 
   getTierConfig(tier: string): SmartRoutingTier | undefined {
     return (this.settings().smartRouting as any)?.[tier];
+  }
+
+  // Tab navigation
+  setActiveTab(tab: 'providers' | 'mcp') {
+    this.activeTab.set(tab);
+  }
+
+  // MCP Server Management Methods
+  addMcpServer() {
+    const newServer: MCPServerConfig = {
+      id: crypto.randomUUID(),
+      name: 'New Server',
+      url: '',
+      authType: 'none',
+      enabled: true
+    };
+    this.editingMcpServer.set(newServer);
+    this.connectionTestResult.set(null);
+  }
+
+  editMcpServer(server: MCPServerConfig) {
+    this.editingMcpServer.set({ ...server });
+    this.connectionTestResult.set(null);
+  }
+
+  cancelMcpEdit() {
+    this.editingMcpServer.set(null);
+    this.connectionTestResult.set(null);
+  }
+
+  testMcpConnection() {
+    const server = this.editingMcpServer();
+    if (!server) return;
+
+    this.testingConnection.set(true);
+    this.connectionTestResult.set(null);
+
+    this.apiService.testMcpConnection({
+      url: server.url,
+      authType: server.authType,
+      apiKey: server.apiKey,
+      name: server.name
+    }).subscribe({
+      next: (result) => {
+        this.connectionTestResult.set(result);
+        this.testingConnection.set(false);
+      },
+      error: (err) => {
+        this.connectionTestResult.set({
+          success: false,
+          error: err.error?.error || err.message || 'Connection failed'
+        });
+        this.testingConnection.set(false);
+      }
+    });
+  }
+
+  saveMcpServer() {
+    const server = this.editingMcpServer();
+    if (!server) return;
+
+    const currentServers = this.mcpServers();
+    const existingIndex = currentServers.findIndex(s => s.id === server.id);
+
+    if (existingIndex >= 0) {
+      // Update existing
+      const updated = [...currentServers];
+      updated[existingIndex] = server;
+      this.mcpServers.set(updated);
+    } else {
+      // Add new
+      this.mcpServers.set([...currentServers, server]);
+    }
+
+    // Update settings
+    this.settings.update(s => ({
+      ...s,
+      mcpServers: this.mcpServers()
+    }));
+
+    this.editingMcpServer.set(null);
+    this.connectionTestResult.set(null);
+  }
+
+  deleteMcpServer(id: string) {
+    const updated = this.mcpServers().filter(s => s.id !== id);
+    this.mcpServers.set(updated);
+    this.settings.update(s => ({
+      ...s,
+      mcpServers: updated
+    }));
+  }
+
+  toggleMcpServer(id: string) {
+    const updated = this.mcpServers().map(s =>
+      s.id === id ? { ...s, enabled: !s.enabled } : s
+    );
+    this.mcpServers.set(updated);
+    this.settings.update(s => ({
+      ...s,
+      mcpServers: updated
+    }));
+  }
+
+  updateEditingMcpServer(updates: Partial<MCPServerConfig>) {
+    const current = this.editingMcpServer();
+    if (current) {
+      this.editingMcpServer.set({ ...current, ...updates });
+    }
   }
 
   saveSettings() {

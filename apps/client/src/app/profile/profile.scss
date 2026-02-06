@@ -223,7 +223,7 @@
   font-family: monospace;
 }
 
-input, select {
+input, select, textarea {
   width: 100%;
   background: var(--bg-surface-2);
   border: 1px solid var(--panel-border);
@@ -242,6 +242,12 @@ input, select {
   &::placeholder {
     color: var(--text-muted);
   }
+}
+
+textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: monospace;
 }
 
 select {
@@ -641,4 +647,288 @@ input:checked + .slider {
 
 input:checked + .slider:before {
   transform: translateX(20px);
+}
+
+/* MCP Servers Section */
+.btn-add {
+  padding: 0.5rem 1rem;
+  background: var(--accent-glow);
+  color: var(--accent-color);
+  border: 1px solid var(--accent-color);
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+
+  &:hover {
+    background: var(--accent-color);
+    color: #000;
+  }
+}
+
+.mcp-empty {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  background: var(--bg-surface-2);
+  border: 1px dashed var(--panel-border);
+  border-radius: var(--radius-md);
+
+  .mcp-empty-icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+  }
+
+  h4 {
+    margin: 0 0 0.5rem;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+  }
+
+  p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin: 0 0 1.5rem;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+.btn-add-large {
+  padding: 0.75rem 1.5rem;
+  background: var(--accent-color);
+  color: #000;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: var(--accent-hover);
+    transform: translateY(-2px);
+  }
+}
+
+.mcp-server-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.mcp-server-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: var(--text-muted);
+  }
+
+  &.disabled {
+    opacity: 0.5;
+
+    .server-name {
+      text-decoration: line-through;
+    }
+  }
+
+  &.has-error {
+    border-color: var(--error-color);
+    background: rgba(239, 68, 68, 0.05);
+  }
+
+  .server-toggle {
+    flex-shrink: 0;
+  }
+
+  .server-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+
+    .server-name {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .server-url {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+
+      .transport-badge {
+        display: inline-block;
+        padding: 0.1rem 0.4rem;
+        background: var(--accent-glow);
+        color: var(--accent-color);
+        font-size: 0.7rem;
+        font-weight: 600;
+        border-radius: var(--radius-sm);
+        margin-right: 0.4rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+    }
+
+    .server-error {
+      font-size: 0.75rem;
+      color: var(--error-color);
+    }
+  }
+
+  .server-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+}
+
+.btn-icon {
+  background: var(--bg-surface-3);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: var(--bg-surface-1);
+    color: var(--text-primary);
+    border-color: var(--text-muted);
+  }
+
+  &.btn-delete:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--error-color);
+    border-color: var(--error-color);
+  }
+}
+
+/* MCP Edit Modal */
+.mcp-edit-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.mcp-edit-content {
+  background: var(--bg-surface-1);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  width: 450px;
+  max-width: 95vw;
+  color: var(--text-primary);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+
+  h3 {
+    margin: 0 0 1.5rem;
+    font-size: 1.25rem;
+    color: var(--text-primary);
+  }
+}
+
+.test-connection {
+  margin: 1.5rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.btn-test {
+  background: var(--bg-surface-3);
+  color: var(--text-primary);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover:not(:disabled) {
+    background: var(--bg-surface-2);
+    border-color: var(--text-muted);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.test-result {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+
+  &.success {
+    background: rgba(62, 207, 142, 0.1);
+    color: var(--accent-color);
+    border: 1px solid rgba(62, 207, 142, 0.3);
+  }
+
+  &.error {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--error-color);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+}
+
+.mcp-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--panel-border);
+
+  .btn-cancel {
+    padding: 0.625rem 1.25rem;
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      background: var(--bg-surface-2);
+      color: var(--text-primary);
+    }
+  }
+
+  .btn-save {
+    padding: 0.625rem 1.25rem;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
 }

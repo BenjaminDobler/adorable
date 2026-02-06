@@ -66,7 +66,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     });
 
     // Prepare shared context
-    const { fs, skillRegistry, availableTools, userMessage, logger, maxTurns } = this.prepareAgentContext(options, 'anthropic');
+    const { fs, skillRegistry, availableTools, userMessage, logger, maxTurns, mcpManager } = await this.prepareAgentContext(options, 'anthropic');
     const skills = await this.addSkillTools(availableTools, skillRegistry, fs, options.userId);
 
     logger.log('START', { model: modelToUse, promptLength: options.prompt.length, totalMessageLength: userMessage.length });
@@ -116,7 +116,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
 
     const ctx: AgentLoopContext = {
       fs, callbacks, skillRegistry, availableTools, logger,
-      hasRunBuild: false, hasWrittenFiles: false, buildNudgeSent: false, fullExplanation: ''
+      hasRunBuild: false, hasWrittenFiles: false, buildNudgeSent: false, fullExplanation: '',
+      mcpManager
     };
 
     let turnCount = 0;

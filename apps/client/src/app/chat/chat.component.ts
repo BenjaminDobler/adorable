@@ -115,6 +115,12 @@ export class ChatComponent implements OnDestroy {
   availableSkills = signal<Skill[]>([]);
   selectedSkill = signal<Skill | null>(null);
 
+  // MCP Tools
+  mcpToolsVisible = signal(false);
+  mcpToolsLoading = signal(false);
+  mcpServers = signal<{ id: string; name: string; url: string; enabled: boolean }[]>([]);
+  mcpTools = signal<{ name: string; originalName: string; description: string; serverId: string }[]>([]);
+
   // Figma import state
   figmaContext = signal<any>(null);
   figmaImages = signal<string[]>([]);
@@ -199,6 +205,32 @@ export class ChatComponent implements OnDestroy {
       next: (skills) => this.availableSkills.set(skills),
       error: () => console.warn('Failed to load skills for chat')
     });
+  }
+
+  loadMcpTools() {
+    this.mcpToolsLoading.set(true);
+    this.apiService.getAvailableMcpTools().subscribe({
+      next: (result) => {
+        this.mcpServers.set(result.servers);
+        this.mcpTools.set(result.tools);
+        this.mcpToolsLoading.set(false);
+      },
+      error: (err) => {
+        console.warn('Failed to load MCP tools:', err);
+        this.mcpToolsLoading.set(false);
+      }
+    });
+  }
+
+  toggleMcpTools() {
+    if (!this.mcpToolsVisible()) {
+      this.loadMcpTools();
+    }
+    this.mcpToolsVisible.set(!this.mcpToolsVisible());
+  }
+
+  getToolsForServer(serverId: string) {
+    return this.mcpTools().filter(t => t.serverId === serverId);
   }
 
   loadAvailableModels() {

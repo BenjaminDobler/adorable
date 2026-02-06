@@ -1,3 +1,5 @@
+import { MCPServerConfig } from '../mcp/types';
+
 export interface GenerateOptions {
   prompt: string;
   previousFiles?: any;
@@ -9,6 +11,7 @@ export interface GenerateOptions {
   fileSystem?: FileSystemInterface; // Optional: Override default memory FS
   userId?: string;
   forcedSkill?: string;
+  mcpConfigs?: MCPServerConfig[]; // MCP server configurations
 }
 
 export interface TokenUsage {

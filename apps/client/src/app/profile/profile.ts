@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -7,8 +7,11 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { ThemeService, ThemeMode } from '../services/theme';
 import { ToastService } from '../services/toast';
 import { GitHubService } from '../services/github.service';
+import { isDesktopApp } from '../services/smart-container.engine';
 
 export type ProviderType = 'anthropic' | 'gemini' | 'figma';
+export type MCPAuthType = 'none' | 'bearer';
+export type MCPTransport = 'http' | 'stdio';
 
 export interface AIProfile {
   id: string;
@@ -31,11 +34,29 @@ export interface SmartRoutingConfig {
   vision: SmartRoutingTier;
 }
 
+export interface MCPServerConfig {
+  id: string;
+  name: string;
+  transport: MCPTransport;
+  // HTTP transport
+  url?: string;
+  authType?: MCPAuthType;
+  apiKey?: string;
+  // stdio transport
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  // Common
+  enabled: boolean;
+  lastError?: string;
+}
+
 export interface AppSettings {
   profiles: AIProfile[];
   activeProfileId: string;
   smartRouting?: SmartRoutingConfig;
   theme?: ThemeMode;
+  mcpServers?: MCPServerConfig[];
 }
 
 @Component({
@@ -55,7 +76,16 @@ export class ProfileComponent implements OnInit {
 
   user = signal<any>(null);
   name = signal('');
-  activeTab = signal<'account' | 'providers' | 'integrations'>('account');
+  activeTab = signal<'account' | 'providers' | 'integrations' | 'mcp'>('account');
+
+  // Detect if running in desktop mode (Electron)
+  isDesktopMode = computed(() => isDesktopApp());
+
+  // MCP Server management
+  mcpServers = signal<MCPServerConfig[]>([]);
+  editingMcpServer = signal<MCPServerConfig | null>(null);
+  testingConnection = signal(false);
+  connectionTestResult = signal<{success: boolean; error?: string; toolCount?: number} | null>(null);
 
   settings = signal<AppSettings>({
     profiles: [
@@ -178,6 +208,10 @@ export class ProfileComponent implements OnInit {
           return loaded ? { ...def, ...loaded, id: def.id } : def;
         });
 
+        // Load MCP servers
+        const mcpServers = parsed.mcpServers || [];
+        this.mcpServers.set(mcpServers);
+
         const newSettings: AppSettings = {
           profiles: mergedProfiles,
           activeProfileId: parsed.activeProfileId || 'anthropic',
@@ -185,7 +219,8 @@ export class ProfileComponent implements OnInit {
             ...this.settings().smartRouting!,
             ...(parsed.smartRouting || {})
           },
-          theme: parsed.theme || 'dark'
+          theme: parsed.theme || 'dark',
+          mcpServers
         };
 
         this.settings.set(newSettings);
@@ -307,5 +342,147 @@ export class ProfileComponent implements OnInit {
 
   goBack() {
     this.router.navigate(['/dashboard']);
+  }
+
+  // MCP Server Management Methods
+  addMcpServer() {
+    const newServer: MCPServerConfig = {
+      id: crypto.randomUUID(),
+      name: 'New Server',
+      transport: 'http',
+      url: '',
+      authType: 'none',
+      enabled: true
+    };
+    this.editingMcpServer.set(newServer);
+    this.connectionTestResult.set(null);
+  }
+
+  editMcpServer(server: MCPServerConfig) {
+    this.editingMcpServer.set({ ...server });
+    this.connectionTestResult.set(null);
+  }
+
+  cancelMcpEdit() {
+    this.editingMcpServer.set(null);
+    this.connectionTestResult.set(null);
+  }
+
+  testMcpConnection() {
+    const server = this.editingMcpServer();
+    if (!server) return;
+
+    this.testingConnection.set(true);
+    this.connectionTestResult.set(null);
+
+    this.apiService.testMcpConnection({
+      transport: server.transport || 'http',
+      url: server.url,
+      authType: server.authType,
+      apiKey: server.apiKey,
+      name: server.name,
+      command: server.command,
+      args: server.args,
+      env: server.env
+    }).subscribe({
+      next: (result) => {
+        this.connectionTestResult.set(result);
+        this.testingConnection.set(false);
+      },
+      error: (err) => {
+        this.connectionTestResult.set({
+          success: false,
+          error: err.error?.error || err.message || 'Connection failed'
+        });
+        this.testingConnection.set(false);
+      }
+    });
+  }
+
+  saveMcpServer() {
+    const server = this.editingMcpServer();
+    if (!server) return;
+
+    const currentServers = this.mcpServers();
+    const existingIndex = currentServers.findIndex(s => s.id === server.id);
+
+    let updatedServers: MCPServerConfig[];
+    if (existingIndex >= 0) {
+      updatedServers = [...currentServers];
+      updatedServers[existingIndex] = server;
+    } else {
+      updatedServers = [...currentServers, server];
+    }
+
+    this.mcpServers.set(updatedServers);
+    this.settings.update(s => ({
+      ...s,
+      mcpServers: updatedServers
+    }));
+
+    this.editingMcpServer.set(null);
+    this.connectionTestResult.set(null);
+
+    // Auto-save to database
+    this.save();
+  }
+
+  deleteMcpServer(id: string) {
+    const updated = this.mcpServers().filter(s => s.id !== id);
+    this.mcpServers.set(updated);
+    this.settings.update(s => ({
+      ...s,
+      mcpServers: updated
+    }));
+    // Auto-save to database
+    this.save();
+  }
+
+  toggleMcpServer(id: string) {
+    const updated = this.mcpServers().map(s =>
+      s.id === id ? { ...s, enabled: !s.enabled } : s
+    );
+    this.mcpServers.set(updated);
+    this.settings.update(s => ({
+      ...s,
+      mcpServers: updated
+    }));
+    // Auto-save to database
+    this.save();
+  }
+
+  updateEditingMcpServer(updates: Partial<MCPServerConfig>) {
+    const current = this.editingMcpServer();
+    if (current) {
+      this.editingMcpServer.set({ ...current, ...updates });
+    }
+  }
+
+  // Helper methods for stdio transport
+  formatEnvVars(env?: Record<string, string>): string {
+    if (!env) return '';
+    return Object.entries(env).map(([k, v]) => `${k}=${v}`).join('\n');
+  }
+
+  parseEnvVars(text: string): Record<string, string> {
+    if (!text.trim()) return {};
+    const result: Record<string, string> = {};
+    for (const line of text.split('\n')) {
+      const idx = line.indexOf('=');
+      if (idx > 0) {
+        const key = line.substring(0, idx).trim();
+        const value = line.substring(idx + 1);
+        if (key) result[key] = value;
+      }
+    }
+    return result;
+  }
+
+  formatArgs(args?: string[]): string {
+    return args?.join(' ') || '';
+  }
+
+  parseArgs(text: string): string[] {
+    return text ? text.split(' ').filter(a => a.trim()) : [];
   }
 }
