@@ -273,22 +273,22 @@ body.light-mode .dashboard-container::before {
 
   &:hover {
     border-color: var(--panel-border-hover);
-    transform: translateY(-6px);
-    box-shadow: var(--shadow-xl), var(--shadow-glow);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
 
     &::before {
-      opacity: 1;
+      opacity: 0.5;
     }
 
     .project-preview img {
-      transform: scale(1.08);
+      transform: scale(1.02);
     }
 
     .project-preview::after {
-      opacity: 0.6;
+      opacity: 0.5;
     }
 
-    .btn-delete {
+    .project-actions {
       opacity: 1;
     }
   }
@@ -376,7 +376,14 @@ body.light-mode .dashboard-container::before {
     font-weight: 500;
   }
 
-  .btn-delete {
+  .project-actions {
+    display: flex;
+    gap: 0.5rem;
+    opacity: 0;
+    transition: opacity 0.25s var(--ease-out-expo);
+  }
+
+  .btn-action {
     background: var(--bg-surface-2);
     border: 1px solid var(--panel-border);
     color: var(--text-muted);
@@ -387,7 +394,6 @@ body.light-mode .dashboard-container::before {
     align-items: center;
     justify-content: center;
     transition: all 0.25s var(--ease-out-expo);
-    opacity: 0;
 
     svg {
       width: 16px;
@@ -395,10 +401,16 @@ body.light-mode .dashboard-container::before {
     }
 
     &:hover {
+      color: var(--accent-color);
+      background: rgba(52, 211, 153, 0.1);
+      border-color: rgba(52, 211, 153, 0.25);
+      transform: scale(1.1);
+    }
+
+    &.btn-delete:hover {
       color: var(--error-color);
       background: rgba(248, 113, 113, 0.1);
       border-color: rgba(248, 113, 113, 0.25);
-      transform: scale(1.1);
     }
   }
 }
@@ -483,6 +495,17 @@ body.light-mode .dashboard-container::before {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes dialogScaleIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 /* Divider */
@@ -688,7 +711,7 @@ body.light-mode .dashboard-container::before {
   min-width: 360px;
   max-width: 440px;
   box-shadow: var(--shadow-xl);
-  animation: scaleIn 0.25s var(--ease-out-expo);
+  animation: dialogScaleIn 0.25s var(--ease-out-expo);
 
   p {
     color: var(--text-primary);
@@ -738,6 +761,168 @@ body.light-mode .dashboard-container::before {
       background: var(--accent-hover);
       transform: translateY(-1px);
       box-shadow: 0 0 25px var(--accent-glow-intense);
+    }
+  }
+}
+
+/* Clone Dialog */
+.clone-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10001;
+  background: var(--bg-surface-1);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-xl);
+  padding: 1.75rem 2rem;
+  min-width: 400px;
+  max-width: 480px;
+  box-shadow: var(--shadow-xl);
+  animation: dialogScaleIn 0.25s var(--ease-out-expo);
+
+  h3 {
+    margin: 0 0 1.5rem;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .clone-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+
+    > label {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: var(--bg-surface-2);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: 0.9375rem;
+      transition: all 0.2s;
+
+      &:focus {
+        outline: none;
+        border-color: var(--accent-color);
+        box-shadow: 0 0 0 3px var(--accent-glow);
+      }
+
+      &::placeholder {
+        color: var(--text-muted);
+      }
+    }
+  }
+
+  .checkbox-group {
+    background: var(--bg-surface-2);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    cursor: pointer;
+
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin-top: 2px;
+      accent-color: var(--accent-color);
+      cursor: pointer;
+    }
+
+    .checkbox-text {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .checkbox-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .checkbox-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+  }
+
+  .clone-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--panel-border);
+  }
+
+  .btn-cancel {
+    padding: 0.625rem 1.125rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--panel-border);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s var(--ease-out-expo);
+
+    &:hover {
+      background: var(--bg-surface-2);
+      color: var(--text-primary);
+      border-color: var(--panel-border-hover);
+    }
+  }
+
+  .btn-clone {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    border-radius: var(--radius-md);
+    border: none;
+    background: var(--accent-color);
+    color: #000;
+    font-size: 0.875rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s var(--ease-out-expo);
+    box-shadow: 0 0 15px var(--accent-glow);
+
+    svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    &:hover:not(:disabled) {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 0 25px var(--accent-glow-intense);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      box-shadow: none;
     }
   }
 }

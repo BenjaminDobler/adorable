@@ -127,6 +127,62 @@ router.delete('/:id', async (req: any, res) => {
     }
 });
 
+router.post('/:id/clone', async (req: any, res) => {
+  const user = req.user;
+  const { id } = req.params;
+  const { name: customName, includeMessages } = req.body;
+
+  try {
+    // Fetch the source project with messages if needed
+    const sourceProject = await prisma.project.findFirst({
+      where: { id, userId: user.id },
+      include: includeMessages ? {
+        messages: {
+          orderBy: { timestamp: 'asc' }
+        }
+      } : undefined
+    });
+
+    if (!sourceProject) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Generate clone name
+    const cloneName = customName || `${sourceProject.name} (Copy)`;
+
+    // Prepare message data if including messages
+    const messageCreateData = includeMessages && sourceProject.messages
+      ? sourceProject.messages.map((m: any) => ({
+          role: m.role,
+          text: m.text,
+          files: m.files,
+          usage: m.usage,
+          timestamp: m.timestamp
+        }))
+      : [];
+
+    // Create the cloned project
+    const clonedProject = await prisma.project.create({
+      data: {
+        name: cloneName,
+        files: sourceProject.files,
+        thumbnail: sourceProject.thumbnail,
+        figmaImports: sourceProject.figmaImports,
+        userId: user.id,
+        messages: messageCreateData.length > 0 ? {
+          create: messageCreateData
+        } : undefined
+      }
+    });
+
+    console.log(`[Clone Project] Cloned '${sourceProject.name}' to '${cloneName}' (ID: ${clonedProject.id})${includeMessages ? ' with messages' : ''}`);
+    res.json(clonedProject);
+  } catch (error) {
+    console.error('[Clone Project] Error:', error);
+    res.status(500).json({ error: 'Failed to clone project' });
+  }
+});
+
 router.post('/publish/:id', async (req: any, res) => {
   const { id } = req.params;
   const { files } = req.body;

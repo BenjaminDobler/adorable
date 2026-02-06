@@ -1,5 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { ApiService } from '../services/api';
 import { AuthService } from '../services/auth';
@@ -12,7 +13,7 @@ import { GitHubSkillDialogComponent } from './github-skill-dialog/github-skill-d
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, SkillDialogComponent, GitHubSkillDialogComponent],
+  imports: [CommonModule, FormsModule, RouterModule, SkillDialogComponent, GitHubSkillDialogComponent],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss',
 })
@@ -32,6 +33,12 @@ export class DashboardComponent {
   showSkillDialog = signal(false);
   showGitHubDialog = signal(false);
   editingSkill = signal<Skill | null>(null);
+
+  // Clone dialog state
+  showCloneDialog = signal(false);
+  cloneTargetProject = signal<{ id: string; name: string } | null>(null);
+  cloneName = signal('');
+  cloneIncludeMessages = signal(false);
 
   constructor() {
     this.loadData();
@@ -160,6 +167,34 @@ export class DashboardComponent {
         error: () => this.toastService.show('Failed to delete project', 'error')
       });
     }
+  }
+
+  openCloneDialog(id: string, name: string, event: Event) {
+    event.stopPropagation();
+    this.cloneTargetProject.set({ id, name });
+    this.cloneName.set(`${name} (Copy)`);
+    this.cloneIncludeMessages.set(false);
+    this.showCloneDialog.set(true);
+  }
+
+  cancelClone() {
+    this.showCloneDialog.set(false);
+    this.cloneTargetProject.set(null);
+  }
+
+  confirmClone() {
+    const target = this.cloneTargetProject();
+    if (!target) return;
+
+    this.apiService.cloneProject(target.id, this.cloneName(), this.cloneIncludeMessages()).subscribe({
+      next: (clonedProject) => {
+        this.toastService.show(`Created "${clonedProject.name}"`, 'success');
+        this.showCloneDialog.set(false);
+        this.cloneTargetProject.set(null);
+        this.loadData();
+      },
+      error: () => this.toastService.show('Failed to clone project', 'error')
+    });
   }
 
   logout() {

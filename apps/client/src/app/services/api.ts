@@ -82,6 +82,10 @@ export class ApiService {
     return this.http.delete<any>(`${this.apiUrl}/projects/${id}`);
   }
 
+  cloneProject(id: string, name?: string, includeMessages?: boolean) {
+    return this.http.post<any>(`${this.apiUrl}/projects/${id}/clone`, { name, includeMessages });
+  }
+
   getProfile() {
     return this.http.get<any>(`${this.apiUrl}/profile`);
   }
