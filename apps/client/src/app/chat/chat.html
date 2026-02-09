@@ -332,7 +332,117 @@
           }
         </div>
         
-        @if (msg.status) {
+        @if (msg.pendingQuestion) {
+          <div class="question-panel"
+               tabindex="0"
+               (keydown)="onQuestionPanelKeydown($event, msg)"
+               (focus)="initQuestionKeyboardFocus(msg)"
+               (blur)="resetQuestionKeyboardFocus()"
+               #questionPanel>
+            <div class="keyboard-hint">
+              <span><kbd>↑↓</kbd> Navigate</span>
+              <span><kbd>Space</kbd> Select</span>
+              <span><kbd>⌘↵</kbd> Submit</span>
+              <span><kbd>Esc</kbd> Cancel</span>
+            </div>
+            @if (msg.pendingQuestion.context) {
+              <div class="question-context">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                {{ msg.pendingQuestion.context }}
+              </div>
+            }
+            @for (q of msg.pendingQuestion.questions; track q.id; let qIndex = $index) {
+              <div class="question-item" [class.focused]="focusedQuestionIndex() === qIndex">
+                <label class="question-label">
+                  {{ q.text }}
+                  @if (q.required) {
+                    <span class="required-mark">*</span>
+                  }
+                </label>
+
+                @if (q.type === 'radio' && q.options) {
+                  <div class="question-options">
+                    @for (opt of q.options; track opt.value; let oIndex = $index) {
+                      <label class="option-label radio-option"
+                             [class.recommended]="opt.recommended"
+                             [class.keyboard-focused]="isOptionFocused(qIndex, oIndex)">
+                        <input
+                          type="radio"
+                          [name]="q.id"
+                          [value]="opt.value"
+                          [checked]="msg.pendingQuestion!.answers[q.id] === opt.value"
+                          (change)="updateQuestionAnswer(msg, q.id, opt.value)" />
+                        <span class="option-check"></span>
+                        <span class="option-text">
+                          {{ opt.label }}
+                          @if (opt.recommended) {
+                            <span class="recommended-badge">Recommended</span>
+                          }
+                        </span>
+                      </label>
+                    }
+                  </div>
+                }
+
+                @if (q.type === 'checkbox' && q.options) {
+                  <div class="question-options">
+                    @for (opt of q.options; track opt.value; let oIndex = $index) {
+                      <label class="option-label checkbox-option"
+                             [class.recommended]="opt.recommended"
+                             [class.keyboard-focused]="isOptionFocused(qIndex, oIndex)">
+                        <input
+                          type="checkbox"
+                          [checked]="isCheckboxOptionSelected(msg, q.id, opt.value)"
+                          (change)="toggleCheckboxOption(msg, q.id, opt.value)" />
+                        <span class="option-check"></span>
+                        <span class="option-text">
+                          {{ opt.label }}
+                          @if (opt.recommended) {
+                            <span class="recommended-badge">Recommended</span>
+                          }
+                        </span>
+                      </label>
+                    }
+                  </div>
+                }
+
+                @if (q.type === 'text') {
+                  <textarea
+                    class="question-text-input"
+                    [class.keyboard-focused]="isTextInputFocused(qIndex)"
+                    [placeholder]="q.placeholder || 'Type your answer...'"
+                    [value]="msg.pendingQuestion!.answers[q.id] || ''"
+                    (input)="updateQuestionAnswer(msg, q.id, $any($event.target).value)"
+                    (focus)="focusedQuestionIndex.set(qIndex); focusedOptionIndex.set(-1)">
+                  </textarea>
+                }
+              </div>
+            }
+            <div class="question-actions">
+              @if (hasDefaultAnswers(msg)) {
+                <button
+                  class="btn-accept-defaults"
+                  (click)="acceptDefaults(msg)"
+                  title="Accept all recommended/default values">
+                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                  Accept Defaults
+                </button>
+              }
+              <button
+                class="btn-question-submit"
+                [disabled]="!canSubmitQuestions(msg)"
+                (click)="submitQuestionAnswers(msg)">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                Submit
+              </button>
+              <button class="btn-question-cancel" (click)="cancelQuestion(msg)">
+                Cancel
+              </button>
+            </div>
+          </div>
+        }
+
+        @if (msg.status && !msg.pendingQuestion) {
            <div class="message-status" style="margin-top: 10px; font-size: 0.75rem; color: var(--accent-color); font-weight: 600; display: flex; align-items: center; gap: 10px; padding-left: 8px;">
               <div class="spinner-tiny" style="border-top-color: var(--accent-color);"></div>
               {{ msg.status }}
@@ -452,9 +562,22 @@
           </div>
         </div>
 
-        <button 
-          (click)="compactMode.set(!compactMode())" 
-          class="tool-btn" 
+        <button
+          (click)="planMode.set(!planMode())"
+          class="tool-btn"
+          [class.active]="planMode()"
+          [title]="planMode() ? 'Plan Mode: ON - AI will ask questions before coding' : 'Plan Mode: OFF - AI will proceed directly'"
+          style="margin-right: 8px;">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        </button>
+
+        <button
+          (click)="compactMode.set(!compactMode())"
+          class="tool-btn"
           [class.active]="compactMode()"
           [title]="compactMode() ? 'Show Full Tool Output' : 'Compact Tool Output'"
           style="margin-right: 8px;">

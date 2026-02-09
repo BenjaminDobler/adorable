@@ -18,7 +18,7 @@ export class ApiService {
     });
   }
 
-  generateStream(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[], smartRouting?: any, openFiles?: { [path: string]: string }, use_container_context?: boolean, forcedSkill?: string }): Observable<any> {
+  generateStream(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[], smartRouting?: any, openFiles?: { [path: string]: string }, use_container_context?: boolean, forcedSkill?: string, planMode?: boolean }): Observable<any> {
     return new Observable(observer => {
       const token = localStorage.getItem('adorable_token');
       
@@ -127,6 +127,15 @@ export class ApiService {
     tools: { name: string; originalName: string; description: string; serverId: string }[]
   }> {
     return this.http.get<any>(`${this.apiUrl}/mcp/available-tools`);
+  }
+
+  // Question answer methods for ask_user tool
+  submitQuestionAnswers(requestId: string, answers: Record<string, any>) {
+    return this.http.post<{ success: boolean; message: string }>(`${this.apiUrl}/question/${requestId}`, { answers });
+  }
+
+  cancelQuestion(requestId: string) {
+    return this.http.post<{ success: boolean; message: string }>(`${this.apiUrl}/question/${requestId}`, { cancelled: true });
   }
 }
 

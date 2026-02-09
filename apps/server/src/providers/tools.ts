@@ -206,5 +206,66 @@ export const TOOLS = [
       properties: {},
       required: []
     }
+  },
+  {
+    name: 'ask_user',
+    description: 'Ask the user clarifying questions when requirements are unclear or you need to make a decision that would significantly impact implementation. Supports radio (single choice), checkbox (multiple choice), and text input question types. Use sparingly - only when genuinely uncertain.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        questions: {
+          type: 'array',
+          description: 'Array of questions to ask the user.',
+          items: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'string',
+                description: 'Unique identifier for this question (e.g., "styling_preference", "feature_scope").'
+              },
+              text: {
+                type: 'string',
+                description: 'The question text to display to the user.'
+              },
+              type: {
+                type: 'string',
+                enum: ['radio', 'checkbox', 'text'],
+                description: 'Question type: radio for single choice, checkbox for multiple choice, text for free-form input.'
+              },
+              options: {
+                type: 'array',
+                description: 'Options for radio/checkbox questions. Not needed for text type.',
+                items: {
+                  type: 'object',
+                  properties: {
+                    value: { type: 'string', description: 'The value to return if selected.' },
+                    label: { type: 'string', description: 'The label to display to the user.' },
+                    recommended: { type: 'boolean', description: 'Mark this option as recommended. Shows "(Recommended)" label.' }
+                  },
+                  required: ['value', 'label']
+                }
+              },
+              placeholder: {
+                type: 'string',
+                description: 'Placeholder text for text input questions.'
+              },
+              required: {
+                type: 'boolean',
+                description: 'Whether the question must be answered. Default is false.'
+              },
+              default: {
+                description: 'Default/pre-selected value. For radio: string value. For checkbox: array of values. For text: string.'
+              }
+            },
+            required: ['id', 'text', 'type']
+          }
+        },
+        context: {
+          type: 'string',
+          description: 'Brief context explaining why you are asking these questions.'
+        }
+      },
+      required: ['questions']
+    }
   }
 ];

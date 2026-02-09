@@ -1,4 +1,5 @@
 import { MCPServerConfig } from '../mcp/types';
+import { Question } from './question-manager';
 
 export interface GenerateOptions {
   prompt: string;
@@ -12,6 +13,7 @@ export interface GenerateOptions {
   userId?: string;
   forcedSkill?: string;
   mcpConfigs?: MCPServerConfig[]; // MCP server configurations
+  planMode?: boolean; // When true, AI should ask clarifying questions before coding
 }
 
 export interface TokenUsage {
@@ -32,6 +34,8 @@ export interface StreamCallbacks {
   onFileProgress?: (path: string, content: string, isComplete: boolean) => void;
   // Screenshot request callback - sends request to client via SSE
   onScreenshotRequest?: (requestId: string) => void;
+  // Question request callback - sends question request to client via SSE
+  onQuestionRequest?: (requestId: string, questions: Question[], context?: string) => void;
 }
 
 export interface LLMProvider {

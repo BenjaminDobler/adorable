@@ -6,6 +6,7 @@ import { SkillRegistry } from './skills/skill-registry';
 import { MemoryFileSystem } from './filesystem/memory-filesystem';
 import { DebugLogger } from './debug-logger';
 import { screenshotManager } from './screenshot-manager';
+import { questionManager } from './question-manager';
 import { MCPManager } from '../mcp/mcp-manager';
 import { MCPToolResult } from '../mcp/types';
 
@@ -64,7 +65,13 @@ export const SYSTEM_PROMPT =
 +"      <div data-elements-id=\"card-item-1\">{{ item.name }}</div>\n"
 +"    }\n"
 +"    ```\n"
-+"    These IDs enable visual editing. Maintain existing IDs when editing templates.\n";
++"    These IDs enable visual editing. Maintain existing IDs when editing templates.\n\n"
++"**CLARIFYING QUESTIONS:**\n"
++"When genuinely uncertain about requirements that would significantly impact implementation, use the `ask_user` tool. Examples:\n"
++"- Vague requests missing critical details (e.g., 'make it better' with no specifics)\n"
++"- Multiple valid interpretations that lead to very different implementations\n"
++"- Ambiguous references to features, styling, or data sources\n"
++"Do NOT overuse this tool - proceed with reasonable assumptions when the request is clear enough.\n";
 
 export { ANGULAR_KNOWLEDGE_BASE };
 
@@ -116,6 +123,16 @@ export abstract class BaseLLMProvider {
       for (const [path, content] of Object.entries(options.openFiles)) {
         userMessage += `<file path="${path}">\n${content}\n</file>\n`;
       }
+    }
+
+    // Plan Mode: Instruct AI to ask clarifying questions before coding
+    if (options.planMode) {
+      userMessage += `\n\n[PLAN MODE] Before writing any code, use the ask_user tool to gather requirements. Ask about:
+- Styling preferences (colors, fonts, layout)
+- Feature scope and priorities
+- Data sources and formats
+- Any ambiguous aspects of the request
+Only proceed with implementation after receiving the user's answers.`;
     }
 
     const availableTools: any[] = [...TOOLS];
@@ -460,6 +477,32 @@ export abstract class BaseLLMProvider {
             content = `Exit Code: ${res.exitCode}\n\nSTDOUT:\n${res.stdout}\n\nSTDERR:\n${res.stderr}`;
             if (res.exitCode !== 0) isError = true;
             if (toolArgs.command && toolArgs.command.includes('build')) ctx.hasRunBuild = true;
+          }
+          break;
+        case 'ask_user':
+          {
+            if (!callbacks.onQuestionRequest) {
+              content = 'Question requests are not available in this environment.';
+              isError = true;
+            } else {
+              try {
+                validationError = this.validateToolArgs(toolName, toolArgs, ['questions']);
+                if (validationError) {
+                  content = validationError;
+                  isError = true;
+                  break;
+                }
+                const answers = await questionManager.requestAnswers(
+                  toolArgs.questions,
+                  toolArgs.context,
+                  (requestId, questions, context) => callbacks.onQuestionRequest!(requestId, questions, context)
+                );
+                content = `User provided the following answers:\n${JSON.stringify(answers, null, 2)}`;
+              } catch (err: any) {
+                content = `Question request failed: ${err.message}`;
+                isError = true;
+              }
+            }
           }
           break;
         default:

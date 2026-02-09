@@ -11,6 +11,29 @@ import { FileSystemStore } from './file-system.store';
 import { WebContainerFiles, FigmaImportPayload } from '@adorable/shared-types';
 import { ScreenshotService } from './screenshot';
 
+export interface QuestionOption {
+  value: string;
+  label: string;
+  recommended?: boolean;
+}
+
+export interface Question {
+  id: string;
+  text: string;
+  type: 'radio' | 'checkbox' | 'text';
+  options?: QuestionOption[];
+  placeholder?: string;
+  required?: boolean;
+  default?: string | string[]; // For radio: string, for checkbox: string[], for text: string
+}
+
+export interface PendingQuestion {
+  requestId: string;
+  questions: Question[];
+  context?: string;
+  answers: Record<string, any>;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   text: string;
@@ -24,6 +47,7 @@ export interface ChatMessage {
   duration?: number; // milliseconds
   isExpanded?: boolean; // For files
   areToolsExpanded?: boolean; // For tool results
+  pendingQuestion?: PendingQuestion; // For ask_user tool
 }
 
 @Injectable({

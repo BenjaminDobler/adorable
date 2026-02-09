@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth';
 import { containerRegistry } from '../providers/container/container-registry';
 import { ContainerFileSystem } from '../providers/filesystem/container-filesystem';
 import { screenshotManager } from '../providers/screenshot-manager';
+import { questionManager } from '../providers/question-manager';
 import { MCPServerConfig } from '../mcp/types';
 
 const router = express.Router();
@@ -164,7 +165,7 @@ router.post('/generate', async (req: any, res) => {
 });
 
 router.post('/generate-stream', async (req: any, res) => {
-    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting, openFiles, use_container_context, forcedSkill } = req.body;
+    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting, openFiles, use_container_context, forcedSkill, planMode } = req.body;
     const user = req.user;
 
     // Debug: Log images received
@@ -253,7 +254,8 @@ router.post('/generate-stream', async (req: any, res) => {
           fileSystem,
           userId: user.id,
           forcedSkill,
-          mcpConfigs
+          mcpConfigs,
+          planMode
       }, {
           onText: (text) => {
               res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);
@@ -278,6 +280,9 @@ router.post('/generate-stream', async (req: any, res) => {
           },
           onScreenshotRequest: (requestId) => {
               res.write(`data: ${JSON.stringify({ type: 'screenshot_request', requestId })}\n\n`);
+          },
+          onQuestionRequest: (requestId, questions, context) => {
+              res.write(`data: ${JSON.stringify({ type: 'question_request', requestId, questions, context })}\n\n`);
           }
       });
       
@@ -306,6 +311,24 @@ router.post('/screenshot/:requestId', async (req: any, res) => {
 
     const resolved = screenshotManager.resolveScreenshot(requestId, imageData);
     res.json({ success: resolved, message: resolved ? 'Screenshot received' : 'No pending request found' });
+});
+
+// Question answer endpoint - client POSTs answers here
+router.post('/question/:requestId', async (req: any, res) => {
+    const { requestId } = req.params;
+    const { answers, cancelled } = req.body;
+
+    if (cancelled) {
+        const resolved = questionManager.cancelRequest(requestId);
+        return res.json({ success: resolved, message: resolved ? 'Request cancelled' : 'No pending request' });
+    }
+
+    if (!answers) {
+        return res.status(400).json({ success: false, message: 'No answers provided' });
+    }
+
+    const resolved = questionManager.resolveAnswers(requestId, answers);
+    res.json({ success: resolved, message: resolved ? 'Answers received' : 'No pending request found' });
 });
 
 export const aiRouter = router;

@@ -2,7 +2,7 @@ import { Component, inject, signal, ElementRef, ViewChild, Output, EventEmitter,
 import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ProjectService, ChatMessage } from '../services/project';
+import { ProjectService, ChatMessage, Question } from '../services/project';
 import { ContainerEngine } from '../services/container-engine';
 import { ApiService } from '../services/api';
 import { ToastService } from '../services/toast';
@@ -124,6 +124,13 @@ export class ChatComponent implements OnDestroy {
   // Figma import state
   figmaContext = signal<any>(null);
   figmaImages = signal<string[]>([]);
+
+  // Plan Mode - forces AI to ask clarifying questions before coding
+  planMode = signal(false);
+
+  // Keyboard navigation state for question panel
+  focusedQuestionIndex = signal(-1);
+  focusedOptionIndex = signal(-1);
 
   get isAttachedImage(): boolean {
     if (this.attachedFile?.type.startsWith('image/')) return true;
@@ -851,7 +858,8 @@ Analyze the attached design images carefully and create matching Angular compone
       smartRouting: this.appSettings?.smartRouting,
       openFiles: this.getContextFiles(),
       use_container_context: this.projectService.agentMode(),
-      forcedSkill: this.selectedSkill()?.name
+      forcedSkill: this.selectedSkill()?.name,
+      planMode: this.planMode()
     }).subscribe({
       next: async (event) => {
         if (event.type !== 'tool_delta' && event.type !== 'text') { 
@@ -947,6 +955,28 @@ Analyze the attached design images carefully and create matching Angular compone
         } else if (event.type === 'screenshot_request') {
            // AI requested a screenshot of the preview
            this.handleScreenshotRequest(event.requestId);
+        } else if (event.type === 'question_request') {
+           // AI requested user input via ask_user tool
+           // Pre-populate answers with default values
+           const defaultAnswers: Record<string, any> = {};
+           for (const q of event.questions) {
+             if (q.default !== undefined) {
+               defaultAnswers[q.id] = q.default;
+             }
+           }
+
+           this.messages.update(msgs => {
+             const newMsgs = [...msgs];
+             const msg = newMsgs[assistantMsgIndex];
+             msg.pendingQuestion = {
+               requestId: event.requestId,
+               questions: event.questions,
+               context: event.context,
+               answers: defaultAnswers
+             };
+             msg.status = 'Waiting for your input...';
+             return newMsgs;
+           });
         } else if (event.type === 'result') {
           hasResult = true;
           try {
@@ -1078,6 +1108,334 @@ Analyze the attached design images carefully and create matching Angular compone
         // Ignore
       }
     }
+  }
+
+  /**
+   * Submit answers to a pending question request from the AI.
+   */
+  submitQuestionAnswers(msg: ChatMessage) {
+    if (!msg.pendingQuestion) return;
+
+    const { requestId, answers } = msg.pendingQuestion;
+
+    // Reset keyboard focus
+    this.resetQuestionKeyboardFocus();
+
+    this.apiService.submitQuestionAnswers(requestId, answers).subscribe({
+      next: (result) => {
+        console.log('[Question] Answers submitted:', result);
+        // Clear the pending question after submission
+        this.messages.update(msgs => {
+          const newMsgs = [...msgs];
+          const msgIndex = newMsgs.indexOf(msg);
+          if (msgIndex >= 0) {
+            newMsgs[msgIndex] = { ...msg, pendingQuestion: undefined, status: 'Processing your answers...' };
+          }
+          return newMsgs;
+        });
+      },
+      error: (err) => {
+        console.error('[Question] Error submitting answers:', err);
+        this.toastService.show('Failed to submit answers', 'error');
+      }
+    });
+  }
+
+  /**
+   * Cancel a pending question request.
+   */
+  cancelQuestion(msg: ChatMessage) {
+    if (!msg.pendingQuestion) return;
+
+    const { requestId } = msg.pendingQuestion;
+
+    this.apiService.cancelQuestion(requestId).subscribe({
+      next: (result) => {
+        console.log('[Question] Request cancelled:', result);
+        // Clear the pending question after cancellation
+        this.messages.update(msgs => {
+          const newMsgs = [...msgs];
+          const msgIndex = newMsgs.indexOf(msg);
+          if (msgIndex >= 0) {
+            newMsgs[msgIndex] = { ...msg, pendingQuestion: undefined, status: undefined };
+            newMsgs[msgIndex].text = (newMsgs[msgIndex].text || '') + '\n\n*[Question request cancelled]*';
+          }
+          return newMsgs;
+        });
+        this.loading.set(false);
+      },
+      error: (err) => {
+        console.error('[Question] Error cancelling request:', err);
+      }
+    });
+  }
+
+  /**
+   * Update an answer for a pending question.
+   */
+  updateQuestionAnswer(msg: ChatMessage, questionId: string, value: any) {
+    if (!msg.pendingQuestion) return;
+
+    this.messages.update(msgs => {
+      const newMsgs = [...msgs];
+      const msgIndex = newMsgs.indexOf(msg);
+      if (msgIndex >= 0 && newMsgs[msgIndex].pendingQuestion) {
+        newMsgs[msgIndex].pendingQuestion!.answers[questionId] = value;
+      }
+      return newMsgs;
+    });
+  }
+
+  /**
+   * Toggle a checkbox option for a question.
+   */
+  toggleCheckboxOption(msg: ChatMessage, questionId: string, optionValue: string) {
+    if (!msg.pendingQuestion) return;
+
+    const currentValue = msg.pendingQuestion.answers[questionId] || [];
+    const newValue = currentValue.includes(optionValue)
+      ? currentValue.filter((v: string) => v !== optionValue)
+      : [...currentValue, optionValue];
+
+    this.updateQuestionAnswer(msg, questionId, newValue);
+  }
+
+  /**
+   * Check if a checkbox option is selected.
+   */
+  isCheckboxOptionSelected(msg: ChatMessage, questionId: string, optionValue: string): boolean {
+    if (!msg.pendingQuestion) return false;
+    const currentValue = msg.pendingQuestion.answers[questionId] || [];
+    return currentValue.includes(optionValue);
+  }
+
+  /**
+   * Check if all required questions have been answered.
+   */
+  canSubmitQuestions(msg: ChatMessage): boolean {
+    if (!msg.pendingQuestion) return false;
+
+    for (const q of msg.pendingQuestion.questions) {
+      if (q.required) {
+        const answer = msg.pendingQuestion.answers[q.id];
+        if (answer === undefined || answer === null || answer === '' ||
+            (Array.isArray(answer) && answer.length === 0)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Check if any questions have default values.
+   */
+  hasDefaultAnswers(msg: ChatMessage): boolean {
+    if (!msg.pendingQuestion) return false;
+    return msg.pendingQuestion.questions.some(q => q.default !== undefined);
+  }
+
+  /**
+   * Accept all default values and submit.
+   */
+  acceptDefaults(msg: ChatMessage) {
+    if (!msg.pendingQuestion) return;
+
+    // Set all answers to their defaults
+    const defaultAnswers: Record<string, any> = {};
+    for (const q of msg.pendingQuestion.questions) {
+      if (q.default !== undefined) {
+        defaultAnswers[q.id] = q.default;
+      }
+    }
+
+    // Update answers with defaults
+    this.messages.update(msgs => {
+      const newMsgs = [...msgs];
+      const msgIndex = newMsgs.indexOf(msg);
+      if (msgIndex >= 0 && newMsgs[msgIndex].pendingQuestion) {
+        newMsgs[msgIndex].pendingQuestion!.answers = {
+          ...newMsgs[msgIndex].pendingQuestion!.answers,
+          ...defaultAnswers
+        };
+      }
+      return newMsgs;
+    });
+
+    // Submit after a brief delay to allow UI to update
+    setTimeout(() => {
+      this.submitQuestionAnswers(msg);
+    }, 50);
+  }
+
+  /**
+   * Handle keyboard navigation in question panel.
+   */
+  onQuestionPanelKeydown(event: KeyboardEvent, msg: ChatMessage) {
+    if (!msg.pendingQuestion) return;
+
+    const questions = msg.pendingQuestion.questions;
+    const currentQIndex = this.focusedQuestionIndex();
+    const currentOIndex = this.focusedOptionIndex();
+
+    // Ctrl/Cmd + Enter to submit
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      if (this.canSubmitQuestions(msg)) {
+        this.submitQuestionAnswers(msg);
+      }
+      return;
+    }
+
+    // Ctrl/Cmd + D to accept defaults
+    if (event.key === 'd' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      if (this.hasDefaultAnswers(msg)) {
+        this.acceptDefaults(msg);
+      }
+      return;
+    }
+
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        this.navigateDown(questions, currentQIndex, currentOIndex);
+        break;
+
+      case 'ArrowUp':
+        event.preventDefault();
+        this.navigateUp(questions, currentQIndex, currentOIndex);
+        break;
+
+      case 'ArrowRight':
+      case 'Tab':
+        if (!event.shiftKey) {
+          // Move to next question
+          if (currentQIndex < questions.length - 1) {
+            event.preventDefault();
+            this.focusedQuestionIndex.set(currentQIndex + 1);
+            this.focusedOptionIndex.set(0);
+          }
+        }
+        break;
+
+      case 'ArrowLeft':
+        // Move to previous question
+        if (currentQIndex > 0) {
+          event.preventDefault();
+          this.focusedQuestionIndex.set(currentQIndex - 1);
+          const prevQ = questions[currentQIndex - 1];
+          if (prevQ.options) {
+            this.focusedOptionIndex.set(0);
+          } else {
+            this.focusedOptionIndex.set(-1);
+          }
+        }
+        break;
+
+      case 'Enter':
+      case ' ':
+        // Select current option or submit if on button
+        if (currentQIndex >= 0 && currentQIndex < questions.length) {
+          const q = questions[currentQIndex];
+          if (q.type === 'text') {
+            // For text, Enter should not select - let it work naturally
+            if (event.key === ' ') return; // Allow space in text
+          } else if (q.options && currentOIndex >= 0 && currentOIndex < q.options.length) {
+            event.preventDefault();
+            const opt = q.options[currentOIndex];
+            if (q.type === 'radio') {
+              this.updateQuestionAnswer(msg, q.id, opt.value);
+            } else if (q.type === 'checkbox') {
+              this.toggleCheckboxOption(msg, q.id, opt.value);
+            }
+          }
+        }
+        break;
+
+      case 'Escape':
+        event.preventDefault();
+        this.cancelQuestion(msg);
+        break;
+    }
+  }
+
+  /**
+   * Navigate down in the question panel.
+   */
+  private navigateDown(questions: Question[], qIndex: number, oIndex: number) {
+    if (qIndex < 0) {
+      // Start at first question
+      this.focusedQuestionIndex.set(0);
+      this.focusedOptionIndex.set(questions[0]?.options ? 0 : -1);
+      return;
+    }
+
+    const currentQ = questions[qIndex];
+    if (currentQ.options && oIndex < currentQ.options.length - 1) {
+      // Move to next option in current question
+      this.focusedOptionIndex.set(oIndex + 1);
+    } else if (qIndex < questions.length - 1) {
+      // Move to next question
+      this.focusedQuestionIndex.set(qIndex + 1);
+      this.focusedOptionIndex.set(questions[qIndex + 1]?.options ? 0 : -1);
+    }
+  }
+
+  /**
+   * Navigate up in the question panel.
+   */
+  private navigateUp(questions: Question[], qIndex: number, oIndex: number) {
+    if (qIndex < 0) return;
+
+    const currentQ = questions[qIndex];
+    if (currentQ.options && oIndex > 0) {
+      // Move to previous option in current question
+      this.focusedOptionIndex.set(oIndex - 1);
+    } else if (qIndex > 0) {
+      // Move to previous question
+      const prevQ = questions[qIndex - 1];
+      this.focusedQuestionIndex.set(qIndex - 1);
+      if (prevQ.options) {
+        this.focusedOptionIndex.set(prevQ.options.length - 1);
+      } else {
+        this.focusedOptionIndex.set(-1);
+      }
+    }
+  }
+
+  /**
+   * Initialize keyboard focus when question panel appears.
+   */
+  initQuestionKeyboardFocus(msg: ChatMessage) {
+    if (!msg.pendingQuestion || msg.pendingQuestion.questions.length === 0) return;
+
+    // Focus first question, first option
+    this.focusedQuestionIndex.set(0);
+    const firstQ = msg.pendingQuestion.questions[0];
+    this.focusedOptionIndex.set(firstQ.options ? 0 : -1);
+  }
+
+  /**
+   * Reset keyboard focus state.
+   */
+  resetQuestionKeyboardFocus() {
+    this.focusedQuestionIndex.set(-1);
+    this.focusedOptionIndex.set(-1);
+  }
+
+  /**
+   * Check if an option is focused for keyboard navigation.
+   */
+  isOptionFocused(qIndex: number, oIndex: number): boolean {
+    return this.focusedQuestionIndex() === qIndex && this.focusedOptionIndex() === oIndex;
+  }
+
+  /**
+   * Check if a question's text input is focused.
+   */
+  isTextInputFocused(qIndex: number): boolean {
+    return this.focusedQuestionIndex() === qIndex && this.focusedOptionIndex() === -1;
   }
 
   ngOnDestroy() {
