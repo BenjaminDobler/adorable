@@ -209,7 +209,7 @@ export const TOOLS = [
   },
   {
     name: 'ask_user',
-    description: 'Ask the user clarifying questions when requirements are unclear or you need to make a decision that would significantly impact implementation. Supports radio (single choice), checkbox (multiple choice), and text input question types. Use sparingly - only when genuinely uncertain.',
+    description: 'Ask the user clarifying questions when requirements are unclear or you need to make a decision that would significantly impact implementation. Supports multiple question types: radio, checkbox, text, color, range, image, and code. Use sparingly - only when genuinely uncertain.',
     input_schema: {
       type: 'object',
       properties: {
@@ -229,32 +229,57 @@ export const TOOLS = [
               },
               type: {
                 type: 'string',
-                enum: ['radio', 'checkbox', 'text'],
-                description: 'Question type: radio for single choice, checkbox for multiple choice, text for free-form input.'
+                enum: ['radio', 'checkbox', 'text', 'color', 'range', 'image', 'code'],
+                description: 'Question type: radio (single choice), checkbox (multi choice), text (free-form), color (color picker), range (numeric slider), image (asset selector), code (code input).'
               },
               options: {
                 type: 'array',
-                description: 'Options for radio/checkbox questions. Not needed for text type.',
+                description: 'Options for radio/checkbox/image questions.',
                 items: {
                   type: 'object',
                   properties: {
                     value: { type: 'string', description: 'The value to return if selected.' },
                     label: { type: 'string', description: 'The label to display to the user.' },
-                    recommended: { type: 'boolean', description: 'Mark this option as recommended. Shows "(Recommended)" label.' }
+                    recommended: { type: 'boolean', description: 'Mark this option as recommended. Shows "(Recommended)" label.' },
+                    preview: { type: 'string', description: 'For image type: URL or path to preview image.' }
                   },
                   required: ['value', 'label']
                 }
               },
               placeholder: {
                 type: 'string',
-                description: 'Placeholder text for text input questions.'
+                description: 'Placeholder text for text/code input questions.'
               },
               required: {
                 type: 'boolean',
                 description: 'Whether the question must be answered. Default is false.'
               },
               default: {
-                description: 'Default/pre-selected value. For radio: string value. For checkbox: array of values. For text: string.'
+                description: 'Default/pre-selected value. For radio: string. For checkbox: array. For text/color/code: string. For range: number.'
+              },
+              min: {
+                type: 'number',
+                description: 'For range type: minimum value.'
+              },
+              max: {
+                type: 'number',
+                description: 'For range type: maximum value.'
+              },
+              step: {
+                type: 'number',
+                description: 'For range type: step increment. Default is 1.'
+              },
+              unit: {
+                type: 'string',
+                description: 'For range type: unit label to display (e.g., "px", "%", "rem").'
+              },
+              language: {
+                type: 'string',
+                description: 'For code type: programming language for syntax hints (e.g., "typescript", "json", "css").'
+              },
+              allowUpload: {
+                type: 'boolean',
+                description: 'For image type: allow user to upload a new image. Default is false (only select from project assets).'
               }
             },
             required: ['id', 'text', 'type']

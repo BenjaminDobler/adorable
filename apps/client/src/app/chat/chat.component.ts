@@ -1438,6 +1438,72 @@ Analyze the attached design images carefully and create matching Angular compone
     return this.focusedQuestionIndex() === qIndex && this.focusedOptionIndex() === -1;
   }
 
+  /**
+   * Handle image upload for image-type questions.
+   * Reads the file and converts it to a data URL.
+   */
+  handleQuestionImageUpload(event: Event, msg: ChatMessage, questionId: string) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    // Validate it's an image
+    if (!file.type.startsWith('image/')) {
+      this.toastService.show('Please select an image file', 'error');
+      return;
+    }
+
+    // Read the file as data URL
+    const reader = new FileReader();
+    reader.onload = (e: ProgressEvent<FileReader>) => {
+      const dataUrl = e.target?.result as string;
+      if (dataUrl) {
+        this.updateQuestionAnswer(msg, questionId, dataUrl);
+      }
+    };
+    reader.onerror = () => {
+      this.toastService.show('Failed to read image file', 'error');
+    };
+    reader.readAsDataURL(file);
+
+    // Reset input so the same file can be selected again
+    input.value = '';
+  }
+
+  /**
+   * Get available project assets for image-type questions.
+   * Returns image files from the public/assets directory.
+   */
+  getProjectImageAssets(): { path: string; name: string }[] {
+    const files = this.projectService.files();
+    if (!files) return [];
+
+    const assets: { path: string; name: string }[] = [];
+    const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico'];
+
+    const traverse = (node: any, currentPath: string) => {
+      if (node.file) {
+        const ext = currentPath.substring(currentPath.lastIndexOf('.')).toLowerCase();
+        if (imageExtensions.includes(ext)) {
+          // Extract filename from path
+          const name = currentPath.split('/').pop() || currentPath;
+          assets.push({ path: currentPath, name });
+        }
+      } else if (node.directory) {
+        for (const key in node.directory) {
+          traverse(node.directory[key], `${currentPath}${key}/`.replace('//', '/'));
+        }
+      }
+    };
+
+    // Start traversal from public/assets if it exists
+    if (files['public']?.directory?.['assets']?.directory) {
+      traverse({ directory: files['public'].directory['assets'].directory }, 'assets/');
+    }
+
+    return assets;
+  }
+
   ngOnDestroy() {
     this.activeSubscription?.unsubscribe();
   }

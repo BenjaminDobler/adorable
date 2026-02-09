@@ -15,16 +15,26 @@ export interface QuestionOption {
   value: string;
   label: string;
   recommended?: boolean;
+  preview?: string; // For image type: URL or path to preview
 }
 
 export interface Question {
   id: string;
   text: string;
-  type: 'radio' | 'checkbox' | 'text';
+  type: 'radio' | 'checkbox' | 'text' | 'color' | 'range' | 'image' | 'code';
   options?: QuestionOption[];
   placeholder?: string;
   required?: boolean;
-  default?: string | string[]; // For radio: string, for checkbox: string[], for text: string
+  default?: string | string[] | number; // For radio/text/color/code: string, checkbox: string[], range: number
+  // Range type properties
+  min?: number;
+  max?: number;
+  step?: number;
+  unit?: string;
+  // Code type properties
+  language?: string;
+  // Image type properties
+  allowUpload?: boolean;
 }
 
 export interface PendingQuestion {
