@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../services/auth';
+import { ThemeService, ThemeType, ThemeMode } from '../services/theme';
 import { ProjectService } from '../services/project';
 import { ContainerEngine } from '../services/container-engine';
 import { FormsModule } from '@angular/forms';
@@ -32,6 +33,7 @@ export class NavbarComponent {
   public projectService = inject(ProjectService);
   public webContainerService = inject(ContainerEngine);
   public githubService = inject(GitHubService);
+  public themeService = inject(ThemeService);
   private toastService = inject(ToastService);
   private confirmService = inject(ConfirmService);
   private router = inject(Router);
@@ -39,6 +41,9 @@ export class NavbarComponent {
 
   // VS Code integration
   vscodePanelOpen = signal(false);
+
+  // Theme switcher
+  themePanelOpen = signal(false);
 
   // GitHub sync state
   githubPanelOpen = signal(false);
@@ -311,5 +316,28 @@ export class NavbarComponent {
         this.toastService.show('Container not running. Start the dev server first.', 'error');
       }
     });
+  }
+
+  // Theme Switcher
+  toggleThemePanel() {
+    this.themePanelOpen.set(!this.themePanelOpen());
+  }
+
+  setThemeType(type: ThemeType) {
+    this.themeService.setThemeType(type);
+  }
+
+  setThemeMode(mode: ThemeMode) {
+    this.themeService.setThemeMode(mode);
+  }
+
+  getThemeIcon(): string {
+    const mode = this.themeService.resolvedMode();
+    const type = this.themeService.themeType();
+
+    if (type === 'pro') {
+      return mode === 'dark' ? '🎨' : '⚡';
+    }
+    return mode === 'dark' ? '🌙' : '☀️';
   }
 }

@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { ApiService } from '../services/api';
 import { Router, ActivatedRoute } from '@angular/router';
-import { ThemeService, ThemeMode } from '../services/theme';
+import { ThemeService, ThemeType, ThemeMode, ThemeSettings, ThemeCombined } from '../services/theme';
 import { ToastService } from '../services/toast';
 import { GitHubService } from '../services/github.service';
 import { isDesktopApp } from '../services/smart-container.engine';
@@ -55,7 +55,8 @@ export interface AppSettings {
   profiles: AIProfile[];
   activeProfileId: string;
   smartRouting?: SmartRoutingConfig;
-  theme?: ThemeMode;
+  theme?: ThemeCombined; // Legacy: combined theme mode
+  themeSettings?: ThemeSettings; // New: separate type and mode
   mcpServers?: MCPServerConfig[];
 }
 
@@ -119,7 +120,8 @@ export class ProfileComponent implements OnInit {
       complex: { provider: 'anthropic', model: 'claude-3-5-sonnet-20240620' },
       vision: { provider: 'anthropic', model: 'claude-3-5-sonnet-20240620' }
     },
-    theme: 'dark'
+    theme: 'dark',
+    themeSettings: { type: 'standard', mode: 'dark' }
   });
 
   loading = signal(false);
@@ -212,6 +214,31 @@ export class ProfileComponent implements OnInit {
         const mcpServers = parsed.mcpServers || [];
         this.mcpServers.set(mcpServers);
 
+        // Get current theme settings from ThemeService (which loads from localStorage)
+        // Only override if server has explicit themeSettings saved
+        let themeSettings: ThemeSettings;
+        if (parsed.themeSettings) {
+          // Server has new format - use it
+          themeSettings = parsed.themeSettings;
+          this.themeService.loadSettings(themeSettings);
+        } else if (parsed.theme && parsed.theme !== 'dark') {
+          // Server has old format with non-default value - migrate it
+          const oldTheme = parsed.theme as ThemeCombined;
+          if (oldTheme === 'pro-dark') {
+            themeSettings = { type: 'pro', mode: 'dark' };
+          } else if (oldTheme === 'pro-light') {
+            themeSettings = { type: 'pro', mode: 'light' };
+          } else if (oldTheme === 'light') {
+            themeSettings = { type: 'standard', mode: 'light' };
+          } else {
+            themeSettings = { type: 'standard', mode: 'dark' };
+          }
+          this.themeService.loadSettings(themeSettings);
+        } else {
+          // No server settings or just default - use current ThemeService state (from localStorage)
+          themeSettings = this.themeService.getSettings();
+        }
+
         const newSettings: AppSettings = {
           profiles: mergedProfiles,
           activeProfileId: parsed.activeProfileId || 'anthropic',
@@ -220,15 +247,11 @@ export class ProfileComponent implements OnInit {
             ...(parsed.smartRouting || {})
           },
           theme: parsed.theme || 'dark',
+          themeSettings,
           mcpServers
         };
 
         this.settings.set(newSettings);
-
-        // Apply theme from settings
-        if (newSettings.theme) {
-          this.themeService.setTheme(newSettings.theme);
-        }
 
         // Fetch models for AI profiles with keys (skip Figma)
         this.settings().profiles.forEach(p => {
@@ -308,9 +331,22 @@ export class ProfileComponent implements OnInit {
     return this.settings().profiles.filter(p => p.provider !== 'figma');
   }
 
-  updateTheme(mode: ThemeMode) {
-    this.settings.update(s => ({ ...s, theme: mode }));
-    this.themeService.setTheme(mode);
+  updateThemeType(type: ThemeType) {
+    const newSettings: ThemeSettings = {
+      ...this.settings().themeSettings!,
+      type
+    };
+    this.settings.update(s => ({ ...s, themeSettings: newSettings }));
+    this.themeService.setThemeType(type);
+  }
+
+  updateThemeMode(mode: ThemeMode) {
+    const newSettings: ThemeSettings = {
+      ...this.settings().themeSettings!,
+      mode
+    };
+    this.settings.update(s => ({ ...s, themeSettings: newSettings }));
+    this.themeService.setThemeMode(mode);
   }
 
   save() {

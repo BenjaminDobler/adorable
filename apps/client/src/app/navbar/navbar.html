@@ -282,8 +282,91 @@
     }
 
     <div class="user-menu">
-      <a class="user-link" routerLink="/profile" routerLinkActive="active">
-        <span class="user-name">{{ authService.currentUser()?.name || 'User' }}</span>
+      <!-- Theme Switcher -->
+      <div class="theme-switcher-wrapper">
+        <button
+          class="theme-toggle-btn"
+          (click)="toggleThemePanel()"
+          [class.active]="themePanelOpen()"
+          title="Switch theme"
+        >
+          <!-- Sun/Moon split icon -->
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"/>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          </svg>
+        </button>
+
+        @if (themePanelOpen()) {
+          <div class="theme-panel">
+            <div class="panel-header">
+              <h4>Appearance</h4>
+              <button class="close-btn" (click)="themePanelOpen.set(false)">&times;</button>
+            </div>
+
+            <div class="theme-options">
+              <div class="theme-option-group">
+                <label class="option-label">Theme</label>
+                <div class="option-buttons">
+                  <button
+                    class="option-btn"
+                    [class.active]="themeService.themeType() === 'standard'"
+                    (click)="setThemeType('standard')"
+                  >
+                    Standard
+                  </button>
+                  <button
+                    class="option-btn"
+                    [class.active]="themeService.themeType() === 'pro'"
+                    (click)="setThemeType('pro')"
+                  >
+                    Pro
+                  </button>
+                </div>
+              </div>
+
+              <div class="theme-option-group">
+                <label class="option-label">Mode</label>
+                <div class="option-buttons triple">
+                  <button
+                    class="option-btn"
+                    [class.active]="themeService.themeMode() === 'dark'"
+                    (click)="setThemeMode('dark')"
+                  >
+                    🌙 Dark
+                  </button>
+                  <button
+                    class="option-btn"
+                    [class.active]="themeService.themeMode() === 'light'"
+                    (click)="setThemeMode('light')"
+                  >
+                    ☀️ Light
+                  </button>
+                  <button
+                    class="option-btn"
+                    [class.active]="themeService.themeMode() === 'auto'"
+                    (click)="setThemeMode('auto')"
+                  >
+                    💻 Auto
+                  </button>
+                </div>
+              </div>
+
+              @if (themeService.themeMode() === 'auto') {
+                <div class="auto-hint">
+                  Using {{ themeService.resolvedMode() }} based on system
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      <a class="settings-btn" routerLink="/profile" routerLinkActive="active" title="Settings">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
       </a>
       <button class="btn-logout" (click)="logout()">Sign out</button>
     </div>

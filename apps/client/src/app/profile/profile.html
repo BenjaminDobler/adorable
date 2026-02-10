@@ -79,22 +79,34 @@
             <h3>Appearance</h3>
           </div>
           <div class="card-body">
-            <div class="theme-toggle-group">
-              <button
-                class="theme-btn"
-                [class.active]="settings().theme === 'dark'"
-                (click)="updateTheme('dark')">
-                <span class="theme-icon">🌙</span>
-                <span>Dark</span>
-              </button>
-              <button
-                class="theme-btn"
-                [class.active]="settings().theme === 'light'"
-                (click)="updateTheme('light')">
-                <span class="theme-icon">☀️</span>
-                <span>Light</span>
-              </button>
+            <div class="theme-selectors">
+              <div class="form-group">
+                <label>Theme</label>
+                <select
+                  [ngModel]="settings().themeSettings?.type || 'standard'"
+                  (ngModelChange)="updateThemeType($event)"
+                >
+                  <option value="standard">Standard</option>
+                  <option value="pro">Pro (Compact)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Mode</label>
+                <select
+                  [ngModel]="settings().themeSettings?.mode || 'dark'"
+                  (ngModelChange)="updateThemeMode($event)"
+                >
+                  <option value="dark">Dark</option>
+                  <option value="light">Light</option>
+                  <option value="auto">Auto (System)</option>
+                </select>
+              </div>
             </div>
+            @if (settings().themeSettings?.mode === 'auto') {
+              <div class="theme-auto-hint">
+                Currently using {{ themeService.resolvedMode() }} mode based on system preference
+              </div>
+            }
           </div>
         </section>
       </div>
