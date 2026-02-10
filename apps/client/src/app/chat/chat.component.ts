@@ -868,7 +868,7 @@ Analyze the attached design images carefully and create matching Angular compone
 
         if (event.type === 'text') {
           fullStreamText += event.content;
-          
+
           let displayText = '';
           const explMatch = fullStreamText.match(/<explanation>([\s\S]*?)(?:<\/explanation>|$)/);
           if (explMatch) {
@@ -880,11 +880,8 @@ Analyze the attached design images carefully and create matching Angular compone
           this.messages.update(msgs => {
             const newMsgs = [...msgs];
             newMsgs[assistantMsgIndex].text = displayText;
-            // Clear status when text is streaming (usually means tool is done or explanation is happening)
-            // But if we want to show 'Thinking...' we could.
-            // For now, let's leave status if it was set, or maybe clear it?
-            // If we clear it, 'Using tool...' flickers.
-            // Let's clear status only if it was a generic 'Using tool...' and we are now getting text.
+            // Show "Generating..." status during text streaming so user knows AI is still working
+            newMsgs[assistantMsgIndex].status = 'Generating...';
             return newMsgs;
           });
         } else if (event.type === 'tool_delta') {
