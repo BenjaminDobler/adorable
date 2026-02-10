@@ -1439,6 +1439,18 @@ Analyze the attached design images carefully and create matching Angular compone
   }
 
   /**
+   * Check if the uploaded image is a custom upload (not from predefined options).
+   */
+  isCustomUploadedImage(msg: ChatMessage, question: Question): boolean {
+    if (!msg.pendingQuestion) return false;
+    const answer = msg.pendingQuestion.answers[question.id];
+    if (!answer) return false;
+    // If there are no options, or the answer doesn't match any option value, it's a custom upload
+    if (!question.options || question.options.length === 0) return true;
+    return !question.options.find(o => o.value === answer);
+  }
+
+  /**
    * Handle image upload for image-type questions.
    * Reads the file and converts it to a data URL.
    */

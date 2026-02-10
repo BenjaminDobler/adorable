@@ -506,7 +506,7 @@
                         </button>
                       </div>
                     }
-                    @if (msg.pendingQuestion!.answers[q.id] && !q.options?.find(o => o.value === msg.pendingQuestion!.answers[q.id])) {
+                    @if (isCustomUploadedImage(msg, q)) {
                       <div class="uploaded-image-preview">
                         <img [src]="msg.pendingQuestion!.answers[q.id]" alt="Uploaded" />
                         <button class="btn-remove-upload" (click)="updateQuestionAnswer(msg, q.id, '')">×</button>
