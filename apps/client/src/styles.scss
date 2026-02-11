@@ -615,7 +615,8 @@ body.pro-mode {
     }
   }
 
-  .btn-create {
+  .btn-create,
+  .btn-save {
     padding: 0.625rem 1.125rem;
     font-size: 0.8125rem;
     border-radius: var(--radius-md);
