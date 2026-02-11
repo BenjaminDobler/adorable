@@ -619,11 +619,19 @@ body.pro-mode {
     padding: 0.625rem 1.125rem;
     font-size: 0.8125rem;
     border-radius: var(--radius-md);
+    color: #ffffff !important;
 
     svg {
       width: 14px;
       height: 14px;
     }
+  }
+
+  /* White text on accent backgrounds for better contrast */
+  .tab-btn.active .badge,
+  .badge[style*="background"],
+  .status-badge {
+    color: #ffffff !important;
   }
 
   /* Compact profile/settings */
