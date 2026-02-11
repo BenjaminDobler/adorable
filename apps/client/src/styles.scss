@@ -628,7 +628,7 @@ body.pro-mode {
   }
 
   /* White text on accent backgrounds for better contrast */
-  .tab-btn.active .badge,
+  .tab.active .badge,
   .badge[style*="background"],
   .status-badge {
     color: #ffffff !important;
