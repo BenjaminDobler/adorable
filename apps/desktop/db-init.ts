@@ -1,14 +1,27 @@
 import * as path from 'path';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 import { app } from 'electron';
 import Database from 'better-sqlite3';
+import * as bcrypt from 'bcryptjs';
+
+export interface LocalUserInfo {
+  id: string;
+  email: string;
+}
+
+export interface DatabaseInitResult {
+  databaseUrl: string;
+  localUser: LocalUserInfo;
+}
 
 /**
  * Initializes the SQLite database for the desktop app.
  * Creates the database schema directly using SQL statements.
  * This avoids runtime dependencies on Prisma CLI.
+ * Also ensures a local user exists for auto-login.
  */
-export async function initializeDatabase(): Promise<string> {
+export async function initializeDatabase(): Promise<DatabaseInitResult> {
   const userDataPath = app.getPath('userData');
   const dbPath = path.join(userDataPath, 'adorable.db');
   const databaseUrl = `file:${dbPath}`;
@@ -24,6 +37,7 @@ export async function initializeDatabase(): Promise<string> {
   }
 
   const dbExists = fs.existsSync(dbPath);
+  let localUser: LocalUserInfo;
 
   try {
     const db = new Database(dbPath);
@@ -37,6 +51,10 @@ export async function initializeDatabase(): Promise<string> {
       ensureSchema(db);
     }
 
+    // Ensure local user exists for auto-login
+    localUser = ensureLocalUser(db);
+    console.log(`[Desktop] Local user ready: ${localUser.email} (${localUser.id})`);
+
     db.close();
     console.log('[Desktop] Database initialized successfully');
   } catch (error: any) {
@@ -44,7 +62,7 @@ export async function initializeDatabase(): Promise<string> {
     throw error;
   }
 
-  return databaseUrl;
+  return { databaseUrl, localUser };
 }
 
 /**
@@ -129,4 +147,36 @@ function ensureSchema(db: Database.Database): void {
     console.log('[Desktop] Missing tables detected, creating schema...');
     createSchema(db);
   }
+}
+
+/**
+ * Ensures a local user exists for desktop auto-login.
+ * Creates the user on first launch, returns existing user otherwise.
+ */
+function ensureLocalUser(db: Database.Database): LocalUserInfo {
+  const LOCAL_USER_EMAIL = 'local@adorable.desktop';
+
+  // Check if local user exists
+  const existingUser = db.prepare(
+    'SELECT id, email FROM User WHERE email = ?'
+  ).get(LOCAL_USER_EMAIL) as LocalUserInfo | undefined;
+
+  if (existingUser) {
+    return existingUser;
+  }
+
+  // Create local user with random password (never used - auth is via pre-generated JWT)
+  const userId = crypto.randomUUID();
+  const password = crypto.randomBytes(32).toString('hex');
+  const hashedPassword = bcrypt.hashSync(password, 10);
+  const now = new Date().toISOString();
+
+  console.log('[Desktop] Creating local user for auto-login...');
+
+  db.prepare(`
+    INSERT INTO User (id, email, password, name, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(userId, LOCAL_USER_EMAIL, hashedPassword, 'Local User', now, now);
+
+  return { id: userId, email: LOCAL_USER_EMAIL };
 }

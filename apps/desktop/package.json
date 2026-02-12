@@ -10,6 +10,8 @@
     "cors": "^2.8.5",
     "chokidar": "^4.0.3",
     "@prisma/client": "^6.4.1",
-    "better-sqlite3": "^11.8.1"
+    "better-sqlite3": "^11.8.1",
+    "jsonwebtoken": "^9.0.3",
+    "bcryptjs": "^3.0.3"
   }
 }

@@ -1,6 +1,7 @@
-import { app, BrowserWindow, dialog } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import * as path from 'path';
 import { fork, ChildProcess } from 'child_process';
+import * as jwt from 'jsonwebtoken';
 import { ensureNode } from './node-bootstrap';
 import { startLocalAgent } from './local-agent';
 import { getOrCreateJwtSecret } from './jwt-secret';
@@ -8,6 +9,7 @@ import { initializeDatabase } from './db-init';
 
 let mainWindow: BrowserWindow | null = null;
 let serverProcess: ChildProcess | null = null;
+let localUserToken: string | null = null;
 
 // Server and agent ports
 const SERVER_PORT = parseInt(process.env['ADORABLE_SERVER_PORT'] || '3333', 10);
@@ -134,7 +136,24 @@ app.on('ready', async () => {
 
     // Initialize database (creates/migrates SQLite in userData)
     console.log('[Desktop] Initializing database...');
-    await initializeDatabase();
+    const { localUser } = await initializeDatabase();
+
+    // Get JWT secret and generate token for local user
+    const userDataPath = app.getPath('userData');
+    const jwtSecret = await getOrCreateJwtSecret(userDataPath);
+
+    // Generate long-lived token for local user (1 year expiry)
+    localUserToken = jwt.sign(
+      { userId: localUser.id },
+      jwtSecret,
+      { expiresIn: '365d' }
+    );
+    console.log('[Desktop] Generated auto-login token for local user');
+
+    // Register IPC handler for client to request the token
+    ipcMain.handle('get-local-user-token', () => {
+      return localUserToken;
+    });
 
     // Start the embedded backend server
     console.log('[Desktop] Starting embedded server...');
