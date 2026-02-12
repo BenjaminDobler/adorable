@@ -5,7 +5,7 @@ import { MemoryFileSystem } from './filesystem/memory-filesystem';
 
 export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
   async generate(options: GenerateOptions): Promise<any> {
-    const { prompt, previousFiles, apiKey, model } = options;
+    const { prompt, previousFiles, apiKey, model, baseUrl } = options;
     if (!apiKey) throw new Error('Anthropic API Key is required');
 
     let modelToUse = model || 'claude-3-5-sonnet-20240620';
@@ -13,7 +13,10 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       modelToUse = 'claude-3-5-sonnet-20240620';
     }
 
-    const anthropic = new Anthropic({ apiKey });
+    const anthropic = new Anthropic({
+      apiKey,
+      ...(baseUrl && { baseURL: baseUrl })
+    });
     const fs = options.fileSystem || new MemoryFileSystem(this.flattenFiles(previousFiles || {}));
 
     let userMessage = prompt;
@@ -52,7 +55,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
   }
 
   async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any> {
-    const { apiKey, model } = options;
+    const { apiKey, model, baseUrl } = options;
     if (!apiKey) throw new Error('Anthropic API Key is required');
 
     let modelToUse = model || 'claude-3-5-sonnet-20240620';
@@ -62,7 +65,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
 
     const anthropic = new Anthropic({
       apiKey,
-      defaultHeaders: { 'anthropic-beta': 'pdfs-2024-09-25' }
+      defaultHeaders: { 'anthropic-beta': 'pdfs-2024-09-25' },
+      ...(baseUrl && { baseURL: baseUrl })
     });
 
     // Prepare shared context

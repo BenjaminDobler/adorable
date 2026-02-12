@@ -114,6 +114,12 @@ router.post('/generate', async (req: any, res) => {
        return undefined;
     };
 
+    const getBaseUrl = (p: string) => {
+       const profiles = userSettings.profiles || [];
+       const profile = profiles.find((pr: any) => pr.provider === p);
+       return profile?.baseUrl;
+    };
+
     if (model === 'auto') {
        try {
           const decision = await aiSmartRouter.route(prompt, smartRouting || userSettings.smartRouting, getApiKey);
@@ -154,7 +160,8 @@ router.post('/generate', async (req: any, res) => {
           images,
           openFiles,
           userId: user.id,
-          mcpConfigs
+          mcpConfigs,
+          baseUrl: getBaseUrl(provider)
       });
 
       res.json(result);
@@ -190,6 +197,12 @@ router.post('/generate-stream', async (req: any, res) => {
        return undefined;
     };
 
+    const getBaseUrl = (p: string) => {
+       const profiles = userSettings.profiles || [];
+       const profile = profiles.find((pr: any) => pr.provider === p);
+       return profile?.baseUrl;
+    };
+
     if (model === 'auto') {
        try {
           const decision = await aiSmartRouter.route(prompt, smartRouting || userSettings.smartRouting, getApiKey);
@@ -206,11 +219,11 @@ router.post('/generate-stream', async (req: any, res) => {
 
     let effectiveApiKey = apiKey;
     if (!effectiveApiKey || effectiveApiKey.includes('...')) effectiveApiKey = getApiKey(provider);
-  
+
     if (!effectiveApiKey) {
       return res.status(400).send({ error: `No API Key provided for ${provider}. Please enter one in settings.` });
     }
-  
+
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -255,7 +268,8 @@ router.post('/generate-stream', async (req: any, res) => {
           userId: user.id,
           forcedSkill,
           mcpConfigs,
-          planMode
+          planMode,
+          baseUrl: getBaseUrl(provider)
       }, {
           onText: (text) => {
               res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);

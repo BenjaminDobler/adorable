@@ -212,6 +212,12 @@
   }
 }
 
+.optional-hint {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
 .help-text {
   display: block;
   margin-top: 0.5rem;

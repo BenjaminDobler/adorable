@@ -19,6 +19,7 @@ export interface AIProfile {
   provider: ProviderType;
   apiKey: string;
   model: string;
+  baseUrl?: string; // Optional custom API base URL (e.g., for company proxy)
 }
 
 export interface SmartRoutingTier {

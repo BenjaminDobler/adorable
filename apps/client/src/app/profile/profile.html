@@ -178,6 +178,20 @@
                         }
                       </select>
                     </div>
+
+                    @if (profile.provider === 'anthropic') {
+                      <div class="form-group">
+                        <label>Base URL <span class="optional-hint">(optional)</span></label>
+                        <input
+                          type="url"
+                          [name]="'baseUrl-' + profile.id"
+                          [ngModel]="profile.baseUrl"
+                          (ngModelChange)="updateProfile(profile.id, {baseUrl: $event})"
+                          placeholder="https://api.anthropic.com"
+                        />
+                        <small class="help-text">Custom API endpoint for company proxy</small>
+                      </div>
+                    }
                   </div>
                 </div>
               }

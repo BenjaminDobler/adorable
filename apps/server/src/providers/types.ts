@@ -14,6 +14,7 @@ export interface GenerateOptions {
   forcedSkill?: string;
   mcpConfigs?: MCPServerConfig[]; // MCP server configurations
   planMode?: boolean; // When true, AI should ask clarifying questions before coding
+  baseUrl?: string; // Optional custom base URL for API proxy
 }
 
 export interface TokenUsage {
