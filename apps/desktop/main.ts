@@ -1,12 +1,16 @@
 import { app, BrowserWindow, dialog } from 'electron';
 import * as path from 'path';
+import { fork, ChildProcess } from 'child_process';
 import { ensureNode } from './node-bootstrap';
 import { startLocalAgent } from './local-agent';
+import { getOrCreateJwtSecret } from './jwt-secret';
+import { initializeDatabase } from './db-init';
 
 let mainWindow: BrowserWindow | null = null;
+let serverProcess: ChildProcess | null = null;
 
-// Cloud server URL for API calls — configurable via env
-const SERVER_URL = process.env['ADORABLE_SERVER_URL'] || 'http://localhost:3333';
+// Server and agent ports
+const SERVER_PORT = parseInt(process.env['ADORABLE_SERVER_PORT'] || '3333', 10);
 const AGENT_PORT = parseInt(process.env['ADORABLE_AGENT_PORT'] || '3334', 10);
 
 function createWindow() {
@@ -29,9 +33,112 @@ function createWindow() {
   });
 }
 
+/**
+ * Starts the embedded backend server as a child process.
+ * The server handles API routes, authentication, and database operations.
+ */
+async function startEmbeddedServer(): Promise<number> {
+  const userDataPath = app.getPath('userData');
+
+  // Determine server path and directory based on packaged vs dev mode
+  const serverDir = app.isPackaged
+    ? path.join(process.resourcesPath, 'server')
+    : path.join(__dirname, '..', 'server');
+  const serverPath = path.join(serverDir, 'main.js');
+
+  // Get or create persistent JWT secret
+  const jwtSecret = await getOrCreateJwtSecret(userDataPath);
+
+  // Set up data directories in userData
+  const sitesDir = path.join(userDataPath, 'published-sites');
+  const storageDir = path.join(userDataPath, 'storage');
+
+  console.log(`[Desktop] Starting embedded server from: ${serverPath}`);
+  console.log(`[Desktop] Server working directory: ${serverDir}`);
+  console.log(`[Desktop] Server data directory: ${userDataPath}`);
+
+  serverProcess = fork(serverPath, [], {
+    cwd: serverDir, // Set working directory so node_modules can be found
+    env: {
+      ...process.env,
+      PORT: String(SERVER_PORT),
+      DATABASE_URL: process.env['DATABASE_URL'], // Set by initializeDatabase
+      JWT_SECRET: jwtSecret,
+      SITES_DIR: sitesDir,
+      STORAGE_DIR: storageDir,
+      ADORABLE_DESKTOP_MODE: 'true'
+    },
+    stdio: ['pipe', 'pipe', 'pipe', 'ipc']
+  });
+
+  // Forward server stdout/stderr to console
+  serverProcess.stdout?.on('data', (data) => {
+    console.log(`[Server] ${data.toString().trim()}`);
+  });
+
+  serverProcess.stderr?.on('data', (data) => {
+    console.error(`[Server] ${data.toString().trim()}`);
+  });
+
+  serverProcess.on('error', (error) => {
+    console.error('[Desktop] Server process error:', error);
+  });
+
+  serverProcess.on('exit', (code, signal) => {
+    console.log(`[Desktop] Server process exited with code ${code}, signal ${signal}`);
+    serverProcess = null;
+  });
+
+  // Wait for server to signal it's ready
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error('Server startup timeout - server did not signal ready within 30 seconds'));
+    }, 30000);
+
+    serverProcess!.on('message', (msg: any) => {
+      if (msg.type === 'ready') {
+        clearTimeout(timeout);
+        console.log(`[Desktop] Embedded server ready on port ${msg.port}`);
+        resolve(msg.port);
+      }
+    });
+
+    serverProcess!.on('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+
+    serverProcess!.on('exit', (code) => {
+      clearTimeout(timeout);
+      if (code !== 0) {
+        reject(new Error(`Server process exited with code ${code}`));
+      }
+    });
+  });
+}
+
+/**
+ * Gracefully shuts down the server process.
+ */
+function stopEmbeddedServer(): void {
+  if (serverProcess) {
+    console.log('[Desktop] Stopping embedded server...');
+    serverProcess.kill('SIGTERM');
+    serverProcess = null;
+  }
+}
+
 app.on('ready', async () => {
   try {
     await ensureNode();
+
+    // Initialize database (creates/migrates SQLite in userData)
+    console.log('[Desktop] Initializing database...');
+    await initializeDatabase();
+
+    // Start the embedded backend server
+    console.log('[Desktop] Starting embedded server...');
+    await startEmbeddedServer();
 
     // Path to the built Angular client
     const clientPath = path.join(__dirname, '..', 'client', 'browser');
@@ -39,17 +146,23 @@ app.on('ready', async () => {
     // Start local agent: serves Angular client + native API routes
     const agentPort = await startLocalAgent(clientPath);
     console.log(`[Desktop] Local agent + client on http://localhost:${agentPort}`);
-    console.log(`[Desktop] Cloud API server: ${SERVER_URL}`);
+    console.log(`[Desktop] Embedded API server: http://localhost:${SERVER_PORT}`);
 
     createWindow();
   } catch (error) {
     console.error('Failed to start Adorable:', error);
     dialog.showErrorBox('Startup Error', `Failed to start Adorable: ${error}`);
+    stopEmbeddedServer();
     app.quit();
   }
 });
 
+app.on('before-quit', () => {
+  stopEmbeddedServer();
+});
+
 app.on('window-all-closed', () => {
+  stopEmbeddedServer();
   app.quit();
 });
 

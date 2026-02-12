@@ -4,8 +4,8 @@ import { contextBridge } from 'electron';
 contextBridge.exposeInMainWorld('electronAPI', {
   isDesktop: true,
   platform: process.platform,
-  // Cloud server URL for API calls (auth, projects, AI, etc.)
-  serverUrl: process.env['ADORABLE_SERVER_URL'] || 'http://localhost:3333',
+  // Embedded server URL for API calls (auth, projects, AI, etc.)
+  serverUrl: 'http://localhost:' + (process.env['ADORABLE_SERVER_PORT'] || '3333'),
   // Local agent URL for native file/process operations
   nativeAgentUrl: 'http://localhost:' + (process.env['ADORABLE_AGENT_PORT'] || '3334'),
 });

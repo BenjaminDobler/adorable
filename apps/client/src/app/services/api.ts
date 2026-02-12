@@ -8,7 +8,7 @@ import { Observable } from 'rxjs';
 })
 export class ApiService {
   private http = inject(HttpClient);
-  private apiUrl = 'http://localhost:3333/api';
+  private apiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api';
 
   generate(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[], smartRouting?: any, openFiles?: { [path: string]: string }, use_container_context?: boolean, forcedSkill?: string }) {
     return this.http.post<GenerateResponse>(`${this.apiUrl}/generate`, { 

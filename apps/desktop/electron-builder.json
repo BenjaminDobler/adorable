@@ -23,10 +23,6 @@
       "to": "server"
     },
     {
-      "from": "prisma",
-      "to": "prisma"
-    },
-    {
       "from": "apps/desktop/icons",
       "to": "icons"
     }

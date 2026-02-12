@@ -110,6 +110,11 @@ app.use('/api/mcp', mcpRouter);
 
 const server = app.listen(PORT, () => {
   console.log(`Listening at http://localhost:${PORT}/api`);
+
+  // Signal to Electron that server is ready (for desktop mode)
+  if (process.send) {
+    process.send({ type: 'ready', port: PORT });
+  }
 });
 
 // WebSocket Upgrade Handler for HMR support in multi-user environment

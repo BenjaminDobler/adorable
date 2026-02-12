@@ -18,7 +18,7 @@ export interface AuthResponse {
 export class AuthService {
   private http = inject(HttpClient);
   private router = inject(Router);
-  private apiUrl = 'http://localhost:3333/api/auth';
+  private apiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api/auth';
 
   currentUser = signal<AuthResponse['user'] | null>(null);
   token = signal<string | null>(localStorage.getItem('adorable_token'));

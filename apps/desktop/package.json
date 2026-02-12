@@ -8,6 +8,8 @@
   "dependencies": {
     "express": "^4.21.2",
     "cors": "^2.8.5",
-    "chokidar": "^4.0.3"
+    "chokidar": "^4.0.3",
+    "@prisma/client": "^6.4.1",
+    "better-sqlite3": "^11.8.1"
   }
 }
