@@ -1,0 +1,145 @@
+<div class="folder-import">
+  <h3>Import Template from Folder</h3>
+
+  <div class="import-step">
+    <div class="step-header">
+      <span class="step-number">1</span>
+      <span class="step-title">Select Folder</span>
+    </div>
+    <div class="folder-input-wrapper">
+      <input
+        type="file"
+        #folderInput
+        webkitdirectory
+        directory
+        (change)="onFolderSelect($event)"
+        style="display: none"
+      />
+      <div class="folder-display">
+        <span class="folder-path">{{ folderPath() || 'No folder selected' }}</span>
+        <button class="btn-browse" (click)="folderInput.click()">Browse</button>
+      </div>
+    </div>
+  </div>
+
+  @if (fileTree().length > 0) {
+    <div class="import-step">
+      <div class="step-header">
+        <span class="step-number">2</span>
+        <span class="step-title">Review Files</span>
+        <div class="file-actions">
+          <button class="btn-text" (click)="expandAll()">Expand All</button>
+          <button class="btn-text" (click)="collapseAll()">Collapse All</button>
+          <span class="divider">|</span>
+          <button class="btn-text" (click)="selectAll()">Select All</button>
+          <button class="btn-text" (click)="deselectAll()">Deselect All</button>
+        </div>
+      </div>
+      <div class="file-tree">
+        <ng-container *ngTemplateOutlet="treeTemplate; context: { nodes: fileTree() }"></ng-container>
+      </div>
+      <div class="files-summary">
+        <span>Total: {{ selectedCount() }} files, {{ formatSize(totalSize()) }}</span>
+        @if (sizeWarning()) {
+          <span class="warning">Large template may affect performance</span>
+        }
+      </div>
+    </div>
+
+    <div class="import-step">
+      <div class="step-header">
+        <span class="step-number">3</span>
+        <span class="step-title">Kit Details</span>
+      </div>
+      <div class="form-group">
+        <label>Name <span class="required">*</span></label>
+        <input
+          type="text"
+          [ngModel]="kitName()"
+          (ngModelChange)="kitName.set($event)"
+          placeholder="My Custom Starter"
+        />
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <input
+          type="text"
+          [ngModel]="kitDescription()"
+          (ngModelChange)="kitDescription.set($event)"
+          placeholder="Enterprise Angular template"
+        />
+      </div>
+    </div>
+  }
+
+  <div class="form-actions">
+    <button class="btn-cancel" (click)="cancel.emit()" [disabled]="importing()">
+      Cancel
+    </button>
+    <button
+      class="btn-import"
+      (click)="confirmImport()"
+      [disabled]="importing() || !kitName() || selectedCount() === 0"
+    >
+      {{ importing() ? 'Importing...' : 'Import as Starter Kit' }}
+    </button>
+  </div>
+</div>
+
+<!-- Recursive tree template -->
+<ng-template #treeTemplate let-nodes="nodes">
+  @for (node of nodes; track node.path) {
+    <div class="tree-node" [class.excluded]="node.excluded">
+      <div
+        class="tree-item"
+        [style.padding-left.px]="node.depth * 20 + 8"
+        [class.directory]="node.isDirectory"
+        [class.selected]="node.selected && !node.indeterminate"
+        [class.indeterminate]="node.indeterminate"
+      >
+        <!-- Expand/collapse button for directories -->
+        @if (node.isDirectory) {
+          <button class="btn-expand" (click)="toggleExpand(node)">
+            <svg [class.expanded]="node.expanded" width="12" height="12" viewBox="0 0 12 12">
+              <path d="M4 2L8 6L4 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        } @else {
+          <span class="expand-spacer"></span>
+        }
+
+        <!-- Checkbox -->
+        <label class="checkbox-wrapper" (click)="$event.stopPropagation()">
+          <input
+            type="checkbox"
+            [checked]="node.selected"
+            [indeterminate]="node.indeterminate"
+            [disabled]="node.excluded"
+            (change)="toggleSelect(node)"
+          />
+        </label>
+
+        <!-- Icon and name -->
+        <span class="node-icon">{{ getFileIcon(node) }}</span>
+        <span class="node-name" (click)="node.isDirectory && toggleExpand(node)">{{ node.name }}</span>
+
+        <!-- File size (for files only) -->
+        @if (!node.isDirectory) {
+          <span class="node-size">{{ formatSize(node.size) }}</span>
+        }
+
+        <!-- Exclude reason -->
+        @if (node.excluded && node.excludeReason) {
+          <span class="exclude-badge">{{ node.excludeReason }}</span>
+        }
+      </div>
+
+      <!-- Children (if expanded) -->
+      @if (node.isDirectory && node.expanded && node.children.length > 0) {
+        <div class="tree-children">
+          <ng-container *ngTemplateOutlet="treeTemplate; context: { nodes: node.children }"></ng-container>
+        </div>
+      }
+    </div>
+  }
+</ng-template>

@@ -17,6 +17,7 @@ import { figmaRouter } from './routes/figma.routes';
 import { githubRouter } from './routes/github.routes';
 import { webhooksRouter } from './routes/webhooks.routes';
 import { mcpRouter } from './routes/mcp.routes';
+import { kitRouter } from './routes/kit.routes';
 // Native routes are handled by the desktop local agent, not the cloud server
 // import { nativeRouter } from './routes/native.routes';
 
@@ -105,6 +106,7 @@ app.use('/api/profile', profileRouter);
 app.use('/api/skills', skillsRouter);
 app.use('/api/figma', figmaRouter);
 app.use('/api/mcp', mcpRouter);
+app.use('/api/kits', kitRouter);
 // app.use('/api/native', nativeRouter); // Handled by desktop local agent
 
 

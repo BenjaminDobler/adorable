@@ -522,4 +522,5 @@ export class ProfileComponent implements OnInit {
   parseArgs(text: string): string[] {
     return text ? text.split(' ').filter(a => a.trim()) : [];
   }
+
 }

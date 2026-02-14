@@ -1,4 +1,5 @@
 import { MCPServerConfig } from '../mcp/types';
+import { Kit } from './kits/types';
 import { Question } from './question-manager';
 
 export interface GenerateOptions {
@@ -15,6 +16,7 @@ export interface GenerateOptions {
   mcpConfigs?: MCPServerConfig[]; // MCP server configurations
   planMode?: boolean; // When true, AI should ask clarifying questions before coding
   baseUrl?: string; // Optional custom base URL for API proxy
+  activeKit?: Kit; // Active component kit for this generation
 }
 
 export interface TokenUsage {

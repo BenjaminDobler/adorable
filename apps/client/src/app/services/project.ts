@@ -3,13 +3,14 @@ import { ApiService } from './api';
 import { ContainerEngine } from './container-engine';
 import { ToastService } from './toast';
 import { Router } from '@angular/router';
-import { BASE_FILES } from '../base-project';
+import { BASE_FILES, DEFAULT_KIT } from '../base-project';
 import { RUNTIME_SCRIPTS } from '../runtime-scripts';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { FileSystemStore } from './file-system.store';
 import { WebContainerFiles, FigmaImportPayload } from '@adorable/shared-types';
 import { ScreenshotService } from './screenshot';
+import { Kit, WebContainerFiles as KitWebContainerFiles } from './kit-types';
 
 export interface QuestionOption {
   value: string;
@@ -74,6 +75,8 @@ export class ProjectService {
   // State
   projectId = signal<string | null>(null);
   projectName = signal<string>('');
+  selectedKitId = signal<string | null>(null);
+  currentKitTemplate = signal<KitWebContainerFiles | null>(null);
 
   // Use store for files
   files: Signal<WebContainerFiles> = this.fileStore.files;
@@ -106,6 +109,7 @@ export class ProjectService {
       next: async (project) => {
         this.projectId.set(project.id);
         this.projectName.set(project.name);
+        this.selectedKitId.set(project.selectedKitId || null);
 
         if (project.messages) {
           this.messages.set(
@@ -161,6 +165,7 @@ export class ProjectService {
         saveId,
         thumbnail,
         this.figmaImports(),
+        this.selectedKitId(),
       )
       .subscribe({
         next: (project) => {
@@ -258,7 +263,7 @@ export class ProjectService {
     }
   }
 
-  async reloadPreview(files: any) {
+  async reloadPreview(files: any, kitTemplate?: KitWebContainerFiles) {
     this.loading.set(true);
 
     // Yield to allow loading state to render
@@ -275,7 +280,13 @@ export class ProjectService {
       // Yield before heavy sync operations
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      const mergedFiles = this.mergeFiles(BASE_FILES, files || {});
+      // Use kit template if provided, otherwise use current kit template or default BASE_FILES
+      const baseFiles = kitTemplate || this.currentKitTemplate() || BASE_FILES;
+      if (kitTemplate) {
+        this.currentKitTemplate.set(kitTemplate);
+      }
+
+      const mergedFiles = this.mergeFiles(baseFiles, files || {});
 
       // Yield before updating store (triggers change detection)
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -302,6 +313,39 @@ export class ProjectService {
       console.error(err);
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  /**
+   * Load kit template files for a given kit
+   */
+  async loadKitTemplate(kitId: string): Promise<KitWebContainerFiles | null> {
+    if (kitId === DEFAULT_KIT.id) {
+      return DEFAULT_KIT.template.files;
+    }
+
+    try {
+      const result = await this.apiService.getKit(kitId).toPromise();
+      if (result?.kit?.template?.files) {
+        return result.kit.template.files;
+      }
+    } catch (err) {
+      console.error('Failed to load kit template:', err);
+    }
+    return null;
+  }
+
+  /**
+   * Set the kit for the current project and optionally reload preview
+   */
+  async setKit(kitId: string, reloadPreviewNow = true) {
+    this.selectedKitId.set(kitId);
+    const template = await this.loadKitTemplate(kitId);
+    if (template) {
+      this.currentKitTemplate.set(template);
+      if (reloadPreviewNow) {
+        await this.reloadPreview(this.files(), template);
+      }
     }
   }
 

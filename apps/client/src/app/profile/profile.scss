@@ -739,6 +739,11 @@ input:checked + .slider:before {
     background: rgba(239, 68, 68, 0.05);
   }
 
+  &.active {
+    border-color: var(--accent-color);
+    background: var(--accent-glow);
+  }
+
   .server-toggle {
     flex-shrink: 0;
   }
@@ -773,6 +778,11 @@ input:checked + .slider:before {
         margin-right: 0.4rem;
         text-transform: uppercase;
         letter-spacing: 0.03em;
+      }
+
+      .kit-package {
+        font-family: var(--font-mono, monospace);
+        color: var(--text-secondary);
       }
     }
 

@@ -20,7 +20,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
     const modelName = model || 'gemini-2.0-flash-exp';
 
     // Prepare shared context
-    const { fs, skillRegistry, availableTools, userMessage, logger, maxTurns, mcpManager } = await this.prepareAgentContext(options, 'gemini');
+    const { fs, skillRegistry, availableTools, userMessage, logger, maxTurns, mcpManager, activeKit } = await this.prepareAgentContext(options, 'gemini');
     await this.addSkillTools(availableTools, skillRegistry, fs, options.userId);
 
     // Convert tools to Gemini format
@@ -61,7 +61,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
     const ctx: AgentLoopContext = {
       fs, callbacks, skillRegistry, availableTools, logger,
       hasRunBuild: false, hasWrittenFiles: false, buildNudgeSent: false, fullExplanation: '',
-      mcpManager
+      mcpManager, activeKit
     };
 
     let turnCount = 0;

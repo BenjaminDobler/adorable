@@ -1,6 +1,7 @@
 import { RUNTIME_SCRIPTS } from './runtime-scripts';
+import type { Kit, WebContainerFiles } from './services/kit-types';
 
-export const BASE_FILES = {
+export const BASE_FILES: WebContainerFiles = {
   'package.json': {
     file: {
       contents: JSON.stringify(
@@ -200,4 +201,24 @@ export class AppComponent {}
       },
     },
   },
+};
+
+/**
+ * Default Kit - The built-in Angular 21 starter kit
+ * This is used when no custom kit is selected
+ */
+export const DEFAULT_KIT: Kit = {
+  id: 'default-angular-21',
+  name: 'Default Angular 21',
+  description: 'Blank Angular 21 project with standalone components',
+  isBuiltIn: true,
+  template: {
+    type: 'default',
+    files: BASE_FILES,
+    angularVersion: '21'
+  },
+  resources: [],
+  mcpServerIds: [],
+  createdAt: '2024-01-01T00:00:00Z',
+  updatedAt: '2024-01-01T00:00:00Z'
 };

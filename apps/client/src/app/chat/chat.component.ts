@@ -121,6 +121,9 @@ export class ChatComponent implements OnDestroy {
   mcpServers = signal<{ id: string; name: string; url: string; enabled: boolean }[]>([]);
   mcpTools = signal<{ name: string; originalName: string; description: string; serverId: string }[]>([]);
 
+  // Component Kits
+  availableKits = signal<{ id: string; name: string; npmPackage?: string }[]>([]);
+
   // Figma import state
   figmaContext = signal<any>(null);
   figmaImages = signal<string[]>([]);
@@ -163,6 +166,7 @@ export class ChatComponent implements OnDestroy {
 
   constructor() {
     this.loadSkills();
+    this.loadKits();
 
     effect(() => {
         // Auto-scroll when messages change, but only if user is at bottom
@@ -211,6 +215,13 @@ export class ChatComponent implements OnDestroy {
     this.skillsService.getSkills().subscribe({
       next: (skills) => this.availableSkills.set(skills),
       error: () => console.warn('Failed to load skills for chat')
+    });
+  }
+
+  loadKits() {
+    this.apiService.listKits().subscribe({
+      next: (result) => this.availableKits.set(result.kits || []),
+      error: () => console.warn('Failed to load kits for chat')
     });
   }
 
@@ -859,7 +870,8 @@ Analyze the attached design images carefully and create matching Angular compone
       openFiles: this.getContextFiles(),
       use_container_context: this.projectService.agentMode(),
       forcedSkill: this.selectedSkill()?.name,
-      planMode: this.planMode()
+      planMode: this.planMode(),
+      kitId: this.projectService.selectedKitId() || undefined
     }).subscribe({
       next: async (event) => {
         if (event.type !== 'tool_delta' && event.type !== 'text') { 

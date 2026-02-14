@@ -119,3 +119,73 @@ export interface FileProgressEvent {
   content: string;
   isComplete: boolean;
 }
+
+// Kit / Starter Kit Types
+export interface KitTemplate {
+  type: 'default' | 'custom';
+  files: WebContainerFiles;
+  angularVersion?: string;
+}
+
+export interface DesignToken {
+  name: string;
+  value: string;
+  cssVariable?: string;
+}
+
+export interface TypographyToken {
+  name: string;
+  fontFamily?: string;
+  fontSize?: string;
+  fontWeight?: string;
+  lineHeight?: string;
+}
+
+export interface DesignTokens {
+  colors?: DesignToken[];
+  typography?: TypographyToken[];
+  spacing?: DesignToken[];
+  shadows?: DesignToken[];
+  borderRadius?: DesignToken[];
+}
+
+export interface StorybookComponent {
+  id: string;
+  title: string;
+  name: string;
+  importPath?: string;
+  type: 'docs' | 'story';
+  componentName?: string;
+  category?: string;
+}
+
+export interface KitResource {
+  id: string;
+  type: 'storybook' | 'design-tokens' | 'api-docs' | 'custom-rules' | 'figma';
+  url: string;
+  status: 'pending' | 'discovered' | 'error';
+  lastDiscovered?: string;
+  error?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface StorybookResource extends KitResource {
+  type: 'storybook';
+  components: StorybookComponent[];
+  selectedComponentIds: string[];
+}
+
+export interface Kit {
+  id: string;
+  name: string;
+  description?: string;
+  thumbnail?: string;
+  template: KitTemplate;
+  npmPackage?: string;
+  resources: KitResource[];
+  designTokens?: DesignTokens;
+  mcpServerIds: string[];
+  isBuiltIn?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

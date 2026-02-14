@@ -1,0 +1,500 @@
+@if (showFolderImport()) {
+  <app-folder-import
+    (import)="onFolderImport($event)"
+    (cancel)="showFolderImport.set(false)">
+  </app-folder-import>
+} @else {
+  <div class="kit-builder-page">
+    <div class="kit-builder-content">
+      <div class="page-header">
+        <button class="btn-back" (click)="goBack()">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          Back to Kits
+        </button>
+        <h2>{{ kit ? 'Edit Starter Kit' : 'Create Starter Kit' }}</h2>
+      </div>
+
+      @if (loading()) {
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading...</p>
+        </div>
+      } @else {
+        <div class="kit-builder">
+          <div class="form-section">
+            <div class="form-group">
+              <label>Kit Name <span class="required">*</span></label>
+              <input
+                type="text"
+                [ngModel]="kitName()"
+                (ngModelChange)="kitName.set($event)"
+                placeholder="e.g., LeanIX Starter"
+              />
+            </div>
+
+            <div class="form-group">
+              <label>Description</label>
+              <input
+                type="text"
+                [ngModel]="kitDescription()"
+                (ngModelChange)="kitDescription.set($event)"
+                placeholder="e.g., Enterprise Angular starter"
+              />
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h4>Template</h4>
+            <div class="template-options">
+              <label class="template-option" [class.selected]="templateType() === 'default'">
+                <input
+                  type="radio"
+                  name="templateType"
+                  [checked]="templateType() === 'default'"
+                  (change)="setTemplateType('default')"
+                />
+                <span class="option-content">
+                  <span class="option-title">Use Default (Angular 21)</span>
+                  <span class="option-desc">Blank Angular 21 project with standalone components</span>
+                </span>
+              </label>
+              <label class="template-option" [class.selected]="templateType() === 'custom'">
+                <input
+                  type="radio"
+                  name="templateType"
+                  [checked]="templateType() === 'custom'"
+                  (change)="setTemplateType('custom')"
+                />
+                <span class="option-content">
+                  <span class="option-title">Custom Template</span>
+                  <span class="option-desc">Import from local folder</span>
+                </span>
+              </label>
+            </div>
+
+            @if (templateType() === 'custom') {
+              <div class="custom-template-actions">
+                <button class="btn-import-folder" (click)="openFolderImport()">
+                  <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  Import from Folder...
+                </button>
+                @if (importedFileCount() > 0) {
+                  <span class="template-status">{{ importedFileCount() }} files imported</span>
+                }
+              </div>
+            }
+          </div>
+
+          <div class="form-section">
+            <h4>Component Library (Optional)</h4>
+
+            <!-- npm Package - Primary discovery method -->
+            <div class="npm-discovery">
+              <div class="form-group">
+                <label>npm Package</label>
+                <div class="npm-input-row">
+                  <input
+                    type="text"
+                    [ngModel]="npmPackage()"
+                    (ngModelChange)="npmPackage.set($event)"
+                    placeholder="e.g., @leanix/components"
+                    [disabled]="discovering()"
+                  />
+                  <button
+                    class="btn-discover"
+                    (click)="discoverFromNpm()"
+                    [disabled]="discovering() || !npmPackage()"
+                  >
+                    {{ discovering() ? 'Discovering...' : 'Discover Components' }}
+                  </button>
+                </div>
+                <span class="hint">Enter the npm package name to discover all components with their documentation</span>
+              </div>
+            </div>
+
+            @if (discoveryError()) {
+              <div class="error-message">
+                {{ discoveryError() }}
+              </div>
+            }
+
+            <!-- Optional: Storybook for additional info -->
+            @if (discoveredComponents().length > 0) {
+              <details class="storybook-optional">
+                <summary>Storybook URL (optional)</summary>
+                <div class="storybook-content">
+                  <div class="form-group">
+                    <input
+                      type="url"
+                      [ngModel]="storybookUrl()"
+                      (ngModelChange)="storybookUrl.set($event)"
+                      placeholder="https://storybook.example.com"
+                    />
+                    <span class="hint">Add Storybook URL to link to documentation pages</span>
+                  </div>
+                </div>
+              </details>
+            }
+
+            <!-- Import settings -->
+            @if (discoveredComponents().length > 0) {
+              <div class="form-group import-suffix-group">
+                <label>Export Name Suffix</label>
+                <select [ngModel]="importSuffix()" (ngModelChange)="importSuffix.set($event)">
+                  <option value="Component">Component (e.g., ButtonComponent)</option>
+                  <option value="Directive">Directive (e.g., ButtonDirective)</option>
+                  <option value="">None (e.g., Button)</option>
+                  <option value="Module">Module (e.g., ButtonModule)</option>
+                </select>
+                <span class="hint">Suffix added to component names in imports</span>
+              </div>
+            }
+
+            @if (discoveredComponents().length > 0) {
+              <div class="components-section">
+                <div class="components-header">
+                  <div class="components-info">
+                    <span class="success-icon">✓</span>
+                    Found {{ totalCount() }} components
+                    <span class="selected-count">({{ selectedCount() }} selected)</span>
+                  </div>
+                  <div class="components-actions">
+                    <input
+                      type="text"
+                      class="filter-input"
+                      [ngModel]="filterText()"
+                      (ngModelChange)="filterText.set($event)"
+                      placeholder="Filter components..."
+                    />
+                    <label class="select-all-toggle">
+                      <input
+                        type="checkbox"
+                        [checked]="selectAll()"
+                        (change)="toggleSelectAll()"
+                      />
+                      Select All
+                    </label>
+                  </div>
+                </div>
+
+                <div class="components-list">
+                  @for (entry of componentsByCategory() | keyvalue; track entry.key) {
+                    <div class="category-group">
+                      <div class="category-name">{{ entry.key }}</div>
+                      <div class="category-components">
+                        @for (component of entry.value; track component.id) {
+                          <div class="component-item-wrapper" [class.selected]="isSelected(component.id)">
+                            <label class="component-item">
+                              <input
+                                type="checkbox"
+                                [checked]="isSelected(component.id)"
+                                (change)="toggleComponent(component.id)"
+                              />
+                              <span class="component-name">{{ component.componentName || component.title }}</span>
+                              @if (hasStoredDocs(component)) {
+                                <span class="has-docs-badge" title="Has custom documentation">✓</span>
+                              }
+                            </label>
+                            <button
+                              class="btn-edit-component"
+                              (click)="openComponentEditor(component, $event)"
+                              title="Edit component documentation"
+                            >
+                              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                              </svg>
+                            </button>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+
+          @if (discoveredComponents().length > 0) {
+            <div class="form-section">
+              <h4>Test Tools</h4>
+              <p class="section-hint">Preview what the AI sees when calling kit tools</p>
+              @if (kit) {
+                <div class="tool-tester">
+                  <div class="tool-select-row">
+                    <select [ngModel]="selectedTestTool()" (ngModelChange)="selectedTestTool.set($event)">
+                      <option value="list_components">list_components</option>
+                      <option value="get_component">get_component</option>
+                      <option value="get_design_tokens">get_design_tokens</option>
+                    </select>
+                    @if (selectedTestTool() === 'get_component') {
+                      <input
+                        type="text"
+                        class="tool-arg-input"
+                        [ngModel]="testComponentName()"
+                        (ngModelChange)="testComponentName.set($event)"
+                        placeholder="Component name (e.g., Button)"
+                      />
+                    }
+                    <button
+                      class="btn-test"
+                      (click)="testTool()"
+                      [disabled]="testingTool()"
+                    >
+                      {{ testingTool() ? 'Testing...' : 'Test' }}
+                    </button>
+                  </div>
+                  @if (toolTestResult()) {
+                    <div class="tool-result" [class.error]="toolTestError()">
+                      <pre>{{ toolTestResult() }}</pre>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <div class="tool-tester-hint">
+                  Save the kit first to test the AI tools.
+                </div>
+              }
+            </div>
+          }
+
+          @if (mcpServers.length > 0) {
+            <div class="form-section">
+              <h4>MCP Servers (Optional)</h4>
+              <p class="section-hint">Select MCP servers that should be active when this kit is used</p>
+              <div class="mcp-server-list">
+                @for (server of mcpServers; track server.id) {
+                  <label class="mcp-server-item" [class.selected]="isMcpServerSelected(server.id)">
+                    <input
+                      type="checkbox"
+                      [checked]="isMcpServerSelected(server.id)"
+                      (change)="toggleMcpServer(server.id)"
+                    />
+                    <span class="server-name">{{ server.name }}</span>
+                  </label>
+                }
+              </div>
+            </div>
+          }
+
+          <div class="form-actions">
+            <button class="btn-cancel" (click)="goBack()" [disabled]="saving()">
+              Cancel
+            </button>
+            <button
+              class="btn-save"
+              (click)="saveKit()"
+              [disabled]="saving() || !kitName()"
+            >
+              {{ saving() ? 'Saving...' : (kit ? 'Save Changes' : 'Save Kit') }}
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Component Editor Modal -->
+    @if (editingComponent()) {
+      <div class="modal-overlay" (click)="closeComponentEditor()">
+        <div class="modal-content component-editor" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <h3>Edit Component: {{ editingComponent()!.componentName || editingComponent()!.title }}</h3>
+            <button class="btn-close" (click)="closeComponentEditor()">×</button>
+          </div>
+
+          <div class="modal-body">
+            <p class="editor-hint">
+              Add documentation that the AI will use when generating code with this component.
+              This data is stored locally and won't be fetched from Storybook.
+            </p>
+
+            <div class="form-group">
+              <label>Usage Type</label>
+              <select [ngModel]="editUsageType()" (ngModelChange)="editUsageType.set($event)">
+                <option value="">Auto-detect</option>
+                <option value="directive">Directive (applied as attribute)</option>
+                <option value="component">Component (used as element)</option>
+              </select>
+              <span class="hint">Directives are applied to existing elements (e.g., &lt;button lxButton&gt;). Components are used as custom elements (e.g., &lt;lx-badge&gt;).</span>
+            </div>
+
+            <div class="form-group">
+              <label>Selector</label>
+              <input
+                type="text"
+                [ngModel]="editSelector()"
+                (ngModelChange)="editSelector.set($event)"
+                placeholder="e.g., [lxButton] or lx-badge"
+              />
+              <span class="hint">The Angular selector for this component. Use [brackets] for attribute selectors (directives).</span>
+            </div>
+
+            <div class="form-group">
+              <label>Description</label>
+              <textarea
+                [ngModel]="editDescription()"
+                (ngModelChange)="editDescription.set($event)"
+                placeholder="Brief description of what this component does..."
+                rows="2"
+              ></textarea>
+            </div>
+
+            <!-- Inputs Section -->
+            <div class="form-section inputs-section">
+              <div class="section-header">
+                <label>Inputs (Props)</label>
+                <button class="btn-add-item" (click)="addInput()">+ Add Input</button>
+              </div>
+
+              @if (editInputs().length > 0) {
+                <div class="inputs-list">
+                  @for (input of editInputs(); track $index) {
+                    <div class="input-item">
+                      <div class="input-row">
+                        <input
+                          type="text"
+                          class="input-name"
+                          [ngModel]="input.name"
+                          (ngModelChange)="updateInput($index, 'name', $event)"
+                          placeholder="name"
+                        />
+                        <input
+                          type="text"
+                          class="input-type"
+                          [ngModel]="input.type"
+                          (ngModelChange)="updateInput($index, 'type', $event)"
+                          placeholder="type"
+                        />
+                        <label class="input-required">
+                          <input
+                            type="checkbox"
+                            [checked]="input.required"
+                            (change)="updateInput($index, 'required', $any($event.target).checked)"
+                          />
+                          Required
+                        </label>
+                        <button class="btn-remove-item" (click)="removeInput($index)">×</button>
+                      </div>
+                      <input
+                        type="text"
+                        class="input-description"
+                        [ngModel]="input.description"
+                        (ngModelChange)="updateInput($index, 'description', $event)"
+                        placeholder="Description (optional)"
+                      />
+                    </div>
+                  }
+                </div>
+              } @else {
+                <div class="no-items-hint">
+                  No inputs defined. Click "+ Add Input" to add component inputs.
+                </div>
+              }
+            </div>
+
+            <!-- Outputs Section -->
+            <div class="form-section outputs-section">
+              <div class="section-header">
+                <label>Outputs (Events)</label>
+                <button class="btn-add-item" (click)="addOutput()">+ Add Output</button>
+              </div>
+
+              @if (editOutputs().length > 0) {
+                <div class="outputs-list">
+                  @for (output of editOutputs(); track $index) {
+                    <div class="output-item">
+                      <div class="output-row">
+                        <input
+                          type="text"
+                          class="output-name"
+                          [ngModel]="output.name"
+                          (ngModelChange)="updateOutput($index, 'name', $event)"
+                          placeholder="eventName"
+                        />
+                        <input
+                          type="text"
+                          class="output-description"
+                          [ngModel]="output.description"
+                          (ngModelChange)="updateOutput($index, 'description', $event)"
+                          placeholder="Description (optional)"
+                        />
+                        <button class="btn-remove-item" (click)="removeOutput($index)">×</button>
+                      </div>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <div class="no-items-hint">
+                  No outputs defined. Click "+ Add Output" to add component events.
+                </div>
+              }
+            </div>
+
+            <!-- Generated Basic Usage (computed from selector + required inputs) -->
+            @if (generatedBasicUsage()) {
+              <div class="form-section generated-usage-section">
+                <label>Generated Basic Usage</label>
+                <p class="generated-usage-hint">This is automatically generated from the selector and required inputs. The AI will see this as the "Basic Usage" example.</p>
+                <div class="generated-usage-code">
+                  <code>{{ generatedBasicUsage() }}</code>
+                </div>
+              </div>
+            }
+
+            <div class="form-section examples-section">
+              <div class="examples-header">
+                <label>Usage Examples</label>
+                <button class="btn-add-example" (click)="addExample()">+ Add Example</button>
+              </div>
+
+              @for (example of editExamples(); track $index) {
+                <div class="example-item">
+                  <div class="example-header">
+                    <input
+                      type="text"
+                      class="example-title"
+                      [ngModel]="example.title"
+                      (ngModelChange)="updateExample($index, 'title', $event)"
+                      placeholder="Example title (optional)"
+                    />
+                    <select
+                      class="example-language"
+                      [ngModel]="example.language"
+                      (ngModelChange)="updateExample($index, 'language', $event)"
+                    >
+                      <option value="html">HTML</option>
+                      <option value="typescript">TypeScript</option>
+                    </select>
+                    <button class="btn-remove-example" (click)="removeExample($index)">×</button>
+                  </div>
+                  <textarea
+                    class="example-code"
+                    [ngModel]="example.code"
+                    (ngModelChange)="updateExample($index, 'code', $event)"
+                    placeholder="<button lxButton>Click me</button>"
+                    rows="4"
+                  ></textarea>
+                </div>
+              }
+
+              @if (editExamples().length === 0) {
+                <div class="no-examples">
+                  No examples added. Click "Add Example" to add usage examples that the AI will use.
+                </div>
+              }
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn-cancel" (click)="closeComponentEditor()">Cancel</button>
+            <button class="btn-save" (click)="saveComponentEdits()">Save Changes</button>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+}

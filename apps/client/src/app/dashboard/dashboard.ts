@@ -1,7 +1,7 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { ApiService } from '../services/api';
 import { AuthService } from '../services/auth';
 import { ToastService } from '../services/toast';
@@ -9,6 +9,8 @@ import { ConfirmService } from '../services/confirm';
 import { SkillsService, Skill } from '../services/skills';
 import { SkillDialogComponent } from './skill-dialog/skill-dialog.component';
 import { GitHubSkillDialogComponent } from './github-skill-dialog/github-skill-dialog.component';
+import { Kit, StorybookResource } from '../services/kit-types';
+import { DEFAULT_KIT } from '../base-project';
 
 @Component({
   selector: 'app-dashboard',
@@ -24,15 +26,25 @@ export class DashboardComponent {
   private toastService = inject(ToastService);
   confirmService = inject(ConfirmService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   projects = signal<any[]>([]);
   skills = signal<Skill[]>([]);
+  kits = signal<Kit[]>([]);
   loading = signal(true);
 
-  activeTab = signal<'projects' | 'skills'>('projects');
+  activeTab = signal<'projects' | 'skills' | 'kits'>('projects');
   showSkillDialog = signal(false);
   showGitHubDialog = signal(false);
   editingSkill = signal<Skill | null>(null);
+
+  // Kit-related state
+  showKitSelection = signal(false);
+
+  // All kits including built-in default
+  allKits = computed(() => {
+    return [DEFAULT_KIT, ...this.kits()];
+  });
 
   // Clone dialog state
   showCloneDialog = signal(false);
@@ -41,6 +53,11 @@ export class DashboardComponent {
   cloneIncludeMessages = signal(false);
 
   constructor() {
+    // Check if we're returning from kit-builder with a tab param
+    const tab = this.route.snapshot.queryParamMap.get('tab');
+    if (tab === 'kits' || tab === 'skills' || tab === 'projects') {
+      this.activeTab.set(tab);
+    }
     this.loadData();
   }
 
@@ -67,6 +84,16 @@ export class DashboardComponent {
             console.warn('Failed to load skills');
         }
     });
+
+    // Load kits
+    this.apiService.getKits().subscribe({
+      next: (list) => {
+        this.kits.set(list);
+      },
+      error: () => {
+        console.warn('Failed to load kits');
+      }
+    });
   }
 
   checkLoading() {
@@ -75,7 +102,13 @@ export class DashboardComponent {
   }
 
   createProject() {
-    this.router.navigate(['/editor', 'new'], { queryParams: { name: 'New Project' } });
+    // Show kit selection modal
+    this.showKitSelection.set(true);
+  }
+
+  createProjectWithKit(kitId: string) {
+    this.showKitSelection.set(false);
+    this.router.navigate(['/editor', 'new'], { queryParams: { name: 'New Project', kitId } });
   }
 
   createSkill() {
@@ -199,5 +232,40 @@ export class DashboardComponent {
 
   logout() {
     this.authService.logout();
+  }
+
+  // Kit management methods
+  createKit() {
+    this.router.navigate(['/kit-builder/new']);
+  }
+
+  editKit(kit: Kit) {
+    this.router.navigate(['/kit-builder', kit.id]);
+  }
+
+  async deleteKit(id: string, event: Event) {
+    event.stopPropagation();
+    const confirmed = await this.confirmService.confirm('Are you sure you want to delete this kit?', 'Delete', 'Cancel');
+    if (confirmed) {
+      this.apiService.deleteKit(id).subscribe({
+        next: () => {
+          this.toastService.show('Kit deleted', 'success');
+          this.loadData();
+        },
+        error: () => this.toastService.show('Failed to delete kit', 'error')
+      });
+    }
+  }
+
+  getKitComponentCount(kit: Kit): number {
+    const storybookResource = kit.resources?.find(r => r.type === 'storybook') as StorybookResource | undefined;
+    if (storybookResource?.selectedComponentIds?.length) {
+      return storybookResource.selectedComponentIds.length;
+    }
+    return 0;
+  }
+
+  cancelKitSelection() {
+    this.showKitSelection.set(false);
   }
 }

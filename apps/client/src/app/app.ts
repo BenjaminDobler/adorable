@@ -167,7 +167,7 @@ export class AppComponent implements AfterViewChecked {
     });
 
     // Handle Route Params
-    this.route.params.subscribe((params) => {
+    this.route.params.subscribe(async (params) => {
       const projectId = params['id'];
       if (projectId && projectId !== 'new') {
         this.projectService.loadProject(projectId);
@@ -184,7 +184,21 @@ export class AppComponent implements AfterViewChecked {
             timestamp: new Date(),
           },
         ]);
-        this.projectService.reloadPreview(null);
+
+        // Handle kitId from query params for new projects
+        const kitId = this.route.snapshot.queryParams['kitId'];
+        if (kitId) {
+          this.projectService.selectedKitId.set(kitId);
+          const kitTemplate = await this.projectService.loadKitTemplate(kitId);
+          if (kitTemplate) {
+            this.projectService.currentKitTemplate.set(kitTemplate);
+            this.projectService.reloadPreview(null, kitTemplate);
+          } else {
+            this.projectService.reloadPreview(null);
+          }
+        } else {
+          this.projectService.reloadPreview(null);
+        }
       }
     });
 

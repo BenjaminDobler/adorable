@@ -18,7 +18,7 @@ export class ApiService {
     });
   }
 
-  generateStream(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[], smartRouting?: any, openFiles?: { [path: string]: string }, use_container_context?: boolean, forcedSkill?: string, planMode?: boolean }): Observable<any> {
+  generateStream(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[], smartRouting?: any, openFiles?: { [path: string]: string }, use_container_context?: boolean, forcedSkill?: string, planMode?: boolean, kitId?: string }): Observable<any> {
     return new Observable(observer => {
       const token = localStorage.getItem('adorable_token');
       
@@ -66,8 +66,8 @@ export class ApiService {
     });
   }
 
-  saveProject(name: string, files: any, messages?: any[], id?: string, thumbnail?: string, figmaImports?: any[]) {
-    return this.http.post<any>(`${this.apiUrl}/projects`, { name, files, messages, id, thumbnail, figmaImports });
+  saveProject(name: string, files: any, messages?: any[], id?: string, thumbnail?: string, figmaImports?: any[], selectedKitId?: string | null) {
+    return this.http.post<any>(`${this.apiUrl}/projects`, { name, files, messages, id, thumbnail, figmaImports, selectedKitId });
   }
 
   listProjects() {
@@ -92,6 +92,18 @@ export class ApiService {
 
   updateProfile(data: { name?: string, settings?: any }) {
     return this.http.post<any>(`${this.apiUrl}/profile`, data);
+  }
+
+  getSettings(): Observable<any> {
+    return new Observable(observer => {
+      this.getProfile().subscribe({
+        next: (profile) => {
+          observer.next(profile?.settings || {});
+          observer.complete();
+        },
+        error: (err) => observer.error(err)
+      });
+    });
   }
 
   getModels(provider: string, apiKey: string) {
@@ -137,6 +149,135 @@ export class ApiService {
   cancelQuestion(requestId: string) {
     return this.http.post<{ success: boolean; message: string }>(`${this.apiUrl}/question/${requestId}`, { cancelled: true });
   }
-}
 
-  
+  // Kit Builder methods
+  discoverStorybookComponents(url: string): Observable<{ success: boolean; components: any[]; count: number }> {
+    return this.http.post<{ success: boolean; components: any[]; count: number }>(`${this.apiUrl}/kits/discover`, { url });
+  }
+
+  // Discover components directly from npm package (no Storybook needed)
+  discoverNpmComponents(packageName: string): Observable<{
+    success: boolean;
+    packageName: string;
+    version: string;
+    components: any[];
+    count: number;
+    errors?: string[];
+  }> {
+    return this.http.post<any>(`${this.apiUrl}/kits/discover-npm`, { packageName });
+  }
+
+  getComponentDocumentation(url: string, component: any): Observable<{ success: boolean; documentation: any }> {
+    return this.http.post<{ success: boolean; documentation: any }>(`${this.apiUrl}/kits/component-docs`, { url, component });
+  }
+
+  listKits(): Observable<{ kits: any[] }> {
+    return this.http.get<{ kits: any[] }>(`${this.apiUrl}/kits`);
+  }
+
+  getKits(): Observable<any[]> {
+    return new Observable(observer => {
+      this.listKits().subscribe({
+        next: (result) => {
+          observer.next(result.kits || []);
+          observer.complete();
+        },
+        error: (err) => observer.error(err)
+      });
+    });
+  }
+
+  getKit(id: string): Observable<{ kit: any }> {
+    return this.http.get<{ kit: any }>(`${this.apiUrl}/kits/${id}`);
+  }
+
+  createKit(data: {
+    name: string;
+    npmPackage?: string;
+    storybookUrl?: string;
+    components?: any[];
+    selectedComponentIds?: string[];
+    mcpServerIds?: string[];
+  }): Observable<{ success: boolean; kit: any }> {
+    return this.http.post<{ success: boolean; kit: any }>(`${this.apiUrl}/kits`, data);
+  }
+
+  updateKit(id: string, data: any): Observable<{ success: boolean; kit: any }> {
+    return this.http.put<{ success: boolean; kit: any }>(`${this.apiUrl}/kits/${id}`, data);
+  }
+
+  deleteKit(id: string): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(`${this.apiUrl}/kits/${id}`);
+  }
+
+  updateKitComponents(id: string, selectedComponentIds: string[]): Observable<{ success: boolean; kit: any }> {
+    return this.http.put<{ success: boolean; kit: any }>(`${this.apiUrl}/kits/${id}/components`, { selectedComponentIds });
+  }
+
+  rediscoverKitComponents(id: string): Observable<{ success: boolean; kit: any; newCount: number; preservedSelections: number }> {
+    return this.http.post<{ success: boolean; kit: any; newCount: number; preservedSelections: number }>(`${this.apiUrl}/kits/${id}/rediscover`, {});
+  }
+
+  // Kit tool preview/testing
+  getKitTools(kitId: string): Observable<{ success: boolean; kitName: string; tools: any[] }> {
+    return this.http.get<{ success: boolean; kitName: string; tools: any[] }>(`${this.apiUrl}/kits/${kitId}/tools`);
+  }
+
+  previewKitTool(kitId: string, tool: string, args?: any): Observable<{ success: boolean; tool: string; output: string; isError: boolean }> {
+    return this.http.post<{ success: boolean; tool: string; output: string; isError: boolean }>(`${this.apiUrl}/kits/${kitId}/preview-tool`, { tool, args });
+  }
+
+  // NPM package analysis
+  analyzeNpmPackage(packageName: string): Observable<{ success: boolean; packageName: string; version: string; exports: any[]; errors: string[] }> {
+    return this.http.post<any>(`${this.apiUrl}/kits/analyze-npm`, { packageName });
+  }
+
+  validateKitComponents(packageName: string, components: any[], importSuffix?: string): Observable<{
+    success: boolean;
+    packageName: string;
+    version: string;
+    totalExports: number;
+    validation: {
+      validCount: number;
+      invalidCount: number;
+      valid: { name: string; id: string; exportName: string }[];
+      invalid: { name: string; id: string; reason: string }[];
+      unmatchedExports: any[];
+    };
+  }> {
+    return this.http.post<any>(`${this.apiUrl}/kits/validate-components`, { packageName, components, importSuffix });
+  }
+
+  // Fetch component metadata from npm package
+  fetchComponentMetadata(packageName: string, componentName: string): Observable<{
+    success: boolean;
+    metadata?: {
+      name: string;
+      selector?: string;
+      usageType?: 'directive' | 'component';
+      description?: string;
+      inputs?: { name: string; type: string; description?: string; required?: boolean; defaultValue?: string }[];
+      examples?: { title?: string; code: string; language?: string }[];
+    };
+    error?: string;
+  }> {
+    return this.http.post<any>(`${this.apiUrl}/kits/component-metadata`, { packageName, componentName });
+  }
+
+  // Fetch metadata for multiple components
+  fetchBatchComponentMetadata(packageName: string, componentNames: string[]): Observable<{
+    success: boolean;
+    metadata: Record<string, {
+      name: string;
+      selector?: string;
+      usageType?: 'directive' | 'component';
+      description?: string;
+      inputs?: { name: string; type: string; description?: string; required?: boolean; defaultValue?: string }[];
+      examples?: { title?: string; code: string; language?: string }[];
+    }>;
+    found: number;
+    total: number;
+  }> {
+    return this.http.post<any>(`${this.apiUrl}/kits/batch-metadata`, { packageName, componentNames });
+  }
+}

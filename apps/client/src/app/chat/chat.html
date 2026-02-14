@@ -663,8 +663,8 @@
 
         <!-- Skill Selector -->
         <div class="skill-selector-wrapper" style="position: relative; display: inline-block; margin-right: 8px;">
-          <select 
-            [ngModel]="selectedSkill()" 
+          <select
+            [ngModel]="selectedSkill()"
             (ngModelChange)="selectedSkill.set($event)"
             style="appearance: none; background: var(--bg-surface-3); border: 1px solid var(--panel-border); border-radius: var(--radius-sm); color: var(--text-secondary); padding: 4px 28px 4px 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer; outline: none; height: 30px; max-width: 120px; transition: all 0.2s;">
             <option [ngValue]="null">Auto Skill</option>
@@ -676,6 +676,24 @@
              <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="3" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </div>
         </div>
+
+        <!-- Kit Selector
+        @if (availableKits().length > 0) {
+          <div class="kit-selector-wrapper" style="position: relative; display: inline-block; margin-right: 8px;">
+            <select
+              [ngModel]="projectService.selectedKitId()"
+              (ngModelChange)="projectService.selectedKitId.set($event)"
+              style="appearance: none; background: var(--bg-surface-3); border: 1px solid var(--panel-border); border-radius: var(--radius-sm); color: var(--text-secondary); padding: 4px 28px 4px 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer; outline: none; height: 30px; max-width: 130px; transition: all 0.2s;">
+              <option [ngValue]="null">No Kit</option>
+              @for (kit of availableKits(); track kit.id) {
+                 <option [ngValue]="kit.id">📦 {{ kit.name }}</option>
+              }
+            </select>
+            <div style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-muted);">
+               <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="3" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+          </div>
+        } -->
 
         <button
           (click)="planMode.set(!planMode())"

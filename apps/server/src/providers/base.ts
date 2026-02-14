@@ -9,6 +9,8 @@ import { screenshotManager } from './screenshot-manager';
 import { questionManager } from './question-manager';
 import { MCPManager } from '../mcp/mcp-manager';
 import { MCPToolResult } from '../mcp/types';
+import { Kit } from './kits/types';
+import { generateKitTools, executeKitTool, isKitTool, suggestKitToolCorrection } from './kit-tools';
 
 export const SYSTEM_PROMPT =
 "You are an expert Angular developer.\n"
@@ -86,6 +88,7 @@ export interface AgentLoopContext {
   buildNudgeSent: boolean;
   fullExplanation: string;
   mcpManager?: MCPManager;
+  activeKit?: Kit;
 }
 
 export abstract class BaseLLMProvider {
@@ -98,6 +101,7 @@ export abstract class BaseLLMProvider {
     logger: DebugLogger;
     maxTurns: number;
     mcpManager?: MCPManager;
+    activeKit?: Kit;
   }> {
     const logger = new DebugLogger(providerName);
     const fs: FileSystemInterface = options.fileSystem || new MemoryFileSystem(this.flattenFiles(options.previousFiles || {}));
@@ -175,9 +179,40 @@ Only proceed with implementation after receiving the user's answers.`;
       }
     }
 
+    // Add Kit tools if an active kit is provided
+    let activeKit: Kit | undefined;
+    if (options.activeKit) {
+      activeKit = options.activeKit;
+      const kitTools = generateKitTools(activeKit);
+      for (const tool of kitTools) {
+        availableTools.push(tool);
+      }
+
+      if (kitTools.length > 0) {
+        logger.log('KIT_TOOLS_ADDED', { kitName: activeKit.name, toolCount: kitTools.length, tools: kitTools.map(t => t.name) });
+
+        // Add kit context to the user message
+        userMessage += `\n\n--- Active Component Kit: ${activeKit.name} ---\n`;
+        userMessage += `You have access to the ${activeKit.name} component library.\n`;
+        if (activeKit.npmPackage) {
+          userMessage += `Import components from: '${activeKit.npmPackage}'\n`;
+        }
+        userMessage += `Use the kit tools to discover and learn about available components before using them.\n`;
+      } else {
+        // Log why no tools were generated for debugging
+        const storybookResource = activeKit.resources?.find((r: any) => r.type === 'storybook') as any;
+        logger.log('KIT_TOOLS_EMPTY', {
+          kitName: activeKit.name,
+          hasStorybookResource: !!storybookResource,
+          storybookStatus: storybookResource?.status,
+          selectedComponentCount: storybookResource?.selectedComponentIds?.length || 0
+        });
+      }
+    }
+
     const maxTurns = fs.exec ? 200 : 25;
 
-    return { fs, skillRegistry, availableTools, userMessage, logger, maxTurns, mcpManager };
+    return { fs, skillRegistry, availableTools, userMessage, logger, maxTurns, mcpManager, activeKit };
   }
 
   protected async addSkillTools(availableTools: any[], skillRegistry: SkillRegistry, fs: FileSystemInterface, userId?: string) {
@@ -253,6 +288,16 @@ Only proceed with implementation after receiving the user's answers.`;
     // Check if this is an MCP tool
     if (ctx.mcpManager && ctx.mcpManager.isMCPTool(toolName)) {
       return this.executeMCPTool(toolName, toolArgs, ctx);
+    }
+
+    // Check if this is a Kit tool
+    console.log(`[ExecuteTool] Checking kit tool: toolName=${toolName}, hasActiveKit=${!!ctx.activeKit}, kitName=${ctx.activeKit?.name}`);
+    if (ctx.activeKit) {
+      const isKit = isKitTool(toolName, ctx.activeKit);
+      console.log(`[ExecuteTool] isKitTool result: ${isKit}`);
+      if (isKit) {
+        return executeKitTool(toolName, toolArgs, ctx.activeKit);
+      }
     }
 
     const { fs, callbacks, skillRegistry } = ctx;
@@ -506,6 +551,15 @@ Only proceed with implementation after receiving the user's answers.`;
           }
           break;
         default:
+          // Check if this looks like a misspelled kit tool
+          if (ctx.activeKit) {
+            const suggestion = suggestKitToolCorrection(toolName, ctx.activeKit);
+            if (suggestion) {
+              content = `Error: Unknown tool "${toolName}". Did you mean "${suggestion.suggestion}"? Available kit tools: ${suggestion.availableTools.join(', ')}`;
+              isError = true;
+              break;
+            }
+          }
           content = `Error: Unknown tool ${toolName}`;
           isError = true;
       }

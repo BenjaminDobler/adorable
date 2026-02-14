@@ -67,6 +67,16 @@ export const routes: Routes = [
     loadComponent: () => import('./profile/profile').then(m => m.ProfileComponent)
   },
   {
+    path: 'kit-builder/new',
+    canActivate: [authGuard],
+    loadComponent: () => import('./dashboard/kit-builder/kit-builder').then(m => m.KitBuilderComponent)
+  },
+  {
+    path: 'kit-builder/:id',
+    canActivate: [authGuard],
+    loadComponent: () => import('./dashboard/kit-builder/kit-builder').then(m => m.KitBuilderComponent)
+  },
+  {
     path: 'editor/:id',
     canActivate: [authGuard],
     loadComponent: () => import('./app').then(m => m.AppComponent)

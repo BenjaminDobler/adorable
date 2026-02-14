@@ -34,6 +34,7 @@ model Project {
   files     String   // JSON stringified WebContainerFiles
   thumbnail String?  // Base64 preview image
   figmaImports String?  // JSON stringified FigmaImportPayload[]
+  selectedKitId String?  // ID of the component kit to use for this project
 
   userId    String
   user      User     @relation(fields: [userId], references: [id])

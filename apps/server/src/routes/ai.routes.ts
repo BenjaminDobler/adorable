@@ -8,6 +8,7 @@ import { ContainerFileSystem } from '../providers/filesystem/container-filesyste
 import { screenshotManager } from '../providers/screenshot-manager';
 import { questionManager } from '../providers/question-manager';
 import { MCPServerConfig } from '../mcp/types';
+import { Kit } from '../providers/kits/types';
 
 const router = express.Router();
 const aiSmartRouter = new SmartRouter();
@@ -38,6 +39,24 @@ function loadMCPConfigs(userSettings: any): MCPServerConfig[] {
       }
       return server;
     });
+}
+
+/**
+ * Load kit from user settings by ID
+ * If kitId is provided, use it; otherwise fall back to activeKitId from settings
+ */
+function loadActiveKit(userSettings: any, kitId?: string): Kit | undefined {
+  if (!userSettings?.kits || !Array.isArray(userSettings.kits)) {
+    return undefined;
+  }
+
+  // Use explicit kitId if provided, otherwise fall back to settings activeKitId
+  const targetKitId = kitId || userSettings.activeKitId;
+  if (!targetKitId) {
+    return undefined;
+  }
+
+  return userSettings.kits.find((kit: Kit) => kit.id === targetKitId);
 }
 
 router.get('/models/:provider', async (req: any, res) => {
@@ -99,7 +118,7 @@ router.get('/models/:provider', async (req: any, res) => {
 });
 
 router.post('/generate', async (req: any, res) => {
-    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting, openFiles } = req.body;
+    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting, openFiles, kitId } = req.body;
     const user = req.user;
 
     const userSettings = user.settings ? JSON.parse(user.settings) : {};
@@ -152,6 +171,9 @@ router.post('/generate', async (req: any, res) => {
       // Load MCP configs
       const mcpConfigs = loadMCPConfigs(userSettings);
 
+      // Load active kit (from request kitId or fall back to settings)
+      const activeKit = loadActiveKit(userSettings, kitId);
+
       const result = await llm.generate({
           prompt,
           previousFiles,
@@ -161,7 +183,8 @@ router.post('/generate', async (req: any, res) => {
           openFiles,
           userId: user.id,
           mcpConfigs,
-          baseUrl: getBaseUrl(provider)
+          baseUrl: getBaseUrl(provider),
+          activeKit
       });
 
       res.json(result);
@@ -172,7 +195,7 @@ router.post('/generate', async (req: any, res) => {
 });
 
 router.post('/generate-stream', async (req: any, res) => {
-    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting, openFiles, use_container_context, forcedSkill, planMode } = req.body;
+    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting, openFiles, use_container_context, forcedSkill, planMode, kitId } = req.body;
     const user = req.user;
 
     // Debug: Log images received
@@ -257,6 +280,12 @@ router.post('/generate-stream', async (req: any, res) => {
         console.log(`[AI] MCP servers:`, mcpConfigs.map(c => ({ name: c.name, url: c.url, enabled: c.enabled })));
       }
 
+      // Load active kit (from request kitId or fall back to settings)
+      const activeKit = loadActiveKit(userSettings, kitId);
+      if (activeKit) {
+        console.log(`[AI] Active kit: ${activeKit.name} (from ${kitId ? 'project' : 'settings'})`);
+      }
+
       const result = await llm.streamGenerate({
           prompt,
           previousFiles, // Still passed for fallback or initial context
@@ -269,7 +298,8 @@ router.post('/generate-stream', async (req: any, res) => {
           forcedSkill,
           mcpConfigs,
           planMode,
-          baseUrl: getBaseUrl(provider)
+          baseUrl: getBaseUrl(provider),
+          activeKit
       }, {
           onText: (text) => {
               res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);

@@ -26,7 +26,7 @@ router.get('/', async (req: any, res) => {
 });
 
 router.post('/', async (req: any, res) => {
-  const { name, files, id, thumbnail, messages, figmaImports } = req.body;
+  const { name, files, id, thumbnail, messages, figmaImports, selectedKitId } = req.body;
   const user = req.user;
 
   console.log(`[Save Project] Request for '${name}' (ID: ${id}) by ${user.email}`);
@@ -57,6 +57,7 @@ router.post('/', async (req: any, res) => {
           files: JSON.stringify(files),
           thumbnail,
           figmaImports: figmaImports ? JSON.stringify(figmaImports) : undefined,
+          selectedKitId: selectedKitId !== undefined ? selectedKitId : undefined,
           messages: messages ? {
             deleteMany: {}, // Clear old messages
             create: messageCreateData
@@ -73,6 +74,7 @@ router.post('/', async (req: any, res) => {
           userId: user.id,
           thumbnail,
           figmaImports: figmaImports ? JSON.stringify(figmaImports) : undefined,
+          selectedKitId: selectedKitId || undefined,
           messages: {
             create: messageCreateData
           }
@@ -168,6 +170,7 @@ router.post('/:id/clone', async (req: any, res) => {
         files: sourceProject.files,
         thumbnail: sourceProject.thumbnail,
         figmaImports: sourceProject.figmaImports,
+        selectedKitId: sourceProject.selectedKitId,
         userId: user.id,
         messages: messageCreateData.length > 0 ? {
           create: messageCreateData

@@ -22,6 +22,18 @@
           Skills
           <span class="badge">{{ skills().length }}</span>
         </button>
+        <button
+          class="tab"
+          [class.active]="activeTab() === 'kits'"
+          (click)="activeTab.set('kits')">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+          </svg>
+          Kits
+          <span class="badge">{{ allKits().length }}</span>
+        </button>
       </div>
 
       @if (activeTab() === 'projects') {
@@ -32,7 +44,7 @@
           </svg>
           <span>New Adorable</span>
         </button>
-      } @else {
+      } @else if (activeTab() === 'skills') {
         <div class="skill-actions">
           <input type="file" #skillUpload (change)="onSkillUpload($event)" accept=".md" style="display: none">
           <button class="btn-icon" (click)="showGitHubDialog.set(true)" title="Install from skills.sh">
@@ -49,6 +61,14 @@
             <span>New Skill</span>
           </button>
         </div>
+      } @else if (activeTab() === 'kits') {
+        <button class="btn-create" (click)="createKit()">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Create Kit</span>
+        </button>
       }
     </div>
 
@@ -133,6 +153,57 @@
           </div>
         </div>
       }
+
+      <!-- Kits Tab -->
+      @if (activeTab() === 'kits') {
+        <div class="tab-content">
+          <div class="kits-grid">
+            @for (kit of allKits(); track kit.id) {
+              <div class="kit-card" [class.built-in]="kit.isBuiltIn" (click)="kit.isBuiltIn ? null : editKit(kit)">
+                <div class="kit-preview">
+                  @if (kit.thumbnail) {
+                    <img [src]="kit.thumbnail" alt="Kit Preview" />
+                  } @else {
+                    <div class="kit-icon">
+                      <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="1.5" fill="none">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                      </svg>
+                    </div>
+                  }
+                </div>
+                <div class="kit-card-body">
+                  <div class="kit-main-info">
+                    <h3>{{ kit.name }}</h3>
+                    @if (kit.description) {
+                      <span class="kit-description">{{ kit.description }}</span>
+                    }
+                    <div class="kit-meta">
+                      @if (kit.isBuiltIn) {
+                        <span class="kit-badge built-in">Built-in</span>
+                      }
+                      @if (kit.template?.angularVersion) {
+                        <span class="kit-badge">Angular {{ kit.template.angularVersion }}</span>
+                      }
+                      @if (getKitComponentCount(kit) > 0) {
+                        <span class="kit-badge">{{ getKitComponentCount(kit) }} components</span>
+                      }
+                    </div>
+                  </div>
+                  @if (!kit.isBuiltIn) {
+                    <div class="kit-actions">
+                      <button class="btn-action btn-delete" (click)="deleteKit(kit.id, $event)" title="Delete Kit">
+                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                      </button>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
     }
   </main>
 
@@ -197,6 +268,47 @@
           <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
           Clone
         </button>
+      </div>
+    </div>
+  }
+
+  @if (showKitSelection()) {
+    <div class="confirm-backdrop" (click)="cancelKitSelection()"></div>
+    <div class="kit-selection-dialog">
+      <h3>Choose a Starter Kit</h3>
+      <p class="kit-selection-hint">Select a kit to bootstrap your new project</p>
+      <div class="kit-selection-grid">
+        @for (kit of allKits(); track kit.id) {
+          <div class="kit-selection-card" (click)="createProjectWithKit(kit.id)">
+            <div class="kit-selection-icon">
+              <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="1.5" fill="none">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+              </svg>
+            </div>
+            <div class="kit-selection-info">
+              <h4>{{ kit.name }}</h4>
+              @if (kit.description) {
+                <span class="kit-selection-desc">{{ kit.description }}</span>
+              }
+              <div class="kit-selection-meta">
+                @if (kit.isBuiltIn) {
+                  <span class="kit-badge built-in">Built-in</span>
+                }
+                @if (kit.template?.angularVersion) {
+                  <span class="kit-badge">Angular {{ kit.template.angularVersion }}</span>
+                }
+                @if (getKitComponentCount(kit) > 0) {
+                  <span class="kit-badge">{{ getKitComponentCount(kit) }} components</span>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+      <div class="kit-selection-actions">
+        <button class="btn-cancel" (click)="cancelKitSelection()">Cancel</button>
       </div>
     </div>
   }
