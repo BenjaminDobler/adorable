@@ -152,6 +152,53 @@ export async function discoverComponentsFromNpm(packageName: string): Promise<Np
       }
     }
 
+    // Step 4b: If no components found via individual files, try bundled type files
+    // Some packages (e.g., @fundamental-ngx/core) bundle all types into /types/*.d.ts
+    if (result.components.length === 0) {
+      const bundledTypeFiles = files.filter(f =>
+        f.name.startsWith('/types/') &&
+        f.name.endsWith('.d.ts') &&
+        !f.name.endsWith('/index.d.ts')
+      );
+
+      // Also check for the main typings entry
+      const packageData2 = await fetch(registryUrl).then(r => r.json());
+      const versionData = packageData2.versions?.[version];
+      const typingsEntry = versionData?.typings || versionData?.types;
+
+      if (bundledTypeFiles.length > 0) {
+        console.log(`[NPM Discovery] Found ${bundledTypeFiles.length} bundled type files, scanning for components...`);
+
+        for (let i = 0; i < bundledTypeFiles.length; i += batchSize) {
+          const batch = bundledTypeFiles.slice(i, i + batchSize);
+
+          const batchResults = await Promise.all(batch.map(async file => {
+            const filePath = file.name.replace(/^\//, '');
+            const content = await fetchPackageFile(packageName, version, filePath);
+
+            if (!content) return [];
+
+            return parseBundledTypeFile(content, filePath);
+          }));
+
+          for (const comps of batchResults) {
+            result.components.push(...comps);
+          }
+        }
+
+        console.log(`[NPM Discovery] Found ${result.components.length} components from bundled type files`);
+      } else if (typingsEntry) {
+        // Try the single main typings file
+        console.log(`[NPM Discovery] Trying main typings entry: ${typingsEntry}`);
+        const content = await fetchPackageFile(packageName, version, typingsEntry);
+        if (content) {
+          const comps = parseBundledTypeFile(content, typingsEntry);
+          result.components.push(...comps);
+          console.log(`[NPM Discovery] Found ${comps.length} components from main typings file`);
+        }
+      }
+    }
+
     // Step 5: Enhance with data from the .mjs bundle (contains templates, inputs, outputs)
     console.log(`[NPM Discovery] Fetching .mjs bundle for enhanced metadata...`);
     const mjsContent = await fetchMjsBundle(packageName, version);
@@ -242,6 +289,239 @@ function parseComponentFile(content: string, filePath: string): DiscoveredCompon
     inputs: inputs.length > 0 ? inputs : undefined,
     examples: metadata.examples
   };
+}
+
+/**
+ * Parse a bundled type file (e.g., types/package-name-button.d.ts) to extract
+ * all components and directives. These files contain multiple class declarations.
+ */
+function parseBundledTypeFile(content: string, filePath: string): DiscoveredComponent[] {
+  const components: DiscoveredComponent[] = [];
+
+  // Find all class declarations that are components or directives
+  // Match: declare class XxxComponent { ... static ɵcmp/ɵdir ... }
+  const classPattern = /declare\s+class\s+(\w+(?:Component|Directive))\s*(?:extends\s+\S+\s*)?(?:implements\s+[^{]+)?\{/g;
+  let classMatch;
+
+  while ((classMatch = classPattern.exec(content)) !== null) {
+    const className = classMatch[1];
+    const classStart = classMatch.index;
+
+    // Extract the selector from ɵɵComponentDeclaration or ɵɵDirectiveDeclaration
+    // Search forward from the class declaration for the static ɵcmp/ɵdir
+    const afterClass = content.substring(classStart, classStart + 5000);
+
+    const selectorMatch = afterClass.match(
+      /ɵɵ(?:Component|Directive)Declaration<[^,]+,\s*"([^"]+)"/
+    );
+
+    if (!selectorMatch) continue; // Skip classes without selector declarations (abstract/base classes)
+
+    const selector = selectorMatch[1];
+    const baseName = className.replace(/Component$|Directive$/, '');
+    const isDirective = className.endsWith('Directive') ||
+      selector.includes('[') ||
+      selector.match(/^[a-z]+\[/);
+
+    // Extract category from file path
+    const category = extractCategoryFromBundledPath(filePath);
+
+    const id = `${category.toLowerCase().replace(/\s+/g, '-')}-${baseName.toLowerCase()}--docs`;
+
+    // Parse inputs from the ɵɵComponentDeclaration/ɵɵDirectiveDeclaration
+    const inputs = parseBundledInputs(afterClass);
+    const outputs = parseBundledOutputs(afterClass);
+
+    // Extract JSDoc description before the class
+    let description: string | undefined;
+    const beforeClass = content.substring(Math.max(0, classStart - 500), classStart);
+    const jsdocMatch = beforeClass.match(/\/\*\*\s*([\s\S]*?)\s*\*\/\s*$/);
+    if (jsdocMatch) {
+      const descLines = jsdocMatch[1]
+        .split('\n')
+        .map(l => l.replace(/^\s*\*\s?/, '').trim())
+        .filter(l => l && !l.startsWith('@'));
+      if (descLines.length > 0) {
+        description = descLines.join(' ').trim();
+      }
+    }
+
+    components.push({
+      id,
+      name: baseName,
+      componentName: baseName,
+      category,
+      type: 'docs',
+      filePath,
+      selector,
+      usageType: isDirective ? 'directive' : 'component',
+      description,
+      inputs: inputs.length > 0 ? inputs : undefined,
+      outputs: outputs.length > 0 ? outputs : undefined
+    });
+  }
+
+  return components;
+}
+
+/**
+ * Parse inputs from the ɵɵComponentDeclaration/ɵɵDirectiveDeclaration format:
+ * { "inputName": { "alias": "inputName"; "required": false; "isSignal": true; }; ... }
+ */
+function parseBundledInputs(declarationBlock: string): ComponentInput[] {
+  const inputs: ComponentInput[] = [];
+
+  // Find the inputs section in the declaration
+  // Format: ɵɵComponentDeclaration<Type, "selector", ..., { "input1": {...}; "input2": {...}; }, ...>
+  const declMatch = declarationBlock.match(
+    /ɵɵ(?:Component|Directive)Declaration<[^>]*>/
+  );
+  if (!declMatch) return inputs;
+
+  const decl = declMatch[0];
+
+  // The inputs are in the 4th type parameter (after Type, selector, exportAs)
+  // Extract the object between { } for inputs
+  // Count commas at the top level to find the right parameter
+  let depth = 0;
+  let commaCount = 0;
+  let inputsStart = -1;
+  let inputsEnd = -1;
+
+  for (let i = decl.indexOf('<') + 1; i < decl.length; i++) {
+    const ch = decl[i];
+    if (ch === '<' || ch === '{' || ch === '(') depth++;
+    if (ch === '>' || ch === '}' || ch === ')') depth--;
+    if (ch === ',' && depth === 0) {
+      commaCount++;
+      // After the 3rd comma is the inputs parameter (0-indexed: Type, selector, exportAs, inputs)
+      if (commaCount === 3) {
+        inputsStart = i + 1;
+      }
+      if (commaCount === 4) {
+        inputsEnd = i;
+        break;
+      }
+    }
+  }
+
+  if (inputsStart === -1 || inputsEnd === -1) return inputs;
+
+  const inputsStr = decl.substring(inputsStart, inputsEnd).trim();
+
+  // Parse individual input entries: "name": { "alias": "name"; "required": false; ... }
+  const inputPattern = /"(\w+)":\s*\{\s*"alias":\s*"([^"]+)";\s*"required":\s*(true|false)/g;
+  let inputMatch;
+  while ((inputMatch = inputPattern.exec(inputsStr)) !== null) {
+    inputs.push({
+      name: inputMatch[1],
+      type: 'unknown',
+      required: inputMatch[3] === 'true'
+    });
+  }
+
+  return inputs;
+}
+
+/**
+ * Parse outputs from the ɵɵComponentDeclaration/ɵɵDirectiveDeclaration format:
+ * { "outputName": "outputName"; ... }
+ */
+function parseBundledOutputs(declarationBlock: string): ComponentOutput[] {
+  const outputs: ComponentOutput[] = [];
+
+  const declMatch = declarationBlock.match(
+    /ɵɵ(?:Component|Directive)Declaration<[^>]*>/
+  );
+  if (!declMatch) return outputs;
+
+  const decl = declMatch[0];
+
+  // The outputs are in the 5th type parameter
+  let depth = 0;
+  let commaCount = 0;
+  let outputsStart = -1;
+  let outputsEnd = -1;
+
+  for (let i = decl.indexOf('<') + 1; i < decl.length; i++) {
+    const ch = decl[i];
+    if (ch === '<' || ch === '{' || ch === '(') depth++;
+    if (ch === '>' || ch === '}' || ch === ')') depth--;
+    if (ch === ',' && depth === 0) {
+      commaCount++;
+      if (commaCount === 4) {
+        outputsStart = i + 1;
+      }
+      if (commaCount === 5) {
+        outputsEnd = i;
+        break;
+      }
+    }
+  }
+
+  if (outputsStart === -1 || outputsEnd === -1) return outputs;
+
+  const outputsStr = decl.substring(outputsStart, outputsEnd).trim();
+
+  // Parse output entries: "name": "alias"
+  const outputPattern = /"(\w+)":\s*"([^"]+)"/g;
+  let outputMatch;
+  while ((outputMatch = outputPattern.exec(outputsStr)) !== null) {
+    outputs.push({
+      name: outputMatch[1]
+    });
+  }
+
+  return outputs;
+}
+
+/**
+ * Extract category from a bundled type file path.
+ * e.g., "types/fundamental-ngx-core-button.d.ts" -> "Button"
+ * e.g., "types/fundamental-ngx-core-date-picker.d.ts" -> "Date Picker"
+ */
+function extractCategoryFromBundledPath(filePath: string): string {
+  const fileName = filePath.split('/').pop() || '';
+  // Remove the .d.ts extension
+  let name = fileName.replace(/\.d\.ts$/, '');
+
+  // Remove common package prefixes - find the last meaningful segment
+  // Pattern: package-name-component-name -> component-name
+  // For scoped packages like fundamental-ngx-core-button, we want "button"
+  // Strategy: remove everything up to and including the package base name
+  // The base name typically has a pattern like "packagescope-packagename-subpackage"
+
+  // Try to find the component part by looking for well-known package patterns
+  // For "fundamental-ngx-core-button" -> "button"
+  // For "fundamental-ngx-core-date-picker" -> "date-picker"
+  const knownPrefixes = [
+    /^fundamental-ngx-core-/,
+    /^fundamental-ngx-platform-/,
+    /^fundamental-ngx-/,
+    /^ng-zorro-antd-/,
+    /^primeng-/,
+    /^angular-material-/,
+  ];
+
+  for (const prefix of knownPrefixes) {
+    if (prefix.test(name)) {
+      name = name.replace(prefix, '');
+      break;
+    }
+  }
+
+  // If no known prefix matched, try a generic approach:
+  // Remove everything before the last dash-separated segment that might be the main package name
+  // This is a heuristic - works for most Angular libraries
+  if (name === fileName.replace(/\.d\.ts$/, '')) {
+    // Fallback: just use the full name
+  }
+
+  // Convert to readable format: "date-picker" -> "Date Picker"
+  return name
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 }
 
 /**
