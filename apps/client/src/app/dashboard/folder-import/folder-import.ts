@@ -135,12 +135,15 @@ export class FolderImportComponent {
     this.fileTree.set(tree);
   }
 
+  // Dotfolders that should NOT be hidden (allowed through the dot-filter)
+  private allowedDotFolders = ['.adorable'];
+
   private shouldHide(path: string): boolean {
     const parts = path.split('/');
 
-    // Hide any path segment that starts with a dot
+    // Hide any path segment that starts with a dot (except allowed ones)
     for (const part of parts) {
-      if (part.startsWith('.')) {
+      if (part.startsWith('.') && !this.allowedDotFolders.includes(part)) {
         return true;
       }
     }

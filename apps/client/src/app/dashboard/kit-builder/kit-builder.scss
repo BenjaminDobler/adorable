@@ -213,6 +213,27 @@
     margin-bottom: 1rem;
     line-height: 1.5;
   }
+
+  .base-prompt-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+
+  .btn-reset-prompt {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    background: var(--bg-surface-2);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text-secondary);
+      border-color: var(--text-muted);
+    }
+  }
 }
 
 .monospace-textarea {

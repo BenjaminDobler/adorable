@@ -64,7 +64,13 @@ export const containerProxy = createProxyMiddleware({
       proxyRes.headers['Cross-Origin-Resource-Policy'] = 'cross-origin';
       proxyRes.headers['Cross-Origin-Embedder-Policy'] = 'require-corp';
     },
-    error: (err, req, res: any) => {
+    error: (err: any, req, res: any) => {
+      // Suppress common transient errors (client disconnected, container restarting)
+      const code = err?.code;
+      if (code === 'ECONNRESET' || code === 'ECONNREFUSED' || code === 'EPIPE') {
+        // Only log at debug level — these are expected when clients close connections
+        return;
+      }
       console.error('[Proxy Error]', err);
       if (res.writeHead && !res.headersSent) {
         res.writeHead(502, { 'Content-Type': 'text/plain' });

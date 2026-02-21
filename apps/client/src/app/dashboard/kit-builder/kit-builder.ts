@@ -45,6 +45,7 @@ export class KitBuilderComponent {
   kitSystemPrompt = signal('');
   kitBaseSystemPrompt = signal('');
   showBasePromptOverride = signal(false);
+  defaultSystemPrompt = signal('');
 
   // Multi-package support
   npmPackages = signal<NpmPackageConfig[]>([]);
@@ -213,6 +214,12 @@ export class KitBuilderComponent {
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id');
 
+    // Load default system prompt for the override textarea
+    this.apiService.getDefaultSystemPrompt().subscribe({
+      next: (result) => this.defaultSystemPrompt.set(result.prompt),
+      error: () => {} // silently ignore
+    });
+
     // Load MCP servers
     this.apiService.getSettings().subscribe({
       next: (settings) => {
@@ -278,6 +285,15 @@ export class KitBuilderComponent {
       this.storybookUrl.set(storybookResource.url);
       this.discoveredComponents.set(storybookResource.components || []);
       this.selectedComponentIds.set(new Set(storybookResource.selectedComponentIds || []));
+    }
+  }
+
+  toggleBasePromptOverride() {
+    const opening = !this.showBasePromptOverride();
+    this.showBasePromptOverride.set(opening);
+    // Pre-fill with default system prompt when opening and textarea is empty
+    if (opening && !this.kitBaseSystemPrompt() && this.defaultSystemPrompt()) {
+      this.kitBaseSystemPrompt.set(this.defaultSystemPrompt());
     }
   }
 

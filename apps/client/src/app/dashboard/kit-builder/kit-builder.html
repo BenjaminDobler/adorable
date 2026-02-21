@@ -309,18 +309,23 @@
             </div>
 
             <details class="base-prompt-override" [attr.open]="showBasePromptOverride() ? '' : null">
-              <summary (click)="$event.preventDefault(); showBasePromptOverride.set(!showBasePromptOverride())">Advanced: Override Base System Prompt</summary>
+              <summary (click)="$event.preventDefault(); toggleBasePromptOverride()">Advanced: Override Base System Prompt</summary>
               @if (showBasePromptOverride()) {
                 <div class="base-prompt-content">
                   <div class="base-prompt-warning">
-                    This replaces the default system prompt entirely. The default includes critical instructions for tool usage, file handling, build verification, and Angular best practices. Only override if you know what you're doing.
+                    This replaces the default system prompt entirely. The default is shown below as a starting point. Only override if you know what you're doing.
                   </div>
                   <div class="form-group">
+                    <div class="base-prompt-actions">
+                      @if (kitBaseSystemPrompt() !== defaultSystemPrompt()) {
+                        <button type="button" class="btn-reset-prompt" (click)="kitBaseSystemPrompt.set(defaultSystemPrompt())">Reset to Default</button>
+                      }
+                    </div>
                     <textarea
                       [ngModel]="kitBaseSystemPrompt()"
                       (ngModelChange)="kitBaseSystemPrompt.set($event)"
                       placeholder="Enter a complete system prompt to replace the default..."
-                      rows="12"
+                      rows="20"
                       class="monospace-textarea"
                     ></textarea>
                   </div>

@@ -14,10 +14,19 @@ import { parseKitsFromSettings, updateKitsInSettings } from '../providers/kits/k
 import { prisma } from '../db/prisma';
 import { generateComponentCatalog, generateComponentDocFiles } from '../providers/kits/doc-generator';
 import { analyzeNpmPackage, validateStorybookComponents, fetchComponentMetadata, fetchAllComponentMetadata, discoverComponentsFromNpm } from '../providers/kits/npm-analyzer';
+import { SYSTEM_PROMPT } from '../providers/base';
 
 const router = express.Router();
 
 router.use(authenticate);
+
+/**
+ * Get the default system prompt
+ * GET /api/kits/default-system-prompt
+ */
+router.get('/default-system-prompt', async (_req: any, res) => {
+  res.json({ prompt: SYSTEM_PROMPT });
+});
 
 /**
  * Discover components from a Storybook URL

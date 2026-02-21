@@ -151,6 +151,10 @@ export class ApiService {
   }
 
   // Kit Builder methods
+  getDefaultSystemPrompt(): Observable<{ prompt: string }> {
+    return this.http.get<{ prompt: string }>(`${this.apiUrl}/kits/default-system-prompt`);
+  }
+
   discoverStorybookComponents(url: string): Observable<{ success: boolean; components: any[]; count: number }> {
     return this.http.post<{ success: boolean; components: any[]; count: number }>(`${this.apiUrl}/kits/discover`, { url });
   }
