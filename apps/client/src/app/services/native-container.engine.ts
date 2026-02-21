@@ -12,7 +12,6 @@ export class NativeContainerEngine extends ContainerEngine {
   private http = inject(HttpClient);
   private fileStore = inject(FileSystemStore);
   // In desktop mode, native ops go to the local agent (port 3334)
-  // In browser mode (if native is somehow selected), fall back to the main server
   private apiUrl = ((window as any).electronAPI?.nativeAgentUrl || 'http://localhost:3334') + '/api/native';
   private watchAbort: AbortController | null = null;
 

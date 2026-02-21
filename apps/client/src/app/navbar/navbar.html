@@ -16,13 +16,11 @@
           <div class="status-group">
             @if (isDesktop) {
               <select [value]="webContainerService.mode()" (change)="toggleEngine($event)" class="engine-select">
-                <option value="browser">Browser</option>
                 <option value="local">Docker</option>
                 <option value="native">Native</option>
               </select>
             } @else {
               <select [value]="webContainerService.mode()" (change)="toggleEngine($event)" class="engine-select">
-                <option value="browser">Browser</option>
                 <option value="local">Docker</option>
               </select>
             }

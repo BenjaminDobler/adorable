@@ -206,7 +206,7 @@ export class ChatComponent implements OnDestroy {
        }
     });
 
-    // Auto-enable agent mode for Docker/Native, disable for WebContainer
+    // Agent mode is always enabled (Docker/Native only)
     effect(() => {
        const mode = this.webContainerService.mode();
        this.projectService.agentMode.set(mode === 'local' || mode === 'native');
@@ -1045,7 +1045,7 @@ Analyze the attached design images carefully and create matching Angular compone
             this.loading.set(false);
 
           } catch (err) {
-            console.error('WebContainer error:', err);
+            console.error('Container error:', err);
             this.projectService.addSystemMessage('An error occurred while building the project.');
             this.loading.set(false);
           }

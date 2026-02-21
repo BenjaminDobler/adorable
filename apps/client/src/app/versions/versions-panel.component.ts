@@ -69,6 +69,14 @@ interface Commit {
     </div>
   `,
   styles: [`
+    :host {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
     .versions-panel {
       display: flex;
       flex-direction: column;
@@ -246,12 +254,21 @@ export class VersionsPanelComponent implements OnDestroy {
   private sub: Subscription | null = null;
 
   constructor() {
+    // Load history when project changes
     effect(() => {
       const id = this.projectService.projectId();
       if (id) {
         this.loadHistory();
       } else {
         this.commits.set([]);
+      }
+    });
+
+    // Auto-refresh when a new version is saved
+    effect(() => {
+      const v = this.projectService.saveVersion();
+      if (v > 0 && this.projectService.projectId()) {
+        this.loadHistory();
       }
     });
   }

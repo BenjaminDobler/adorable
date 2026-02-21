@@ -1,4 +1,4 @@
-import simpleGit, { SimpleGit, LogResult } from 'simple-git';
+import simpleGit, { SimpleGit, LogResult, CheckRepoActions } from 'simple-git';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
@@ -19,8 +19,11 @@ export class GitService {
     await fs.mkdir(projectPath, { recursive: true });
     const git = simpleGit(projectPath);
 
-    const isRepo = await git.checkIsRepo().catch(() => false);
-    if (!isRepo) {
+    // Use 'root' check — without it, checkIsRepo() returns true if the directory
+    // is inside ANY git repo (e.g. the parent adorable workspace), which would
+    // skip init and cause all git operations to target the wrong repo.
+    const isRepoRoot = await git.checkIsRepo(CheckRepoActions.IS_REPO_ROOT).catch(() => false);
+    if (!isRepoRoot) {
       await git.init();
       console.log(`[Git] Initialized repo at ${projectPath}`);
 
@@ -63,20 +66,48 @@ export class GitService {
 
   /**
    * Get the commit log for a project.
+   * Returns empty log if the project has no git repo.
    */
   async getLog(projectPath: string, limit = 50): Promise<LogResult> {
     const git = simpleGit(projectPath);
+    const isRepoRoot = await git.checkIsRepo(CheckRepoActions.IS_REPO_ROOT).catch(() => false);
+    if (!isRepoRoot) {
+      return { all: [], total: 0, latest: null } as unknown as LogResult;
+    }
     return git.log({ maxCount: limit });
   }
 
   /**
-   * Checkout a specific commit, restoring files to that state.
-   * Uses `git checkout <sha> -- .` to restore files without detaching HEAD.
+   * Restore all tracked files to the state at a specific commit.
+   * Also removes files that exist in the current tree but not in the target commit.
    */
   async checkout(projectPath: string, sha: string): Promise<void> {
     const git = simpleGit(projectPath);
-    // Restore all files from the given commit
-    await git.checkout([sha, '--', '.']);
+    const isRepoRoot = await git.checkIsRepo(CheckRepoActions.IS_REPO_ROOT).catch(() => false);
+    if (!isRepoRoot) {
+      throw new Error('No git history for this project. Save the project first to create a version.');
+    }
+
+    // List files in current HEAD and target commit to detect deletions
+    const currentFiles = (await git.raw(['ls-tree', '-r', '--name-only', 'HEAD'])).trim();
+    const targetFiles = new Set(
+      (await git.raw(['ls-tree', '-r', '--name-only', sha])).trim().split('\n').filter(f => f)
+    );
+
+    // Restore all files from the target commit
+    if (targetFiles.size > 0) {
+      await git.raw(['checkout', sha, '--', ...targetFiles]);
+    }
+
+    // Remove files that exist in HEAD but not in the target commit
+    if (currentFiles) {
+      for (const file of currentFiles.split('\n').filter(f => f)) {
+        if (!targetFiles.has(file)) {
+          await fs.rm(path.join(projectPath, file), { force: true });
+        }
+      }
+    }
+
     console.log(`[Git] Restored files to commit ${sha}`);
   }
 

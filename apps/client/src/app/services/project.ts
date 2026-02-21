@@ -98,6 +98,9 @@ export class ProjectService {
   figmaImports = signal<FigmaImportPayload[]>([]);
   agentMode = signal(false);
 
+  // Bumped after each successful save (so version history can auto-refresh)
+  saveVersion = signal(0);
+
   // Computed
   hasProject = computed(() => !!this.projectId() && this.projectId() !== 'new');
 
@@ -199,6 +202,7 @@ export class ProjectService {
           this.toastService.show('Project saved successfully!', 'success');
           this.projectId.set(project.id);
           this.loading.set(false);
+          this.saveVersion.update(v => v + 1);
         },
         error: (err) => {
           console.error(err);

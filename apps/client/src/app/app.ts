@@ -565,7 +565,7 @@ export class AppComponent implements AfterViewChecked {
         }
         await this.webContainerService.writeFile(path, writeContent);
       } catch (err) {
-        console.error('Failed to write file to WebContainer', err);
+        console.error('Failed to write file to container', err);
       }
     }
   }
