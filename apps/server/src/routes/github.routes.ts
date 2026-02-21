@@ -5,6 +5,7 @@ import { githubService } from '../providers/github/github.service';
 import { syncService } from '../providers/github/sync.service';
 import { authenticate } from '../middleware/auth';
 import { GitHubConnection, GitHubProjectSync } from '@adorable/shared-types';
+import { projectFsService } from '../services/project-fs.service';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -419,8 +420,16 @@ router.post('/sync/:projectId/push', authenticate, async (req: any, res) => {
       return res.status(400).json({ error: 'Project not connected to GitHub' });
     }
 
-    // Parse project files
-    const files = JSON.parse(project.files);
+    // Read project files from disk (fallback to DB for legacy)
+    let files;
+    const existsOnDisk = await projectFsService.projectExistsOnDisk(projectId);
+    if (existsOnDisk) {
+      files = await projectFsService.readProjectFiles(projectId);
+    } else if (project.files) {
+      files = JSON.parse(project.files);
+    } else {
+      return res.status(400).json({ error: 'No project files found' });
+    }
 
     // Push to GitHub
     const commitSha = await syncService.pushToGitHub(
@@ -483,11 +492,13 @@ router.post('/sync/:projectId/pull', authenticate, async (req: any, res) => {
       project.githubBranch
     );
 
-    // Update project with new files
+    // Write pulled files to disk
+    await projectFsService.writeProjectFiles(projectId, files);
+
+    // Update project metadata (no files blob in DB)
     await prisma.project.update({
       where: { id: projectId },
       data: {
-        files: JSON.stringify(files),
         githubLastSyncAt: new Date(),
         githubLastCommitSha: commitSha,
       },
@@ -530,8 +541,16 @@ router.post('/pages/:projectId', authenticate, async (req: any, res) => {
       return res.status(400).json({ error: 'Project not connected to GitHub' });
     }
 
-    // Parse project files
-    const files = JSON.parse(project.files);
+    // Read project files from disk (fallback to DB for legacy)
+    let files;
+    const existsOnDisk = await projectFsService.projectExistsOnDisk(projectId);
+    if (existsOnDisk) {
+      files = await projectFsService.readProjectFiles(projectId);
+    } else if (project.files) {
+      files = JSON.parse(project.files);
+    } else {
+      return res.status(400).json({ error: 'No project files found' });
+    }
     const fileCount = Object.keys(files).length;
     console.log(`[GitHub Pages] Project has ${fileCount} top-level files/directories`);
 

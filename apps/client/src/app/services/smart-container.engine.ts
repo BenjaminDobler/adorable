@@ -1,12 +1,11 @@
 import { Injectable, inject, signal, computed, Signal } from '@angular/core';
 import { ContainerEngine, ProcessOutput } from './container-engine';
-import { BrowserContainerEngine } from './browser-container.engine';
 import { LocalContainerEngine } from './local-container.engine';
 import { NativeContainerEngine } from './native-container.engine';
 import { WebContainerFiles } from '@adorable/shared-types';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 
-export type ContainerMode = 'browser' | 'local' | 'native';
+export type ContainerMode = 'local' | 'native';
 
 /** Detect if running inside Electron desktop app */
 export function isDesktopApp(): boolean {
@@ -15,14 +14,13 @@ export function isDesktopApp(): boolean {
 
 function getDefaultMode(): ContainerMode {
   if (isDesktopApp()) return 'native';
-  return (localStorage.getItem('container_mode') as ContainerMode) || 'browser';
+  return (localStorage.getItem('container_mode') as ContainerMode) || 'local';
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class SmartContainerEngine extends ContainerEngine {
-  private browserEngine = inject(BrowserContainerEngine);
   private localEngine = inject(LocalContainerEngine);
   private nativeEngine = inject(NativeContainerEngine);
 
@@ -31,14 +29,13 @@ export class SmartContainerEngine extends ContainerEngine {
 
   private activeEngine = computed(() => {
     switch (this.mode()) {
-      case 'local': return this.localEngine;
       case 'native': return this.nativeEngine;
-      default: return this.browserEngine;
+      default: return this.localEngine;
     }
   });
 
   // --- Proxy Signals ---
-  
+
   // We need to proxy the signals. Since activeEngine changes, we can use computed.
   // Re-defining properties as Computed
   override get status(): Signal<string> { return computed(() => this.activeEngine().status()); }
@@ -55,12 +52,21 @@ export class SmartContainerEngine extends ContainerEngine {
   _serverOutput = signal('');
   _shellOutput = signal('');
 
+  override set currentProjectId(value: string | null) {
+    super.currentProjectId = value;
+    this.localEngine.currentProjectId = value;
+    this.nativeEngine.currentProjectId = value;
+  }
+  override get currentProjectId(): string | null {
+    return super.currentProjectId;
+  }
+
   constructor() {
     super();
   }
-  
+
   addConsoleLog(log: any) { this.activeEngine().addConsoleLog(log); }
-  
+
   clearServerOutput() { this.activeEngine().clearServerOutput(); }
   clearShellOutput() { this.activeEngine().clearShellOutput(); }
   clearPreviewLogs() { this.activeEngine().clearPreviewLogs(); }
@@ -86,9 +92,8 @@ export class SmartContainerEngine extends ContainerEngine {
   async runInstall() { return await this.activeEngine().runInstall(); }
   async startDevServer() { await this.activeEngine().startDevServer(); }
   async stopDevServer() { await this.activeEngine().stopDevServer(); }
-  
+
   on(event: 'server-ready', callback: (port: number, url: string) => void) {
-    this.browserEngine.on(event, callback);
     this.localEngine.on(event, callback);
     this.nativeEngine.on(event, callback);
   }
@@ -96,8 +101,8 @@ export class SmartContainerEngine extends ContainerEngine {
   setMode(mode: ContainerMode) {
       console.log('Switching Container Engine to:', mode);
       const prev = this.activeEngine();
-      prev.stopDevServer(); 
-      
+      prev.stopDevServer();
+
       this.mode.set(mode);
       localStorage.setItem('container_mode', mode);
   }

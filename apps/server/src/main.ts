@@ -68,13 +68,6 @@ app.use(async (req: any, res, next) => {
   next();
 });
 
-// Critical headers for WebContainers (Applied to ALL responses)
-app.use((req, res, next) => {
-  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-  next();
-});
-
 // Ensure sites directory exists
 fs.mkdir(SITES_DIR, { recursive: true }).catch(console.error);
 

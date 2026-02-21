@@ -4,6 +4,7 @@ import * as fs from 'fs/promises';
 import { prisma } from '../db/prisma';
 import { authenticate } from '../middleware/auth';
 import { projectService } from '../services/project.service';
+import { projectFsService } from '../services/project-fs.service';
 import { SITES_DIR, PORT } from '../config';
 import { containerRegistry } from '../providers/container/container-registry';
 
@@ -31,8 +32,8 @@ router.post('/', async (req: any, res) => {
 
   console.log(`[Save Project] Request for '${name}' (ID: ${id}) by ${user.email}`);
 
-  if (!name || !files) {
-    return res.status(400).json({ error: 'Name and files are required' });
+  if (!name) {
+    return res.status(400).json({ error: 'Name is required' });
   }
 
   try {
@@ -43,6 +44,7 @@ router.post('/', async (req: any, res) => {
       role: m.role,
       text: m.text,
       files: m.files ? JSON.stringify(m.files) : undefined,
+      commitSha: m.commitSha || undefined,
       usage: m.usage ? JSON.stringify(m.usage) : undefined,
       timestamp: m.timestamp
     })) : [];
@@ -54,7 +56,7 @@ router.post('/', async (req: any, res) => {
         where: { id: id, userId: user.id },
         data: {
           name,
-          files: JSON.stringify(files),
+          // No longer store files in DB — they go to disk
           thumbnail,
           figmaImports: figmaImports ? JSON.stringify(figmaImports) : undefined,
           selectedKitId: selectedKitId !== undefined ? selectedKitId : undefined,
@@ -70,7 +72,7 @@ router.post('/', async (req: any, res) => {
       project = await prisma.project.create({
         data: {
           name,
-          files: JSON.stringify(files),
+          // No files blob in DB for new projects
           userId: user.id,
           thumbnail,
           figmaImports: figmaImports ? JSON.stringify(figmaImports) : undefined,
@@ -81,6 +83,23 @@ router.post('/', async (req: any, res) => {
         }
       });
     }
+
+    // Write files to disk if provided
+    if (files && Object.keys(files).length > 0) {
+      console.log(`[Save Project] Writing files to disk for ${project.id}`);
+      await projectFsService.writeProjectFiles(project.id, files);
+
+      // Git commit on save
+      try {
+        const { gitService } = await import('../services/git.service');
+        const projectPath = projectFsService.getProjectPath(project.id);
+        await gitService.initRepo(projectPath);
+        await gitService.commit(projectPath, `Save: ${name}`);
+      } catch (e) {
+        console.warn('[Save Project] Git commit failed (non-fatal):', e);
+      }
+    }
+
     console.log(`[Save Project] Success. Project ID: ${project.id}`);
     res.json(project);
   } catch (error) {
@@ -102,6 +121,7 @@ router.get('/:id', async (req: any, res) => {
             role: true,
             text: true,
             usage: true,
+            commitSha: true,
             timestamp: true,
           }
         }
@@ -109,9 +129,27 @@ router.get('/:id', async (req: any, res) => {
     });
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
+    // Read files from disk
+    let files: any = {};
+    const existsOnDisk = await projectFsService.projectExistsOnDisk(project.id);
+
+    if (existsOnDisk) {
+      files = await projectFsService.readProjectFiles(project.id);
+    } else if (project.files) {
+      // Lazy migration: files exist in DB but not on disk
+      console.log(`[Load Project] Lazy migrating files to disk for ${project.id}`);
+      files = JSON.parse(project.files);
+      await projectFsService.writeProjectFiles(project.id, files);
+      // Clear the DB column to free space
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { files: null }
+      });
+    }
+
     res.json({
         ...project,
-        files: JSON.parse(project.files),
+        files,
         figmaImports: project.figmaImports ? JSON.parse(project.figmaImports) : [],
         messages: project.messages.map(m => ({
           ...m,
@@ -119,6 +157,7 @@ router.get('/:id', async (req: any, res) => {
         }))
     });
   } catch (error) {
+    console.error('[Load Project] Error:', error);
     res.status(500).json({ error: 'Failed to load project' });
   }
 });
@@ -129,6 +168,8 @@ router.delete('/:id', async (req: any, res) => {
       await prisma.project.delete({
         where: { id: req.params.id, userId: user.id }
       });
+      // Also delete files from disk
+      await projectFsService.deleteProjectFiles(req.params.id);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed to delete project' });
@@ -164,16 +205,16 @@ router.post('/:id/clone', async (req: any, res) => {
           role: m.role,
           text: m.text,
           files: m.files,
+          commitSha: m.commitSha,
           usage: m.usage,
           timestamp: m.timestamp
         }))
       : [];
 
-    // Create the cloned project
+    // Create the cloned project (no files blob)
     const clonedProject = await prisma.project.create({
       data: {
         name: cloneName,
-        files: sourceProject.files,
         thumbnail: sourceProject.thumbnail,
         figmaImports: sourceProject.figmaImports,
         selectedKitId: sourceProject.selectedKitId,
@@ -184,11 +225,74 @@ router.post('/:id/clone', async (req: any, res) => {
       }
     });
 
+    // Copy files on disk
+    const sourceExists = await projectFsService.projectExistsOnDisk(id);
+    if (sourceExists) {
+      await projectFsService.copyProject(id, clonedProject.id);
+    }
+
     console.log(`[Clone Project] Cloned '${sourceProject.name}' to '${cloneName}' (ID: ${clonedProject.id})${includeMessages ? ' with messages' : ''}`);
     res.json(clonedProject);
   } catch (error) {
     console.error('[Clone Project] Error:', error);
     res.status(500).json({ error: 'Failed to clone project' });
+  }
+});
+
+/**
+ * POST /api/projects/:id/restore
+ * Restore project files to a specific git commit
+ */
+router.get('/:id/history', async (req: any, res) => {
+  const user = req.user;
+  try {
+    const project = await prisma.project.findFirst({
+      where: { id: req.params.id, userId: user.id }
+    });
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const { gitService } = await import('../services/git.service');
+    const projectPath = projectFsService.getProjectPath(project.id);
+    const log = await gitService.getLog(projectPath);
+
+    const commits = log.all.map(entry => ({
+      sha: entry.hash,
+      message: entry.message,
+      date: entry.date,
+    }));
+
+    res.json({ commits });
+  } catch (error: any) {
+    console.error('[History] Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to get project history' });
+  }
+});
+
+router.post('/:id/restore', async (req: any, res) => {
+  const user = req.user;
+  const { commitSha } = req.body;
+
+  if (!commitSha) {
+    return res.status(400).json({ error: 'commitSha is required' });
+  }
+
+  try {
+    const project = await prisma.project.findFirst({
+      where: { id: req.params.id, userId: user.id }
+    });
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    // Import git service lazily to avoid circular deps
+    const { gitService } = await import('../services/git.service');
+    const projectPath = projectFsService.getProjectPath(project.id);
+    await gitService.checkout(projectPath, commitSha);
+
+    // Read the restored files
+    const files = await projectFsService.readProjectFiles(project.id);
+    res.json({ success: true, files });
+  } catch (error: any) {
+    console.error('[Restore] Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to restore version' });
   }
 });
 
@@ -227,9 +331,9 @@ router.post('/publish/:id', async (req: any, res) => {
 
       console.log('[Publish] Build successful, copying files...');
 
-      // The built files are at storage/projects/{userId}/dist/...
-      const userProjectPath = path.join(process.cwd(), 'storage', 'projects', user.id);
-      const distRoot = path.join(userProjectPath, 'dist');
+      // The built files are at storage/projects/{projectId}/dist/...
+      const projectPath = projectFsService.getProjectPath(id);
+      const distRoot = path.join(projectPath, 'dist');
 
       // Find the folder containing index.html (Angular 17+ uses dist/{project-name}/browser)
       const distPath = await findWebRoot(distRoot);
@@ -250,9 +354,11 @@ router.post('/publish/:id', async (req: any, res) => {
         console.warn('[Publish] Could not fix base href:', e);
       }
     } else {
-      // WebContainer mode: save source files directly
-      console.log(`[Publish] WebContainer mode - Saving files for project ${id}`);
-      await projectService.saveFilesToDisk(sitePath, files);
+      // Fallback: save provided files directly
+      console.log(`[Publish] Saving files for project ${id}`);
+      if (files) {
+        await projectService.saveFilesToDisk(sitePath, files);
+      }
     }
 
     const publicUrl = `http://localhost:${PORT}/sites/${id}/index.html`;

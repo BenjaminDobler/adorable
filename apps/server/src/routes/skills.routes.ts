@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth';
 import { SkillRegistry } from '../providers/skills/skill-registry';
 import { MemoryFileSystem } from '../providers/filesystem/memory-filesystem';
 import { prisma } from '../db/prisma';
+import { projectFsService } from '../services/project-fs.service';
 
 const router = express.Router();
 
@@ -35,18 +36,26 @@ router.get('/', async (req: any, res) => {
     let fs = new MemoryFileSystem({}); // Empty FS for system/user only
 
     if (projectId) {
-      const project = await prisma.project.findFirst({
-        where: { id: projectId as string, userId: user.id }
-      });
-
-      if (project && project.files) {
-        try {
-          const files = JSON.parse(project.files);
-          const flattened = flattenFiles(files);
+      try {
+        // Read project files from disk
+        const existsOnDisk = await projectFsService.projectExistsOnDisk(projectId as string);
+        if (existsOnDisk) {
+          const flattened = await projectFsService.readProjectFilesFlat(projectId as string);
           fs = new MemoryFileSystem(flattened);
-        } catch (e) {
-          console.warn('Failed to parse project files for skills discovery', e);
+        } else {
+          // Fallback to DB for legacy projects
+          const project = await prisma.project.findFirst({
+            where: { id: projectId as string, userId: user.id }
+          });
+
+          if (project && project.files) {
+            const files = JSON.parse(project.files);
+            const flattened = flattenFiles(files);
+            fs = new MemoryFileSystem(flattened);
+          }
         }
+      } catch (e) {
+        console.warn('Failed to read project files for skills discovery', e);
       }
     }
 

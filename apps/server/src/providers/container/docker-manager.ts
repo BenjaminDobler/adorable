@@ -10,6 +10,7 @@ export class DockerManager {
   private docker: Docker;
   private container: Docker.Container | null = null;
   private userId: string | null = null;
+  private projectId: string | null = null;
 
   // File watcher
   public readonly events = new EventEmitter();
@@ -21,6 +22,14 @@ export class DockerManager {
     const socketPath =
       process.env['DOCKER_SOCKET_PATH'] || '/var/run/docker.sock';
     this.docker = new Docker({ socketPath });
+  }
+
+  setProjectId(projectId: string) {
+    this.projectId = projectId;
+  }
+
+  getProjectId(): string | null {
+    return this.projectId;
   }
 
   async createContainer(image = 'node:20', name?: string) {
@@ -37,31 +46,49 @@ export class DockerManager {
       try {
         const existing = await this.docker.getContainer(name);
         const info = await existing.inspect();
-        this.container = existing;
-        
+
         // Ensure userId is tracked if we re-use
         if (!this.userId) {
            const parts = name.split('-');
            this.userId = parts[parts.length - 1];
         }
 
-        if (info.State.Paused) {
-          console.log(`[Docker] Unpausing existing container: ${name}`);
-          await this.container.unpause();
-        } else if (!info.State.Running) {
-          console.log(`[Docker] Starting existing container: ${name}`);
-          await this.container.start();
+        // Check if bind mount matches the current projectId — if not, recreate
+        const expectedHostPath = this.projectId
+          ? path.join(process.cwd(), 'storage', 'projects', this.projectId)
+          : path.join(process.cwd(), 'storage', 'projects', this.userId || 'unknown');
+        const currentBinds = info.HostConfig?.Binds || [];
+        const currentAppBind = currentBinds.find((b: string) => b.endsWith(':/app'));
+        const currentHostPath = currentAppBind ? currentAppBind.split(':/app')[0] : '';
+
+        if (currentHostPath && path.resolve(currentHostPath) !== path.resolve(expectedHostPath)) {
+          console.log(`[Docker] Project changed (${currentHostPath} → ${expectedHostPath}), recreating container.`);
+          this.stopWatcher();
+          try { await existing.stop({ t: 2 }); } catch (_) { /* may already be stopped */ }
+          try { await existing.remove({ force: true }); } catch (_) { /* ignore */ }
+          // Fall through to create a new container below
         } else {
-          console.log(`[Docker] Using already running container: ${name}`);
+          this.container = existing;
+          if (info.State.Paused) {
+            console.log(`[Docker] Unpausing existing container: ${name}`);
+            await this.container.unpause();
+          } else if (!info.State.Running) {
+            console.log(`[Docker] Starting existing container: ${name}`);
+            await this.container.start();
+          } else {
+            console.log(`[Docker] Using already running container: ${name}`);
+          }
+          return this.container.id;
         }
-        return this.container.id;
       } catch (e) {
         // Container doesn't exist, proceed to create
         console.log(`[Docker] Container ${name} not found, creating fresh.`);
       }
     }
 
-    const hostAppPath = path.join(process.cwd(), 'storage', 'projects', this.userId || 'unknown');
+    const hostAppPath = this.projectId
+      ? path.join(process.cwd(), 'storage', 'projects', this.projectId)
+      : path.join(process.cwd(), 'storage', 'projects', this.userId || 'unknown');
     await fs.mkdir(hostAppPath, { recursive: true });
 
     this.container = await this.docker.createContainer({
@@ -127,7 +154,9 @@ export class DockerManager {
   async getContainerInfo(): Promise<{ containerId: string; containerName: string; hostProjectPath: string; containerWorkDir: string; status: string } | null> {
     if (!this.container) return null;
     const info = await this.container.inspect();
-    const hostPath = path.resolve(process.cwd(), 'storage', 'projects', this.userId || 'unknown');
+    const hostPath = this.projectId
+      ? path.resolve(process.cwd(), 'storage', 'projects', this.projectId)
+      : path.resolve(process.cwd(), 'storage', 'projects', this.userId || 'unknown');
     return {
       containerId: info.Id,
       containerName: info.Name.replace(/^\//, ''),
@@ -139,7 +168,9 @@ export class DockerManager {
 
   startWatcher(): void {
     if (this.watcher) return; // Already watching
-    const hostPath = path.resolve(process.cwd(), 'storage', 'projects', this.userId || 'unknown');
+    const hostPath = this.projectId
+      ? path.resolve(process.cwd(), 'storage', 'projects', this.projectId)
+      : path.resolve(process.cwd(), 'storage', 'projects', this.userId || 'unknown');
     console.log(`[Docker] Starting file watcher on ${hostPath}`);
 
     const ignoredDirs = new Set(['node_modules', '.angular', '.nx', 'dist', '.git', '.cache', 'tmp']);

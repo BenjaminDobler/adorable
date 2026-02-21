@@ -2,6 +2,7 @@ import { Router, raw } from 'express';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
 import { syncService } from '../providers/github/sync.service';
+import { projectFsService } from '../services/project-fs.service';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -116,11 +117,13 @@ router.post('/github', async (req, res) => {
           branch
         );
 
-        // Update project files
+        // Write pulled files to disk
+        await projectFsService.writeProjectFiles(project.id, files);
+
+        // Update project metadata (no files blob in DB)
         await prisma.project.update({
           where: { id: project.id },
           data: {
-            files: JSON.stringify(files),
             githubLastSyncAt: new Date(),
             githubLastCommitSha: newSha,
           },

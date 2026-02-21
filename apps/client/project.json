@@ -43,12 +43,7 @@
     },
     "serve": {
       "executor": "@angular/build:dev-server",
-      "options": {
-        "headers": {
-          "Cross-Origin-Embedder-Policy": "require-corp",
-          "Cross-Origin-Opener-Policy": "same-origin"
-        }
-      },
+      "options": {},
       "configurations": {
         "production": {
           "buildTarget": "client:build:production"

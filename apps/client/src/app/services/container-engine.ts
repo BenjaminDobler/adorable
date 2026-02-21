@@ -13,8 +13,11 @@ export interface DevServerInfo {
 }
 
 export abstract class ContainerEngine {
-  abstract mode: Signal<'browser' | 'local' | 'native'>;
+  abstract mode: Signal<'local' | 'native'>;
   abstract status: Signal<string>;
+  private _currentProjectId: string | null = null;
+  get currentProjectId(): string | null { return this._currentProjectId; }
+  set currentProjectId(value: string | null) { this._currentProjectId = value; }
   abstract url: Signal<string | null>;
   abstract buildError: Signal<string | null>;
   abstract previewConsoleLogs: Signal<Array<{ level: 'log'|'warn'|'error', message: string, timestamp: Date }>>;

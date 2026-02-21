@@ -29,6 +29,7 @@ import { FigmaImportPayload } from '@adorable/shared-types';
 import { TemplateService } from './services/template';
 import { ConfirmService } from './services/confirm';
 import { AnnotationOverlayComponent, AnnotationResult } from './annotation-overlay/annotation-overlay';
+import { VersionsPanelComponent } from './versions/versions-panel.component';
 
 @Component({
   standalone: true,
@@ -42,6 +43,7 @@ import { AnnotationOverlayComponent, AnnotationResult } from './annotation-overl
     TerminalComponent,
     FigmaPanelComponent,
     AnnotationOverlayComponent,
+    VersionsPanelComponent,
   ],
   selector: 'app-root',
   templateUrl: './app.html',
@@ -71,7 +73,7 @@ export class AppComponent implements AfterViewChecked {
 
   @ViewChild(ChatComponent) chatComponent!: ChatComponent;
 
-  activeTab = signal<'chat' | 'terminal' | 'files' | 'figma'>('chat');
+  activeTab = signal<'chat' | 'terminal' | 'files' | 'figma' | 'versions'>('chat');
 
   // Pending Figma import (passed to chat component when it renders)
   pendingFigmaImport = signal<FigmaImportPayload | null>(null);
@@ -463,7 +465,7 @@ export class AppComponent implements AfterViewChecked {
   toggleEngine(event: Event) {
     const select = event.target as HTMLSelectElement;
     if (this.webContainerService instanceof SmartContainerEngine) {
-      this.webContainerService.setMode(select.value as 'browser' | 'local');
+      this.webContainerService.setMode(select.value as 'local' | 'native');
       // Re-trigger preview in new engine
       this.projectService.reloadPreview(this.projectService.files());
     }

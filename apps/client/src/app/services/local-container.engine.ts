@@ -15,7 +15,7 @@ export class LocalContainerEngine extends ContainerEngine {
   private watchAbort: AbortController | null = null;
 
   // State
-  public mode = signal<'browser' | 'local' | 'native'>('local');
+  public mode = signal<'local' | 'native'>('local');
   public status = signal<string>('Idle');
   public url = signal<string | null>(null);
   public buildError = signal<string | null>(null);
@@ -35,7 +35,8 @@ export class LocalContainerEngine extends ContainerEngine {
   async boot(): Promise<void> {
     this.status.set('Booting Local Container...');
     try {
-      await this.http.post(`${this.apiUrl}/start`, {}).toPromise();
+      await this.http.post(`${this.apiUrl}/start`, { projectId: this.currentProjectId }).toPromise();
+      this.lastBootedProjectId = this.currentProjectId;
       this.status.set('Container Ready');
     } catch (e) {
       this.status.set('Boot Failed');
@@ -96,12 +97,13 @@ export class LocalContainerEngine extends ContainerEngine {
     this.status.set('Stopped');
   }
 
+  private lastBootedProjectId: string | null = null;
+
   async mount(files: WebContainerFiles): Promise<void> {
-    // We assume boot() starts the container. 
-    // We should check if container is running? 
-    // Ideally the server handles idempotency of start, or we track state locally.
-    // For now, let's call boot if status is Idle or Stopped.
-    if (this.status() === 'Idle' || this.status() === 'Stopped') {
+    // Reboot if container isn't running or if we switched to a different project
+    const needsReboot = this.status() === 'Idle' || this.status() === 'Stopped' || this.status() === 'Server stopped'
+      || (this.currentProjectId && this.currentProjectId !== this.lastBootedProjectId);
+    if (needsReboot) {
         await this.boot();
     }
 
@@ -258,11 +260,10 @@ export class LocalContainerEngine extends ContainerEngine {
       // 3. Fallback to pkill for node/npm/ng processes
       const res = await this.exec('sh', ['-c', 'fuser 4200/tcp && (fuser -k 4200/tcp || pkill -9 -f "node|npm|ng") || echo "Port already free"']);
       await res.exit;
-      
-      // Medium delay only if we actually had to kill something? 
-      // For now, consistent 2s is safer than 3s.
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
+      // Poll until port 4200 is free instead of blind sleep
+      await this.waitForPortFree(4200, 5000);
+
       this.status.set('Server stopped');
     } catch (e) {
       console.warn('Failed to stop dev server', e);
@@ -271,10 +272,35 @@ export class LocalContainerEngine extends ContainerEngine {
     }
   }
 
+  private async waitForPortFree(port: number, timeoutMs: number): Promise<void> {
+    const pollInterval = 200;
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+      try {
+        const res = await this.exec('sh', ['-c', `fuser ${port}/tcp`]);
+        const exitCode = await res.exit;
+        // Non-zero exit = nothing listening on the port = port is free
+        if (exitCode !== 0) return;
+      } catch {
+        // exec failure means port is free (or container gone, either way safe to proceed)
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+    // Timeout reached — proceed anyway (safety net)
+  }
+
   async clean(full = false): Promise<void> {
-    await this.exec('rm', ['-rf', 'src']);
+    // The container bind-mounts storage/projects/{id} to /app, so we must
+    // NEVER rm -rf src — that would delete the project's source from disk.
+    // mount() overwrites files in place, git checkout handles version restore,
+    // and project switches get a fresh bind mount via container reboot.
     if (full) {
+      // Only remove node_modules/caches on kit/template change (different deps)
       await this.exec('rm', ['-rf', 'node_modules', 'pnpm-lock.yaml', 'package-lock.json', '.angular']);
+    } else {
+      await this.exec('rm', ['-rf', '.angular']);
     }
   }
 
@@ -311,7 +337,7 @@ export class LocalContainerEngine extends ContainerEngine {
   async startShell(): Promise<void> {}
   async writeToShell(data: string): Promise<void> {}
   async runBuild(args?: string[]): Promise<number> { return 0; }
-  async readdir(path: string): Promise<any> { return []; } 
+  async readdir(path: string, options?: any): Promise<any> { return []; } 
   
   onServerReadyCallback?: (port: number, url: string) => void;
   on(event: 'server-ready', callback: (port: number, url: string) => void): void {

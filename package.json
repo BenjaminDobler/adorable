@@ -92,7 +92,6 @@
     "@types/dockerode": "^4.0.0",
     "@types/http-proxy-middleware": "^0.19.3",
     "@types/minimatch": "^5.1.2",
-    "@webcontainer/api": "^1.6.1",
     "angular-html-parser": "^10.3.0",
     "ansi-to-html": "^0.7.2",
     "axios": "^1.6.0",
@@ -115,6 +114,7 @@
     "marked": "^17.0.1",
     "minimatch": "^10.1.1",
     "monaco-editor": "^0.55.1",
-    "rxjs": "~7.8.0"
+    "rxjs": "~7.8.0",
+    "simple-git": "^3.32.0"
   }
 }

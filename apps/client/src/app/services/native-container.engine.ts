@@ -17,7 +17,7 @@ export class NativeContainerEngine extends ContainerEngine {
   private watchAbort: AbortController | null = null;
 
   // State
-  public mode = signal<'browser' | 'local' | 'native'>('native');
+  public mode = signal<'local' | 'native'>('native');
   public status = signal<string>('Idle');
   public url = signal<string | null>(null);
   public buildError = signal<string | null>(null);
@@ -34,10 +34,13 @@ export class NativeContainerEngine extends ContainerEngine {
   clearPreviewLogs() { this.previewConsoleLogs.set([]); }
   clearBuildError() { this.buildError.set(null); }
 
+  private lastBootedProjectId: string | null = null;
+
   async boot(): Promise<void> {
     this.status.set('Starting native project...');
     try {
-      await this.http.post(`${this.apiUrl}/start`, {}).toPromise();
+      await this.http.post(`${this.apiUrl}/start`, { projectId: this.currentProjectId }).toPromise();
+      this.lastBootedProjectId = this.currentProjectId;
       this.status.set('Project Ready');
     } catch (e) {
       this.status.set('Boot Failed');
@@ -99,7 +102,9 @@ export class NativeContainerEngine extends ContainerEngine {
   }
 
   async mount(files: WebContainerFiles): Promise<void> {
-    if (this.status() === 'Idle' || this.status() === 'Stopped') {
+    const needsReboot = this.status() === 'Idle' || this.status() === 'Stopped' || this.status() === 'Server stopped'
+      || (this.currentProjectId && this.currentProjectId !== this.lastBootedProjectId);
+    if (needsReboot) {
       await this.boot();
     }
     this.status.set('Mounting files...');
@@ -297,7 +302,11 @@ export class NativeContainerEngine extends ContainerEngine {
   async clean(full = false): Promise<void> {
     await this.exec('rm', ['-rf', 'src']);
     if (full) {
+      // Only remove node_modules on explicit full clean (e.g. kit/template change)
       await this.exec('rm', ['-rf', 'node_modules', 'pnpm-lock.yaml', 'package-lock.json', '.angular']);
+    } else {
+      // Preserve node_modules for faster project switching
+      await this.exec('rm', ['-rf', '.angular']);
     }
   }
 
@@ -334,7 +343,7 @@ export class NativeContainerEngine extends ContainerEngine {
   async startShell(): Promise<void> {}
   async writeToShell(data: string): Promise<void> {}
   async runBuild(args?: string[]): Promise<number> { return 0; }
-  async readdir(path: string): Promise<any> { return []; }
+  async readdir(path: string, options?: any): Promise<any> { return []; }
 
   onServerReadyCallback?: (port: number, url: string) => void;
   on(event: 'server-ready', callback: (port: number, url: string) => void): void {

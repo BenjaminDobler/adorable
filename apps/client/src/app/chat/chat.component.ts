@@ -491,16 +491,40 @@ export class ChatComponent implements OnDestroy {
     this.generate();
   }
 
-  async restoreVersion(files: any) {
-    if (!files || this.loading()) return;
+  async restoreVersion(filesOrSha: any) {
+    if (!filesOrSha || this.loading()) return;
     const confirmed = await this.confirmService.confirm(
       'Are you sure you want to restore this version? Current unsaved changes might be lost.',
       'Restore',
       'Cancel'
     );
-    if (confirmed) {
-      this.loading.set(true);
-      await this.projectService.reloadPreview(files);
+    if (!confirmed) return;
+
+    this.loading.set(true);
+
+    // If it's a string, it's a commitSha — restore via API
+    if (typeof filesOrSha === 'string') {
+      const projectId = this.projectService.projectId();
+      if (!projectId) {
+        this.toastService.show('No project to restore', 'error');
+        this.loading.set(false);
+        return;
+      }
+      try {
+        const result = await this.apiService.restoreVersion(projectId, filesOrSha).toPromise();
+        if (result?.files) {
+          await this.projectService.reloadPreview(result.files);
+          this.projectService.addSystemMessage('Restored project to previous version.');
+          this.toastService.show('Version restored', 'info');
+        }
+      } catch (err) {
+        console.error('Restore failed:', err);
+        this.toastService.show('Failed to restore version', 'error');
+        this.loading.set(false);
+      }
+    } else {
+      // Legacy: files object
+      await this.projectService.reloadPreview(filesOrSha);
       this.projectService.addSystemMessage('Restored project to previous version.');
       this.toastService.show('Version restored', 'info');
     }
@@ -873,7 +897,8 @@ Analyze the attached design images carefully and create matching Angular compone
       use_container_context: this.projectService.agentMode(),
       forcedSkill: this.selectedSkill()?.name,
       planMode: this.planMode(),
-      kitId: this.projectService.selectedKitId() || undefined
+      kitId: this.projectService.selectedKitId() || undefined,
+      projectId: this.projectService.projectId() || undefined
     }).subscribe({
       next: async (event) => {
         if (event.type !== 'tool_delta' && event.type !== 'text') { 
@@ -1007,6 +1032,7 @@ Analyze the attached design images carefully and create matching Angular compone
             this.messages.update(msgs => {
               const newMsgs = [...msgs];
               newMsgs[assistantMsgIndex].files = projectFiles;
+              newMsgs[assistantMsgIndex].commitSha = res.commitSha || undefined;
               newMsgs[assistantMsgIndex].model = res.model; // Capture the model actually used
               newMsgs[assistantMsgIndex].duration = Date.now() - generationStartTime;
               newMsgs[assistantMsgIndex].status = undefined; // Clear status on completion

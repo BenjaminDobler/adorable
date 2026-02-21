@@ -8,12 +8,18 @@ router.use(authenticate);
 
 router.post('/start', async (req: any, res) => {
   try {
+    const { projectId } = req.body;
     const manager = containerRegistry.getManager(req.user.id);
-    
+
+    // Set projectId on the manager so bind mount uses project-specific path
+    if (projectId) {
+      manager.setProjectId(projectId);
+    }
+
     // Sanitized naming: adorable-user-${safeName}-${userId}
     const safeName = req.user.name ? req.user.name.replace(/[^a-zA-Z0-9_.-]/g, '_').toLowerCase() : 'user';
     const containerName = `adorable-user-${safeName}-${req.user.id}`;
-    
+
     const id = await manager.createContainer(undefined, containerName);
     containerRegistry.updateActivity(req.user.id);
 

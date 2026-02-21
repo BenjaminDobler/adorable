@@ -37,6 +37,13 @@
         >
           Figma
         </button>
+        <button
+          class="tab-btn"
+          [class.active]="activeTab() === 'versions'"
+          (click)="activeTab.set('versions')"
+        >
+          Versions
+        </button>
       </div>
 
       @if (activeTab() === 'chat') {
@@ -91,6 +98,9 @@
         (importToChat)="onFigmaImport($event)"
         (importsChanged)="onFigmaImportsChanged($event)"
       ></app-figma-panel>
+      }
+      @if (activeTab() === 'versions') {
+      <app-versions-panel></app-versions-panel>
       }
     </div>
   </aside>

@@ -50,6 +50,7 @@ export interface ChatMessage {
   text: string;
   timestamp: Date;
   files?: any;
+  commitSha?: string; // Git commit SHA for version restore
   usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
   status?: string;
   model?: string;
@@ -71,6 +72,9 @@ export class ProjectService {
   private router = inject(Router);
   private screenshotService = inject(ScreenshotService);
   public fileStore = inject(FileSystemStore);
+
+  // Guard against concurrent loadProject/reloadPreview calls (fast project switching)
+  private _loadEpoch = 0;
 
   // State
   projectId = signal<string | null>(null);
@@ -98,17 +102,29 @@ export class ProjectService {
   hasProject = computed(() => !!this.projectId() && this.projectId() !== 'new');
 
   async loadProject(id: string) {
+    // Bump epoch so any in-flight loadProject/reloadPreview from a previous call bails out
+    const epoch = ++this._loadEpoch;
+
     this.loading.set(true);
 
-    try {
-      // Start API fetch and server stop IN PARALLEL
-      const [_, project] = await Promise.all([
-        Promise.race([
+    // Only eagerly stop the dev server if we're switching to a different project
+    const sameProject = this.projectId() === id && this.webContainerService.url();
+    const stopPromise = sameProject
+      ? Promise.resolve()
+      : Promise.race([
           this.webContainerService.stopDevServer(),
           new Promise(resolve => setTimeout(resolve, 5000))
-        ]),
+        ]);
+
+    try {
+      // Start API fetch (and server stop if needed) IN PARALLEL
+      const [_, project] = await Promise.all([
+        stopPromise,
         this.apiService.loadProject(id).toPromise()
       ]);
+
+      // Another loadProject was called while we were waiting — abort
+      if (this._loadEpoch !== epoch) return;
 
       if (!project) {
         this.toastService.show('Failed to load project', 'error');
@@ -139,10 +155,11 @@ export class ProjectService {
         this.figmaImports.set([]);
       }
 
-      // skipStop=true since we already stopped above in parallel
-      await this.reloadPreview(project.files, undefined, true);
+      // skipStop=true if we already stopped above; false if same project (let reloadPreview fast-path handle it)
+      await this.reloadPreview(project.files, undefined, !sameProject, epoch);
 
     } catch (err) {
+      if (this._loadEpoch !== epoch) return; // stale, don't show error
       console.error(err);
       this.toastService.show('Failed to load project', 'error');
       this.router.navigate(['/dashboard']);
@@ -273,11 +290,58 @@ export class ProjectService {
     }
   }
 
-  async reloadPreview(files: any, kitTemplate?: KitWebContainerFiles, skipStop = false) {
+  async reloadPreview(files: any, kitTemplate?: KitWebContainerFiles, skipStop = false, epoch?: number) {
+    // If no epoch provided (direct call, e.g. from version restore), create our own
+    if (epoch === undefined) {
+      epoch = ++this._loadEpoch;
+    }
+    const isStale = () => this._loadEpoch !== epoch;
+
     this.loading.set(true);
+
+    // Ensure container engine knows which project we're working with
+    this.webContainerService.currentProjectId = this.projectId() || null;
 
     // Yield to allow loading state to render
     await new Promise(resolve => setTimeout(resolve, 0));
+    if (isStale()) return;
+
+    // Fast path: skip stop/clean/install/start when deps haven't changed
+    // and the dev server is already running (e.g. version restore with same package.json)
+    if (!kitTemplate && this.webContainerService.url()) {
+      const currentPkg = this.fileStore.getFileContent('package.json');
+      const incomingPkg = files?.['package.json']?.file?.contents ?? null;
+      // If incoming files don't include package.json, or it matches the current one, fast path
+      const depsUnchanged = incomingPkg === null || incomingPkg === currentPkg;
+
+      if (depsUnchanged) {
+        try {
+          const baseFiles = this.currentKitTemplate() || BASE_FILES;
+          const mergedFiles = this.mergeFiles(baseFiles, files || {});
+          if (isStale()) return;
+
+          this.fileStore.setFiles(mergedFiles);
+
+          await new Promise(resolve => setTimeout(resolve, 0));
+          if (isStale()) return;
+
+          const { tree, binaries } = this.prepareFilesForMount(mergedFiles);
+          await this.webContainerService.mount(tree);
+          if (isStale()) return;
+
+          for (const bin of binaries) {
+            await this.webContainerService.writeFile(bin.path, bin.content);
+          }
+          return; // Angular HMR picks up the file changes
+        } catch (err) {
+          if (isStale()) return;
+          console.error('Fast-path reload failed, falling back to full reload', err);
+          // Fall through to full reload below
+        } finally {
+          this.loading.set(false);
+        }
+      }
+    }
 
     try {
       if (!skipStop) {
@@ -287,8 +351,11 @@ export class ProjectService {
           new Promise(resolve => setTimeout(resolve, 5000))
         ]);
       }
+      if (isStale()) return;
+
       // Full clean when switching kit templates to clear stale node_modules/lockfiles
       await this.webContainerService.clean(!!kitTemplate);
+      if (isStale()) return;
 
       // Yield before heavy sync operations
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -303,6 +370,7 @@ export class ProjectService {
 
       // Yield before updating store (triggers change detection)
       await new Promise(resolve => setTimeout(resolve, 0));
+      if (isStale()) return;
 
       this.fileStore.setFiles(mergedFiles);
 
@@ -312,12 +380,14 @@ export class ProjectService {
       const { tree, binaries } = this.prepareFilesForMount(mergedFiles);
 
       await this.webContainerService.mount(tree);
+      if (isStale()) return;
 
       for (const bin of binaries) {
         await this.webContainerService.writeFile(bin.path, bin.content);
       }
 
       const exitCode = await this.webContainerService.runInstall();
+      if (isStale()) return;
 
       if (exitCode === 0) {
         this.webContainerService.startDevServer();

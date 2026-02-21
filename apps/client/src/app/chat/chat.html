@@ -322,9 +322,9 @@
             </div>
           }
 
-          @if (msg.files) {
+          @if (msg.commitSha || msg.files) {
             <div class="message-actions">
-              <button class="btn-restore" (click)="restoreVersion(msg.files)" title="Restore project to this state">
+              <button class="btn-restore" (click)="restoreVersion(msg.commitSha || msg.files)" title="Restore project to this state">
                 <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2v6h6M2.66 15.57a10 10 0 1 0 .57-8.38"/></svg>
                 Restore version
               </button>

@@ -5,10 +5,12 @@ import { decrypt } from '../utils/crypto';
 import { authenticate } from '../middleware/auth';
 import { containerRegistry } from '../providers/container/container-registry';
 import { ContainerFileSystem } from '../providers/filesystem/container-filesystem';
+import { MemoryFileSystem } from '../providers/filesystem/memory-filesystem';
 import { screenshotManager } from '../providers/screenshot-manager';
 import { questionManager } from '../providers/question-manager';
 import { MCPServerConfig } from '../mcp/types';
 import { Kit } from '../providers/kits/types';
+import { projectFsService } from '../services/project-fs.service';
 
 const router = express.Router();
 const aiSmartRouter = new SmartRouter();
@@ -195,7 +197,7 @@ router.post('/generate', async (req: any, res) => {
 });
 
 router.post('/generate-stream', async (req: any, res) => {
-    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting, openFiles, use_container_context, forcedSkill, planMode, kitId } = req.body;
+    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting, openFiles, use_container_context, forcedSkill, planMode, kitId, projectId } = req.body;
     const user = req.user;
 
     // Debug: Log images received
@@ -260,10 +262,36 @@ router.post('/generate-stream', async (req: any, res) => {
           console.log(`[AgentMode] Auto-enabled for user ${user.id}`);
        }
     } catch (e) {
-       // No container available — fall back to memory mode (WebContainer)
-       if (use_container_context) {
+       // No container available — fall back to disk-based MemoryFileSystem
+       if (projectId) {
+          try {
+            const diskFiles = await projectFsService.readProjectFilesFlat(projectId);
+            if (Object.keys(diskFiles).length > 0) {
+              fileSystem = new MemoryFileSystem(diskFiles);
+              console.log(`[AgentMode] Initialized MemoryFileSystem from disk for project ${projectId}`);
+            }
+          } catch (diskErr) {
+            console.warn(`[AgentMode] Failed to read project from disk:`, diskErr);
+          }
+       }
+       if (!fileSystem && use_container_context) {
           console.warn(`[AgentMode] Requested but no container available: ${e.message}. Using memory mode.`);
        }
+    }
+
+    // Git: commit current state before generation (if project has files on disk)
+    let preCommitSha: string | null = null;
+    if (projectId) {
+      try {
+        const { gitService } = await import('../services/git.service');
+        const projectPath = projectFsService.getProjectPath(projectId);
+        const exists = await projectFsService.projectExistsOnDisk(projectId);
+        if (exists) {
+          preCommitSha = await gitService.commit(projectPath, `Before: ${prompt.substring(0, 80)}`);
+        }
+      } catch (gitErr) {
+        console.warn('[Git] Pre-generation commit failed:', gitErr);
+      }
     }
 
     try {
@@ -330,7 +358,28 @@ router.post('/generate-stream', async (req: any, res) => {
           }
       });
       
-      res.write(`data: ${JSON.stringify({ type: 'result', content: result })}\n\n`);
+      // Write generated files to disk and commit if we have a projectId
+      let commitSha: string | null = null;
+      if (projectId && result.files && Object.keys(result.files).length > 0) {
+        try {
+          await projectFsService.writeProjectFiles(projectId, result.files);
+          console.log(`[AI] Written generated files to disk for project ${projectId}`);
+
+          // Git: commit after generation
+          const { gitService } = await import('../services/git.service');
+          const projectPath = projectFsService.getProjectPath(projectId);
+          commitSha = await gitService.commit(projectPath, `AI: ${prompt.substring(0, 80)}`);
+          if (commitSha) {
+            console.log(`[Git] Post-generation commit: ${commitSha}`);
+          }
+        } catch (writeErr) {
+          console.error(`[AI] Failed to write files to disk or commit:`, writeErr);
+        }
+      }
+
+      // Include commitSha in result so client can store it
+      const resultWithSha = { ...result, commitSha };
+      res.write(`data: ${JSON.stringify({ type: 'result', content: resultWithSha })}\n\n`);
       res.end();
     } catch (error) {
       console.error('Error calling LLM:', error);

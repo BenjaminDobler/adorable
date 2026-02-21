@@ -18,7 +18,7 @@ export class ApiService {
     });
   }
 
-  generateStream(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[], smartRouting?: any, openFiles?: { [path: string]: string }, use_container_context?: boolean, forcedSkill?: string, planMode?: boolean, kitId?: string }): Observable<any> {
+  generateStream(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[], smartRouting?: any, openFiles?: { [path: string]: string }, use_container_context?: boolean, forcedSkill?: string, planMode?: boolean, kitId?: string, projectId?: string }): Observable<any> {
     return new Observable(observer => {
       const token = localStorage.getItem('adorable_token');
       
@@ -66,7 +66,7 @@ export class ApiService {
     });
   }
 
-  saveProject(name: string, files: any, messages?: any[], id?: string, thumbnail?: string, figmaImports?: any[], selectedKitId?: string | null) {
+  saveProject(name: string, files?: any, messages?: any[], id?: string, thumbnail?: string, figmaImports?: any[], selectedKitId?: string | null) {
     return this.http.post<any>(`${this.apiUrl}/projects`, { name, files, messages, id, thumbnail, figmaImports, selectedKitId });
   }
 
@@ -84,6 +84,14 @@ export class ApiService {
 
   cloneProject(id: string, name?: string, includeMessages?: boolean) {
     return this.http.post<any>(`${this.apiUrl}/projects/${id}/clone`, { name, includeMessages });
+  }
+
+  getProjectHistory(projectId: string): Observable<{ commits: { sha: string; message: string; date: string }[] }> {
+    return this.http.get<{ commits: { sha: string; message: string; date: string }[] }>(`${this.apiUrl}/projects/${projectId}/history`);
+  }
+
+  restoreVersion(projectId: string, commitSha: string) {
+    return this.http.post<any>(`${this.apiUrl}/projects/${projectId}/restore`, { commitSha });
   }
 
   getProfile() {

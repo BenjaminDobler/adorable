@@ -31,7 +31,7 @@ model User {
 model Project {
   id        String   @id @default(cuid())
   name      String
-  files     String   // JSON stringified WebContainerFiles
+  files     String?  // JSON stringified WebContainerFiles (deprecated: files now stored on disk)
   thumbnail String?  // Base64 preview image
   figmaImports String?  // JSON stringified FigmaImportPayload[]
   selectedKitId String?  // ID of the component kit to use for this project
@@ -70,7 +70,8 @@ model ChatMessage {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   role      String
   text      String
-  files     String?  // JSON stringified snapshot
+  files     String?  // JSON stringified snapshot (deprecated: use commitSha)
+  commitSha String?  // Git commit SHA for version restore
   usage     String?  // JSON stringified usage data
   timestamp DateTime @default(now())
 }

@@ -78,7 +78,7 @@ export class NavbarComponent {
   toggleEngine(event: Event) {
     const select = event.target as HTMLSelectElement;
     if (this.webContainerService instanceof SmartContainerEngine) {
-       this.webContainerService.setMode(select.value as 'browser' | 'local' | 'native');
+       this.webContainerService.setMode(select.value as 'local' | 'native');
        this.projectService.reloadPreview(this.projectService.files());
     }
   }

@@ -60,9 +60,9 @@ export const containerProxy = createProxyMiddleware({
     '^/api/proxy': '',
   },
   on: {
-    proxyRes: (proxyRes) => {
+    proxyRes: (proxyRes: any) => {
+      proxyRes.headers['Access-Control-Allow-Origin'] = '*';
       proxyRes.headers['Cross-Origin-Resource-Policy'] = 'cross-origin';
-      proxyRes.headers['Cross-Origin-Embedder-Policy'] = 'require-corp';
     },
     error: (err: any, req, res: any) => {
       // Suppress common transient errors (client disconnected, container restarting)
