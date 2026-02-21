@@ -188,14 +188,7 @@ export class AppComponent implements AfterViewChecked {
         // Handle kitId from query params for new projects
         const kitId = this.route.snapshot.queryParams['kitId'];
         if (kitId) {
-          this.projectService.selectedKitId.set(kitId);
-          const kitTemplate = await this.projectService.loadKitTemplate(kitId);
-          if (kitTemplate) {
-            this.projectService.currentKitTemplate.set(kitTemplate);
-            this.projectService.reloadPreview(null, kitTemplate);
-          } else {
-            this.projectService.reloadPreview(null);
-          }
+          await this.projectService.setKit(kitId);
         } else {
           this.projectService.reloadPreview(null);
         }

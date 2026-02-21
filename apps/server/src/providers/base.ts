@@ -10,7 +10,7 @@ import { questionManager } from './question-manager';
 import { MCPManager } from '../mcp/mcp-manager';
 import { MCPToolResult } from '../mcp/types';
 import { Kit } from './kits/types';
-import { generateKitTools, executeKitTool, isKitTool, suggestKitToolCorrection } from './kit-tools';
+import { generateComponentCatalog, generateComponentDocFiles } from './kits/doc-generator';
 
 export const SYSTEM_PROMPT =
 "You are an expert Angular developer.\n"
@@ -88,7 +88,8 @@ export interface AgentLoopContext {
   buildNudgeSent: boolean;
   fullExplanation: string;
   mcpManager?: MCPManager;
-  activeKit?: Kit;
+  failedBuildCount: number;
+  activeKitName?: string;
 }
 
 export abstract class BaseLLMProvider {
@@ -98,10 +99,11 @@ export abstract class BaseLLMProvider {
     skillRegistry: SkillRegistry;
     availableTools: any[];
     userMessage: string;
+    effectiveSystemPrompt: string;
     logger: DebugLogger;
     maxTurns: number;
     mcpManager?: MCPManager;
-    activeKit?: Kit;
+    activeKitName?: string;
   }> {
     const logger = new DebugLogger(providerName);
     const fs: FileSystemInterface = options.fileSystem || new MemoryFileSystem(this.flattenFiles(options.previousFiles || {}));
@@ -179,29 +181,57 @@ Only proceed with implementation after receiving the user's answers.`;
       }
     }
 
-    // Add Kit tools if an active kit is provided
+    // Inject component catalog + doc files if an active kit is provided
     let activeKit: Kit | undefined;
     if (options.activeKit) {
       activeKit = options.activeKit;
-      const kitTools = generateKitTools(activeKit);
-      for (const tool of kitTools) {
-        availableTools.push(tool);
-      }
 
-      if (kitTools.length > 0) {
-        logger.log('KIT_TOOLS_ADDED', { kitName: activeKit.name, toolCount: kitTools.length, tools: kitTools.map(t => t.name) });
+      const catalog = generateComponentCatalog(activeKit);
+      const docFiles = generateComponentDocFiles(activeKit);
+      const docFileCount = Object.keys(docFiles).length;
 
-        // Add kit context to the user message
-        userMessage += `\n\n--- Active Component Kit: ${activeKit.name} ---\n`;
-        userMessage += `You have access to the ${activeKit.name} component library.\n`;
-        if (activeKit.npmPackage) {
-          userMessage += `Import components from: '${activeKit.npmPackage}'\n`;
+      if (catalog) {
+        logger.log('KIT_CATALOG_INJECTED', { kitName: activeKit.name, catalogLength: catalog.length, docFiles: docFileCount });
+
+        // Write doc files into the MemoryFileSystem so the AI can read_files them
+        // Only write files that don't already exist (template/saved files take priority)
+        for (const [path, content] of Object.entries(docFiles)) {
+          try {
+            await fs.readFile(path);
+            // File already exists (from template or saved project) — skip
+          } catch {
+            // File doesn't exist — write the generated doc
+            await fs.writeFile(path, content);
+          }
         }
-        userMessage += `Use the kit tools to discover and learn about available components before using them.\n`;
+
+        // Append compact catalog to user message
+        userMessage += `\n\n--- Component Library: ${activeKit.name} ---\n`;
+        userMessage += catalog;
+        userMessage += `\n\n**⚠️ MANDATORY — Component Documentation (READ BEFORE CODING):**\n`;
+        userMessage += `This project uses the **${activeKit.name}** component library. You MUST follow this workflow:\n\n`;
+        userMessage += `**Step 1: Read docs BEFORE writing any code.**\n`;
+        userMessage += `- Start by reading \`.adorable/components/README.md\` to see all available component doc files.\n`;
+        userMessage += `- Then read the docs for EVERY component you plan to use: \`read_files\` → \`.adorable/components/{ComponentName}.md\`\n`;
+        userMessage += `- Batch-read multiple docs in one \`read_files\` call for efficiency.\n`;
+        userMessage += `- The docs contain the **correct export names, import paths, selectors, inputs, outputs, and usage examples**.\n\n`;
+        userMessage += `**Step 2: Only use components whose docs you have read.**\n`;
+        userMessage += `- **NEVER guess** import paths, export names, selectors, or APIs. They are NOT obvious and will cause build failures.\n`;
+        userMessage += `- If a component doc file doesn't exist under the exact name, check the README for the correct filename.\n`;
+        userMessage += `- Copy import paths and selectors directly from the docs — do not improvise.\n\n`;
+        userMessage += `**Step 3: Fix build errors by reading docs, NEVER by removing components.**\n`;
+        userMessage += `- If a build fails due to a component import or API error, read (or re-read) the component's doc file to find the correct usage.\n`;
+        userMessage += `- **NEVER remove or replace a library component with a plain HTML element.** Always fix the usage based on the docs.\n`;
+        userMessage += `- If you cannot find the right component, check the README for similar component names.\n`;
+        if (activeKit.designTokens) {
+          userMessage += `- Design tokens: \`.adorable/design-tokens.md\`\n`;
+        }
+        if (activeKit.systemPrompt) {
+          userMessage += `\n--- Kit Instructions ---\n${activeKit.systemPrompt}\n`;
+        }
       } else {
-        // Log why no tools were generated for debugging
         const storybookResource = activeKit.resources?.find((r: any) => r.type === 'storybook') as any;
-        logger.log('KIT_TOOLS_EMPTY', {
+        logger.log('KIT_CATALOG_EMPTY', {
           kitName: activeKit.name,
           hasStorybookResource: !!storybookResource,
           storybookStatus: storybookResource?.status,
@@ -212,7 +242,18 @@ Only proceed with implementation after receiving the user's answers.`;
 
     const maxTurns = fs.exec ? 200 : 25;
 
-    return { fs, skillRegistry, availableTools, userMessage, logger, maxTurns, mcpManager, activeKit };
+    // Determine effective system prompt: kit override or default
+    let effectiveSystemPrompt = activeKit?.baseSystemPrompt || SYSTEM_PROMPT;
+
+    // When a component library kit is active, override the "don't explore" instruction
+    if (activeKit) {
+      effectiveSystemPrompt = effectiveSystemPrompt.replace(
+        'do not spend more than 2-3 turns reading/exploring.',
+        'However, when using a component library, you MUST spend turns reading component documentation files (`.adorable/components/*.md`) BEFORE writing code. This is an exception to the exploration limit — reading component docs is mandatory, not optional.'
+      );
+    }
+
+    return { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName: activeKit?.name };
   }
 
   protected async addSkillTools(availableTools: any[], skillRegistry: SkillRegistry, fs: FileSystemInterface, userId?: string) {
@@ -290,16 +331,6 @@ Only proceed with implementation after receiving the user's answers.`;
       return this.executeMCPTool(toolName, toolArgs, ctx);
     }
 
-    // Check if this is a Kit tool
-    console.log(`[ExecuteTool] Checking kit tool: toolName=${toolName}, hasActiveKit=${!!ctx.activeKit}, kitName=${ctx.activeKit?.name}`);
-    if (ctx.activeKit) {
-      const isKit = isKitTool(toolName, ctx.activeKit);
-      console.log(`[ExecuteTool] isKitTool result: ${isKit}`);
-      if (isKit) {
-        return executeKitTool(toolName, toolArgs, ctx.activeKit);
-      }
-    }
-
     const { fs, callbacks, skillRegistry } = ctx;
     let content = '';
     let isError = false;
@@ -322,6 +353,15 @@ Only proceed with implementation after receiving the user's answers.`;
           content = 'File created successfully.';
           break;
         case 'write_files':
+          // LLMs sometimes send the files array as a JSON string instead of a parsed array,
+          // sometimes with trailing garbage like "] }" — use jsonrepair to handle malformed JSON
+          if (typeof toolArgs.files === 'string') {
+            try {
+              toolArgs.files = JSON.parse(jsonrepair(toolArgs.files));
+            } catch {
+              // Will be caught by the Array.isArray check below
+            }
+          }
           if (!toolArgs.files || !Array.isArray(toolArgs.files)) {
             content = 'Error: No files array provided. Your JSON may have been truncated. Try writing fewer files per call, or use write_file for individual files.';
             isError = true;
@@ -369,6 +409,9 @@ Only proceed with implementation after receiving the user's answers.`;
           content = await fs.readFile(toolArgs.path);
           break;
         case 'read_files':
+          if (typeof toolArgs.paths === 'string') {
+            try { toolArgs.paths = JSON.parse(jsonrepair(toolArgs.paths)); } catch { /* handled below */ }
+          }
           validationError = this.validateToolArgs(toolName, toolArgs, ['paths']);
           if (validationError || !Array.isArray(toolArgs.paths)) {
             content = validationError || "Error: Tool 'read_files' requires 'paths' to be an array. Your response may have been truncated.";
@@ -521,7 +564,21 @@ Only proceed with implementation after receiving the user's answers.`;
             const res = await fs.exec(toolArgs.command);
             content = `Exit Code: ${res.exitCode}\n\nSTDOUT:\n${res.stdout}\n\nSTDERR:\n${res.stderr}`;
             if (res.exitCode !== 0) isError = true;
-            if (toolArgs.command && toolArgs.command.includes('build')) ctx.hasRunBuild = true;
+            const isBuildCmd = toolArgs.command && toolArgs.command.includes('build');
+            if (isBuildCmd) {
+              ctx.hasRunBuild = true;
+              if (res.exitCode !== 0) {
+                ctx.failedBuildCount++;
+                // After repeated build failures with an active kit, remind about docs
+                if (ctx.activeKitName && ctx.failedBuildCount >= 2) {
+                  const nudge = `\n\n🚨 **BUILD FAILURE #${ctx.failedBuildCount} — STOP AND READ THE DOCS.**\nYou have had ${ctx.failedBuildCount} consecutive build failures with the ${ctx.activeKitName} component library. You MUST:\n1. Identify which components are causing errors\n2. Read their documentation: \`read_files\` → \`.adorable/components/{ComponentName}.md\`\n3. Fix the imports, selectors, and APIs based on the docs\n**DO NOT remove or replace library components with plain HTML. DO NOT guess — read the docs.**`;
+                  content += nudge;
+                  ctx.logger.logText('BUILD_FAILURE_NUDGE', nudge, { failedBuildCount: ctx.failedBuildCount, activeKitName: ctx.activeKitName });
+                }
+              } else {
+                ctx.failedBuildCount = 0; // Reset on success
+              }
+            }
           }
           break;
         case 'ask_user':
@@ -551,15 +608,6 @@ Only proceed with implementation after receiving the user's answers.`;
           }
           break;
         default:
-          // Check if this looks like a misspelled kit tool
-          if (ctx.activeKit) {
-            const suggestion = suggestKitToolCorrection(toolName, ctx.activeKit);
-            if (suggestion) {
-              content = `Error: Unknown tool "${toolName}". Did you mean "${suggestion.suggestion}"? Available kit tools: ${suggestion.availableTools.join(', ')}`;
-              isError = true;
-              break;
-            }
-          }
           content = `Error: Unknown tool ${toolName}`;
           isError = true;
       }

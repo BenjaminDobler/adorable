@@ -4,9 +4,17 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { ApiService } from '../../services/api';
 import { ToastService } from '../../services/toast';
-import { Kit, KitResource, StorybookComponent, StorybookResource, WebContainerFiles, KitTemplate, ComponentExample } from '../../services/kit-types';
+import { Kit, KitResource, StorybookComponent, StorybookResource, WebContainerFiles, KitTemplate, ComponentExample, NpmPackageConfig } from '../../services/kit-types';
 import { BASE_FILES } from '../../base-project';
 import { FolderImportComponent } from '../folder-import/folder-import';
+
+interface TemplateFileEntry {
+  path: string;
+  name: string;
+  isDirectory: boolean;
+  depth: number;
+  size: number;
+}
 
 @Component({
   selector: 'app-kit-builder',
@@ -30,16 +38,26 @@ export class KitBuilderComponent {
   // Form state
   kitName = signal('');
   kitDescription = signal('');
-  npmPackage = signal('');
   storybookUrl = signal('');
   selectedMcpServerIds = signal<string[]>([]);
-  importSuffix = signal<string>('Component'); // Default Angular convention
+
+  // System prompt
+  kitSystemPrompt = signal('');
+  kitBaseSystemPrompt = signal('');
+  showBasePromptOverride = signal(false);
+
+  // Multi-package support
+  npmPackages = signal<NpmPackageConfig[]>([]);
+  newPackageName = signal('');
+  newPackageSuffix = signal<string>('Component');
 
   // Template state
   templateType = signal<'default' | 'custom'>('default');
   customTemplate = signal<WebContainerFiles | null>(null);
   importedFileCount = signal(0);
   showFolderImport = signal(false);
+  showTemplateTree = signal(false);
+  expandedTemplatePaths = signal<Set<string>>(new Set());
 
   // Discovery state
   discovering = signal(false);
@@ -148,6 +166,50 @@ export class KitBuilderComponent {
   selectedCount = computed(() => this.selectedComponentIds().size);
   totalCount = computed(() => this.discoveredComponents().length);
 
+  templateFileEntries = computed<TemplateFileEntry[]>(() => {
+    const files = this.customTemplate();
+    if (!files) return [];
+    const entries: TemplateFileEntry[] = [];
+    const walk = (obj: WebContainerFiles, prefix: string, depth: number) => {
+      const keys = Object.keys(obj).sort((a, b) => {
+        const aIsDir = 'directory' in obj[a];
+        const bIsDir = 'directory' in obj[b];
+        if (aIsDir !== bIsDir) return aIsDir ? -1 : 1;
+        return a.localeCompare(b);
+      });
+      for (const key of keys) {
+        const item = obj[key];
+        const path = prefix ? `${prefix}/${key}` : key;
+        if ('directory' in item) {
+          entries.push({ path, name: key, isDirectory: true, depth, size: 0 });
+          walk(item.directory, path, depth + 1);
+        } else {
+          const contents = (item as any).file?.contents || '';
+          entries.push({ path, name: key, isDirectory: false, depth, size: typeof contents === 'string' ? contents.length : 0 });
+        }
+      }
+    };
+    walk(files, '', 0);
+    return entries;
+  });
+
+  visibleTemplateEntries = computed<TemplateFileEntry[]>(() => {
+    const all = this.templateFileEntries();
+    const expanded = this.expandedTemplatePaths();
+    const visible: TemplateFileEntry[] = [];
+    const collapsedPrefixes: string[] = [];
+    for (const entry of all) {
+      // Check if any ancestor is collapsed
+      const hidden = collapsedPrefixes.some(p => entry.path.startsWith(p + '/'));
+      if (hidden) continue;
+      visible.push(entry);
+      if (entry.isDirectory && !expanded.has(entry.path)) {
+        collapsedPrefixes.push(entry.path);
+      }
+    }
+    return visible;
+  });
+
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id');
 
@@ -188,8 +250,17 @@ export class KitBuilderComponent {
   private populateForm(kit: Kit) {
     this.kitName.set(kit.name);
     this.kitDescription.set(kit.description || '');
-    this.npmPackage.set(kit.npmPackage || '');
+    this.kitSystemPrompt.set(kit.systemPrompt || '');
+    this.kitBaseSystemPrompt.set(kit.baseSystemPrompt || '');
+    this.showBasePromptOverride.set(!!kit.baseSystemPrompt);
     this.selectedMcpServerIds.set([...kit.mcpServerIds]);
+
+    // Multi-package: read npmPackages or fall back to legacy npmPackage
+    if (kit.npmPackages && kit.npmPackages.length > 0) {
+      this.npmPackages.set([...kit.npmPackages]);
+    } else if (kit.npmPackage) {
+      this.npmPackages.set([{ name: kit.npmPackage, importSuffix: kit.importSuffix || 'Component' }]);
+    }
 
     // Template
     if (kit.template) {
@@ -197,6 +268,7 @@ export class KitBuilderComponent {
       if (kit.template.type === 'custom') {
         this.customTemplate.set(kit.template.files);
         this.importedFileCount.set(this.countFiles(kit.template.files));
+        this.expandedTemplatePaths.set(this.getTopLevelDirPaths(kit.template.files));
       }
     }
 
@@ -206,11 +278,6 @@ export class KitBuilderComponent {
       this.storybookUrl.set(storybookResource.url);
       this.discoveredComponents.set(storybookResource.components || []);
       this.selectedComponentIds.set(new Set(storybookResource.selectedComponentIds || []));
-    }
-
-    // Import suffix configuration
-    if ((kit as any).importSuffix) {
-      this.importSuffix.set((kit as any).importSuffix);
     }
   }
 
@@ -231,8 +298,51 @@ export class KitBuilderComponent {
     return count;
   }
 
+  addPackage() {
+    const name = this.newPackageName().trim();
+    if (!name) return;
+
+    // Don't add duplicates
+    const existing = this.npmPackages();
+    if (existing.some(p => p.name === name)) {
+      this.discoveryError.set(`Package "${name}" is already added`);
+      return;
+    }
+
+    this.npmPackages.set([...existing, { name, importSuffix: this.newPackageSuffix() }]);
+    this.newPackageName.set('');
+  }
+
+  removePackage(index: number) {
+    const packages = [...this.npmPackages()];
+    const removed = packages.splice(index, 1)[0];
+    this.npmPackages.set(packages);
+
+    // Remove components from this package
+    // Keep only components that explicitly belong to a remaining package.
+    // Components with no sourcePackage are removed if no packages remain.
+    const remainingPackageNames = new Set(packages.map(p => p.name));
+    const components = this.discoveredComponents().filter(c =>
+      c.sourcePackage ? remainingPackageNames.has(c.sourcePackage) : remainingPackageNames.size > 0
+    );
+    this.discoveredComponents.set(components);
+    const validIds = new Set(components.map(c => c.id));
+    const selections = new Set<string>();
+    for (const id of this.selectedComponentIds()) {
+      if (validIds.has(id)) selections.add(id);
+    }
+    this.selectedComponentIds.set(selections);
+    this.selectAll.set(selections.size === components.length && components.length > 0);
+  }
+
+  updatePackageSuffix(index: number, suffix: string) {
+    const packages = [...this.npmPackages()];
+    packages[index] = { ...packages[index], importSuffix: suffix };
+    this.npmPackages.set(packages);
+  }
+
   async discoverFromNpm() {
-    const pkg = this.npmPackage();
+    const pkg = this.newPackageName().trim();
     if (!pkg) {
       this.discoveryError.set('Please enter an npm package name');
       return;
@@ -245,41 +355,44 @@ export class KitBuilderComponent {
       const result = await this.apiService.discoverNpmComponents(pkg).toPromise();
 
       if (result && result.success) {
-        const newComponents: StorybookComponent[] = result.components;
+        // Tag new components with their source package
+        const newComponents: StorybookComponent[] = result.components.map((c: StorybookComponent) => ({
+          ...c,
+          sourcePackage: pkg
+        }));
+
+        // Auto-add package to the list if not already present
+        const existingPackages = this.npmPackages();
+        if (!existingPackages.some(p => p.name === pkg)) {
+          this.npmPackages.set([...existingPackages, { name: pkg, importSuffix: this.newPackageSuffix() }]);
+        }
+
+        // Merge with existing components from other packages
         const previousComponents = this.discoveredComponents();
         const previousSelections = this.selectedComponentIds();
 
-        // If this is a fresh discovery (no previous components), select all
-        if (previousComponents.length === 0) {
-          this.discoveredComponents.set(newComponents);
-          this.selectedComponentIds.set(new Set(newComponents.map(c => c.id)));
-          this.selectAll.set(true);
-        } else {
-          // Re-discovery: preserve existing selections, auto-select new components
-          const newComponentIds = new Set(newComponents.map(c => c.id));
-          const previousComponentIds = new Set(previousComponents.map(c => c.id));
+        // Keep components from other packages, replace components from this package
+        const otherComponents = previousComponents.filter(c => c.sourcePackage !== pkg);
+        const mergedComponents = [...otherComponents, ...newComponents];
 
-          const updatedSelections = new Set<string>();
-          for (const id of previousSelections) {
-            if (newComponentIds.has(id)) {
-              updatedSelections.add(id);
-            }
-          }
-
-          let newCount = 0;
-          for (const comp of newComponents) {
-            if (!previousComponentIds.has(comp.id)) {
-              updatedSelections.add(comp.id);
-              newCount++;
-            }
-          }
-
-          this.discoveredComponents.set(newComponents);
-          this.selectedComponentIds.set(updatedSelections);
-          this.selectAll.set(updatedSelections.size === newComponents.length);
-
-          console.log(`[Kit Builder] npm discovery: ${newCount} new, ${updatedSelections.size} selected`);
+        // Build updated selections
+        const updatedSelections = new Set<string>();
+        // Keep selections from other packages
+        const otherIds = new Set(otherComponents.map(c => c.id));
+        for (const id of previousSelections) {
+          if (otherIds.has(id)) updatedSelections.add(id);
         }
+        // Select all new components
+        for (const comp of newComponents) {
+          updatedSelections.add(comp.id);
+        }
+
+        this.discoveredComponents.set(mergedComponents);
+        this.selectedComponentIds.set(updatedSelections);
+        this.selectAll.set(updatedSelections.size === mergedComponents.length);
+
+        // Clear the input after successful discovery
+        this.newPackageName.set('');
 
         console.log(`[Kit Builder] Discovered ${result.count} components from ${pkg} v${result.version}`);
       } else {
@@ -407,6 +520,8 @@ export class KitBuilderComponent {
     if (type === 'default') {
       this.customTemplate.set(null);
       this.importedFileCount.set(0);
+      this.showTemplateTree.set(false);
+      this.expandedTemplatePaths.set(new Set());
     }
   }
 
@@ -420,6 +535,10 @@ export class KitBuilderComponent {
     this.templateType.set('custom');
     this.showFolderImport.set(false);
 
+    // Auto-expand top-level directories and show tree
+    this.expandedTemplatePaths.set(this.getTopLevelDirPaths(data.files));
+    this.showTemplateTree.set(true);
+
     // Auto-fill name/description if empty
     if (!this.kitName()) {
       this.kitName.set(data.name);
@@ -430,8 +549,10 @@ export class KitBuilderComponent {
   }
 
   async validateComponents() {
-    const pkg = this.npmPackage();
+    const packages = this.npmPackages();
+    const pkg = packages.length > 0 ? packages[0].name : '';
     if (!pkg || this.discoveredComponents().length === 0) return;
+    const suffix = packages.length > 0 ? packages[0].importSuffix : 'Component';
 
     this.validating.set(true);
     this.validationResult.set(null);
@@ -440,7 +561,7 @@ export class KitBuilderComponent {
       const result = await this.apiService.validateKitComponents(
         pkg,
         this.discoveredComponents(),
-        this.importSuffix()
+        suffix
       ).toPromise();
 
       if (result && result.success) {
@@ -608,8 +729,10 @@ export class KitBuilderComponent {
   }
 
   async populateMetadataFromNpm() {
-    const pkg = this.npmPackage();
+    const packages = this.npmPackages();
+    const pkg = packages.length > 0 ? packages[0].name : '';
     if (!pkg || this.discoveredComponents().length === 0) return;
+    const suffix = packages.length > 0 ? packages[0].importSuffix : 'Component';
 
     this.populatingMetadata.set(true);
     this.populateProgress.set('Fetching metadata...');
@@ -619,7 +742,7 @@ export class KitBuilderComponent {
       const components = this.discoveredComponents();
       const componentNames = components.map(c => {
         const name = c.componentName || c.title.split('/').pop() || c.name;
-        return name.endsWith('Component') || name.endsWith('Directive') ? name : `${name}${this.importSuffix()}`;
+        return name.endsWith('Component') || name.endsWith('Directive') ? name : `${name}${suffix}`;
       });
 
       const result = await this.apiService.fetchBatchComponentMetadata(pkg, componentNames).toPromise();
@@ -632,7 +755,7 @@ export class KitBuilderComponent {
         for (let i = 0; i < updatedComponents.length; i++) {
           const comp = updatedComponents[i];
           const name = comp.componentName || comp.title.split('/').pop() || comp.name;
-          const fullName = name.endsWith('Component') || name.endsWith('Directive') ? name : `${name}${this.importSuffix()}`;
+          const fullName = name.endsWith('Component') || name.endsWith('Directive') ? name : `${name}${suffix}`;
 
           const metadata = result.metadata[fullName];
           if (metadata) {
@@ -659,6 +782,106 @@ export class KitBuilderComponent {
     }
   }
 
+  // Template tree methods
+  private getTopLevelDirPaths(files: WebContainerFiles): Set<string> {
+    const paths = new Set<string>();
+    for (const key of Object.keys(files)) {
+      if ('directory' in files[key]) {
+        paths.add(key);
+      }
+    }
+    return paths;
+  }
+
+  toggleTemplateFolder(path: string) {
+    const expanded = new Set(this.expandedTemplatePaths());
+    if (expanded.has(path)) {
+      expanded.delete(path);
+    } else {
+      expanded.add(path);
+    }
+    this.expandedTemplatePaths.set(expanded);
+  }
+
+  expandAllTemplateFolders() {
+    const all = new Set<string>();
+    for (const entry of this.templateFileEntries()) {
+      if (entry.isDirectory) all.add(entry.path);
+    }
+    this.expandedTemplatePaths.set(all);
+  }
+
+  collapseAllTemplateFolders() {
+    this.expandedTemplatePaths.set(new Set());
+  }
+
+  removeTemplateFile(path: string) {
+    const files = this.customTemplate();
+    if (!files) return;
+    const newFiles = this.removeFromWebContainerFiles(files, path);
+    if (Object.keys(newFiles).length === 0) {
+      this.customTemplate.set(null);
+      this.importedFileCount.set(0);
+      this.showTemplateTree.set(false);
+      this.expandedTemplatePaths.set(new Set());
+    } else {
+      this.customTemplate.set(newFiles);
+      this.importedFileCount.set(this.countFiles(newFiles));
+    }
+  }
+
+  removeTemplateFolder(folderPath: string) {
+    const files = this.customTemplate();
+    if (!files) return;
+    const newFiles = this.removeFromWebContainerFiles(files, folderPath);
+    // Also remove from expanded paths
+    const expanded = new Set(this.expandedTemplatePaths());
+    for (const p of expanded) {
+      if (p === folderPath || p.startsWith(folderPath + '/')) {
+        expanded.delete(p);
+      }
+    }
+    this.expandedTemplatePaths.set(expanded);
+
+    if (Object.keys(newFiles).length === 0) {
+      this.customTemplate.set(null);
+      this.importedFileCount.set(0);
+      this.showTemplateTree.set(false);
+    } else {
+      this.customTemplate.set(newFiles);
+      this.importedFileCount.set(this.countFiles(newFiles));
+    }
+  }
+
+  private removeFromWebContainerFiles(files: WebContainerFiles, targetPath: string): WebContainerFiles {
+    const result: WebContainerFiles = {};
+    for (const key of Object.keys(files)) {
+      if (key === targetPath) continue; // top-level match
+      const item = files[key];
+      if ('directory' in item) {
+        // Check if target is within this directory
+        if (targetPath.startsWith(key + '/')) {
+          const subPath = targetPath.slice(key.length + 1);
+          const newDir = this.removeFromWebContainerFiles(item.directory, subPath);
+          if (Object.keys(newDir).length > 0) {
+            result[key] = { directory: newDir };
+          }
+        } else {
+          result[key] = item;
+        }
+      } else {
+        result[key] = item;
+      }
+    }
+    return result;
+  }
+
+  formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
   async saveKit() {
     const name = this.kitName();
     if (!name) return;
@@ -675,16 +898,21 @@ export class KitBuilderComponent {
         angularVersion: '21'
       };
 
+      const packages = this.npmPackages();
       const kitData = {
         name,
         description: this.kitDescription() || undefined,
         template,
-        npmPackage: this.npmPackage() || undefined,
+        npmPackages: packages.length > 0 ? packages : [],
+        // Legacy fields for backward compat (first package)
+        npmPackage: packages.length > 0 ? packages[0].name : '',
+        importSuffix: packages.length > 0 ? packages[0].importSuffix : 'Component',
         storybookUrl: this.storybookUrl() || undefined,
         components: this.discoveredComponents(),
         selectedComponentIds: Array.from(this.selectedComponentIds()),
         mcpServerIds: this.selectedMcpServerIds(),
-        importSuffix: this.importSuffix() || 'Component'
+        systemPrompt: this.kitSystemPrompt() || undefined,
+        baseSystemPrompt: this.showBasePromptOverride() && this.kitBaseSystemPrompt() ? this.kitBaseSystemPrompt() : undefined,
       };
 
       let result;

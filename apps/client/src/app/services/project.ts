@@ -99,45 +99,55 @@ export class ProjectService {
 
   async loadProject(id: string) {
     this.loading.set(true);
-    // Clear current preview state immediately (with timeout to prevent hanging)
-    await Promise.race([
-      this.webContainerService.stopDevServer(),
-      new Promise(resolve => setTimeout(resolve, 5000))
-    ]);
 
-    this.apiService.loadProject(id).subscribe({
-      next: async (project) => {
-        this.projectId.set(project.id);
-        this.projectName.set(project.name);
-        this.selectedKitId.set(project.selectedKitId || null);
+    try {
+      // Start API fetch and server stop IN PARALLEL
+      const [_, project] = await Promise.all([
+        Promise.race([
+          this.webContainerService.stopDevServer(),
+          new Promise(resolve => setTimeout(resolve, 5000))
+        ]),
+        this.apiService.loadProject(id).toPromise()
+      ]);
 
-        if (project.messages) {
-          this.messages.set(
-            project.messages.map((m: any) => ({
-              ...m,
-              timestamp: new Date(m.timestamp),
-            })),
-          );
-        } else {
-          this.messages.set([]);
-        }
-
-        // Load Figma imports
-        if (project.figmaImports) {
-          this.figmaImports.set(project.figmaImports);
-        } else {
-          this.figmaImports.set([]);
-        }
-
-        await this.reloadPreview(project.files);
-      },
-      error: (err) => {
-        console.error(err);
+      if (!project) {
         this.toastService.show('Failed to load project', 'error');
         this.router.navigate(['/dashboard']);
         this.loading.set(false);
-      },
-    });
+        return;
+      }
+
+      this.projectId.set(project.id);
+      this.projectName.set(project.name);
+      this.selectedKitId.set(project.selectedKitId || null);
+
+      if (project.messages) {
+        this.messages.set(
+          project.messages.map((m: any) => ({
+            ...m,
+            timestamp: new Date(m.timestamp),
+          })),
+        );
+      } else {
+        this.messages.set([]);
+      }
+
+      // Load Figma imports
+      if (project.figmaImports) {
+        this.figmaImports.set(project.figmaImports);
+      } else {
+        this.figmaImports.set([]);
+      }
+
+      // skipStop=true since we already stopped above in parallel
+      await this.reloadPreview(project.files, undefined, true);
+
+    } catch (err) {
+      console.error(err);
+      this.toastService.show('Failed to load project', 'error');
+      this.router.navigate(['/dashboard']);
+      this.loading.set(false);
+    }
   }
 
   async saveProject(thumbnail?: string) {
@@ -263,19 +273,22 @@ export class ProjectService {
     }
   }
 
-  async reloadPreview(files: any, kitTemplate?: KitWebContainerFiles) {
+  async reloadPreview(files: any, kitTemplate?: KitWebContainerFiles, skipStop = false) {
     this.loading.set(true);
 
     // Yield to allow loading state to render
     await new Promise(resolve => setTimeout(resolve, 0));
 
     try {
-      // Stop with timeout to prevent hanging
-      await Promise.race([
-        this.webContainerService.stopDevServer(),
-        new Promise(resolve => setTimeout(resolve, 5000))
-      ]);
-      await this.webContainerService.clean();
+      if (!skipStop) {
+        // Stop with timeout to prevent hanging
+        await Promise.race([
+          this.webContainerService.stopDevServer(),
+          new Promise(resolve => setTimeout(resolve, 5000))
+        ]);
+      }
+      // Full clean when switching kit templates to clear stale node_modules/lockfiles
+      await this.webContainerService.clean(!!kitTemplate);
 
       // Yield before heavy sync operations
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -347,6 +360,7 @@ export class ProjectService {
         await this.reloadPreview(this.files(), template);
       }
     }
+
   }
 
   async migrateProject() {

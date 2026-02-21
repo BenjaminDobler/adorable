@@ -38,7 +38,7 @@ export abstract class ContainerEngine {
   abstract readBinaryFile(path: string): Promise<Uint8Array>;
   abstract deleteFile(path: string): Promise<void>;
   abstract mkdir(path: string): Promise<void>;
-  abstract clean(): Promise<void>; // Clean workspace
+  abstract clean(full?: boolean): Promise<void>; // Clean workspace (full=true also removes node_modules/lockfiles)
   abstract startShell(): Promise<void>;
   abstract readdir(path: string, options?: { withFileTypes: boolean }): Promise<any>;
 

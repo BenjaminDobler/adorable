@@ -66,6 +66,7 @@ export interface DiscoveredComponent {
   outputs?: ComponentOutput[];
   template?: string;  // HTML template for usage examples
   examples?: ComponentMetadata['examples'];
+  secondaryEntryPoint?: string; // e.g., "@fundamental-ngx/core/button"
 }
 
 export interface NpmDiscoveryResult {
@@ -141,7 +142,7 @@ export async function discoverComponentsFromNpm(packageName: string): Promise<Np
         if (!content) return null;
 
         // Extract component info
-        const component = parseComponentFile(content, filePath);
+        const component = parseComponentFile(content, filePath, packageName);
         return component;
       }));
 
@@ -178,7 +179,7 @@ export async function discoverComponentsFromNpm(packageName: string): Promise<Np
 
             if (!content) return [];
 
-            return parseBundledTypeFile(content, filePath);
+            return parseBundledTypeFile(content, filePath, packageName);
           }));
 
           for (const comps of batchResults) {
@@ -192,7 +193,7 @@ export async function discoverComponentsFromNpm(packageName: string): Promise<Np
         console.log(`[NPM Discovery] Trying main typings entry: ${typingsEntry}`);
         const content = await fetchPackageFile(packageName, version, typingsEntry);
         if (content) {
-          const comps = parseBundledTypeFile(content, typingsEntry);
+          const comps = parseBundledTypeFile(content, typingsEntry, packageName);
           result.components.push(...comps);
           console.log(`[NPM Discovery] Found ${comps.length} components from main typings file`);
         }
@@ -227,7 +228,7 @@ export async function discoverComponentsFromNpm(packageName: string): Promise<Np
 /**
  * Parse a component .d.ts file to extract component info
  */
-function parseComponentFile(content: string, filePath: string): DiscoveredComponent | null {
+function parseComponentFile(content: string, filePath: string, packageName?: string): DiscoveredComponent | null {
   // Extract class name
   const classMatch = content.match(/export\s+declare\s+class\s+(\w+)/);
   if (!classMatch) return null;
@@ -276,6 +277,8 @@ function parseComponentFile(content: string, filePath: string): DiscoveredCompon
     defaultValue: input.defaultValue
   }));
 
+  const secondaryEntryPoint = packageName ? deriveSecondaryEntryPointFromPath(filePath, packageName) : undefined;
+
   return {
     id,
     name: baseName,
@@ -287,7 +290,8 @@ function parseComponentFile(content: string, filePath: string): DiscoveredCompon
     usageType,
     description: metadata.description,
     inputs: inputs.length > 0 ? inputs : undefined,
-    examples: metadata.examples
+    examples: metadata.examples,
+    secondaryEntryPoint
   };
 }
 
@@ -295,29 +299,68 @@ function parseComponentFile(content: string, filePath: string): DiscoveredCompon
  * Parse a bundled type file (e.g., types/package-name-button.d.ts) to extract
  * all components and directives. These files contain multiple class declarations.
  */
-function parseBundledTypeFile(content: string, filePath: string): DiscoveredComponent[] {
+function parseBundledTypeFile(content: string, filePath: string, packageName?: string): DiscoveredComponent[] {
   const components: DiscoveredComponent[] = [];
 
+  // Parse the public export list from the bottom of the file
+  // Format: export { Class1, Class2, ... };
+  const publicExports = new Set<string>();
+  const exportMatches = content.matchAll(/export\s*\{\s*([^}]+)\s*\}/g);
+  for (const exportMatch of exportMatches) {
+    const names = exportMatch[1].split(',').map(n => n.trim().split(/\s+as\s+/)[0].trim());
+    for (const name of names) {
+      if (name) publicExports.add(name);
+    }
+  }
+
+  // First pass: collect ALL class declarations (including base classes with selector: never)
+  // so we can resolve inheritance later
+  const baseClassMap = new Map<string, { inputs: ComponentInput[], outputs: ComponentOutput[] }>();
+
   // Find all class declarations that are components or directives
-  // Match: declare class XxxComponent { ... static ɵcmp/ɵdir ... }
-  const classPattern = /declare\s+class\s+(\w+(?:Component|Directive))\s*(?:extends\s+\S+\s*)?(?:implements\s+[^{]+)?\{/g;
+  // Handle generic type parameters like <T = any>
+  const classPattern = /declare\s+class\s+(\w+(?:Component|Directive))\s*(?:<[^>]*>)?\s*(?:extends\s+(\S+?)(?:\s*<[^>]*>)?\s*)?(?:implements\s+[^{]+)?\{/g;
   let classMatch;
+
+  // Also find base classes (not ending in Component/Directive) that have declarations
+  const baseClassPattern = /declare\s+(?:abstract\s+)?class\s+(\w+)\s*(?:<[^>]*>)?\s*(?:implements\s+[^{]+)?\{/g;
+  let baseMatch;
+  while ((baseMatch = baseClassPattern.exec(content)) !== null) {
+    const name = baseMatch[1];
+    if (name.endsWith('Component') || name.endsWith('Directive') || name.endsWith('Module')) continue;
+    const start = baseMatch.index;
+    const afterBase = content.substring(start, start + 8000);
+    const declStr = extractDeclarationString(afterBase);
+    if (declStr) {
+      const inputs = parseBundledInputs(declStr);
+      const outputs = parseBundledOutputs(declStr);
+      if (inputs.length > 0 || outputs.length > 0) {
+        // Also extract types and descriptions from class body
+        enrichInputsFromClassBody(inputs, afterBase, name);
+        baseClassMap.set(name, { inputs, outputs });
+      }
+    }
+  }
 
   while ((classMatch = classPattern.exec(content)) !== null) {
     const className = classMatch[1];
+    const baseClassName = classMatch[2]; // may be undefined
     const classStart = classMatch.index;
 
-    // Extract the selector from ɵɵComponentDeclaration or ɵɵDirectiveDeclaration
     // Search forward from the class declaration for the static ɵcmp/ɵdir
-    const afterClass = content.substring(classStart, classStart + 5000);
+    const afterClass = content.substring(classStart, classStart + 8000);
 
-    const selectorMatch = afterClass.match(
-      /ɵɵ(?:Component|Directive)Declaration<[^,]+,\s*"([^"]+)"/
-    );
+    // Extract the full declaration string with balanced bracket matching
+    const declStr = extractDeclarationString(afterClass);
+    if (!declStr) continue;
 
-    if (!selectorMatch) continue; // Skip classes without selector declarations (abstract/base classes)
+    // Extract selector from the 2nd parameter (index 1)
+    const selectorParam = extractDeclarationParam(declStr, 1);
+    if (!selectorParam) continue;
+    const selectorStrMatch = selectorParam.match(/^"([^"]+)"$/);
+    if (!selectorStrMatch) continue; // Skip classes without proper selector (e.g., "never")
 
-    const selector = selectorMatch[1];
+    const selector = selectorStrMatch[1];
     const baseName = className.replace(/Component$|Directive$/, '');
     const isDirective = className.endsWith('Directive') ||
       selector.includes('[') ||
@@ -328,28 +371,83 @@ function parseBundledTypeFile(content: string, filePath: string): DiscoveredComp
 
     const id = `${category.toLowerCase().replace(/\s+/g, '-')}-${baseName.toLowerCase()}--docs`;
 
-    // Parse inputs from the ɵɵComponentDeclaration/ɵɵDirectiveDeclaration
-    const inputs = parseBundledInputs(afterClass);
-    const outputs = parseBundledOutputs(afterClass);
+    // Parse inputs/outputs from declaration
+    const inputs = parseBundledInputs(declStr);
+    const outputs = parseBundledOutputs(declStr);
 
-    // Extract JSDoc description before the class
-    let description: string | undefined;
-    const beforeClass = content.substring(Math.max(0, classStart - 500), classStart);
-    const jsdocMatch = beforeClass.match(/\/\*\*\s*([\s\S]*?)\s*\*\/\s*$/);
-    if (jsdocMatch) {
-      const descLines = jsdocMatch[1]
-        .split('\n')
-        .map(l => l.replace(/^\s*\*\s?/, '').trim())
-        .filter(l => l && !l.startsWith('@'));
-      if (descLines.length > 0) {
-        description = descLines.join(' ').trim();
+    // Merge inherited inputs/outputs from base class
+    if (baseClassName) {
+      const baseData = baseClassMap.get(baseClassName);
+      if (baseData) {
+        const existingInputNames = new Set(inputs.map(i => i.name));
+        for (const baseInput of baseData.inputs) {
+          if (!existingInputNames.has(baseInput.name)) {
+            inputs.push({ ...baseInput });
+          }
+        }
+        const existingOutputNames = new Set(outputs.map(o => o.name));
+        for (const baseOutput of baseData.outputs) {
+          if (!existingOutputNames.has(baseOutput.name)) {
+            outputs.push({ ...baseOutput });
+          }
+        }
       }
     }
+
+    // Enrich inputs with types and descriptions from class body
+    enrichInputsFromClassBody(inputs, afterClass, className);
+    // Also try the base class body for inherited inputs
+    if (baseClassName) {
+      const baseClassBodyPattern = new RegExp(
+        `declare\\s+(?:abstract\\s+)?class\\s+${baseClassName}\\s*(?:<[^>]*>)?\\s*(?:implements\\s+[^{]+)?\\{`,
+        'm'
+      );
+      const baseBodyMatch = content.match(baseClassBodyPattern);
+      if (baseBodyMatch) {
+        const baseAfterClass = content.substring(baseBodyMatch.index!, baseBodyMatch.index! + 8000);
+        enrichInputsFromClassBody(inputs, baseAfterClass, baseClassName);
+      }
+    }
+
+    // Extract JSDoc description before the class using lastIndexOf to find the nearest comment
+    let description: string | undefined;
+    const beforeClass = content.substring(Math.max(0, classStart - 500), classStart);
+    const lastCloseIdx = beforeClass.lastIndexOf('*/');
+    if (lastCloseIdx !== -1) {
+      const afterClose = beforeClass.substring(lastCloseIdx + 2);
+      if (afterClose.trim() === '') {
+        const jsdocStart = beforeClass.lastIndexOf('/**', lastCloseIdx);
+        if (jsdocStart !== -1) {
+          const jsdocContent = beforeClass.substring(jsdocStart + 3, lastCloseIdx);
+          const descLines = jsdocContent
+            .split('\n')
+            .map(l => l.replace(/^\s*\*\s?/, '').trim())
+            .filter(l => l && !l.startsWith('@') && l !== '@hidden' && l !== 'hidden');
+          if (descLines.length > 0) {
+            description = descLines.join(' ').trim();
+          }
+        }
+      }
+    }
+
+    // Sanitize: reject descriptions that contain raw TypeScript artifacts
+    if (description && (
+      description.includes('ɵɵ') ||
+      description.includes('static ɵ') ||
+      description.includes('i0.ɵ') ||
+      description.includes('declare ') ||
+      description.includes('.d.ts') ||
+      description.length > 500
+    )) {
+      description = undefined;
+    }
+
+    const secondaryEntryPoint = packageName ? deriveSecondaryEntryPoint(filePath, packageName) : undefined;
 
     components.push({
       id,
       name: baseName,
-      componentName: baseName,
+      componentName: className,
       category,
       type: 'docs',
       filePath,
@@ -357,57 +455,112 @@ function parseBundledTypeFile(content: string, filePath: string): DiscoveredComp
       usageType: isDirective ? 'directive' : 'component',
       description,
       inputs: inputs.length > 0 ? inputs : undefined,
-      outputs: outputs.length > 0 ? outputs : undefined
+      outputs: outputs.length > 0 ? outputs : undefined,
+      secondaryEntryPoint
     });
+  }
+
+  // Filter to only include publicly exported classes (if export list found)
+  if (publicExports.size > 0) {
+    return components.filter(c => publicExports.has(c.componentName));
   }
 
   return components;
 }
 
 /**
- * Parse inputs from the ɵɵComponentDeclaration/ɵɵDirectiveDeclaration format:
- * { "inputName": { "alias": "inputName"; "required": false; "isSignal": true; }; ... }
+ * Extract the full declaration string content (between the outermost < >) from
+ * a ɵɵComponentDeclaration or ɵɵDirectiveDeclaration. Handles nested generics.
  */
-function parseBundledInputs(declarationBlock: string): ComponentInput[] {
-  const inputs: ComponentInput[] = [];
+function extractDeclarationString(afterClass: string): string | null {
+  // Find BOTH declaration types and use whichever comes FIRST in the text.
+  // This is critical because the 8000-char search window may contain the next class's declaration.
+  const compIdx = afterClass.indexOf('ɵɵComponentDeclaration<');
+  const dirIdx = afterClass.indexOf('ɵɵDirectiveDeclaration<');
+  let declStart: number;
+  if (compIdx !== -1 && dirIdx !== -1) {
+    declStart = Math.min(compIdx, dirIdx);
+  } else if (compIdx !== -1) {
+    declStart = compIdx;
+  } else if (dirIdx !== -1) {
+    declStart = dirIdx;
+  } else {
+    return null;
+  }
 
-  // Find the inputs section in the declaration
-  // Format: ɵɵComponentDeclaration<Type, "selector", ..., { "input1": {...}; "input2": {...}; }, ...>
-  const declMatch = declarationBlock.match(
-    /ɵɵ(?:Component|Directive)Declaration<[^>]*>/
-  );
-  if (!declMatch) return inputs;
+  // Find the opening <
+  const openBracket = afterClass.indexOf('<', declStart);
+  if (openBracket === -1) return null;
 
-  const decl = declMatch[0];
+  // Use balanced bracket matching to find the closing >
+  let depth = 1;
+  let inString = false;
+  let stringChar = '';
+  let i = openBracket + 1;
+  for (; i < afterClass.length && depth > 0; i++) {
+    const ch = afterClass[i];
+    if (inString) {
+      if (ch === '\\') { i++; continue; } // skip escaped chars
+      if (ch === stringChar) inString = false;
+      continue;
+    }
+    if (ch === '"' || ch === "'") { inString = true; stringChar = ch; continue; }
+    if (ch === '<' || ch === '{' || ch === '(' || ch === '[') depth++;
+    if (ch === '>' || ch === '}' || ch === ')' || ch === ']') depth--;
+  }
 
-  // The inputs are in the 4th type parameter (after Type, selector, exportAs)
-  // Extract the object between { } for inputs
-  // Count commas at the top level to find the right parameter
+  if (depth !== 0) return null;
+  return afterClass.substring(openBracket + 1, i - 1);
+}
+
+/**
+ * Extract the Nth top-level comma-separated parameter from a declaration string.
+ * Properly handles nested brackets and string literals.
+ * paramIndex is 0-based.
+ */
+function extractDeclarationParam(declContent: string, paramIndex: number): string | null {
   let depth = 0;
+  let inString = false;
+  let stringChar = '';
   let commaCount = 0;
-  let inputsStart = -1;
-  let inputsEnd = -1;
+  let paramStart = 0;
 
-  for (let i = decl.indexOf('<') + 1; i < decl.length; i++) {
-    const ch = decl[i];
-    if (ch === '<' || ch === '{' || ch === '(') depth++;
-    if (ch === '>' || ch === '}' || ch === ')') depth--;
+  for (let i = 0; i < declContent.length; i++) {
+    const ch = declContent[i];
+    if (inString) {
+      if (ch === '\\') { i++; continue; }
+      if (ch === stringChar) inString = false;
+      continue;
+    }
+    if (ch === '"' || ch === "'") { inString = true; stringChar = ch; continue; }
+    if (ch === '<' || ch === '{' || ch === '(' || ch === '[') depth++;
+    if (ch === '>' || ch === '}' || ch === ')' || ch === ']') depth--;
     if (ch === ',' && depth === 0) {
+      if (commaCount === paramIndex) {
+        return declContent.substring(paramStart, i).trim();
+      }
       commaCount++;
-      // After the 3rd comma is the inputs parameter (0-indexed: Type, selector, exportAs, inputs)
-      if (commaCount === 3) {
-        inputsStart = i + 1;
-      }
-      if (commaCount === 4) {
-        inputsEnd = i;
-        break;
-      }
+      paramStart = i + 1;
     }
   }
 
-  if (inputsStart === -1 || inputsEnd === -1) return inputs;
+  // Last parameter (no trailing comma)
+  if (commaCount === paramIndex) {
+    return declContent.substring(paramStart).trim();
+  }
 
-  const inputsStr = decl.substring(inputsStart, inputsEnd).trim();
+  return null;
+}
+
+/**
+ * Parse inputs from a declaration string (already extracted content between < >).
+ * The inputs are in the 4th parameter (index 3): Type, selector, exportAs, inputs, outputs, ...
+ */
+function parseBundledInputs(declContent: string): ComponentInput[] {
+  const inputs: ComponentInput[] = [];
+
+  const inputsStr = extractDeclarationParam(declContent, 3);
+  if (!inputsStr || inputsStr === 'never' || inputsStr === '{}') return inputs;
 
   // Parse individual input entries: "name": { "alias": "name"; "required": false; ... }
   const inputPattern = /"(\w+)":\s*\{\s*"alias":\s*"([^"]+)";\s*"required":\s*(true|false)/g;
@@ -420,59 +573,171 @@ function parseBundledInputs(declarationBlock: string): ComponentInput[] {
     });
   }
 
+  // Also handle older format without isSignal: "name": { "alias": "name"; "required": false; }
+  // (already covered by the pattern above since isSignal is optional in the match)
+
   return inputs;
 }
 
 /**
- * Parse outputs from the ɵɵComponentDeclaration/ɵɵDirectiveDeclaration format:
- * { "outputName": "outputName"; ... }
+ * Parse outputs from a declaration string (already extracted content between < >).
+ * The outputs are in the 5th parameter (index 4).
+ * Format can be: { "name": "eventName"; ... } or { "name": { "alias": "eventName"; ... }; ... }
  */
-function parseBundledOutputs(declarationBlock: string): ComponentOutput[] {
+function parseBundledOutputs(declContent: string): ComponentOutput[] {
   const outputs: ComponentOutput[] = [];
 
-  const declMatch = declarationBlock.match(
-    /ɵɵ(?:Component|Directive)Declaration<[^>]*>/
-  );
-  if (!declMatch) return outputs;
+  const outputsStr = extractDeclarationParam(declContent, 4);
+  if (!outputsStr || outputsStr === 'never' || outputsStr === '{}') return outputs;
 
-  const decl = declMatch[0];
+  // Modern format with nested objects: "name": { "alias": "eventName"; ... }
+  const objectOutputPattern = /"(\w+)":\s*\{\s*"alias":\s*"([^"]+)"/g;
+  let objectMatch;
+  const foundNames = new Set<string>();
+  while ((objectMatch = objectOutputPattern.exec(outputsStr)) !== null) {
+    if (!foundNames.has(objectMatch[1])) {
+      outputs.push({ name: objectMatch[1] });
+      foundNames.add(objectMatch[1]);
+    }
+  }
 
-  // The outputs are in the 5th type parameter
-  let depth = 0;
-  let commaCount = 0;
-  let outputsStart = -1;
-  let outputsEnd = -1;
-
-  for (let i = decl.indexOf('<') + 1; i < decl.length; i++) {
-    const ch = decl[i];
-    if (ch === '<' || ch === '{' || ch === '(') depth++;
-    if (ch === '>' || ch === '}' || ch === ')') depth--;
-    if (ch === ',' && depth === 0) {
-      commaCount++;
-      if (commaCount === 4) {
-        outputsStart = i + 1;
-      }
-      if (commaCount === 5) {
-        outputsEnd = i;
-        break;
+  // Simple format: "name": "eventName"
+  // Only if no object outputs were found (avoid double-matching)
+  if (outputs.length === 0) {
+    const simpleOutputPattern = /"(\w+)":\s*"([^"]+)"/g;
+    let simpleMatch;
+    while ((simpleMatch = simpleOutputPattern.exec(outputsStr)) !== null) {
+      if (!foundNames.has(simpleMatch[1])) {
+        outputs.push({ name: simpleMatch[1] });
+        foundNames.add(simpleMatch[1]);
       }
     }
   }
 
-  if (outputsStart === -1 || outputsEnd === -1) return outputs;
+  return outputs;
+}
 
-  const outputsStr = decl.substring(outputsStart, outputsEnd).trim();
+/**
+ * Enrich inputs with TypeScript types and JSDoc descriptions from the class body.
+ * Scans for property declarations like `readonly inputName: InputSignal<Type>;`
+ * and JSDoc comments preceding them.
+ */
+function enrichInputsFromClassBody(inputs: ComponentInput[], classBody: string, className: string): void {
+  if (inputs.length === 0) return;
 
-  // Parse output entries: "name": "alias"
-  const outputPattern = /"(\w+)":\s*"([^"]+)"/g;
-  let outputMatch;
-  while ((outputMatch = outputPattern.exec(outputsStr)) !== null) {
-    outputs.push({
-      name: outputMatch[1]
-    });
+  for (const input of inputs) {
+    if (input.type !== 'unknown' && input.description) continue; // already enriched
+
+    // Step 1: Find the property declaration (without JSDoc)
+    // Require line-start context to avoid matching inside other identifiers
+    const propPattern = new RegExp(
+      `(?:^|\\n)\\s*(?:readonly\\s+)?\\b${input.name}\\b(?:\\s*[?!])?\\s*:\\s*([^;]+);`,
+      'm'
+    );
+    const propMatch = classBody.match(propPattern);
+    if (!propMatch) continue;
+
+    // Extract type
+    if (input.type === 'unknown' && propMatch[1]) {
+      let rawType = propMatch[1].trim();
+
+      // Clean up Angular signal types
+      const signalMatch = rawType.match(/(?:_angular_core\.|i0\.)InputSignal<(.+)>/);
+      const signalTransformMatch = rawType.match(/(?:_angular_core\.|i0\.)InputSignalWithTransform<([^,]+)/);
+      const modelSignalMatch = rawType.match(/(?:_angular_core\.|i0\.)ModelSignal<(.+)>/);
+
+      if (signalMatch) {
+        rawType = signalMatch[1].trim();
+      } else if (signalTransformMatch) {
+        rawType = signalTransformMatch[1].trim();
+      } else if (modelSignalMatch) {
+        rawType = modelSignalMatch[1].trim();
+      }
+
+      // Clean up common wrapper types
+      rawType = rawType
+        .replace(/import\([^)]+\)\./g, '')
+        .replace(/Nullable<([^>]+)>/g, '$1 | null')
+        .replace(/\s*\|\s*undefined/g, '')
+        .replace(/\s*\|\s*null/g, ' | null')
+        .trim();
+
+      // Don't use overly complex types
+      if (rawType.length < 100) {
+        input.type = rawType;
+      }
+    }
+
+    // Step 2: Look backwards from the property for its immediately preceding JSDoc comment
+    if (!input.description && propMatch.index !== undefined) {
+      const beforeProp = classBody.substring(Math.max(0, propMatch.index - 500), propMatch.index);
+      // Find the LAST */ in beforeProp and check it's immediately before the property
+      const lastCloseIdx = beforeProp.lastIndexOf('*/');
+      if (lastCloseIdx !== -1) {
+        const afterClose = beforeProp.substring(lastCloseIdx + 2);
+        // Only use this JSDoc if nothing but whitespace follows the */
+        if (afterClose.trim() === '') {
+          const jsdocStart = beforeProp.lastIndexOf('/**', lastCloseIdx);
+          if (jsdocStart !== -1) {
+            const jsdocContent = beforeProp.substring(jsdocStart + 3, lastCloseIdx);
+            const descLines = jsdocContent
+              .split('\n')
+              .map(l => l.replace(/^\s*\*\s?/, '').trim())
+              .filter(l => l && !l.startsWith('@') && l !== 'hidden' && l !== '@hidden');
+            if (descLines.length > 0) {
+              const desc = descLines.join(' ').trim();
+              if (!desc.startsWith('@hidden') && desc !== 'hidden' && desc !== '@hidden') {
+                input.description = desc;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Derive a secondary entry point from a bundled type file path and package name.
+ * e.g., packageName="@fundamental-ngx/core", filePath="types/fundamental-ngx-core-button.d.ts"
+ *       → "@fundamental-ngx/core/button"
+ */
+function deriveSecondaryEntryPoint(filePath: string, packageName: string): string | undefined {
+  const fileName = filePath.split('/').pop() || '';
+  let name = fileName.replace(/\.d\.ts$/, '');
+
+  // Convert the package name to the dash-prefix used in bundled file names
+  // "@fundamental-ngx/core" → "fundamental-ngx-core-"
+  const prefix = packageName.replace('@', '').replace(/\//g, '-') + '-';
+
+  if (name.startsWith(prefix)) {
+    const subpath = name.slice(prefix.length); // e.g., "button" or "date-picker"
+    if (subpath) {
+      return `${packageName}/${subpath}`;
+    }
   }
 
-  return outputs;
+  return undefined;
+}
+
+/**
+ * Derive a secondary entry point from an individual component file path and package name.
+ * e.g., filePath="lib/button/button.component.d.ts" → "@fundamental-ngx/core/button"
+ */
+function deriveSecondaryEntryPointFromPath(filePath: string, packageName: string): string | undefined {
+  const parts = filePath.replace(/^\//, '').split('/');
+  // Remove filename
+  parts.pop();
+  // Skip common non-meaningful directories
+  const ignoreParts = ['lib', 'src', 'components', 'directives', 'dist', 'esm2022', 'fesm2022'];
+  const relevantParts = parts.filter(p => !ignoreParts.includes(p.toLowerCase()));
+
+  if (relevantParts.length > 0) {
+    // Use the first relevant subdirectory as the entry point hint
+    return `${packageName}/${relevantParts[0]}`;
+  }
+
+  return undefined;
 }
 
 /**

@@ -66,6 +66,11 @@ export interface ComponentOutput {
   description?: string;
 }
 
+export interface NpmPackageConfig {
+  name: string;         // e.g., "@fundamental-ngx/core"
+  importSuffix: string; // e.g., "Component"
+}
+
 export interface StorybookComponent {
   id: string;           // e.g., "button--docs"
   title: string;        // e.g., "Components/Button"
@@ -74,6 +79,8 @@ export interface StorybookComponent {
   type: 'docs' | 'story';
   componentName?: string; // Extracted: "Button"
   category?: string;      // Extracted: "Components"
+  sourcePackage?: string; // Which npm package this component came from
+  secondaryEntryPoint?: string; // e.g., "@fundamental-ngx/core/button" for subpath imports
   // Stored documentation
   selector?: string;           // e.g., "[lxButton]" or "lx-badge"
   usageType?: 'directive' | 'component';  // How the component is used
@@ -110,12 +117,19 @@ export interface Kit {
   template: KitTemplate;
 
   // Component library (optional)
-  npmPackage?: string;         // e.g., "@leanix/components"
-  importSuffix?: string;       // e.g., "Component", "Directive", "" - suffix for import names
+  npmPackage?: string;         // e.g., "@leanix/components" (legacy, kept for backward compat)
+  importSuffix?: string;       // e.g., "Component", "Directive", "" (legacy, kept for backward compat)
+  npmPackages?: NpmPackageConfig[]; // Multiple npm packages with per-package import suffixes
   resources: KitResource[];
 
   // Design tokens (optional, extracted from Storybook)
   designTokens?: DesignTokens;
+
+  // Custom system prompt (optional, appended as extra instructions)
+  systemPrompt?: string;
+
+  // Override base system prompt (optional, advanced — replaces the default)
+  baseSystemPrompt?: string;
 
   // MCP servers (optional)
   mcpServerIds: string[];      // IDs of MCP servers to activate with this kit

@@ -67,6 +67,11 @@ export interface ComponentOutput {
   description?: string;
 }
 
+export interface NpmPackageConfig {
+  name: string;         // e.g., "@fundamental-ngx/core"
+  importSuffix: string; // e.g., "Component"
+}
+
 export interface StorybookComponent {
   id: string;
   title: string;
@@ -75,6 +80,7 @@ export interface StorybookComponent {
   type: 'docs' | 'story';
   componentName?: string;
   category?: string;
+  sourcePackage?: string; // Which npm package this component came from
   // Stored documentation
   selector?: string;           // e.g., "[lxButton]" or "lx-badge"
   usageType?: 'directive' | 'component';  // How the component is used
@@ -111,11 +117,19 @@ export interface Kit {
   template: KitTemplate;
 
   // Component library (optional)
-  npmPackage?: string;
+  npmPackage?: string;         // Legacy single package
+  importSuffix?: string;       // Legacy single suffix
+  npmPackages?: NpmPackageConfig[]; // Multiple npm packages with per-package import suffixes
   resources: KitResource[];
 
   // Design tokens (optional, extracted from Storybook)
   designTokens?: DesignTokens;
+
+  // Custom system prompt (optional, appended as extra instructions)
+  systemPrompt?: string;
+
+  // Override base system prompt (optional, advanced — replaces the default)
+  baseSystemPrompt?: string;
 
   // MCP servers (optional)
   mcpServerIds: string[];

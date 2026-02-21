@@ -96,19 +96,25 @@ router.get('/:id', async (req: any, res) => {
       where: { id: req.params.id, userId: user.id },
       include: {
         messages: {
-          orderBy: { timestamp: 'asc' }
+          orderBy: { timestamp: 'asc' },
+          select: {
+            id: true,
+            role: true,
+            text: true,
+            usage: true,
+            timestamp: true,
+          }
         }
       }
     });
     if (!project) return res.status(404).json({ error: 'Project not found' });
-    
+
     res.json({
         ...project,
         files: JSON.parse(project.files),
         figmaImports: project.figmaImports ? JSON.parse(project.figmaImports) : [],
         messages: project.messages.map(m => ({
           ...m,
-          files: m.files ? JSON.parse(m.files) : undefined,
           usage: m.usage ? JSON.parse(m.usage) : undefined
         }))
     });

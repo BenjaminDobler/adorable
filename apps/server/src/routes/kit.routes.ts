@@ -12,7 +12,7 @@ import { StorybookParser } from '../providers/kits/storybook-parser';
 import { Kit, StorybookResource, StorybookComponent, KitTemplate } from '../providers/kits/types';
 import { parseKitsFromSettings, updateKitsInSettings } from '../providers/kits/kit-registry';
 import { prisma } from '../db/prisma';
-import { generateKitTools, executeKitTool } from '../providers/kit-tools';
+import { generateComponentCatalog, generateComponentDocFiles } from '../providers/kits/doc-generator';
 import { analyzeNpmPackage, validateStorybookComponents, fetchComponentMetadata, fetchAllComponentMetadata, discoverComponentsFromNpm } from '../providers/kits/npm-analyzer';
 
 const router = express.Router();
@@ -395,7 +395,7 @@ router.get('/:id', async (req: any, res) => {
  */
 router.post('/', async (req: any, res) => {
   const user = req.user;
-  const { name, description, template, npmPackage, importSuffix, storybookUrl, components, selectedComponentIds, mcpServerIds } = req.body;
+  const { name, description, template, npmPackage, importSuffix, npmPackages, storybookUrl, components, selectedComponentIds, mcpServerIds, systemPrompt, baseSystemPrompt } = req.body;
 
   if (!name) {
     return res.status(400).json({ error: 'Kit name is required' });
@@ -444,7 +444,10 @@ router.post('/', async (req: any, res) => {
       template: kitTemplate,
       npmPackage: npmPackage || undefined,
       importSuffix: importSuffix || 'Component',
+      npmPackages: npmPackages || undefined,
       resources,
+      systemPrompt: systemPrompt || undefined,
+      baseSystemPrompt: baseSystemPrompt || undefined,
       mcpServerIds: mcpServerIds || [],
       createdAt: now,
       updatedAt: now
@@ -473,7 +476,7 @@ router.post('/', async (req: any, res) => {
 router.put('/:id', async (req: any, res) => {
   const user = req.user;
   const { id } = req.params;
-  const { name, description, template, npmPackage, importSuffix, storybookUrl, components, selectedComponentIds, mcpServerIds } = req.body;
+  const { name, description, template, npmPackage, importSuffix, npmPackages, storybookUrl, components, selectedComponentIds, mcpServerIds, systemPrompt, baseSystemPrompt } = req.body;
 
   try {
     const settings = typeof user.settings === 'string'
@@ -492,36 +495,44 @@ router.put('/:id', async (req: any, res) => {
 
     // Build or update Storybook resource (components from npm discovery or Storybook)
     let resources = [...existingKit.resources];
-    if (components && components.length > 0) {
-      // Find existing Storybook resource or create new one
+    if (components !== undefined) {
       const existingStorybookIndex = resources.findIndex(r => r.type === 'storybook');
 
-      const storybookResource: StorybookResource = {
-        id: existingStorybookIndex >= 0 ? (resources[existingStorybookIndex] as StorybookResource).id : crypto.randomUUID(),
-        type: 'storybook',
-        url: storybookUrl || (existingStorybookIndex >= 0 ? (resources[existingStorybookIndex] as StorybookResource).url : ''),
-        status: 'discovered',
-        lastDiscovered: now,
-        components: components as StorybookComponent[],
-        selectedComponentIds: selectedComponentIds || components.map((c: any) => c.id)
-      };
+      if (components && components.length > 0) {
+        // Create or update Storybook resource with components
+        const storybookResource: StorybookResource = {
+          id: existingStorybookIndex >= 0 ? (resources[existingStorybookIndex] as StorybookResource).id : crypto.randomUUID(),
+          type: 'storybook',
+          url: storybookUrl || (existingStorybookIndex >= 0 ? (resources[existingStorybookIndex] as StorybookResource).url : ''),
+          status: 'discovered',
+          lastDiscovered: now,
+          components: components as StorybookComponent[],
+          selectedComponentIds: selectedComponentIds || components.map((c: any) => c.id)
+        };
 
-      if (existingStorybookIndex >= 0) {
-        resources[existingStorybookIndex] = storybookResource;
-      } else {
-        resources.push(storybookResource);
+        if (existingStorybookIndex >= 0) {
+          resources[existingStorybookIndex] = storybookResource;
+        } else {
+          resources.push(storybookResource);
+        }
+      } else if (existingStorybookIndex >= 0) {
+        // Components array is empty — remove the storybook resource
+        resources.splice(existingStorybookIndex, 1);
       }
     }
 
-    // Update the kit
+    // Update the kit (null clears a field, undefined preserves it)
     const updatedKit: Kit = {
       ...existingKit,
       name: name || existingKit.name,
       description: description !== undefined ? description : existingKit.description,
       template: template || existingKit.template,
-      npmPackage: npmPackage !== undefined ? npmPackage : existingKit.npmPackage,
+      npmPackage: npmPackage !== undefined ? (npmPackage || undefined) : existingKit.npmPackage,
       importSuffix: importSuffix !== undefined ? importSuffix : existingKit.importSuffix,
+      npmPackages: npmPackages !== undefined ? (Array.isArray(npmPackages) && npmPackages.length > 0 ? npmPackages : undefined) : existingKit.npmPackages,
       resources,
+      systemPrompt: systemPrompt !== undefined ? systemPrompt : existingKit.systemPrompt,
+      baseSystemPrompt: baseSystemPrompt !== undefined ? baseSystemPrompt : existingKit.baseSystemPrompt,
       mcpServerIds: mcpServerIds || existingKit.mcpServerIds,
       updatedAt: now
     };
@@ -661,9 +672,43 @@ router.post('/:id/rediscover', async (req: any, res) => {
 
     const storybookResource = kit.resources[storybookIndex] as StorybookResource;
 
-    // Re-discover components
-    const parser = new StorybookParser(storybookResource.url);
-    const components = await parser.discoverComponents();
+    // Re-discover components — use npm discovery if kit has npm packages and no Storybook URL
+    let components: StorybookComponent[];
+    const hasNpmPackages = (kit.npmPackages && kit.npmPackages.length > 0) || kit.npmPackage;
+    const hasStorybookUrl = storybookResource.url && storybookResource.url.startsWith('http');
+
+    if (hasNpmPackages && !hasStorybookUrl) {
+      // NPM-based rediscovery
+      const packages = kit.npmPackages || (kit.npmPackage ? [{ name: kit.npmPackage, importSuffix: kit.importSuffix ?? 'Component' }] : []);
+      const allComponents: StorybookComponent[] = [];
+      for (const pkg of packages) {
+        const result = await discoverComponentsFromNpm(pkg.name);
+        for (const comp of result.components) {
+          allComponents.push({
+            id: comp.id,
+            title: `${comp.category}/${comp.componentName}`,
+            name: 'Docs',
+            type: 'docs',
+            componentName: comp.componentName,
+            category: comp.category,
+            selector: comp.selector,
+            usageType: comp.usageType,
+            description: comp.description,
+            inputs: comp.inputs,
+            outputs: comp.outputs,
+            template: comp.template,
+            examples: comp.examples,
+            sourcePackage: pkg.name,
+            secondaryEntryPoint: comp.secondaryEntryPoint,
+          });
+        }
+      }
+      components = allComponents;
+    } else {
+      // Storybook URL-based rediscovery
+      const parser = new StorybookParser(storybookResource.url);
+      components = await parser.discoverComponents();
+    }
 
     // Preserve previously selected components that still exist
     const existingIds = new Set(components.map(c => c.id));
@@ -706,17 +751,13 @@ router.post('/:id/rediscover', async (req: any, res) => {
 });
 
 /**
- * Preview kit tool output - test what the AI would see
- * POST /api/kits/:id/preview-tool
+ * Preview component catalog and doc files - test what the AI would see
+ * POST /api/kits/:id/preview-docs
  */
-router.post('/:id/preview-tool', async (req: any, res) => {
+router.post('/:id/preview-docs', async (req: any, res) => {
   const user = req.user;
   const { id } = req.params;
-  const { tool, args } = req.body;
-
-  if (!tool) {
-    return res.status(400).json({ error: 'Tool name is required (list_components, get_component, get_design_tokens)' });
-  }
+  const { componentName } = req.body;
 
   try {
     const settings = typeof user.settings === 'string'
@@ -730,49 +771,49 @@ router.post('/:id/preview-tool', async (req: any, res) => {
       return res.status(404).json({ error: 'Kit not found' });
     }
 
-    // Generate the tool definitions
-    const tools = generateKitTools(kit);
-    if (tools.length === 0) {
+    const catalog = generateComponentCatalog(kit);
+    if (!catalog) {
       return res.status(400).json({
-        error: 'Kit has no tools available. Make sure it has discovered components with some selected.'
+        error: 'Kit has no catalog. Make sure it has discovered components with some selected.'
       });
     }
 
-    // Find the matching tool
-    const toolPrefix = kit.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 20);
-    const fullToolName = `${toolPrefix}_${tool}`;
+    const docFiles = generateComponentDocFiles(kit);
 
-    const matchingTool = tools.find(t => t.name === fullToolName);
-    if (!matchingTool) {
-      return res.status(400).json({
-        error: `Tool '${tool}' not found. Available tools: ${tools.map(t => t.name.replace(`${toolPrefix}_`, '')).join(', ')}`
-      });
+    // If a specific component is requested, return just that doc
+    if (componentName) {
+      const docPath = `.adorable/components/${componentName}.md`;
+      const doc = docFiles[docPath];
+      if (!doc) {
+        return res.status(404).json({
+          error: `Component doc not found for "${componentName}". Available: ${Object.keys(docFiles).filter(p => p.endsWith('.md') && !p.includes('README') && !p.includes('design-tokens')).map(p => p.replace('.adorable/components/', '').replace('.md', '')).join(', ')}`
+        });
+      }
+      return res.json({ success: true, catalog, componentDoc: doc });
     }
-
-    // Execute the tool
-    const result = await executeKitTool(fullToolName, args || {}, kit);
 
     res.json({
       success: true,
-      tool: fullToolName,
-      toolDefinition: matchingTool,
-      args: args || {},
-      output: result.content,
-      isError: result.isError
+      catalog,
+      catalogLength: catalog.length,
+      docFileCount: Object.keys(docFiles).length,
+      docFiles: Object.fromEntries(
+        Object.entries(docFiles).map(([path, content]) => [path, { length: content.length, preview: content.slice(0, 200) }])
+      )
     });
   } catch (error) {
-    console.error('Preview tool error:', error);
+    console.error('Preview docs error:', error);
     res.status(500).json({
-      error: error instanceof Error ? error.message : 'Failed to preview tool output'
+      error: error instanceof Error ? error.message : 'Failed to preview docs'
     });
   }
 });
 
 /**
- * List available tools for a kit
- * GET /api/kits/:id/tools
+ * Preview the component catalog for a kit
+ * GET /api/kits/:id/catalog
  */
-router.get('/:id/tools', async (req: any, res) => {
+router.get('/:id/catalog', async (req: any, res) => {
   const user = req.user;
   const { id } = req.params;
 
@@ -788,20 +829,17 @@ router.get('/:id/tools', async (req: any, res) => {
       return res.status(404).json({ error: 'Kit not found' });
     }
 
-    const tools = generateKitTools(kit);
+    const catalog = generateComponentCatalog(kit);
 
     res.json({
       success: true,
       kitName: kit.name,
-      tools: tools.map(t => ({
-        name: t.name,
-        description: t.description,
-        parameters: t.input_schema.properties
-      }))
+      catalog,
+      catalogLength: catalog.length
     });
   } catch (error) {
-    console.error('List tools error:', error);
-    res.status(500).json({ error: 'Failed to list tools' });
+    console.error('Catalog error:', error);
+    res.status(500).json({ error: 'Failed to generate catalog' });
   }
 });
 

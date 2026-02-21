@@ -74,7 +74,7 @@ export class SmartContainerEngine extends ContainerEngine {
   async readBinaryFile(path: string) { return await this.activeEngine().readBinaryFile(path); }
   async deleteFile(path: string) { await this.activeEngine().deleteFile(path); }
   async mkdir(path: string) { await this.activeEngine().mkdir(path); }
-  async clean() { await this.activeEngine().clean(); }
+  async clean(full?: boolean) { await this.activeEngine().clean(full); }
   async startShell() { await this.activeEngine().startShell(); }
   async readdir(path: string, options?: any) { return await this.activeEngine().readdir(path, options); }
 

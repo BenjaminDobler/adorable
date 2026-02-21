@@ -70,10 +70,15 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     });
 
     // Prepare shared context
-    const { fs, skillRegistry, availableTools, userMessage, logger, maxTurns, mcpManager, activeKit } = await this.prepareAgentContext(options, 'anthropic');
+    const { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName } = await this.prepareAgentContext(options, 'anthropic');
     const skills = await this.addSkillTools(availableTools, skillRegistry, fs, options.userId);
 
     logger.log('START', { model: modelToUse, promptLength: options.prompt.length, totalMessageLength: userMessage.length });
+
+    // Log the full prompts for debugging
+    logger.logText('SYSTEM_PROMPT', effectiveSystemPrompt);
+    logger.logText('KNOWLEDGE_BASE', ANGULAR_KNOWLEDGE_BASE);
+    logger.logText('USER_MESSAGE', userMessage);
 
     // Build initial messages
     const messages: any[] = [{
@@ -121,7 +126,9 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     const ctx: AgentLoopContext = {
       fs, callbacks, skillRegistry, availableTools, logger,
       hasRunBuild: false, hasWrittenFiles: false, buildNudgeSent: false, fullExplanation: '',
-      mcpManager, activeKit
+      mcpManager,
+      failedBuildCount: 0,
+      activeKitName
     };
 
     let turnCount = 0;
@@ -134,7 +141,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         max_tokens: 16384,
         system: [
           { type: 'text', text: ANGULAR_KNOWLEDGE_BASE, cache_control: { type: 'ephemeral' } },
-          { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }
+          { type: 'text', text: effectiveSystemPrompt, cache_control: { type: 'ephemeral' } }
         ] as any,
         messages: messages as any,
         tools: availableTools as any,
@@ -198,6 +205,15 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
 
       messages.push({ role: 'assistant', content: assistantMessageContent });
 
+      // Log the assistant's text response for this turn
+      const assistantText = assistantMessageContent
+        .filter((b: any) => b.type === 'text')
+        .map((b: any) => b.text)
+        .join('');
+      if (assistantText) {
+        logger.logText('ASSISTANT_RESPONSE', assistantText, { turn: turnCount });
+      }
+
       console.log(`[AutoBuild] Turn ${turnCount}: toolUses=${toolUses.length} [${toolUses.map(t => t.name).join(', ')}]`);
 
       if (toolUses.length === 0) {
@@ -211,7 +227,9 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
           if (buildResult.exitCode !== 0) {
             callbacks.onText?.('Build failed. Fixing errors...\n');
             const errorOutput = (buildResult.stderr || '') + '\n' + (buildResult.stdout || '');
-            messages.push({ role: 'user', content: [{ type: 'text', text: `The build failed with the following errors. You MUST fix ALL errors and then run \`npm run build\` again to verify.\n\n\`\`\`\n${errorOutput.slice(0, 4000)}\n\`\`\`` }] });
+            const buildFailMsg = `The build failed with the following errors. You MUST fix ALL errors and then run \`npm run build\` again to verify.\n\n\`\`\`\n${errorOutput.slice(0, 4000)}\n\`\`\``;
+            logger.logText('INJECTED_USER_MESSAGE', buildFailMsg, { reason: 'auto_build_failure' });
+            messages.push({ role: 'user', content: [{ type: 'text', text: buildFailMsg }] });
             ctx.hasRunBuild = false;
             turnCount++;
             continue;
@@ -232,7 +250,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
 
         const { content, isError } = await this.executeTool(tool.name, toolArgs, ctx);
 
-        logger.log('TOOL_RESULT', { id: tool.id, result: content.substring(0, 200), isError });
+        logger.logText('TOOL_RESULT', content, { id: tool.id, isError });
 
         // Check if this is a screenshot result with embedded image data
         const screenshotMatch = content.match(/^\[SCREENSHOT:(data:image\/[^;]+;base64,(.+))\]$/);
@@ -281,7 +299,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         model: modelToUse, max_tokens: 16384,
         system: [
           { type: 'text', text: ANGULAR_KNOWLEDGE_BASE, cache_control: { type: 'ephemeral' } },
-          { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }
+          { type: 'text', text: effectiveSystemPrompt, cache_control: { type: 'ephemeral' } }
         ] as any,
         messages: messages as any, tools: availableTools as any, stream: true,
       });

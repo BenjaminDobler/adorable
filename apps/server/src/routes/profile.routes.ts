@@ -98,8 +98,14 @@ router.post('/', async (req: any, res) => {
         return server;
       });
 
+      // Preserve fields from existing settings that the profile page doesn't manage
+      // (e.g., kits are managed by kit.routes.ts, not the profile page)
+      const preservedFields: Record<string, any> = {};
+      if (currentSettings.kits) preservedFields.kits = currentSettings.kits;
+
       finalSettingsString = JSON.stringify({
         ...settings,
+        ...preservedFields,
         profiles: processedProfiles,
         mcpServers: processedMcpServers
       });

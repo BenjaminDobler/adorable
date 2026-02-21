@@ -80,39 +80,127 @@
                   <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                   </svg>
-                  Import from Folder...
+                  {{ importedFileCount() > 0 ? 'Re-import from Folder...' : 'Import from Folder...' }}
                 </button>
                 @if (importedFileCount() > 0) {
                   <span class="template-status">{{ importedFileCount() }} files imported</span>
+                  <button class="btn-toggle-tree" (click)="showTemplateTree.set(!showTemplateTree())">
+                    {{ showTemplateTree() ? 'Hide Files' : 'Edit Files' }}
+                  </button>
                 }
               </div>
+
+              @if (showTemplateTree() && importedFileCount() > 0) {
+                <div class="template-tree-editor">
+                  <div class="tree-toolbar">
+                    <span class="tree-file-count">{{ importedFileCount() }} files</span>
+                    <div class="tree-toolbar-actions">
+                      <button class="btn-tree-action" (click)="expandAllTemplateFolders()">Expand All</button>
+                      <button class="btn-tree-action" (click)="collapseAllTemplateFolders()">Collapse All</button>
+                    </div>
+                  </div>
+                  <div class="template-file-list">
+                    @for (entry of visibleTemplateEntries(); track entry.path) {
+                      <div
+                        class="template-file-item"
+                        [class.is-directory]="entry.isDirectory"
+                        [style.padding-left.px]="12 + entry.depth * 20"
+                      >
+                        @if (entry.isDirectory) {
+                          <button class="btn-chevron" [class.expanded]="expandedTemplatePaths().has(entry.path)" (click)="toggleTemplateFolder(entry.path)">
+                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+                              <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                          </button>
+                          <svg class="entry-icon" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                          </svg>
+                        } @else {
+                          <span class="chevron-spacer"></span>
+                          <svg class="entry-icon" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                          </svg>
+                        }
+                        <span class="entry-name">{{ entry.name }}</span>
+                        @if (!entry.isDirectory && entry.size > 0) {
+                          <span class="entry-size">{{ formatFileSize(entry.size) }}</span>
+                        }
+                        <button
+                          class="btn-remove-entry"
+                          (click)="entry.isDirectory ? removeTemplateFolder(entry.path) : removeTemplateFile(entry.path)"
+                          [title]="entry.isDirectory ? 'Remove folder and contents' : 'Remove file'"
+                        >
+                          <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                          </svg>
+                        </button>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
             }
           </div>
 
           <div class="form-section">
             <h4>Component Library (Optional)</h4>
 
-            <!-- npm Package - Primary discovery method -->
+            <!-- Added packages list -->
+            @if (npmPackages().length > 0) {
+              <div class="packages-list">
+                <label class="packages-label">Packages</label>
+                @for (pkg of npmPackages(); track pkg.name) {
+                  <div class="package-item">
+                    <span class="package-name">{{ pkg.name }}</span>
+                    <select
+                      class="package-suffix"
+                      [ngModel]="pkg.importSuffix"
+                      (ngModelChange)="updatePackageSuffix($index, $event)"
+                    >
+                      <option value="Component">Component</option>
+                      <option value="Directive">Directive</option>
+                      <option value="">None</option>
+                      <option value="Module">Module</option>
+                    </select>
+                    <button class="btn-remove-package" (click)="removePackage($index)" title="Remove package">×</button>
+                  </div>
+                }
+              </div>
+            }
+
+            <!-- Add package / discover -->
             <div class="npm-discovery">
               <div class="form-group">
-                <label>npm Package</label>
+                <label>{{ npmPackages().length > 0 ? 'Add Another Package' : 'npm Package' }}</label>
                 <div class="npm-input-row">
                   <input
                     type="text"
-                    [ngModel]="npmPackage()"
-                    (ngModelChange)="npmPackage.set($event)"
-                    placeholder="e.g., @leanix/components"
+                    [ngModel]="newPackageName()"
+                    (ngModelChange)="newPackageName.set($event)"
+                    placeholder="e.g., @fundamental-ngx/core"
                     [disabled]="discovering()"
                   />
+                  <select
+                    class="suffix-select"
+                    [ngModel]="newPackageSuffix()"
+                    (ngModelChange)="newPackageSuffix.set($event)"
+                  >
+                    <option value="Component">Component</option>
+                    <option value="Directive">Directive</option>
+                    <option value="">None</option>
+                    <option value="Module">Module</option>
+                  </select>
                   <button
                     class="btn-discover"
                     (click)="discoverFromNpm()"
-                    [disabled]="discovering() || !npmPackage()"
+                    [disabled]="discovering() || !newPackageName()"
                   >
-                    {{ discovering() ? 'Discovering...' : 'Discover Components' }}
+                    {{ discovering() ? 'Discovering...' : 'Discover & Add' }}
                   </button>
                 </div>
-                <span class="hint">Enter the npm package name to discover all components with their documentation</span>
+                <span class="hint">Enter the npm package name to discover components and add to the kit</span>
               </div>
             </div>
 
@@ -138,20 +226,6 @@
                   </div>
                 </div>
               </details>
-            }
-
-            <!-- Import settings -->
-            @if (discoveredComponents().length > 0) {
-              <div class="form-group import-suffix-group">
-                <label>Export Name Suffix</label>
-                <select [ngModel]="importSuffix()" (ngModelChange)="importSuffix.set($event)">
-                  <option value="Component">Component (e.g., ButtonComponent)</option>
-                  <option value="Directive">Directive (e.g., ButtonDirective)</option>
-                  <option value="">None (e.g., Button)</option>
-                  <option value="Module">Module (e.g., ButtonModule)</option>
-                </select>
-                <span class="hint">Suffix added to component names in imports</span>
-              </div>
             }
 
             @if (discoveredComponents().length > 0) {
@@ -195,6 +269,9 @@
                                 (change)="toggleComponent(component.id)"
                               />
                               <span class="component-name">{{ component.componentName || component.title }}</span>
+                              @if (component.sourcePackage && npmPackages().length > 1) {
+                                <span class="package-badge" [title]="component.sourcePackage">{{ component.sourcePackage.split('/').pop() }}</span>
+                              }
                               @if (hasStoredDocs(component)) {
                                 <span class="has-docs-badge" title="Has custom documentation">✓</span>
                               }
@@ -217,6 +294,39 @@
                 </div>
               </div>
             }
+          </div>
+
+          <div class="form-section">
+            <h4>System Prompt (Optional)</h4>
+            <p class="section-hint">Custom instructions the AI will follow when generating code with this kit. Use this to encode usage rules, coding conventions, or architectural guidance.</p>
+            <div class="form-group">
+              <textarea
+                [ngModel]="kitSystemPrompt()"
+                (ngModelChange)="kitSystemPrompt.set($event)"
+                placeholder="e.g., Always use reactive forms. Prefer OnPush change detection. Use the Button component instead of native buttons..."
+                rows="5"
+              ></textarea>
+            </div>
+
+            <details class="base-prompt-override" [attr.open]="showBasePromptOverride() ? '' : null">
+              <summary (click)="$event.preventDefault(); showBasePromptOverride.set(!showBasePromptOverride())">Advanced: Override Base System Prompt</summary>
+              @if (showBasePromptOverride()) {
+                <div class="base-prompt-content">
+                  <div class="base-prompt-warning">
+                    This replaces the default system prompt entirely. The default includes critical instructions for tool usage, file handling, build verification, and Angular best practices. Only override if you know what you're doing.
+                  </div>
+                  <div class="form-group">
+                    <textarea
+                      [ngModel]="kitBaseSystemPrompt()"
+                      (ngModelChange)="kitBaseSystemPrompt.set($event)"
+                      placeholder="Enter a complete system prompt to replace the default..."
+                      rows="12"
+                      class="monospace-textarea"
+                    ></textarea>
+                  </div>
+                </div>
+              }
+            </details>
           </div>
 
           @if (discoveredComponents().length > 0) {

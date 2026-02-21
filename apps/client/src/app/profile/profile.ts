@@ -8,6 +8,7 @@ import { ThemeService, ThemeType, ThemeMode, ThemeSettings, ThemeCombined } from
 import { ToastService } from '../services/toast';
 import { GitHubService } from '../services/github.service';
 import { isDesktopApp } from '../services/smart-container.engine';
+import { FileExplorerState } from '../file-explorer/file-explorer';
 
 export type ProviderType = 'anthropic' | 'gemini' | 'figma';
 export type MCPAuthType = 'none' | 'bearer';
@@ -75,6 +76,7 @@ export class ProfileComponent implements OnInit {
   public themeService = inject(ThemeService);
   private toastService = inject(ToastService);
   public githubService = inject(GitHubService);
+  public fileExplorerState = inject(FileExplorerState);
 
   user = signal<any>(null);
   name = signal('');

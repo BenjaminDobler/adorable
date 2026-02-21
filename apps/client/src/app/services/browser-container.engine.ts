@@ -118,7 +118,7 @@ export class BrowserContainerEngine extends ContainerEngine {
       this.status.set('Server stopped');
   }
   
-  async clean() {
+  async clean(full = false) {
       if (!this.webcontainerInstance) return;
       this.status.set('Cleaning workspace...');
       try {
@@ -126,6 +126,17 @@ export class BrowserContainerEngine extends ContainerEngine {
         await process.exit;
       } catch (e) {
         console.error('Failed to clean src directory', e);
+      }
+
+      if (full) {
+        // Full clean: remove node_modules, lockfiles, and caches so a fresh install happens
+        this.lastPackageJson = null;
+        try {
+          const rmDeps = await this.webcontainerInstance.spawn('rm', ['-rf', 'node_modules', 'pnpm-lock.yaml', 'package-lock.json', '.angular']);
+          await rmDeps.exit;
+        } catch (e) {
+          console.error('Failed to clean dependencies', e);
+        }
       }
   }
   

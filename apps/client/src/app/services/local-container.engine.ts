@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { ContainerEngine, ProcessOutput } from './container-engine';
 import { FileSystemStore } from './file-system.store';
 import { WebContainerFiles } from '@adorable/shared-types';
-import { Observable, of } from 'rxjs';
+import { Observable, of, shareReplay } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -192,9 +192,18 @@ export class LocalContainerEngine extends ContainerEngine {
           push();
       });
 
+      const shared = stream.pipe(shareReplay());
+
+      const exitPromise = new Promise<number>((resolve, reject) => {
+          shared.subscribe({
+              complete: () => resolve(0),
+              error: (err) => reject(err)
+          });
+      });
+
       return {
-          stream,
-          exit: Promise.resolve(0)
+          stream: shared,
+          exit: exitPromise
       };
   }
 
@@ -262,8 +271,11 @@ export class LocalContainerEngine extends ContainerEngine {
     }
   }
 
-  async clean(): Promise<void> {
+  async clean(full = false): Promise<void> {
     await this.exec('rm', ['-rf', 'src']);
+    if (full) {
+      await this.exec('rm', ['-rf', 'node_modules', 'pnpm-lock.yaml', 'package-lock.json', '.angular']);
+    }
   }
 
   async writeFile(path: string, content: string | Uint8Array): Promise<void> {

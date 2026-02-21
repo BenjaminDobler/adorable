@@ -1,6 +1,6 @@
 import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { BaseLLMProvider, SYSTEM_PROMPT, ANGULAR_KNOWLEDGE_BASE, AgentLoopContext } from './base';
+import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, AgentLoopContext } from './base';
 
 export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
   async generate(options: GenerateOptions): Promise<any> {
@@ -20,7 +20,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
     const modelName = model || 'gemini-2.0-flash-exp';
 
     // Prepare shared context
-    const { fs, skillRegistry, availableTools, userMessage, logger, maxTurns, mcpManager, activeKit } = await this.prepareAgentContext(options, 'gemini');
+    const { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName } = await this.prepareAgentContext(options, 'gemini');
     await this.addSkillTools(availableTools, skillRegistry, fs, options.userId);
 
     // Convert tools to Gemini format
@@ -35,7 +35,12 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       tools: [{ functionDeclarations: tools as any }]
     });
 
-    logger.log('START', { model: modelName, promptLength: options.prompt.length });
+    logger.log('START', { model: modelName, promptLength: options.prompt.length, totalMessageLength: userMessage.length });
+
+    // Log the full prompts for debugging
+    logger.logText('SYSTEM_PROMPT', effectiveSystemPrompt);
+    logger.logText('KNOWLEDGE_BASE', ANGULAR_KNOWLEDGE_BASE);
+    logger.logText('USER_MESSAGE', userMessage);
 
     // Build initial parts
     const initialParts: any[] = [{ text: userMessage }];
@@ -50,7 +55,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
 
     const chat = generativeModel.startChat({
       history: [
-        { role: 'user', parts: [{ text: ANGULAR_KNOWLEDGE_BASE + '\n\n' + SYSTEM_PROMPT }] },
+        { role: 'user', parts: [{ text: ANGULAR_KNOWLEDGE_BASE + '\n\n' + effectiveSystemPrompt }] },
         { role: 'model', parts: [{ text: 'I understand. I am an expert Angular developer and I have read the system prompt and knowledge base.' }] }
       ]
     });
@@ -61,7 +66,9 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
     const ctx: AgentLoopContext = {
       fs, callbacks, skillRegistry, availableTools, logger,
       hasRunBuild: false, hasWrittenFiles: false, buildNudgeSent: false, fullExplanation: '',
-      mcpManager, activeKit
+      mcpManager,
+      failedBuildCount: 0,
+      activeKitName
     };
 
     let turnCount = 0;
@@ -69,6 +76,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
 
     while (turnCount < maxTurns) {
       logger.log('TURN_START', { turn: turnCount });
+      const turnStartExplanationLength = ctx.fullExplanation.length;
 
       const result = await chat.sendMessageStream(currentParts);
       const functionCalls: any[] = [];
@@ -100,6 +108,15 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
         }
       }
 
+      // Log the assistant's text response for this turn
+      // (Gemini streams text inline, so we capture it from fullExplanation delta)
+      // We track per-turn text by measuring the delta
+      const turnEndExplanationLength = ctx.fullExplanation.length;
+      const turnText = ctx.fullExplanation.substring(turnStartExplanationLength);
+      if (turnText) {
+        logger.logText('ASSISTANT_RESPONSE', turnText, { turn: turnCount });
+      }
+
       console.log(`[AutoBuild] Turn ${turnCount}: toolUses=${functionCalls.length} [${functionCalls.map(c => c.name).join(', ')}]`);
 
       if (functionCalls.length === 0) {
@@ -113,7 +130,9 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
           if (buildResult.exitCode !== 0) {
             callbacks.onText?.('Build failed. Fixing errors...\n');
             const errorOutput = (buildResult.stderr || '') + '\n' + (buildResult.stdout || '');
-            currentParts = [{ text: `The build failed with the following errors. You MUST fix ALL errors and then run \`npm run build\` again to verify.\n\n\`\`\`\n${errorOutput.slice(0, 4000)}\n\`\`\`` }];
+            const buildFailMsg = `The build failed with the following errors. You MUST fix ALL errors and then run \`npm run build\` again to verify.\n\n\`\`\`\n${errorOutput.slice(0, 4000)}\n\`\`\``;
+            logger.logText('INJECTED_USER_MESSAGE', buildFailMsg, { reason: 'auto_build_failure' });
+            currentParts = [{ text: buildFailMsg }];
             ctx.hasRunBuild = false;
             turnCount++;
             continue;

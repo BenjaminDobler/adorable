@@ -11,6 +11,7 @@ import { TemplateService } from '../services/template';
 import { SkillsService, Skill } from '../services/skills';
 import { HMRTriggerService } from '../services/hmr-trigger.service';
 import { ProgressiveEditorStore } from '../services/progressive-editor.store';
+import { FileExplorerState } from '../file-explorer/file-explorer';
 import { ScreenshotService } from '../services/screenshot';
 import { SafeUrlPipe } from '../pipes/safe-url.pipe';
 import { MarkdownPipe } from '../pipes/markdown.pipe';
@@ -36,6 +37,7 @@ export class ChatComponent implements OnDestroy {
   private hmrTrigger = inject(HMRTriggerService);
   private progressiveStore = inject(ProgressiveEditorStore);
   private screenshotService = inject(ScreenshotService);
+  private fileExplorerState = inject(FileExplorerState);
   private cdr = inject(ChangeDetectorRef);
 
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;

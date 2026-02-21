@@ -19,6 +19,17 @@ export class FileExplorerState {
   // Inline input state (for new file/folder/rename)
   inlineInput = signal<{ parentPath: string; type: 'file' | 'folder' | 'rename'; existingName?: string } | null>(null);
 
+  // Debug: show internal files like .adorable/
+  private _showInternalFiles = signal(localStorage.getItem('adorable_show_internal') === 'true');
+  get showInternalFiles() {
+    return this._showInternalFiles;
+  }
+
+  setShowInternalFiles(value: boolean) {
+    this._showInternalFiles.set(value);
+    localStorage.setItem('adorable_show_internal', String(value));
+  }
+
   isExpanded(path: string): boolean {
     return this.expandedPaths().has(path);
   }
@@ -352,7 +363,13 @@ export class FileExplorerComponent {
 
     const nodes: FileNode[] = [];
     const currentPath = this.path();
-    const entries = Object.entries(files).sort((a: any, b: any) => {
+    const showInternal = this.state.showInternalFiles();
+    const entries = Object.entries(files).filter(([name]) => {
+      // Hide internal directories at the root level
+      if (!currentPath && name === 'node_modules') return false;
+      if (!currentPath && name === '.adorable' && !showInternal) return false;
+      return true;
+    }).sort((a: any, b: any) => {
       const aIsDir = !!a[1].directory;
       const bIsDir = !!b[1].directory;
       if (aIsDir === bIsDir) return a[0].localeCompare(b[0]);

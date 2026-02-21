@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+const MAX_FIELD_LENGTH = 20000;
+
 export class DebugLogger {
   private logPath: string;
 
@@ -27,5 +29,19 @@ export class DebugLogger {
     } catch (e) {
       console.error('Failed to write to debug log:', e);
     }
+  }
+
+  /**
+   * Log large text content, truncating if necessary.
+   * Returns the truncated string for inline use.
+   */
+  logText(type: string, text: string, meta?: Record<string, any>) {
+    const truncated = text.length > MAX_FIELD_LENGTH;
+    this.log(type, {
+      ...meta,
+      text: truncated ? text.substring(0, MAX_FIELD_LENGTH) + `\n...[TRUNCATED, total ${text.length} chars]` : text,
+      length: text.length,
+      truncated
+    });
   }
 }

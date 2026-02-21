@@ -109,6 +109,29 @@
             }
           </div>
         </section>
+
+        <section class="settings-card">
+          <div class="card-header">
+            <h3>Developer</h3>
+            <p>Debug options for development and troubleshooting.</p>
+          </div>
+          <div class="card-body">
+            <div class="header-with-toggle">
+              <div>
+                <label>Show internal files</label>
+                <small class="help-text">Show the <code>.adorable/</code> folder in the file explorer to inspect generated component docs.</small>
+              </div>
+              <label class="switch">
+                <input
+                  type="checkbox"
+                  [ngModel]="fileExplorerState.showInternalFiles()"
+                  (ngModelChange)="fileExplorerState.setShowInternalFiles($event)"
+                >
+                <span class="slider round"></span>
+              </label>
+            </div>
+          </div>
+        </section>
       </div>
     }
 

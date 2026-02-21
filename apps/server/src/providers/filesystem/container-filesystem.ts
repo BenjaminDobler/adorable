@@ -30,7 +30,19 @@ export class ContainerFileSystem implements FileSystemInterface {
     // Ideally we could use 'sed' but dealing with escaping is a nightmare.
     const content = await this.readFile(path);
     if (!content.includes(oldStr)) {
-      throw new Error(`old_str not found in ${path}`);
+      // Provide a helpful hint: show the first line of old_str and nearby content
+      const firstLine = oldStr.split('\n')[0].trim();
+      const lines = content.split('\n');
+      const closestIdx = lines.findIndex(l => l.includes(firstLine));
+      let hint = '';
+      if (closestIdx >= 0) {
+        const start = Math.max(0, closestIdx - 1);
+        const end = Math.min(lines.length, closestIdx + 3);
+        hint = `\nThe first line of old_str ("${firstLine.slice(0, 80)}") was found at line ${closestIdx + 1}, but the full old_str doesn't match. Nearby content:\n${lines.slice(start, end).join('\n')}`;
+      } else {
+        hint = `\nHint: The first line ("${firstLine.slice(0, 80)}") was not found in the file. Did you read the file first?`;
+      }
+      throw new Error(`old_str not found in ${path}${hint}`);
     }
     const parts = content.split(oldStr);
     if (parts.length > 2) {
