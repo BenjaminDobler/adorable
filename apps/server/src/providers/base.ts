@@ -347,6 +347,7 @@ Only proceed with implementation after receiving the user's answers.`;
             isError = true;
             break;
           }
+          toolArgs.content = this.sanitizeFileContent(toolArgs.content, toolArgs.path);
           await fs.writeFile(toolArgs.path, toolArgs.content);
           callbacks.onFileWritten?.(toolArgs.path, toolArgs.content);
           ctx.hasWrittenFiles = true;
@@ -368,9 +369,17 @@ Only proceed with implementation after receiving the user's answers.`;
           } else {
             let written = 0;
             const skipped: string[] = [];
+            const corrupted: string[] = [];
             for (const f of toolArgs.files) {
               if (!f.path || !f.content) {
                 skipped.push(f.path || 'unknown');
+                continue;
+              }
+              // Sanitize file content — fixes double-escaping issues from LLM serialization
+              f.content = this.sanitizeFileContent(f.content, f.path);
+              // Detect still-corrupted content (long single-line files are almost certainly broken)
+              if (f.content.length > 100 && !f.content.includes('\n')) {
+                corrupted.push(f.path);
                 continue;
               }
               await fs.writeFile(f.path, f.content);
@@ -378,7 +387,10 @@ Only proceed with implementation after receiving the user's answers.`;
               written++;
             }
             ctx.hasWrittenFiles = true;
-            if (skipped.length > 0) {
+            if (corrupted.length > 0) {
+              content = `${written} of ${toolArgs.files.length} files written. ${corrupted.length} files had corrupted content (no newlines detected, likely a serialization error) and were NOT written: ${corrupted.join(', ')}. Please re-write these files individually using write_file.`;
+              isError = corrupted.length > 0 && written === 0;
+            } else if (skipped.length > 0) {
               content = `${written} of ${toolArgs.files.length} files written. Skipped ${skipped.length} files with missing path or content (possible truncation): ${skipped.join(', ')}`;
             } else {
               content = `${written} of ${toolArgs.files.length} files written successfully.`;
@@ -744,6 +756,38 @@ Only proceed with implementation after receiving the user's answers.`;
         return {};
       }
     }
+  }
+
+  /**
+   * Sanitizes file content from write_files tool calls.
+   * Fixes double-escaping issues where LLMs serialize SCSS/CSS content with
+   * escaped quotes and literal \n sequences instead of actual newlines.
+   */
+  private sanitizeFileContent(content: string, filePath: string): string {
+    // Strip leading/trailing artifact quotes from double-escaping
+    // e.g. content = '":host { ... }"' → ':host { ... }'
+    if (content.length > 2 && content.startsWith('"') && content.endsWith('"')) {
+      const inner = content.slice(1, -1);
+      // Only strip if the inner content looks like it has escaped sequences
+      // (i.e., it was a double-wrapped JSON string)
+      if (inner.includes('\\n') || inner.includes('\\t')) {
+        content = inner;
+      }
+    }
+
+    // Fix literal \n sequences (two chars: backslash + n) → actual newlines
+    // This happens when content was double-escaped during LLM serialization.
+    // Only apply if the content has no actual newlines but has literal \n sequences.
+    if (content.length > 50 && !content.includes('\n') && content.includes('\\n')) {
+      console.warn(`[WriteFiles] Fixing escaped newlines in ${filePath} (${content.length} chars)`);
+      content = content
+        .replace(/\\n/g, '\n')
+        .replace(/\\t/g, '\t')
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\');
+    }
+
+    return content;
   }
 
   /**
