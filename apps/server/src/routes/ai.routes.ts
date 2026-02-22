@@ -327,7 +327,8 @@ router.post('/generate-stream', async (req: any, res) => {
           mcpConfigs,
           planMode,
           baseUrl: getBaseUrl(provider),
-          activeKit
+          activeKit,
+          projectId
       }, {
           onText: (text) => {
               res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);

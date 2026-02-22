@@ -6,9 +6,11 @@ const MAX_FIELD_LENGTH = 20000;
 export class DebugLogger {
   private logPath: string;
 
-  constructor(providerName: string) {
+  constructor(providerName: string, projectId?: string) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `${providerName}_trace_${timestamp}.jsonl`;
+    const filename = projectId
+      ? `${providerName}_trace_${projectId}_${timestamp}.jsonl`
+      : `${providerName}_trace_${timestamp}.jsonl`;
     // Ensure debug_logs exists relative to where the server runs (usually project root)
     const logDir = path.resolve(process.cwd(), 'debug_logs');
     if (!fs.existsSync(logDir)) {

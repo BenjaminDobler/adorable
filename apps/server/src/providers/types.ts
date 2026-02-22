@@ -17,6 +17,7 @@ export interface GenerateOptions {
   planMode?: boolean; // When true, AI should ask clarifying questions before coding
   baseUrl?: string; // Optional custom base URL for API proxy
   activeKit?: Kit; // Active component kit for this generation
+  projectId?: string; // Project ID for debug log filenames
 }
 
 export interface TokenUsage {
