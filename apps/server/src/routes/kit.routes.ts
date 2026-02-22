@@ -15,6 +15,7 @@ import { prisma } from '../db/prisma';
 import { generateComponentCatalog, generateComponentDocFiles } from '../providers/kits/doc-generator';
 import { analyzeNpmPackage, validateStorybookComponents, fetchComponentMetadata, fetchAllComponentMetadata, discoverComponentsFromNpm } from '../providers/kits/npm-analyzer';
 import { SYSTEM_PROMPT } from '../providers/base';
+import { kitFsService } from '../services/kit-fs.service';
 
 const router = express.Router();
 
@@ -391,7 +392,18 @@ router.get('/:id', async (req: any, res) => {
       return res.status(404).json({ error: 'Kit not found' });
     }
 
-    res.json({ kit });
+    // If template files are stored on disk, load them back into the response
+    let kitResponse = kit;
+    if (kit.template?.storedOnDisk) {
+      try {
+        const templateFiles = await kitFsService.readKitTemplateFiles(id);
+        kitResponse = { ...kit, template: { ...kit.template, files: templateFiles } };
+      } catch (err) {
+        console.warn(`[Kit] Could not read template files from disk for kit ${id}:`, err);
+      }
+    }
+
+    res.json({ kit: kitResponse });
   } catch (error) {
     console.error('Get kit error:', error);
     res.status(500).json({ error: 'Failed to get kit' });
@@ -462,6 +474,25 @@ router.post('/', async (req: any, res) => {
       updatedAt: now
     };
 
+    // Store template files on disk if template has files
+    const templateFilesToReturn = newKit.template.files;
+    if (newKit.template.files && Object.keys(newKit.template.files).length > 0) {
+      // Extract .adorable files from template and write to .adorable dir
+      const adorableFromTemplate = kitFsService.extractAdorableFilesFromTemplate(newKit.template.files);
+      if (Object.keys(adorableFromTemplate).length > 0) {
+        await kitFsService.writeKitAdorableFiles(newKit.id, adorableFromTemplate);
+      }
+
+      // Write template files to disk (without .adorable)
+      const templateWithoutAdorable = kitFsService.removeAdorableFromTemplate(newKit.template.files);
+      if (Object.keys(templateWithoutAdorable).length > 0) {
+        await kitFsService.writeKitTemplateFiles(newKit.id, templateWithoutAdorable);
+      }
+
+      // Clear files from DB and set flag
+      newKit.template = { ...newKit.template, files: {}, storedOnDisk: true };
+    }
+
     kits.push(newKit);
 
     // Save to database
@@ -471,7 +502,17 @@ router.post('/', async (req: any, res) => {
       data: { settings: JSON.stringify(updatedSettings) }
     });
 
-    res.json({ success: true, kit: newKit });
+    // Generate and persist .adorable doc files on disk
+    const docFiles = generateComponentDocFiles(newKit);
+    if (Object.keys(docFiles).length > 0) {
+      kitFsService.writeKitAdorableFiles(newKit.id, docFiles).catch(err =>
+        console.error(`[Kit] Failed to write .adorable files for kit "${newKit.name}":`, err)
+      );
+    }
+
+    // Return kit with template files for the client
+    const kitResponse = { ...newKit, template: { ...newKit.template, files: templateFilesToReturn } };
+    res.json({ success: true, kit: kitResponse });
   } catch (error) {
     console.error('Create kit error:', error);
     res.status(500).json({ error: 'Failed to create kit' });
@@ -530,12 +571,35 @@ router.put('/:id', async (req: any, res) => {
       }
     }
 
+    // Determine the effective template
+    let effectiveTemplate = template || existingKit.template;
+    let templateFilesToReturn = effectiveTemplate.files;
+
+    // If template has files, store them on disk
+    if (template && template.files && Object.keys(template.files).length > 0) {
+      // Extract .adorable files from template and write to .adorable dir
+      const adorableFromTemplate = kitFsService.extractAdorableFilesFromTemplate(template.files);
+      if (Object.keys(adorableFromTemplate).length > 0) {
+        await kitFsService.writeKitAdorableFiles(id, adorableFromTemplate);
+      }
+
+      // Write template files to disk (without .adorable)
+      const templateWithoutAdorable = kitFsService.removeAdorableFromTemplate(template.files);
+      if (Object.keys(templateWithoutAdorable).length > 0) {
+        await kitFsService.writeKitTemplateFiles(id, templateWithoutAdorable);
+      }
+
+      templateFilesToReturn = template.files;
+      // Clear files from DB and set flag
+      effectiveTemplate = { ...template, files: {}, storedOnDisk: true };
+    }
+
     // Update the kit (null clears a field, undefined preserves it)
     const updatedKit: Kit = {
       ...existingKit,
       name: name || existingKit.name,
       description: description !== undefined ? description : existingKit.description,
-      template: template || existingKit.template,
+      template: effectiveTemplate,
       npmPackage: npmPackage !== undefined ? (npmPackage || undefined) : existingKit.npmPackage,
       importSuffix: importSuffix !== undefined ? importSuffix : existingKit.importSuffix,
       npmPackages: npmPackages !== undefined ? (Array.isArray(npmPackages) && npmPackages.length > 0 ? npmPackages : undefined) : existingKit.npmPackages,
@@ -555,7 +619,19 @@ router.put('/:id', async (req: any, res) => {
       data: { settings: JSON.stringify(updatedSettings) }
     });
 
-    res.json({ success: true, kit: updatedKit });
+    // Regenerate .adorable files if components changed (preserves user edits)
+    if (components !== undefined) {
+      const docFiles = generateComponentDocFiles(updatedKit);
+      if (Object.keys(docFiles).length > 0) {
+        kitFsService.regenerateAdorableFiles(updatedKit.id, docFiles).catch(err =>
+          console.error(`[Kit] Failed to regenerate .adorable files for kit "${updatedKit.name}":`, err)
+        );
+      }
+    }
+
+    // Return kit with template files for the client
+    const kitResponse = { ...updatedKit, template: { ...updatedKit.template, files: templateFilesToReturn } };
+    res.json({ success: true, kit: kitResponse });
   } catch (error) {
     console.error('Update kit error:', error);
     res.status(500).json({ error: 'Failed to update kit' });
@@ -590,6 +666,11 @@ router.delete('/:id', async (req: any, res) => {
       where: { id: user.id },
       data: { settings: JSON.stringify(updatedSettings) }
     });
+
+    // Clean up .adorable files from disk
+    kitFsService.deleteKitFiles(id).catch(err =>
+      console.error(`[Kit] Failed to delete kit files for ${id}:`, err)
+    );
 
     res.json({ success: true });
   } catch (error) {
@@ -643,6 +724,14 @@ router.put('/:id/components', async (req: any, res) => {
       where: { id: user.id },
       data: { settings: JSON.stringify(updatedSettings) }
     });
+
+    // Regenerate .adorable files for the updated selection (preserves user edits)
+    const docFiles = generateComponentDocFiles(kit);
+    if (Object.keys(docFiles).length > 0) {
+      kitFsService.regenerateAdorableFiles(kit.id, docFiles).catch(err =>
+        console.error(`[Kit] Failed to regenerate .adorable files for kit "${kit.name}":`, err)
+      );
+    }
 
     res.json({ success: true, kit });
   } catch (error) {
@@ -744,6 +833,14 @@ router.post('/:id/rediscover', async (req: any, res) => {
       where: { id: user.id },
       data: { settings: JSON.stringify(updatedSettings) }
     });
+
+    // Regenerate .adorable files (preserves user edits, removes stale docs)
+    const docFiles = generateComponentDocFiles(kit);
+    if (Object.keys(docFiles).length > 0) {
+      kitFsService.regenerateAdorableFiles(kit.id, docFiles).catch(err =>
+        console.error(`[Kit] Failed to regenerate .adorable files for kit "${kit.name}":`, err)
+      );
+    }
 
     res.json({
       success: true,
@@ -849,6 +946,215 @@ router.get('/:id/catalog', async (req: any, res) => {
   } catch (error) {
     console.error('Catalog error:', error);
     res.status(500).json({ error: 'Failed to generate catalog' });
+  }
+});
+
+/**
+ * List all .adorable files for a kit
+ * GET /api/kits/:id/adorable-files
+ */
+router.get('/:id/adorable-files', async (req: any, res) => {
+  const { id } = req.params;
+
+  try {
+    const files = await kitFsService.listFiles(id);
+    res.json({ success: true, files });
+  } catch (error) {
+    console.error('List adorable files error:', error);
+    res.status(500).json({ error: 'Failed to list adorable files' });
+  }
+});
+
+/**
+ * Read a specific .adorable file for a kit
+ * GET /api/kits/:id/adorable-files/*
+ */
+router.get('/:id/adorable-files/*', async (req: any, res) => {
+  const { id } = req.params;
+  const filePath = req.params[0]; // everything after adorable-files/
+
+  if (!filePath) {
+    return res.status(400).json({ error: 'File path is required' });
+  }
+
+  try {
+    const content = await kitFsService.readFile(id, `.adorable/${filePath}`);
+    res.json({ success: true, path: `.adorable/${filePath}`, content });
+  } catch (error) {
+    res.status(404).json({ error: 'File not found' });
+  }
+});
+
+/**
+ * Update a specific .adorable file for a kit
+ * PUT /api/kits/:id/adorable-files/*
+ */
+router.put('/:id/adorable-files/*', async (req: any, res) => {
+  const { id } = req.params;
+  const filePath = req.params[0];
+  const { content } = req.body;
+
+  if (!filePath) {
+    return res.status(400).json({ error: 'File path is required' });
+  }
+  if (typeof content !== 'string') {
+    return res.status(400).json({ error: 'content (string) is required in body' });
+  }
+
+  try {
+    await kitFsService.writeFile(id, `.adorable/${filePath}`, content);
+    res.json({ success: true, path: `.adorable/${filePath}` });
+  } catch (error) {
+    console.error('Write adorable file error:', error);
+    res.status(500).json({ error: 'Failed to write file' });
+  }
+});
+
+/**
+ * List ALL files across the kit directory (both .adorable and template)
+ * GET /api/kits/:id/files
+ */
+router.get('/:id/files', async (req: any, res) => {
+  const { id } = req.params;
+
+  try {
+    const files = await kitFsService.listAllKitFiles(id);
+    res.json({ success: true, files });
+  } catch (error) {
+    console.error('List kit files error:', error);
+    res.status(500).json({ error: 'Failed to list kit files' });
+  }
+});
+
+/**
+ * Read a specific file from a kit's directory
+ * GET /api/kits/:id/files/*
+ */
+router.get('/:id/files/*', async (req: any, res) => {
+  const { id } = req.params;
+  const filePath = req.params[0];
+
+  if (!filePath) {
+    return res.status(400).json({ error: 'File path is required' });
+  }
+
+  try {
+    const content = await kitFsService.readFile(id, filePath);
+    res.json({ success: true, path: filePath, content });
+  } catch (error) {
+    res.status(404).json({ error: 'File not found' });
+  }
+});
+
+/**
+ * Update/create a specific file in a kit's directory
+ * PUT /api/kits/:id/files/*
+ */
+router.put('/:id/files/*', async (req: any, res) => {
+  const { id } = req.params;
+  const filePath = req.params[0];
+  const { content } = req.body;
+
+  if (!filePath) {
+    return res.status(400).json({ error: 'File path is required' });
+  }
+  if (typeof content !== 'string') {
+    return res.status(400).json({ error: 'content (string) is required in body' });
+  }
+
+  try {
+    await kitFsService.writeFile(id, filePath, content);
+    res.json({ success: true, path: filePath });
+  } catch (error) {
+    console.error('Write kit file error:', error);
+    res.status(500).json({ error: 'Failed to write file' });
+  }
+});
+
+/**
+ * Delete a specific file from a kit's directory
+ * DELETE /api/kits/:id/files/*
+ */
+router.delete('/:id/files/*', async (req: any, res) => {
+  const { id } = req.params;
+  const filePath = req.params[0];
+
+  if (!filePath) {
+    return res.status(400).json({ error: 'File path is required' });
+  }
+
+  try {
+    await kitFsService.deleteFile(id, filePath);
+    res.json({ success: true, path: filePath });
+  } catch (error) {
+    console.error('Delete kit file error:', error);
+    res.status(500).json({ error: 'Failed to delete file' });
+  }
+});
+
+/**
+ * Upload multiple files to a kit's directory
+ * POST /api/kits/:id/upload-files
+ */
+router.post('/:id/upload-files', async (req: any, res) => {
+  const { id } = req.params;
+  const { files } = req.body;
+
+  if (!files || !Array.isArray(files)) {
+    return res.status(400).json({ error: 'files array is required' });
+  }
+
+  try {
+    for (const file of files) {
+      if (!file.path || typeof file.content !== 'string') continue;
+      await kitFsService.writeFile(id, file.path, file.content);
+    }
+    res.json({ success: true, count: files.length });
+  } catch (error) {
+    console.error('Upload kit files error:', error);
+    res.status(500).json({ error: 'Failed to upload files' });
+  }
+});
+
+/**
+ * Force-regenerate all .adorable docs for a kit
+ * POST /api/kits/:id/regenerate-docs
+ */
+router.post('/:id/regenerate-docs', async (req: any, res) => {
+  const user = req.user;
+  const { id } = req.params;
+  const { overwrite } = req.body; // if true, discard user edits
+
+  try {
+    const settings = typeof user.settings === 'string'
+      ? JSON.parse(user.settings || '{}')
+      : (user.settings || {});
+
+    const kits = parseKitsFromSettings(settings);
+    const kit = kits.find(k => k.id === id);
+
+    if (!kit) {
+      return res.status(404).json({ error: 'Kit not found' });
+    }
+
+    const docFiles = generateComponentDocFiles(kit);
+    if (Object.keys(docFiles).length === 0) {
+      return res.status(400).json({ error: 'Kit has no components to generate docs for' });
+    }
+
+    if (overwrite) {
+      // Full overwrite — discard user edits
+      await kitFsService.writeKitAdorableFiles(id, docFiles);
+    } else {
+      // Smart merge — preserve user edits
+      await kitFsService.regenerateAdorableFiles(id, docFiles);
+    }
+
+    const files = await kitFsService.listFiles(id);
+    res.json({ success: true, fileCount: files.length, files });
+  } catch (error) {
+    console.error('Regenerate docs error:', error);
+    res.status(500).json({ error: 'Failed to regenerate docs' });
   }
 });
 

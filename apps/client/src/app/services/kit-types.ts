@@ -22,6 +22,7 @@ export interface KitTemplate {
   type: 'default' | 'custom';
   files: WebContainerFiles;
   angularVersion?: string;  // e.g., "17", "18", "21"
+  storedOnDisk?: boolean;   // true when template files are stored on disk
 }
 
 // Design Tokens - extracted from Storybook

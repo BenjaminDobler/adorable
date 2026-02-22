@@ -11,6 +11,7 @@ import { MCPManager } from '../mcp/mcp-manager';
 import { MCPToolResult } from '../mcp/types';
 import { Kit } from './kits/types';
 import { generateComponentCatalog, generateComponentDocFiles } from './kits/doc-generator';
+import { kitFsService } from '../services/kit-fs.service';
 
 export const SYSTEM_PROMPT =
 "You are an expert Angular developer.\n"
@@ -187,23 +188,42 @@ Only proceed with implementation after receiving the user's answers.`;
       activeKit = options.activeKit;
 
       const catalog = generateComponentCatalog(activeKit);
-      const docFiles = generateComponentDocFiles(activeKit);
+
+      // Try reading persisted .adorable files from disk first, fall back to generation
+      let docFiles: Record<string, string>;
+      try {
+        docFiles = await kitFsService.readKitAdorableFiles(activeKit.id);
+        if (Object.keys(docFiles).length === 0) {
+          docFiles = generateComponentDocFiles(activeKit);
+        }
+      } catch {
+        docFiles = generateComponentDocFiles(activeKit);
+      }
       const docFileCount = Object.keys(docFiles).length;
+
+      // Inject doc files into the MemoryFileSystem so the AI can read_files them.
+      // Uses injectFile to avoid leaking .adorable into accumulatedFiles / project disk.
+      // This runs regardless of whether a catalog exists — kits may have .adorable files
+      // from their template even without storybook-generated catalogs.
+      if (docFileCount > 0) {
+        for (const [filePath, content] of Object.entries(docFiles)) {
+          try {
+            await fs.readFile(filePath);
+            // File already exists (from template or saved project) — skip
+          } catch {
+            // File doesn't exist — inject the doc (readable but not accumulated)
+            if ('injectFile' in fs) {
+              (fs as MemoryFileSystem).injectFile(filePath, content);
+            } else {
+              await fs.writeFile(filePath, content);
+            }
+          }
+        }
+        logger.log('KIT_DOC_FILES_INJECTED', { kitName: activeKit.name, docFiles: docFileCount });
+      }
 
       if (catalog) {
         logger.log('KIT_CATALOG_INJECTED', { kitName: activeKit.name, catalogLength: catalog.length, docFiles: docFileCount });
-
-        // Write doc files into the MemoryFileSystem so the AI can read_files them
-        // Only write files that don't already exist (template/saved files take priority)
-        for (const [path, content] of Object.entries(docFiles)) {
-          try {
-            await fs.readFile(path);
-            // File already exists (from template or saved project) — skip
-          } catch {
-            // File doesn't exist — write the generated doc
-            await fs.writeFile(path, content);
-          }
-        }
 
         // Append compact catalog to user message
         userMessage += `\n\n--- Component Library: ${activeKit.name} ---\n`;
@@ -226,17 +246,41 @@ Only proceed with implementation after receiving the user's answers.`;
         if (activeKit.designTokens) {
           userMessage += `- Design tokens: \`.adorable/design-tokens.md\`\n`;
         }
-        if (activeKit.systemPrompt) {
-          userMessage += `\n--- Kit Instructions ---\n${activeKit.systemPrompt}\n`;
-        }
       } else {
         const storybookResource = activeKit.resources?.find((r: any) => r.type === 'storybook') as any;
         logger.log('KIT_CATALOG_EMPTY', {
           kitName: activeKit.name,
           hasStorybookResource: !!storybookResource,
           storybookStatus: storybookResource?.status,
-          selectedComponentCount: storybookResource?.selectedComponentIds?.length || 0
+          selectedComponentCount: storybookResource?.selectedComponentIds?.length || 0,
+          docFilesInjected: docFileCount
         });
+
+        // Even without a catalog, if we have doc files, instruct the AI to use them
+        if (docFileCount > 0) {
+          userMessage += `\n\n--- Component Library: ${activeKit.name} ---\n`;
+          userMessage += `\n**⚠️ MANDATORY — Component Documentation (READ BEFORE CODING):**\n`;
+          userMessage += `This project uses the **${activeKit.name}** component library. You MUST follow this workflow:\n\n`;
+          userMessage += `**Step 1: Read docs BEFORE writing any code.**\n`;
+          userMessage += `- Start by listing files in the \`.adorable/\` directory to discover available documentation.\n`;
+          userMessage += `- Then read the docs for EVERY component you plan to use: \`read_files\` → \`.adorable/components/{ComponentName}.md\`\n`;
+          userMessage += `- Batch-read multiple docs in one \`read_files\` call for efficiency.\n`;
+          userMessage += `- The docs contain the **correct export names, import paths, selectors, inputs, outputs, and usage examples**.\n\n`;
+          userMessage += `**Step 2: Only use components whose docs you have read.**\n`;
+          userMessage += `- **NEVER guess** import paths, export names, selectors, or APIs. They are NOT obvious and will cause build failures.\n`;
+          userMessage += `- If a component doc file doesn't exist under the exact name, list the \`.adorable/\` directory to find available files.\n`;
+          userMessage += `- Copy import paths and selectors directly from the docs — do not improvise.\n\n`;
+          userMessage += `**Step 3: Fix build errors by reading docs, NEVER by removing components.**\n`;
+          userMessage += `- If a build fails due to a component import or API error, read (or re-read) the component's doc file to find the correct usage.\n`;
+          userMessage += `- **NEVER remove or replace a library component with a plain HTML element.** Always fix the usage based on the docs.\n`;
+          if (activeKit.designTokens) {
+            userMessage += `- Design tokens: \`.adorable/design-tokens.md\`\n`;
+          }
+        }
+      }
+
+      if (activeKit.systemPrompt) {
+        userMessage += `\n--- Kit Instructions ---\n${activeKit.systemPrompt}\n`;
       }
     }
 

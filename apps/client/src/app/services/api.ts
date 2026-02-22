@@ -276,6 +276,31 @@ export class ApiService {
     return this.http.post<any>(`${this.apiUrl}/kits/component-metadata`, { packageName, componentName });
   }
 
+  // Kit file management
+  getKitFiles(kitId: string): Observable<{ success: boolean; files: { path: string; size: number; modified: string }[] }> {
+    return this.http.get<any>(`${this.apiUrl}/kits/${kitId}/files`);
+  }
+
+  getKitFile(kitId: string, filePath: string): Observable<{ success: boolean; path: string; content: string }> {
+    return this.http.get<any>(`${this.apiUrl}/kits/${kitId}/files/${filePath}`);
+  }
+
+  updateKitFile(kitId: string, filePath: string, content: string): Observable<{ success: boolean; path: string }> {
+    return this.http.put<any>(`${this.apiUrl}/kits/${kitId}/files/${filePath}`, { content });
+  }
+
+  deleteKitFile(kitId: string, filePath: string): Observable<{ success: boolean; path: string }> {
+    return this.http.delete<any>(`${this.apiUrl}/kits/${kitId}/files/${filePath}`);
+  }
+
+  uploadKitFiles(kitId: string, files: { path: string; content: string }[]): Observable<{ success: boolean; count: number }> {
+    return this.http.post<any>(`${this.apiUrl}/kits/${kitId}/upload-files`, { files });
+  }
+
+  regenerateKitDocs(kitId: string, overwrite?: boolean): Observable<{ success: boolean; fileCount: number; files: string[] }> {
+    return this.http.post<any>(`${this.apiUrl}/kits/${kitId}/regenerate-docs`, { overwrite });
+  }
+
   // Fetch metadata for multiple components
   fetchBatchComponentMetadata(packageName: string, componentNames: string[]): Observable<{
     success: boolean;

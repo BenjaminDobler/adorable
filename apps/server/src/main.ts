@@ -18,6 +18,7 @@ import { githubRouter } from './routes/github.routes';
 import { webhooksRouter } from './routes/webhooks.routes';
 import { mcpRouter } from './routes/mcp.routes';
 import { kitRouter } from './routes/kit.routes';
+import { kitFsService } from './services/kit-fs.service';
 // Native routes are handled by the desktop local agent, not the cloud server
 // import { nativeRouter } from './routes/native.routes';
 
@@ -105,6 +106,11 @@ app.use('/api/kits', kitRouter);
 
 const server = app.listen(PORT, () => {
   console.log(`Listening at http://localhost:${PORT}/api`);
+
+  // Migrate existing kits to disk storage (fire-and-forget, non-blocking)
+  kitFsService.migrateAllKits().catch(err =>
+    console.error('[Kit Migration] Failed:', err)
+  );
 
   // Signal to Electron that server is ready (for desktop mode)
   if (process.send) {

@@ -99,6 +99,15 @@ export class MemoryFileSystem implements FileSystemInterface {
     return results;
   }
 
+  /**
+   * Inject a file into the fileMap (readable by AI) without adding it to
+   * accumulatedFiles. This prevents the file from leaking into the project
+   * directory on disk when results are written back.
+   */
+  injectFile(path: string, content: string): void {
+    this.fileMap[path] = content;
+  }
+
   getAccumulatedFiles() {
     return this.accumulatedFiles;
   }

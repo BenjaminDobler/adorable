@@ -187,11 +187,15 @@ export class ProjectService {
     const id = this.projectId();
     const saveId = id && id !== 'new' ? id : undefined;
 
+    // Strip file snapshots from messages — git commits handle time-travel now.
+    // This keeps the save payload small.
+    const messagesWithoutFiles = this.messages().map(({ files: _files, ...rest }) => rest);
+
     this.apiService
       .saveProject(
         name,
         files,
-        this.messages(),
+        messagesWithoutFiles,
         saveId,
         thumbnail,
         this.figmaImports(),

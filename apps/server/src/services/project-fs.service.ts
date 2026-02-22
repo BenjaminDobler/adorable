@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import { STORAGE_DIR } from '../config';
 
-const EXCLUDED_DIRS = new Set(['node_modules', '.git', '.angular', 'dist', '.cache', 'tmp', '.nx']);
+const EXCLUDED_DIRS = new Set(['node_modules', '.git', '.angular', 'dist', '.cache', 'tmp', '.nx', '.adorable']);
 const BINARY_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.pdf', '.eot', '.ttf', '.woff', '.woff2', '.mp3', '.mp4', '.zip', '.tar', '.gz']);
 
 export class ProjectFsService {
@@ -37,7 +37,7 @@ export class ProjectFsService {
 
   private async writeTree(basePath: string, files: any): Promise<void> {
     for (const name in files) {
-      if (name === '.DS_Store') continue;
+      if (name === '.DS_Store' || name === '.adorable') continue;
       const node = files[name];
       const targetPath = path.join(basePath, name);
 
