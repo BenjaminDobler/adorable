@@ -27,9 +27,16 @@ export const SYSTEM_PROMPT =
 +"- **DO NOT over-explore.** Read only the files you need to modify. Do NOT recursively list every directory. If you have the file structure, use `read_files` directly on the files you need. Start writing code as soon as possible — do not spend more than 2-3 turns reading/exploring.\n"
 +"- Use `write_files` (plural) to create or update multiple files in a single call. This is MUCH faster. Always prefer `write_files` over `write_file`.\n"
 +"- **PREFER `edit_file`** for modifications to existing files. Only use `write_file`/`write_files` for NEW files or when rewriting >50% of content. `edit_file` is faster and less error-prone. `old_str` must match exactly.\n"
++"- **BEFORE using `edit_file`**, always `read_file` first to get the current file content. Never rely on your memory of the file — it may have changed. The `old_str` must match the EXACT current content.\n"
 +"- Use `delete_file` to remove files from the project. Use `rename_file` to move or rename files. Use `copy_file` to duplicate files.\n"
 +"- **BATCH TOOL CALLS:** When multiple independent operations are needed (e.g., reading several unrelated files, or writing files that don't depend on each other), invoke ALL tools in a single response. Never make sequential calls for independent operations.\n"
-+"- Use `run_command` to execute shell commands. **MANDATORY:** After you finish creating or modifying ALL components, you MUST run `npm run build` as your FINAL step to verify compilation. Do NOT end your turn without running the build. If the build fails (exit code != 0), read the error output, fix the file(s), and RE-RUN the build until it succeeds. If `run_command` is not available, you MUST manually verify: every import references an existing file, every `templateUrl` and `styleUrl` points to a file you created, every component used in a template is imported in that component's `imports` array, and the root `app.component.html` contains the correct top-level markup with router-outlet or child component selectors.\n\n"
++"- Use `run_command` to execute shell commands. **MANDATORY:** After you finish creating or modifying ALL components, you MUST run `npm run build` as your FINAL step to verify compilation. Do NOT end your turn without running the build. If the build fails (exit code != 0), read the error output, fix the file(s), and RE-RUN the build until it succeeds. If `run_command` is not available, you MUST manually verify: every import references an existing file, every `templateUrl` and `styleUrl` points to a file you created, every component used in a template is imported in that component's `imports` array, and the root `app.component.html` contains the correct top-level markup with router-outlet or child component selectors.\n"
++"- **PRE-BUILD CHECKLIST:** Before running `npm run build`, verify:\n"
++"  1. All import paths match exactly what the component documentation specifies (import path ≠ HTML tag name in many libraries)\n"
++"  2. All HTML element tags match the component doc's **Selector** field (e.g., `<ui5-li>` not `<ui5-list-item-standard>`)\n"
++"  3. All exported type/interface names are consistent across files — use the exact names from your model file\n"
++"  4. All services use `inject()` not constructor injection\n"
++"- **FIX BUILD ERRORS SURGICALLY:** When a build fails, use `edit_file` to fix the specific error — do NOT rewrite the entire file with `write_files`. Re-read the file first if you are unsure of its current content.\n\n"
 +"**RESTRICTED FILES (DO NOT EDIT):**\n"
 +"- `package.json`, `angular.json`, `tsconfig.json`, `tsconfig.app.json`: Do NOT modify these files unless you are explicitly adding a dependency or changing a build configuration.\n"
 +"- **NEVER** overwrite `package.json` with a generic template. The project is already set up with Angular 21.\n"
@@ -106,7 +113,7 @@ export abstract class BaseLLMProvider {
     mcpManager?: MCPManager;
     activeKitName?: string;
   }> {
-    const logger = new DebugLogger(providerName);
+    const logger = new DebugLogger(providerName, options.projectId);
     const fs: FileSystemInterface = options.fileSystem || new MemoryFileSystem(this.flattenFiles(options.previousFiles || {}));
 
     const skillRegistry = new SkillRegistry();
@@ -238,7 +245,8 @@ Only proceed with implementation after receiving the user's answers.`;
         userMessage += `**Step 2: Only use components whose docs you have read.**\n`;
         userMessage += `- **NEVER guess** import paths, export names, selectors, or APIs. They are NOT obvious and will cause build failures.\n`;
         userMessage += `- If a component doc file doesn't exist under the exact name, check the README for the correct filename.\n`;
-        userMessage += `- Copy import paths and selectors directly from the docs — do not improvise.\n\n`;
+        userMessage += `- Copy import paths and selectors directly from the docs — do not improvise.\n`;
+        userMessage += `- **⚠️ CRITICAL: Import paths and HTML tags often DO NOT match.** For example, the import path might be \`/text-area\` while the HTML tag is \`<ui5-textarea>\`, or the import might be \`/list-item-standard\` while the tag is \`<ui5-li>\`. Always copy BOTH the import path AND the selector exactly from the doc.\n\n`;
         userMessage += `**Step 3: Fix build errors by reading docs, NEVER by removing components.**\n`;
         userMessage += `- If a build fails due to a component import or API error, read (or re-read) the component's doc file to find the correct usage.\n`;
         userMessage += `- **NEVER remove or replace a library component with a plain HTML element.** Always fix the usage based on the docs.\n`;
@@ -269,7 +277,8 @@ Only proceed with implementation after receiving the user's answers.`;
           userMessage += `**Step 2: Only use components whose docs you have read.**\n`;
           userMessage += `- **NEVER guess** import paths, export names, selectors, or APIs. They are NOT obvious and will cause build failures.\n`;
           userMessage += `- If a component doc file doesn't exist under the exact name, list the \`.adorable/\` directory to find available files.\n`;
-          userMessage += `- Copy import paths and selectors directly from the docs — do not improvise.\n\n`;
+          userMessage += `- Copy import paths and selectors directly from the docs — do not improvise.\n`;
+          userMessage += `- **⚠️ CRITICAL: Import paths and HTML tags often DO NOT match.** For example, the import path might be \`/text-area\` while the HTML tag is \`<ui5-textarea>\`, or the import might be \`/list-item-standard\` while the tag is \`<ui5-li>\`. Always copy BOTH the import path AND the selector exactly from the doc.\n\n`;
           userMessage += `**Step 3: Fix build errors by reading docs, NEVER by removing components.**\n`;
           userMessage += `- If a build fails due to a component import or API error, read (or re-read) the component's doc file to find the correct usage.\n`;
           userMessage += `- **NEVER remove or replace a library component with a plain HTML element.** Always fix the usage based on the docs.\n`;
@@ -627,7 +636,7 @@ Only proceed with implementation after receiving the user's answers.`;
                 ctx.failedBuildCount++;
                 // After repeated build failures with an active kit, remind about docs
                 if (ctx.activeKitName && ctx.failedBuildCount >= 2) {
-                  const nudge = `\n\n🚨 **BUILD FAILURE #${ctx.failedBuildCount} — STOP AND READ THE DOCS.**\nYou have had ${ctx.failedBuildCount} consecutive build failures with the ${ctx.activeKitName} component library. You MUST:\n1. Identify which components are causing errors\n2. Read their documentation: \`read_files\` → \`.adorable/components/{ComponentName}.md\`\n3. Fix the imports, selectors, and APIs based on the docs\n**DO NOT remove or replace library components with plain HTML. DO NOT guess — read the docs.**`;
+                  const nudge = `\n\n🚨 **BUILD FAILURE #${ctx.failedBuildCount} — STOP AND READ THE DOCS.**\nYou have had ${ctx.failedBuildCount} consecutive build failures with the ${ctx.activeKitName} component library. You MUST:\n1. Identify which components are causing errors\n2. Read their documentation: \`read_files\` → \`.adorable/components/{ComponentName}.md\`\n3. Fix the imports, selectors, and APIs based on the docs\n4. Remember: import paths and HTML tags often DO NOT match (e.g. import from \`/text-area\` but tag is \`<ui5-textarea>\`)\n5. Use \`edit_file\` to fix the specific error — do NOT rewrite entire files\n6. \`read_file\` BEFORE \`edit_file\` to get the exact current content\n**DO NOT remove or replace library components with plain HTML. DO NOT guess — read the docs.**`;
                   content += nudge;
                   ctx.logger.logText('BUILD_FAILURE_NUDGE', nudge, { failedBuildCount: ctx.failedBuildCount, activeKitName: ctx.activeKitName });
                 }

@@ -2,36 +2,55 @@ export const ANGULAR_KNOWLEDGE_BASE = `
 # Angular 21 Expert Knowledge Base
 
 ## Core Concepts
-- **Standalone Components:** All components must use \x60standalone: true\x60. Do not use NgModules.
-- **Signals:** Use Signals for all state management. Avoid \x60Zone.js\x60 reliance where possible.
-  - State: \x60count = signal(0)\x60
-  - Computed: \x60double = computed(() => this.count() * 2)\x60
-  - Effects: \x60effect(() => console.log(this.count()))\x60
+- **Standalone Components:** All components must use \`standalone: true\`. Do not use NgModules.
+- **Signals:** Use Signals for all state management. Avoid \`Zone.js\` reliance where possible.
+  - State: \`count = signal(0)\`
+  - Computed: \`double = computed(() => this.count() * 2)\`
+  - Effects: \`effect(() => console.log(this.count()))\`
 - **Control Flow:** Use the new block syntax:
-  - \x60@if (cond) { ... } @else { ... }\x60
-  - \x60@for (item of items; track item.id) { ... }\x60
-  - \x60@switch (val) { @case (1) { ... } }\x60
+  - \`@if (cond) { ... } @else { ... }\`
+  - \`@for (item of items; track item.id) { ... }\`
+  - \`@switch (val) { @case (1) { ... } }\`
 
 ## Styling
 - Use **CSS Variables** for theming.
-- Prefer **Host Binding** via \x60:host\x60 selector for component layout.
-- Use \x60encapsulation: ViewEncapsulation.Emulated\x60 (default).
+- Prefer **Host Binding** via \`:host\` selector for component layout.
+- Use \`encapsulation: ViewEncapsulation.Emulated\` (default).
 
 ## Routing
-- Use \x60loadComponent\x60 for lazy loading routes.
-- Use \x60inject(Router)\x60 instead of constructor injection.
+- Use \`loadComponent\` for lazy loading routes.
+- Use \`inject(Router)\` instead of constructor injection.
+
+## Dependency Injection (CRITICAL)
+- **ALWAYS use \`inject()\` — NEVER use constructor injection.**
+- \`inject()\` must be used for ALL services, Router, ActivatedRoute, HttpClient, etc.
+- Constructor injection causes \`TS2729: Property used before initialization\` when combined with signal field initializers.
+\`\`\`typescript
+// CORRECT — inject() works with signal field initializers
+export class MyComponent {
+  private router = inject(Router);
+  private myService = inject(MyService);
+  items = this.myService.getItems(); // Works — inject() runs before field init
+}
+
+// WRONG — constructor injection breaks signal field initializers
+export class MyComponent {
+  constructor(private myService: MyService) {}
+  items = this.myService.getItems(); // TS2729: 'myService' used before initialization
+}
+\`\`\`
 
 ## HTTP
-- Use \x60inject(HttpClient)\x60.
-- Use \x60toSignal\x60 from \x60@angular/core/rxjs-interop\x60 to convert Observables to Signals.
+- Use \`inject(HttpClient)\`.
+- Use \`toSignal\` from \`@angular/core/rxjs-interop\` to convert Observables to Signals.
 
 ## Forms
-- Use \x60FormsModule\x60 for template-driven forms (simple).
-- Use \x60ReactiveFormsModule\x60 for complex logic.
+- Use \`FormsModule\` for template-driven forms (simple).
+- Use \`ReactiveFormsModule\` for complex logic.
 
 ## Best Practices
-- **Strict Typing:** Always define interfaces.
-- **Separation of Concerns:** Move logic to Services (\x60@Injectable({providedIn: 'root'})\x60).
-- **Inputs/Outputs:** Use Signal Inputs \x60input.required<string>()\x60 and \x60output<void>()\x60.
-- **Injection:** Prefer \x60inject(Service)\x60 over constructor arguments.
+- **Strict Typing:** Always define interfaces and type aliases. Establish type names in the model file FIRST, then use those exact names consistently across all files that import them.
+- **Separation of Concerns:** Move logic to Services (\`@Injectable({providedIn: 'root'})\`).
+- **Inputs/Outputs:** Use Signal Inputs \`input.required<string>()\` and \`output<void>()\`.
+- **Injection:** ALWAYS use \`inject(Service)\` — NEVER use constructor arguments.
 `;
