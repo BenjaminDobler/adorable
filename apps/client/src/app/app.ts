@@ -128,7 +128,6 @@ export class AppComponent implements AfterViewChecked {
   } | null = null;
   startPoint: { x: number; y: number } | null = null;
   isDragging = false;
-  private isSavingWithThumbnail = false;
 
   constructor() {
 
@@ -204,17 +203,6 @@ export class AppComponent implements AfterViewChecked {
           level: event.data.level,
           message: event.data.message,
         });
-      }
-
-      if (event.data.type === 'CAPTURE_RES') {
-        if (this.isSavingWithThumbnail) {
-          this.projectService.saveProject(event.data.image);
-          this.isSavingWithThumbnail = false;
-        } else if (this.chatComponent && this.isSelecting) {
-          this.chatComponent.setImage(event.data.image);
-          this.isSelecting = false;
-          this.selectionRect = null;
-        }
       }
 
       if (event.data.type === 'ELEMENT_SELECTED') {
@@ -432,26 +420,18 @@ export class AppComponent implements AfterViewChecked {
     this.startPoint = null;
   }
 
-  captureSelection(rect: {
+  async captureSelection(rect: {
     x: number;
     y: number;
     width: number;
     height: number;
   }) {
-    const iframe = document.querySelector('iframe');
-    if (!iframe) return;
-
-    const iframeRect = iframe.getBoundingClientRect();
-    const relX = rect.x - iframeRect.left;
-    const relY = rect.y - iframeRect.top;
-
-    iframe.contentWindow?.postMessage(
-      {
-        type: 'CAPTURE_REQ',
-        rect: { x: relX, y: relY, width: rect.width, height: rect.height },
-      },
-      '*',
-    );
+    const image = await this.screenshotService.captureRegion(rect);
+    if (image && this.chatComponent) {
+      this.chatComponent.setImage(image);
+    }
+    this.isSelecting = false;
+    this.selectionRect = null;
   }
 
   reloadIframe() {

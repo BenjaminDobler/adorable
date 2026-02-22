@@ -36,25 +36,35 @@ export class ProjectFsService {
   }
 
   private async writeTree(basePath: string, files: any): Promise<void> {
+    const fileWrites: Promise<void>[] = [];
+    const dirWrites: Promise<void>[] = [];
+
     for (const name in files) {
       if (name === '.DS_Store' || name === '.adorable') continue;
       const node = files[name];
       const targetPath = path.join(basePath, name);
 
       if (node.file) {
-        // Ensure parent directory exists
-        await fs.mkdir(path.dirname(targetPath), { recursive: true });
-        const contents = node.file.contents;
-        if (node.file.encoding === 'base64') {
-          await fs.writeFile(targetPath, Buffer.from(contents, 'base64'));
-        } else {
-          await fs.writeFile(targetPath, contents);
-        }
+        fileWrites.push(
+          fs.mkdir(path.dirname(targetPath), { recursive: true }).then(() => {
+            const contents = node.file.contents;
+            if (node.file.encoding === 'base64') {
+              return fs.writeFile(targetPath, Buffer.from(contents, 'base64'));
+            } else {
+              return fs.writeFile(targetPath, contents);
+            }
+          })
+        );
       } else if (node.directory) {
-        await fs.mkdir(targetPath, { recursive: true });
-        await this.writeTree(targetPath, node.directory);
+        dirWrites.push(
+          fs.mkdir(targetPath, { recursive: true }).then(() =>
+            this.writeTree(targetPath, node.directory)
+          )
+        );
       }
     }
+
+    await Promise.all([...fileWrites, ...dirWrites]);
   }
 
   /**

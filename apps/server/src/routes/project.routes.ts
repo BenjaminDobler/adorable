@@ -52,6 +52,22 @@ router.post('/', async (req: any, res) => {
     if (id && id !== 'new-project' && id !== 'new') {
       // Update existing project
       console.log(`[Save Project] Updating existing project ${id}`);
+
+      // Only append new messages instead of deleting and recreating all
+      let messageOp: any = undefined;
+      if (messages) {
+        const existingCount = await prisma.chatMessage.count({ where: { projectId: id } });
+        const newMessages = messageCreateData.slice(existingCount);
+        if (newMessages.length > 0 || existingCount > messages.length) {
+          if (existingCount > messages.length) {
+            // Messages were removed (e.g. conversation reset) — full replace
+            messageOp = { deleteMany: {}, create: messageCreateData };
+          } else {
+            messageOp = { create: newMessages };
+          }
+        }
+      }
+
       project = await prisma.project.update({
         where: { id: id, userId: user.id },
         data: {
@@ -60,10 +76,7 @@ router.post('/', async (req: any, res) => {
           thumbnail,
           figmaImports: figmaImports ? JSON.stringify(figmaImports) : undefined,
           selectedKitId: selectedKitId !== undefined ? selectedKitId : undefined,
-          messages: messages ? {
-            deleteMany: {}, // Clear old messages
-            create: messageCreateData
-          } : undefined
+          messages: messageOp
         }
       });
     } else {

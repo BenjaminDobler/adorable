@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Adorable Screenshot",
+  "version": "1.0.0",
+  "description": "Fast screenshot capture for the Adorable IDE",
+  "permissions": [],
+  "host_permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["http://localhost:*/*", "https://*.adorable.dev/*"],
+      "js": ["page.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["http://localhost:*/*", "https://*.adorable.dev/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

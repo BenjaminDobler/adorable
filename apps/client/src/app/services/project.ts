@@ -177,13 +177,6 @@ export class ProjectService {
 
     this.loading.set(true);
 
-    // Capture thumbnail if not provided
-    if (!thumbnail) {
-      console.log('[ProjectService] capturing thumbnail...');
-      const captured = await this.screenshotService.captureThumbnail();
-      if (captured) thumbnail = captured;
-    }
-
     const id = this.projectId();
     const saveId = id && id !== 'new' ? id : undefined;
 
@@ -191,29 +184,61 @@ export class ProjectService {
     // This keeps the save payload small.
     const messagesWithoutFiles = this.messages().map(({ files: _files, ...rest }) => rest);
 
-    this.apiService
-      .saveProject(
-        name,
-        files,
-        messagesWithoutFiles,
-        saveId,
-        thumbnail,
-        this.figmaImports(),
-        this.selectedKitId(),
-      )
-      .subscribe({
-        next: (project) => {
-          this.toastService.show('Project saved successfully!', 'success');
-          this.projectId.set(project.id);
-          this.loading.set(false);
-          this.saveVersion.update(v => v + 1);
-        },
-        error: (err) => {
-          console.error(err);
-          this.toastService.show('Failed to save project', 'error');
-          this.loading.set(false);
-        },
-      });
+    // Start thumbnail capture in parallel — don't block the save
+    let thumbnailPromise: Promise<string | null> | undefined;
+    if (!thumbnail) {
+      console.log('[ProjectService] capturing thumbnail (non-blocking)...');
+      thumbnailPromise = this.screenshotService.captureThumbnail();
+    }
+
+    const doSave = (thumb?: string) => {
+      this.apiService
+        .saveProject(
+          name,
+          files,
+          messagesWithoutFiles,
+          saveId,
+          thumb,
+          this.figmaImports(),
+          this.selectedKitId(),
+        )
+        .subscribe({
+          next: (project) => {
+            this.toastService.show('Project saved successfully!', 'success');
+            this.projectId.set(project.id);
+            this.loading.set(false);
+            this.saveVersion.update(v => v + 1);
+          },
+          error: (err) => {
+            console.error(err);
+            this.toastService.show('Failed to save project', 'error');
+            this.loading.set(false);
+          },
+        });
+    };
+
+    if (thumbnail) {
+      doSave(thumbnail);
+    } else if (thumbnailPromise) {
+      // Race: if thumbnail resolves quickly, include it; otherwise save without it
+      const quickThumb = await Promise.race([
+        thumbnailPromise,
+        new Promise<null>(r => setTimeout(() => r(null), 1500)),
+      ]);
+      doSave(quickThumb ?? undefined);
+
+      // If thumbnail wasn't ready yet, update it after capture completes
+      if (!quickThumb) {
+        thumbnailPromise.then(captured => {
+          if (captured && saveId) {
+            console.log('[ProjectService] Updating thumbnail after save');
+            this.apiService.saveProject(name, files, messagesWithoutFiles, saveId, captured, this.figmaImports(), this.selectedKitId()).subscribe();
+          }
+        });
+      }
+    } else {
+      doSave();
+    }
   }
 
   async publish() {

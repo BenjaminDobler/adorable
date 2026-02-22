@@ -573,70 +573,34 @@ export const RUNTIME_SCRIPTS = `
       });
     })();
     
-    // Screenshot logic
+    // Screenshot logic — html2canvas only (fast native capture handled by ScreenshotService)
     (function() {
-      let domToCanvas;
-      
-      console.log('[Runtime] Initializing screenshot logic...');
-
-      // Load modern-screenshot dynamically as an ES module
-      import('https://cdn.jsdelivr.net/npm/modern-screenshot/+esm').then(mod => {
-        domToCanvas = mod.domToCanvas;
-        console.log('[Runtime] modern-screenshot loaded successfully');
-      }).catch(err => console.error('[Runtime] Failed to load modern-screenshot', err));
-
       window.addEventListener('message', async (event) => {
         if (event.data.type === 'CAPTURE_REQ') {
-          console.log('[Runtime] Received CAPTURE_REQ', event.data.rect);
           const { x, y, width, height } = event.data.rect;
-          if (!domToCanvas) {
-             console.warn('[Runtime] modern-screenshot not loaded yet');
-             return;
-          }
 
           try {
-            console.log('[Runtime] Capturing screenshot...');
-            let dataUrl;
-
-            try {
-              // Primary method: modern-screenshot
-              const canvas = await domToCanvas(document.body, {
-                width: width,
-                height: height,
-                scale: 0.5,
-                features: { copyCSSStyles: true },
-                style: {
-                  transform: 'translate(-' + x + 'px, -' + y + 'px)',
-                  transformOrigin: 'top left'
-                }
-              });
-              dataUrl = canvas.toDataURL('image/png');
-            } catch (modernErr) {
-              console.warn('[Runtime] modern-screenshot failed, falling back to html2canvas', modernErr);
-              if (window.html2canvas) {
-                const canvas = await window.html2canvas(document.body, {
-                  x: x,
-                  y: y,
-                  width: width,
-                  height: height,
-                  scale: 1,
-                  useCORS: true,
-                  allowTaint: true,
-                  logging: true
-                });
-                dataUrl = canvas.toDataURL('image/png');
-              } else {
-                throw modernErr;
-              }
+            if (!window.html2canvas) {
+              console.warn('[Runtime] html2canvas not available');
+              window.parent.postMessage({ type: 'CAPTURE_RES', image: null }, '*');
+              return;
             }
-            
-            console.log('[Runtime] Screenshot captured successfully');
-            window.parent.postMessage({ 
-              type: 'CAPTURE_RES', 
-              image: dataUrl 
-            }, '*');
-          } catch (err) { 
-            console.error('[Runtime] All screenshot methods failed:', err); 
+
+            const canvas = await window.html2canvas(document.body, {
+              x: x,
+              y: y,
+              width: width,
+              height: height,
+              scale: 0.5,
+              useCORS: true,
+              allowTaint: true,
+              logging: false
+            });
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            window.parent.postMessage({ type: 'CAPTURE_RES', image: dataUrl }, '*');
+          } catch (err) {
+            console.error('[Runtime] Screenshot capture failed:', err);
+            window.parent.postMessage({ type: 'CAPTURE_RES', image: null }, '*');
           }
         }
       });

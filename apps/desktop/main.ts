@@ -155,6 +155,21 @@ app.on('ready', async () => {
       return localUserToken;
     });
 
+    // Register IPC handler for fast screenshot capture
+    ipcMain.handle('capture-page', async (_event, rect?: { x: number; y: number; width: number; height: number }) => {
+      if (!mainWindow) return null;
+      try {
+        const nativeRect = rect
+          ? { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) }
+          : undefined;
+        const image = await mainWindow.webContents.capturePage(nativeRect);
+        return image.toDataURL();
+      } catch (err) {
+        console.error('[Desktop] capture-page failed:', err);
+        return null;
+      }
+    });
+
     // Start the embedded backend server
     console.log('[Desktop] Starting embedded server...');
     await startEmbeddedServer();
