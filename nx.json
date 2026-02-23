@@ -80,5 +80,8 @@
     "@nx/angular:component": {
       "style": "scss"
     }
+  },
+  "tui": {
+    "enabled": false
   }
 }
