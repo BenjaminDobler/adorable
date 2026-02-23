@@ -67,11 +67,16 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       console.log('[Gemini] URL Context tool enabled');
     }
 
+    // Map reasoning effort to Gemini thinking budget
+    const geminiEffort = options.reasoningEffort || 'high';
+    const thinkingBudget = geminiEffort === 'low' ? 1024 : geminiEffort === 'medium' ? 8192 : -1;
+
     const chat = ai.chats.create({
       model: modelName,
       config: {
         tools: geminiTools,
         systemInstruction: ANGULAR_KNOWLEDGE_BASE + '\n\n' + effectiveSystemPrompt,
+        thinkingConfig: { thinkingBudget },
       },
       history: []
     });

@@ -9,7 +9,7 @@ export class ApiService {
   private http = inject(HttpClient);
   private apiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api';
 
-  generateStream(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[], openFiles?: { [path: string]: string }, use_container_context?: boolean, forcedSkill?: string, planMode?: boolean, kitId?: string, projectId?: string, builtInTools?: { webSearch?: boolean, urlContext?: boolean } }): Observable<any> {
+  generateStream(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[], openFiles?: { [path: string]: string }, use_container_context?: boolean, forcedSkill?: string, planMode?: boolean, kitId?: string, projectId?: string, builtInTools?: { webSearch?: boolean, urlContext?: boolean }, reasoningEffort?: string }): Observable<any> {
     return new Observable(observer => {
       const token = localStorage.getItem('adorable_token');
       

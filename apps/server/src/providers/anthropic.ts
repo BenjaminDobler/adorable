@@ -86,12 +86,15 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
 
     let turnCount = 0;
 
+    const effort = options.reasoningEffort || 'high';
+
     while (turnCount < maxTurns) {
       logger.log('TURN_START', { turn: turnCount });
       this.pruneMessages(messages);
       const stream = await anthropic.messages.create({
         model: modelToUse,
-        max_tokens: 16384,
+        max_tokens: 32768,
+        thinking: { type: 'enabled', budget_tokens: effort === 'low' ? 1024 : effort === 'medium' ? 8192 : 16384 } as any,
         system: [
           { type: 'text', text: ANGULAR_KNOWLEDGE_BASE, cache_control: { type: 'ephemeral' } },
           { type: 'text', text: effectiveSystemPrompt, cache_control: { type: 'ephemeral' } }
@@ -115,7 +118,10 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
           callbacks.onTokenUsage?.({ inputTokens: totalInputTokens, outputTokens: totalOutputTokens, totalTokens: totalInputTokens + totalOutputTokens });
         }
         if (event.type === 'content_block_start') {
-          if (event.content_block.type === 'tool_use') {
+          if (event.content_block.type === 'thinking') {
+            // Preserve thinking blocks in message history (required by API) but don't stream to client
+            assistantMessageContent.push({ type: 'thinking', thinking: '' });
+          } else if (event.content_block.type === 'tool_use') {
             currentToolUse = { id: event.content_block.id, name: event.content_block.name, input: '' };
             toolUses.push(currentToolUse);
             assistantMessageContent.push(event.content_block);
@@ -132,7 +138,11 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
           }
         }
         if (event.type === 'content_block_delta') {
-          if (event.delta.type === 'text_delta') {
+          if (event.delta.type === 'thinking_delta') {
+            // Accumulate thinking text for message history but don't stream to client
+            const lastBlock = assistantMessageContent[assistantMessageContent.length - 1];
+            if (lastBlock?.type === 'thinking') lastBlock.thinking += (event.delta as any).thinking;
+          } else if (event.delta.type === 'text_delta') {
             ctx.fullExplanation += event.delta.text;
             callbacks.onText?.(event.delta.text);
             const lastBlock = assistantMessageContent[assistantMessageContent.length - 1];
@@ -257,7 +267,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       messages.push({ role: 'user', content: [{ type: 'text', text: userMessage }] });
       this.pruneMessages(messages);
       const stream = await anthropic.messages.create({
-        model: modelToUse, max_tokens: 16384,
+        model: modelToUse, max_tokens: 32768,
+        thinking: { type: 'enabled', budget_tokens: effort === 'low' ? 1024 : effort === 'medium' ? 8192 : 16384 } as any,
         system: [
           { type: 'text', text: ANGULAR_KNOWLEDGE_BASE, cache_control: { type: 'ephemeral' } },
           { type: 'text', text: effectiveSystemPrompt, cache_control: { type: 'ephemeral' } }
@@ -272,7 +283,9 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
 
       for await (const event of stream) {
         if (event.type === 'content_block_start') {
-          if (event.content_block.type === 'tool_use') {
+          if (event.content_block.type === 'thinking') {
+            assistantContent.push({ type: 'thinking', thinking: '' });
+          } else if (event.content_block.type === 'tool_use') {
             currentTool = { id: event.content_block.id, name: event.content_block.name, input: '' };
             toolUsesRaw.push(currentTool);
             assistantContent.push(event.content_block);
@@ -287,7 +300,10 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
           }
         }
         if (event.type === 'content_block_delta') {
-          if (event.delta.type === 'text_delta') {
+          if (event.delta.type === 'thinking_delta') {
+            const lastBlock = assistantContent[assistantContent.length - 1];
+            if (lastBlock?.type === 'thinking') lastBlock.thinking += (event.delta as any).thinking;
+          } else if (event.delta.type === 'text_delta') {
             ctx.fullExplanation += event.delta.text;
             callbacks.onText?.(event.delta.text);
             const lastBlock = assistantContent[assistantContent.length - 1];

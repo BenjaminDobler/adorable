@@ -23,6 +23,7 @@ export interface GenerateOptions {
   activeKit?: Kit; // Active component kit for this generation
   projectId?: string; // Project ID for debug log filenames
   builtInTools?: BuiltInToolConfig; // Built-in provider tools (web search, etc.)
+  reasoningEffort?: 'low' | 'medium' | 'high'; // Controls model thinking depth
 }
 
 export interface TokenUsage {

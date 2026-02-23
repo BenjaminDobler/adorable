@@ -129,6 +129,9 @@ export class ChatComponent implements OnDestroy {
   figmaContext = signal<any>(null);
   figmaImages = signal<string[]>([]);
 
+  // Reasoning effort - controls thinking depth per-prompt
+  reasoningEffort = signal<'low' | 'medium' | 'high'>('high');
+
   // Plan Mode - forces AI to ask clarifying questions before coding
   planMode = signal(false);
 
@@ -307,6 +310,12 @@ export class ChatComponent implements OnDestroy {
                    const toAdd = newModels.filter((n: any) => !existingIds.has(n.id));
                    return [...current, ...toAdd];
                 });
+                // Auto-select: prefer the model configured in the active profile
+                if (!this.selectedModel() && this.availableModels().length > 0) {
+                   const activeProfile = this.appSettings?.profiles?.find((p: any) => p.id === this.appSettings.activeProfileId);
+                   const preferred = activeProfile ? this.availableModels().find((m: any) => m.id === activeProfile.model) : null;
+                   this.selectedModel.set(preferred || this.availableModels()[0]);
+                }
              },
              error: (err) => console.error(`Failed to fetch models for chat dropdown (${profile.provider})`, err)
           });
@@ -906,7 +915,8 @@ Analyze the attached design images carefully and create matching Angular compone
       planMode: this.planMode(),
       kitId: this.projectService.selectedKitId() || undefined,
       projectId: this.projectService.projectId() || undefined,
-      builtInTools
+      builtInTools,
+      reasoningEffort: this.reasoningEffort()
     }).subscribe({
       next: async (event) => {
         if (event.type !== 'tool_delta' && event.type !== 'text') { 

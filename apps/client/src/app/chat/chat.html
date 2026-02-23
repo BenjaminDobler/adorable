@@ -677,6 +677,22 @@
           </div>
         </div>
 
+        <!-- Reasoning Effort -->
+        <div class="effort-selector-wrapper" style="position: relative; display: inline-block; margin-right: 8px;">
+          <select
+            [ngModel]="reasoningEffort()"
+            (ngModelChange)="reasoningEffort.set($event)"
+            style="appearance: none; background: var(--bg-surface-3); border: 1px solid var(--panel-border); border-radius: var(--radius-sm); color: var(--text-secondary); padding: 4px 28px 4px 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer; outline: none; height: 30px; max-width: 120px; transition: all 0.2s;"
+            title="Reasoning effort — how deeply the model thinks before responding">
+            <option value="low">Low effort</option>
+            <option value="medium">Medium effort</option>
+            <option value="high">High effort</option>
+          </select>
+          <div style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-muted);">
+             <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="3" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
+        </div>
+
         <!-- Kit Selector
         @if (availableKits().length > 0) {
           <div class="kit-selector-wrapper" style="position: relative; display: inline-block; margin-right: 8px;">
