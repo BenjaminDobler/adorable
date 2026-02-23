@@ -88,6 +88,7 @@ export class AppComponent implements AfterViewChecked {
   selectedFilePath = signal('');
 
   sidebarWidth = signal(400);
+  sidebarPopoverOpen = signal(false);
   editorHeight = signal(50);
   isResizingEditor = false;
   isResizingSidebar = false;

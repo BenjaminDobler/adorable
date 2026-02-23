@@ -629,12 +629,12 @@
     }
   </div>
 
-  <div class="input-container" 
+  <div class="input-container"
        [class.dragging]="isDragging"
        (drop)="onDrop($event)"
        (dragover)="onDragOver($event)"
        (dragleave)="onDragLeave($event)">
-    
+
     <textarea
       #promptTextarea
       [(ngModel)]="prompt"
@@ -643,80 +643,26 @@
       (input)="autoResize()"
       (keydown)="onTextareaKeydown($event)">
     </textarea>
-    
+
     <div class="input-footer">
       <div class="tool-group">
-        <!-- Model Selector -->
-        <div class="model-selector-wrapper" style="position: relative; display: inline-block; margin-right: 8px;">
-          <select 
-            [ngModel]="selectedModel()" 
-            (ngModelChange)="selectedModel.set($event)"
-            style="appearance: none; background: var(--bg-surface-3); border: 1px solid var(--panel-border); border-radius: var(--radius-sm); color: var(--text-secondary); padding: 4px 28px 4px 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer; outline: none; height: 30px; max-width: 140px; transition: all 0.2s;">
-            @for (model of availableModels(); track model.id) {
-               <option [ngValue]="model">{{ model.name }}</option>
-            }
-          </select>
-          <div style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-muted);">
-             <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="3" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </div>
-        </div>
-
-        <!-- Skill Selector -->
-        <div class="skill-selector-wrapper" style="position: relative; display: inline-block; margin-right: 8px;">
-          <select
-            [ngModel]="selectedSkill()"
-            (ngModelChange)="selectedSkill.set($event)"
-            style="appearance: none; background: var(--bg-surface-3); border: 1px solid var(--panel-border); border-radius: var(--radius-sm); color: var(--text-secondary); padding: 4px 28px 4px 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer; outline: none; height: 30px; max-width: 120px; transition: all 0.2s;">
-            <option [ngValue]="null">Auto Skill</option>
-            @for (skill of availableSkills(); track skill.name) {
-               <option [ngValue]="skill">⚡ {{ skill.name }}</option>
-            }
-          </select>
-          <div style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-muted);">
-             <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="3" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </div>
-        </div>
-
-        <!-- Reasoning Effort -->
-        <div class="effort-selector-wrapper" style="position: relative; display: inline-block; margin-right: 8px;">
-          <select
-            [ngModel]="reasoningEffort()"
-            (ngModelChange)="reasoningEffort.set($event)"
-            style="appearance: none; background: var(--bg-surface-3); border: 1px solid var(--panel-border); border-radius: var(--radius-sm); color: var(--text-secondary); padding: 4px 28px 4px 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer; outline: none; height: 30px; max-width: 120px; transition: all 0.2s;"
-            title="Reasoning effort — how deeply the model thinks before responding">
-            <option value="low">Low effort</option>
-            <option value="medium">Medium effort</option>
-            <option value="high">High effort</option>
-          </select>
-          <div style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-muted);">
-             <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="3" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </div>
-        </div>
-
-        <!-- Kit Selector
-        @if (availableKits().length > 0) {
-          <div class="kit-selector-wrapper" style="position: relative; display: inline-block; margin-right: 8px;">
-            <select
-              [ngModel]="projectService.selectedKitId()"
-              (ngModelChange)="projectService.selectedKitId.set($event)"
-              style="appearance: none; background: var(--bg-surface-3); border: 1px solid var(--panel-border); border-radius: var(--radius-sm); color: var(--text-secondary); padding: 4px 28px 4px 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer; outline: none; height: 30px; max-width: 130px; transition: all 0.2s;">
-              <option [ngValue]="null">No Kit</option>
-              @for (kit of availableKits(); track kit.id) {
-                 <option [ngValue]="kit.id">📦 {{ kit.name }}</option>
-              }
-            </select>
-            <div style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-muted);">
-               <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="3" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg>
-            </div>
-          </div>
-        } -->
+        <!-- AI Settings Popover -->
+        <button
+          (click)="toggleAiSettings($event)"
+          class="tool-btn"
+          [class.active]="aiSettingsOpen()"
+          title="AI Settings">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
 
         <button
           (click)="planMode.set(!planMode())"
           class="tool-btn"
           [class.active]="planMode()"
-          [title]="planMode() ? 'Plan Mode: ON - AI will ask questions before coding' : 'Plan Mode: OFF - AI will proceed directly'"
-          style="margin-right: 8px;">
+          [title]="planMode() ? 'Plan Mode: ON - AI will ask questions before coding' : 'Plan Mode: OFF - AI will proceed directly'">
           <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"></circle>
             <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
@@ -728,8 +674,7 @@
           (click)="compactMode.set(!compactMode())"
           class="tool-btn"
           [class.active]="compactMode()"
-          [title]="compactMode() ? 'Show Full Tool Output' : 'Compact Tool Output'"
-          style="margin-right: 8px;">
+          [title]="compactMode() ? 'Show Full Tool Output' : 'Compact Tool Output'">
           <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
             <line x1="8" y1="6" x2="21" y2="6"></line>
             <line x1="8" y1="12" x2="21" y2="12"></line>
@@ -751,8 +696,7 @@
           (click)="toggleMcpTools()"
           class="tool-btn"
           [class.active]="mcpToolsVisible()"
-          title="MCP Tools"
-          style="margin-left: 8px;">
+          title="MCP Tools">
           <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
             <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
             <line x1="8" y1="21" x2="16" y2="21"/>
@@ -811,6 +755,46 @@
           <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
         </button>
       }
+    </div>
+  </div>
+}
+
+<!-- AI Settings Popover (fixed position to escape stacking contexts) -->
+@if (aiSettingsOpen()) {
+  <div class="ai-settings-backdrop" (click)="closeAiSettings()"></div>
+  <div class="ai-settings-popover"
+       [style.bottom.px]="aiSettingsPosition().bottom"
+       [style.left.px]="aiSettingsPosition().left">
+    <div class="ai-settings-row">
+      <label>Model</label>
+      <select
+        [ngModel]="selectedModel()"
+        (ngModelChange)="selectedModel.set($event)">
+        @for (model of availableModels(); track model.id) {
+          <option [ngValue]="model">{{ model.name }}</option>
+        }
+      </select>
+    </div>
+    <div class="ai-settings-row">
+      <label>Skill</label>
+      <select
+        [ngModel]="selectedSkill()"
+        (ngModelChange)="selectedSkill.set($event)">
+        <option [ngValue]="null">Auto</option>
+        @for (skill of availableSkills(); track skill.name) {
+          <option [ngValue]="skill">{{ skill.name }}</option>
+        }
+      </select>
+    </div>
+    <div class="ai-settings-row">
+      <label>Reasoning</label>
+      <select
+        [ngModel]="reasoningEffort()"
+        (ngModelChange)="reasoningEffort.set($event)">
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+      </select>
     </div>
   </div>
 }

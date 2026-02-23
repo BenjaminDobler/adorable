@@ -38,6 +38,10 @@
   background: var(--bg-surface-1);
   z-index: 10;
   border-right: 1px solid var(--panel-border);
+
+  &.popover-open {
+    z-index: 10000;
+  }
 }
 
 .resizer-sidebar {
@@ -206,6 +210,7 @@
   border-bottom: 1px solid var(--panel-border);
   background: var(--bg-surface-1);
   gap: 0.5rem;
+  overflow: hidden;
 
   .tab-btn {
     background: transparent;

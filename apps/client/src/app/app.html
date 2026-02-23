@@ -6,7 +6,7 @@
   (mousemove)="onMouseMove($event)"
   (mouseup)="onMouseUp()"
 >
-  <aside class="sidebar" [style.width.px]="sidebarWidth()">
+  <aside class="sidebar" [style.width.px]="sidebarWidth()" [class.popover-open]="sidebarPopoverOpen()">
     <div class="chat-section">
       <div class="tab-bar">
         <button
@@ -55,6 +55,7 @@
         (fileUploaded)="onFileContentChange($event.content, 'public/assets/' + $event.name)"
         (closeVisualEdit)="visualEditorData.set(null)"
         (figmaImportProcessed)="pendingFigmaImport.set(null)"
+        (popoverToggled)="sidebarPopoverOpen.set($event)"
       ></app-chat>
       } @if (activeTab() === 'terminal') {
       <app-terminal (toggleDebug)="showDebug.set(true)"></app-terminal>

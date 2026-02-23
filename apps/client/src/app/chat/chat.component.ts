@@ -69,6 +69,7 @@ export class ChatComponent implements OnDestroy {
   @Output() fileUploaded = new EventEmitter<{name: string, content: string}>();
   @Output() closeVisualEdit = new EventEmitter<void>();
   @Output() figmaImportProcessed = new EventEmitter<void>();
+  @Output() popoverToggled = new EventEmitter<boolean>();
 
   messages = this.projectService.messages;
   loading = this.projectService.loading;
@@ -128,6 +129,31 @@ export class ChatComponent implements OnDestroy {
   // Figma import state
   figmaContext = signal<any>(null);
   figmaImages = signal<string[]>([]);
+
+  // AI settings popover
+  aiSettingsOpen = signal(false);
+  aiSettingsPosition = signal<{ bottom: number; left: number }>({ bottom: 0, left: 0 });
+
+  toggleAiSettings(event: MouseEvent) {
+    if (this.aiSettingsOpen()) {
+      this.aiSettingsOpen.set(false);
+      this.popoverToggled.emit(false);
+      return;
+    }
+    const btn = (event.currentTarget as HTMLElement);
+    const rect = btn.getBoundingClientRect();
+    this.aiSettingsPosition.set({
+      bottom: window.innerHeight - rect.top + 8,
+      left: rect.left
+    });
+    this.aiSettingsOpen.set(true);
+    this.popoverToggled.emit(true);
+  }
+
+  closeAiSettings() {
+    this.aiSettingsOpen.set(false);
+    this.popoverToggled.emit(false);
+  }
 
   // Reasoning effort - controls thinking depth per-prompt
   reasoningEffort = signal<'low' | 'medium' | 'high'>('high');
