@@ -23,19 +23,6 @@ export interface AIProfile {
   baseUrl?: string; // Optional custom API base URL (e.g., for company proxy)
 }
 
-export interface SmartRoutingTier {
-  provider: ProviderType;
-  model: string;
-}
-
-export interface SmartRoutingConfig {
-  enabled: boolean;
-  router: SmartRoutingTier;
-  simple: SmartRoutingTier;
-  complex: SmartRoutingTier;
-  vision: SmartRoutingTier;
-}
-
 export interface MCPServerConfig {
   id: string;
   name: string;
@@ -56,7 +43,6 @@ export interface MCPServerConfig {
 export interface AppSettings {
   profiles: AIProfile[];
   activeProfileId: string;
-  smartRouting?: SmartRoutingConfig;
   theme?: ThemeCombined; // Legacy: combined theme mode
   themeSettings?: ThemeSettings; // New: separate type and mode
   mcpServers?: MCPServerConfig[];
@@ -98,14 +84,14 @@ export class ProfileComponent implements OnInit {
         name: 'Anthropic (Claude)',
         provider: 'anthropic',
         apiKey: '',
-        model: 'claude-3-5-sonnet-20240620'
+        model: 'claude-sonnet-4-5-20250929'
       },
       {
         id: 'gemini',
         name: 'Google (Gemini)',
         provider: 'gemini',
         apiKey: '',
-        model: 'gemini-2.0-flash-exp'
+        model: 'gemini-2.5-flash'
       },
       {
         id: 'figma',
@@ -116,13 +102,6 @@ export class ProfileComponent implements OnInit {
       }
     ],
     activeProfileId: 'anthropic',
-    smartRouting: {
-      enabled: true,
-      router: { provider: 'gemini', model: 'gemini-1.5-flash' },
-      simple: { provider: 'gemini', model: 'gemini-1.5-flash' },
-      complex: { provider: 'anthropic', model: 'claude-3-5-sonnet-20240620' },
-      vision: { provider: 'anthropic', model: 'claude-3-5-sonnet-20240620' }
-    },
     theme: 'dark',
     themeSettings: { type: 'standard', mode: 'dark' }
   });
@@ -132,16 +111,14 @@ export class ProfileComponent implements OnInit {
   fetchedModels = signal<Record<string, string[]>>({});
 
   anthropicModels = [
-    'claude-3-5-sonnet-20240620',
-    'claude-3-5-sonnet-latest',
-    'claude-3-5-haiku-20241022',
-    'claude-3-opus-20240229'
+    'claude-sonnet-4-5-20250929',
+    'claude-opus-4-6',
+    'claude-haiku-4-5-20251001'
   ];
 
   geminiModels = [
-    'gemini-2.0-flash-exp',
-    'gemini-1.5-flash',
-    'gemini-1.5-pro'
+    'gemini-2.5-flash',
+    'gemini-2.5-pro'
   ];
 
   constructor() {
@@ -245,10 +222,6 @@ export class ProfileComponent implements OnInit {
         const newSettings: AppSettings = {
           profiles: mergedProfiles,
           activeProfileId: parsed.activeProfileId || 'anthropic',
-          smartRouting: {
-            ...this.settings().smartRouting!,
-            ...(parsed.smartRouting || {})
-          },
           theme: parsed.theme || 'dark',
           themeSettings,
           mcpServers
@@ -303,27 +276,6 @@ export class ProfileComponent implements OnInit {
       ...s,
       profiles: s.profiles.map(p => p.id === id ? { ...p, ...updates } : p)
     }));
-  }
-
-  updateSmartRouting(updates: Partial<SmartRoutingConfig>) {
-    this.settings.update(s => ({
-      ...s,
-      smartRouting: { ...s.smartRouting!, ...updates }
-    }));
-  }
-
-  updateSmartRoutingTier(tier: keyof Omit<SmartRoutingConfig, 'enabled'>, updates: Partial<SmartRoutingTier>) {
-    this.settings.update(s => ({
-      ...s,
-      smartRouting: {
-        ...s.smartRouting!,
-        [tier]: { ...s.smartRouting![tier], ...updates }
-      }
-    }));
-  }
-
-  getTierConfig(tier: string): SmartRoutingTier | undefined {
-    return (this.settings().smartRouting as any)?.[tier];
   }
 
   getFigmaProfile(): AIProfile | undefined {

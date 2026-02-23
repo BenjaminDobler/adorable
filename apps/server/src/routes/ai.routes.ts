@@ -1,6 +1,5 @@
 import express from 'express';
 import { ProviderFactory } from '../providers/factory';
-import { SmartRouter } from '../providers/router';
 import { decrypt } from '../utils/crypto';
 import { authenticate } from '../middleware/auth';
 import { containerRegistry } from '../providers/container/container-registry';
@@ -13,7 +12,6 @@ import { Kit } from '../providers/kits/types';
 import { projectFsService } from '../services/project-fs.service';
 
 const router = express.Router();
-const aiSmartRouter = new SmartRouter();
 
 router.use(authenticate);
 
@@ -119,85 +117,8 @@ router.get('/models/:provider', async (req: any, res) => {
   }
 });
 
-router.post('/generate', async (req: any, res) => {
-    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting, openFiles, kitId } = req.body;
-    const user = req.user;
-
-    const userSettings = user.settings ? JSON.parse(user.settings) : {};
-
-    const getApiKey = (p: string) => {
-       if (p === provider && apiKey && !apiKey.includes('...')) return apiKey;
-       const profiles = userSettings.profiles || [];
-       const profile = profiles.find((pr: any) => pr.provider === p);
-       if (profile && profile.apiKey) {
-          return decrypt(profile.apiKey);
-       }
-       return undefined;
-    };
-
-    const getBaseUrl = (p: string) => {
-       const profiles = userSettings.profiles || [];
-       const profile = profiles.find((pr: any) => pr.provider === p);
-       return profile?.baseUrl;
-    };
-
-    if (model === 'auto') {
-       try {
-          const decision = await aiSmartRouter.route(prompt, smartRouting || userSettings.smartRouting, getApiKey);
-          provider = decision.provider;
-          model = decision.model;
-          apiKey = decision.apiKey;
-       } catch (err) {
-          console.error('Routing failed:', err);
-          provider = 'anthropic';
-          model = 'claude-3-5-sonnet-20240620';
-          apiKey = getApiKey('anthropic');
-       }
-    }
-
-    let effectiveApiKey = apiKey;
-    if (!effectiveApiKey || effectiveApiKey.includes('...')) effectiveApiKey = getApiKey(provider);
-  
-    if (!effectiveApiKey) {
-      return res.status(400).send({ 
-          error: `No API Key provided for ${provider || 'Anthropic'}. Please enter one in settings.` 
-      });
-    }
-  
-    try {
-      const llm = ProviderFactory.getProvider(provider);
-      let finalModel = model;
-      if (!finalModel || finalModel === 'auto') finalModel = userSettings.model;
-      if (!finalModel || finalModel === 'auto') finalModel = 'claude-3-5-sonnet-20240620';
-
-      // Load MCP configs
-      const mcpConfigs = loadMCPConfigs(userSettings);
-
-      // Load active kit (from request kitId or fall back to settings)
-      const activeKit = loadActiveKit(userSettings, kitId);
-
-      const result = await llm.generate({
-          prompt,
-          previousFiles,
-          apiKey: effectiveApiKey,
-          model: finalModel,
-          images,
-          openFiles,
-          userId: user.id,
-          mcpConfigs,
-          baseUrl: getBaseUrl(provider),
-          activeKit
-      });
-
-      res.json(result);
-    } catch (error) {
-      console.error('Error calling LLM:', error);
-      res.status(500).send({ error: error.message });
-    }
-});
-
 router.post('/generate-stream', async (req: any, res) => {
-    let { prompt, previousFiles, provider, model, apiKey, images, smartRouting, openFiles, use_container_context, forcedSkill, planMode, kitId, projectId } = req.body;
+    let { prompt, previousFiles, provider, model, apiKey, images, openFiles, use_container_context, forcedSkill, planMode, kitId, projectId } = req.body;
     const user = req.user;
 
     // Debug: Log images received
@@ -227,20 +148,6 @@ router.post('/generate-stream', async (req: any, res) => {
        const profile = profiles.find((pr: any) => pr.provider === p);
        return profile?.baseUrl;
     };
-
-    if (model === 'auto') {
-       try {
-          const decision = await aiSmartRouter.route(prompt, smartRouting || userSettings.smartRouting, getApiKey);
-          provider = decision.provider;
-          model = decision.model;
-          apiKey = decision.apiKey;
-       } catch (err) {
-          console.error('Routing failed:', err);
-          provider = 'anthropic';
-          model = 'claude-3-5-sonnet-20240620';
-          apiKey = getApiKey('anthropic');
-       }
-    }
 
     let effectiveApiKey = apiKey;
     if (!effectiveApiKey || effectiveApiKey.includes('...')) effectiveApiKey = getApiKey(provider);
@@ -297,9 +204,7 @@ router.post('/generate-stream', async (req: any, res) => {
     try {
       const llm = ProviderFactory.getProvider(provider);
 
-      let finalModel = model;
-      if (!finalModel || finalModel === 'auto') finalModel = userSettings.model;
-      if (!finalModel || finalModel === 'auto') finalModel = 'claude-3-5-sonnet-20240620';
+      let finalModel = model || userSettings.model || 'claude-sonnet-4-5-20250929';
 
       // Load MCP configs
       const mcpConfigs = loadMCPConfigs(userSettings);

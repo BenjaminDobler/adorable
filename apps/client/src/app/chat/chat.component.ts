@@ -108,9 +108,7 @@ export class ChatComponent implements OnDestroy {
   isDragging = false;
   previewImageUrl = signal<string | null>(null);
 
-  availableModels = signal<any[]>([
-    { id: 'auto', name: '✨ Auto (Smart)', provider: 'auto' }
-  ]);
+  availableModels = signal<any[]>([]);
 
   selectedModel = signal(this.availableModels()[0]);
 
@@ -271,8 +269,8 @@ export class ChatComponent implements OnDestroy {
 
     if (!profiles || profiles.length === 0) return;
 
-    const models: any[] = [{ id: 'auto', name: '✨ Auto (Smart)', provider: 'auto' }];
-    
+    const models: any[] = [];
+
     profiles.forEach((profile: any) => {
        // Skip non-AI providers like Figma
        if (profile.provider === 'figma') return;
@@ -852,25 +850,18 @@ Analyze the attached design images carefully and create matching Angular compone
       }
     }
 
-    // Override with manual selection if not auto
+    // Override with manual selection from dropdown
     const currentSelection = this.selectedModel();
-    if (currentSelection.id !== 'auto') {
+    if (currentSelection && currentSelection.id) {
         provider = currentSelection.provider;
         model = currentSelection.id;
-        // NOTE: We assume the user has configured the API Key for this provider in their profile
-        // If they switch from Anthropic (profile default) to Gemini (manual), they must have a Gemini key saved in their profile/settings.
-        // For now, we rely on the `appSettings` containing the keys globally or assuming the backend has them.
-        // Ideally, we should look up the key for the specific provider from `appSettings` if available.
         if (this.appSettings?.profiles) {
            const profileForProvider = this.appSettings.profiles.find((p: any) => p.provider === provider);
            if (profileForProvider) {
                apiKey = profileForProvider.apiKey;
            }
         }
-    } else if (this.appSettings?.smartRouting?.enabled) {
-        model = 'auto';
     }
-    // else: keep provider/model from active profile
 
     // Collect all images (attached file + Figma imports)
     const allImages: string[] = [];
@@ -892,7 +883,6 @@ Analyze the attached design images carefully and create matching Angular compone
       apiKey,
       model,
       images: allImages.length > 0 ? allImages : undefined,
-      smartRouting: this.appSettings?.smartRouting,
       openFiles: this.getContextFiles(),
       use_container_context: this.projectService.agentMode(),
       forcedSkill: this.selectedSkill()?.name,

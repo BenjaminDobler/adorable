@@ -1,23 +1,14 @@
 import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI, createPartFromFunctionResponse } from '@google/genai';
 import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, AgentLoopContext } from './base';
 
 export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
-  async generate(options: GenerateOptions): Promise<any> {
-    let text = '';
-    const res = await this.streamGenerate(options, {
-      onText: (t) => text += t,
-      onToolResult: () => { /* noop */ },
-    });
-    return { explanation: text, files: res.files };
-  }
-
   async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any> {
     const { apiKey, model } = options;
     if (!apiKey) throw new Error('Gemini API Key is required');
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const modelName = model || 'gemini-2.0-flash-exp';
+    const ai = new GoogleGenAI({ apiKey });
+    const modelName = model || 'gemini-2.5-flash';
 
     // Prepare shared context
     const { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName } = await this.prepareAgentContext(options, 'gemini');
@@ -29,11 +20,6 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       description: tool.description,
       parameters: tool.input_schema
     }));
-
-    const generativeModel = genAI.getGenerativeModel({
-      model: modelName,
-      tools: [{ functionDeclarations: tools as any }]
-    });
 
     logger.log('START', { model: modelName, promptLength: options.prompt.length, totalMessageLength: userMessage.length });
 
@@ -53,11 +39,13 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       });
     }
 
-    const chat = generativeModel.startChat({
-      history: [
-        { role: 'user', parts: [{ text: ANGULAR_KNOWLEDGE_BASE + '\n\n' + effectiveSystemPrompt }] },
-        { role: 'model', parts: [{ text: 'I understand. I am an expert Angular developer and I have read the system prompt and knowledge base.' }] }
-      ]
+    const chat = ai.chats.create({
+      model: modelName,
+      config: {
+        tools: [{ functionDeclarations: tools as any }],
+        systemInstruction: ANGULAR_KNOWLEDGE_BASE + '\n\n' + effectiveSystemPrompt,
+      },
+      history: []
     });
 
     let totalInputTokens = 0;
@@ -72,23 +60,23 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
     };
 
     let turnCount = 0;
-    let currentParts = initialParts;
+    let currentMessage: any = initialParts;
 
     while (turnCount < maxTurns) {
       logger.log('TURN_START', { turn: turnCount });
       const turnStartExplanationLength = ctx.fullExplanation.length;
 
-      const result = await chat.sendMessageStream(currentParts);
+      const stream = await chat.sendMessageStream({ message: currentMessage });
       const functionCalls: any[] = [];
 
-      for await (const chunk of result.stream) {
-        const chunkText = chunk.text();
+      for await (const chunk of stream) {
+        const chunkText = chunk.text;
         if (chunkText) {
           ctx.fullExplanation += chunkText;
           callbacks.onText?.(chunkText);
         }
 
-        const calls = chunk.functionCalls();
+        const calls = chunk.functionCalls;
         if (calls && calls.length > 0) {
           functionCalls.push(...calls);
           calls.forEach(call => {
@@ -98,20 +86,17 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
         }
 
         if (chunk.usageMetadata) {
-          totalInputTokens = chunk.usageMetadata.promptTokenCount;
-          totalOutputTokens = chunk.usageMetadata.candidatesTokenCount;
+          totalInputTokens = chunk.usageMetadata.promptTokenCount || 0;
+          totalOutputTokens = chunk.usageMetadata.candidatesTokenCount || 0;
           callbacks.onTokenUsage?.({
             inputTokens: totalInputTokens,
             outputTokens: totalOutputTokens,
-            totalTokens: chunk.usageMetadata.totalTokenCount
+            totalTokens: chunk.usageMetadata.totalTokenCount || 0
           });
         }
       }
 
       // Log the assistant's text response for this turn
-      // (Gemini streams text inline, so we capture it from fullExplanation delta)
-      // We track per-turn text by measuring the delta
-      const turnEndExplanationLength = ctx.fullExplanation.length;
       const turnText = ctx.fullExplanation.substring(turnStartExplanationLength);
       if (turnText) {
         logger.logText('ASSISTANT_RESPONSE', turnText, { turn: turnCount });
@@ -132,7 +117,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
             const errorOutput = (buildResult.stderr || '') + '\n' + (buildResult.stdout || '');
             const buildFailMsg = `The build failed with the following errors. You MUST fix ALL errors and then run \`npm run build\` again to verify.\n\n\`\`\`\n${errorOutput.slice(0, 4000)}\n\`\`\``;
             logger.logText('INJECTED_USER_MESSAGE', buildFailMsg, { reason: 'auto_build_failure' });
-            currentParts = [{ text: buildFailMsg }];
+            currentMessage = [{ text: buildFailMsg }];
             ctx.hasRunBuild = false;
             turnCount++;
             continue;
@@ -144,8 +129,8 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
         break;
       }
 
-      // Execute tools
-      const toolOutputs: any[] = [];
+      // Execute tools and build response parts
+      const toolResponseParts: any[] = [];
       for (const call of functionCalls) {
         const toolArgs = call.args || {};
         callbacks.onToolCall?.(0, call.name, toolArgs);
@@ -156,34 +141,31 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
         logger.log('TOOL_RESULT', { name: call.name, result: content, isError });
         callbacks.onToolResult?.(call.name, content, call.name);
 
-        toolOutputs.push({
-          functionResponse: {
-            name: call.name,
-            response: { name: call.name, content }
-          }
-        });
+        toolResponseParts.push(
+          createPartFromFunctionResponse(call.id || call.name, call.name, { result: content })
+        );
       }
 
-      currentParts = toolOutputs;
+      currentMessage = toolResponseParts;
       turnCount++;
     }
 
     // Post-loop build check
     await this.postLoopBuildCheck(ctx, async (userMessage) => {
-      const result = await chat.sendMessageStream([{ text: userMessage }]);
+      const stream = await chat.sendMessageStream({ message: [{ text: userMessage }] });
       const toolCalls: { name: string; args: any; id: string }[] = [];
 
-      for await (const chunk of result.stream) {
-        const chunkText = chunk.text();
+      for await (const chunk of stream) {
+        const chunkText = chunk.text;
         if (chunkText) {
           ctx.fullExplanation += chunkText;
           callbacks.onText?.(chunkText);
         }
-        const calls = chunk.functionCalls();
+        const calls = chunk.functionCalls;
         if (calls && calls.length > 0) {
           calls.forEach(call => {
             callbacks.onToolStart?.(0, call.name);
-            toolCalls.push({ name: call.name, args: call.args || {}, id: call.name });
+            toolCalls.push({ name: call.name, args: call.args || {}, id: call.id || call.name });
           });
         }
       }

@@ -1,71 +1,16 @@
 import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
 import Anthropic from '@anthropic-ai/sdk';
-import { BaseLLMProvider, SYSTEM_PROMPT, ANGULAR_KNOWLEDGE_BASE, AgentLoopContext } from './base';
-import { MemoryFileSystem } from './filesystem/memory-filesystem';
+import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, AgentLoopContext } from './base';
 
 export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
-  async generate(options: GenerateOptions): Promise<any> {
-    const { prompt, previousFiles, apiKey, model, baseUrl } = options;
-    if (!apiKey) throw new Error('Anthropic API Key is required');
-
-    let modelToUse = model || 'claude-3-5-sonnet-20240620';
-    if (modelToUse === 'claude-3-5-sonnet-20241022') {
-      modelToUse = 'claude-3-5-sonnet-20240620';
-    }
-
-    const anthropic = new Anthropic({
-      apiKey,
-      ...(baseUrl && { baseURL: baseUrl })
-    });
-    const fs = options.fileSystem || new MemoryFileSystem(this.flattenFiles(previousFiles || {}));
-
-    let userMessage = prompt;
-    if (previousFiles) {
-      const treeSummary = this.generateTreeSummary(previousFiles);
-      userMessage += `\n\n--- Current File Structure ---\n${treeSummary}`;
-    }
-
-    const messages: any[] = [{ role: 'user', content: [{ type: 'text', text: userMessage, cache_control: { type: 'ephemeral' } }] }];
-
-    if (options.images && options.images.length > 0) {
-      options.images.forEach(img => {
-        const match = img.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
-        if (match) {
-          messages[0].content.push({
-            type: 'image',
-            source: { type: 'base64', media_type: `image/${match[1]}` as any, data: match[2] }
-          });
-        }
-      });
-    }
-
-    const response = await anthropic.messages.create({
-      model: modelToUse,
-      max_tokens: 16384,
-      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }] as any,
-      messages: messages as any,
-    });
-
-    const content = response.content[0];
-    if (content.type === 'text') {
-      return this.parseResponse(content.text);
-    } else {
-      throw new Error('Unexpected response format from Anthropic');
-    }
-  }
-
   async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any> {
     const { apiKey, model, baseUrl } = options;
     if (!apiKey) throw new Error('Anthropic API Key is required');
 
-    let modelToUse = model || 'claude-3-5-sonnet-20240620';
-    if (modelToUse === 'claude-3-5-sonnet-20241022') {
-      modelToUse = 'claude-3-5-sonnet-20240620';
-    }
+    const modelToUse = model || 'claude-sonnet-4-5-20250929';
 
     const anthropic = new Anthropic({
       apiKey,
-      defaultHeaders: { 'anthropic-beta': 'pdfs-2024-09-25' },
       ...(baseUrl && { baseURL: baseUrl })
     });
 

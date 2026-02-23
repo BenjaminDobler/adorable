@@ -8,7 +8,6 @@ export interface GenerateOptions {
   apiKey: string;
   model: string;
   images?: string[]; // Base64 data URIs
-  smartRouting?: any; // The SmartRoutingConfig from the client
   openFiles?: { [path: string]: string };
   fileSystem?: FileSystemInterface; // Optional: Override default memory FS
   userId?: string;
@@ -43,7 +42,6 @@ export interface StreamCallbacks {
 }
 
 export interface LLMProvider {
-  generate(options: GenerateOptions): Promise<any>;
   streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any>;
 }
 
