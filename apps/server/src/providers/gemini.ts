@@ -2,6 +2,23 @@ import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
 import { GoogleGenAI, createPartFromFunctionResponse } from '@google/genai';
 import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, AgentLoopContext } from './base';
 
+/** Extract text from a Gemini response chunk without triggering the SDK's
+ *  "non-text parts" console.warn that fires when accessing `.text` on a
+ *  chunk that also contains functionCall parts. */
+function extractText(chunk: any): string | undefined {
+  const parts = chunk?.candidates?.[0]?.content?.parts;
+  if (!parts || parts.length === 0) return undefined;
+  let text = '';
+  let found = false;
+  for (const part of parts) {
+    if (typeof part.text === 'string' && !part.thought) {
+      found = true;
+      text += part.text;
+    }
+  }
+  return found ? text : undefined;
+}
+
 export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
   async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any> {
     const { apiKey, model } = options;
@@ -70,7 +87,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       const functionCalls: any[] = [];
 
       for await (const chunk of stream) {
-        const chunkText = chunk.text;
+        const chunkText = extractText(chunk);
         if (chunkText) {
           ctx.fullExplanation += chunkText;
           callbacks.onText?.(chunkText);
@@ -156,7 +173,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       const toolCalls: { name: string; args: any; id: string }[] = [];
 
       for await (const chunk of stream) {
-        const chunkText = chunk.text;
+        const chunkText = extractText(chunk);
         if (chunkText) {
           ctx.fullExplanation += chunkText;
           callbacks.onText?.(chunkText);

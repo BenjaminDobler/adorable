@@ -11,6 +11,7 @@ export class DockerManager {
   private container: Docker.Container | null = null;
   private userId: string | null = null;
   private projectId: string | null = null;
+  private recreationLock: Promise<void> | null = null;
 
   // File watcher
   public readonly events = new EventEmitter();
@@ -63,9 +64,20 @@ export class DockerManager {
 
         if (currentHostPath && path.resolve(currentHostPath) !== path.resolve(expectedHostPath)) {
           console.log(`[Docker] Project changed (${currentHostPath} → ${expectedHostPath}), recreating container.`);
-          this.stopWatcher();
-          try { await existing.stop({ t: 2 }); } catch (_) { /* may already be stopped */ }
-          try { await existing.remove({ force: true }); } catch (_) { /* ignore */ }
+          // Null out immediately so concurrent callers see no container
+          this.container = null;
+          let resolveLock: () => void;
+          this.recreationLock = new Promise<void>(r => { resolveLock = r; });
+          try {
+            this.stopWatcher();
+            try { await existing.stop({ t: 2 }); } catch (_) { /* may already be stopped */ }
+            try { await existing.remove({ force: true }); } catch (_) { /* ignore */ }
+          } finally {
+            // Lock is resolved after the new container is created below,
+            // but store resolveLock so we can call it at the end of createContainer.
+            // For now, attach it to a temporary field.
+            (this as any)._resolveLock = resolveLock!;
+          }
           // Fall through to create a new container below
         } else {
           this.container = existing;
@@ -74,7 +86,12 @@ export class DockerManager {
             await this.container.unpause();
           } else if (!info.State.Running) {
             console.log(`[Docker] Starting existing container: ${name}`);
-            await this.container.start();
+            try {
+              await this.container.start();
+            } catch (e: any) {
+              if (e.statusCode !== 304) throw e;
+              // 304 = already running, benign
+            }
           } else {
             console.log(`[Docker] Using already running container: ${name}`);
           }
@@ -108,7 +125,12 @@ export class DockerManager {
       },
     });
 
-    await this.container.start();
+    try {
+      await this.container.start();
+    } catch (e: any) {
+      if (e.statusCode !== 304) throw e;
+      // 304 = already running, benign
+    }
 
     // Ensure psmisc (for fuser) is installed for robust port cleanup
     console.log('[Docker] Installing cleanup tools...');
@@ -124,6 +146,13 @@ export class DockerManager {
        });
     } catch(e) {
        console.warn('[Docker] Failed to install psmisc, cleanup might be less reliable', e.message);
+    }
+
+    // Resolve recreation lock if this was a project-switch recreation
+    if ((this as any)._resolveLock) {
+      (this as any)._resolveLock();
+      (this as any)._resolveLock = null;
+      this.recreationLock = null;
     }
 
     return this.container.id;
@@ -243,17 +272,9 @@ export class DockerManager {
   }
 
   async getContainerUrl(): Promise<string> {
-    if (!this.container) throw new Error('Container not started');
-    
-    // Auto-unpause or start if accessing URL
-    const info = await this.container.inspect();
-    if (info.State.Paused) {
-       await this.container.unpause();
-    } else if (!info.State.Running) {
-       await this.container.start();
-    }
+    await this.ensureRunning();
 
-    const data = await this.container.inspect();
+    const data = await this.container!.inspect();
     const ports = data.NetworkSettings.Ports['4200/tcp'];
     if (ports && ports[0]) {
       // On macOS, always use 127.0.0.1 for the host side of mapping
@@ -277,6 +298,22 @@ export class DockerManager {
         });
       });
       console.log(`Image ${image} pulled.`);
+    }
+  }
+
+  private async ensureRunning(): Promise<void> {
+    if (this.recreationLock) await this.recreationLock;
+    if (!this.container) throw new Error('Container not started');
+    const info = await this.container.inspect();
+    if (info.State.Paused) {
+      await this.container.unpause();
+    } else if (!info.State.Running) {
+      try {
+        await this.container.start();
+      } catch (e: any) {
+        if (e.statusCode !== 304) throw e;
+        // 304 = already running, benign
+      }
     }
   }
 
@@ -321,21 +358,13 @@ export class DockerManager {
     workDir = '/app',
     env?: any,
   ): Promise<{ output: string; exitCode: number }> {
-    if (!this.container) throw new Error('Container not started');
-
-    // Auto-unpause if needed
-    const info = await this.container.inspect();
-    if (info.State.Paused) {
-       await this.container.unpause();
-    } else if (!info.State.Running) {
-       await this.container.start();
-    }
+    await this.ensureRunning();
 
     const envArray = env
       ? Object.entries(env).map(([k, v]) => `${k}=${v}`)
       : [];
 
-    const exec = await this.container.exec({
+    const exec = await this.container!.exec({
       Cmd: cmd,
 
       AttachStdout: true,
@@ -361,7 +390,7 @@ export class DockerManager {
         }
       }, 120_000);
 
-      this.container?.modem.demuxStream(
+      this.container!.modem.demuxStream(
         stream as any,
         {
           write: (chunk: any) => (output += chunk.toString()),
@@ -394,21 +423,13 @@ export class DockerManager {
     onData: (chunk: string) => void,
     env?: any,
   ): Promise<number> {
-    if (!this.container) throw new Error('Container not started');
-
-    // Auto-unpause if needed
-    const info = await this.container.inspect();
-    if (info.State.Paused) {
-       await this.container.unpause();
-    } else if (!info.State.Running) {
-       await this.container.start();
-    }
+    await this.ensureRunning();
 
     const envArray = env
       ? Object.entries(env).map(([k, v]) => `${k}=${v}`)
       : [];
 
-    const exec = await this.container.exec({
+    const exec = await this.container!.exec({
       Cmd: cmd,
 
       AttachStdout: true,
@@ -423,7 +444,7 @@ export class DockerManager {
     const stream = await exec.start({ Detach: false, Tty: false });
 
     return new Promise((resolve, reject) => {
-      this.container?.modem.demuxStream(
+      this.container!.modem.demuxStream(
         stream as any,
         {
           write: (chunk: any) => onData(chunk.toString()),

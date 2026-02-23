@@ -46,10 +46,17 @@ export const containerProxy = createProxyMiddleware({
         containerRegistry.updateActivity(userId); // Track Heartbeat
         return await manager.getContainerUrl();
       } catch (e: any) {
-        // Only log unexpected errors, not "Container not started" which is normal
-        if (!e.message?.includes('Container not started')) {
-          console.error('[Proxy Router] Error:', e.message, '| URL:', req.url);
+        // Suppress known transient errors during container recreation
+        const msg = e.message || '';
+        const code = e.statusCode;
+        if (
+          msg.includes('Container not started') ||
+          code === 404 || // container removed, not yet recreated
+          code === 409    // container marked for removal
+        ) {
+          return undefined;
         }
+        console.error('[Proxy Router] Error:', msg, '| URL:', req.url);
       }
     }
     return undefined;
