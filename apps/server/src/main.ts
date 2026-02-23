@@ -29,7 +29,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(cookieParser(JWT_SECRET));
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '200mb' }));
 
 // Apply Global Fallback Proxy
 app.use(async (req: any, res, next) => {
