@@ -1,5 +1,5 @@
 import { Component, inject, signal, ElementRef, ViewChild, Output, EventEmitter, Input, effect, computed, ChangeDetectorRef, OnDestroy } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { Subscription, takeUntil, Subject } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ProjectService, ChatMessage, Question } from '../services/project';
@@ -27,6 +27,7 @@ import { FigmaImportPayload } from '@adorable/shared-types';
 })
 export class ChatComponent implements OnDestroy {
   private activeSubscription: Subscription | null = null;
+  private destroy$ = new Subject<void>();
   private apiService = inject(ApiService);
   public webContainerService = inject(ContainerEngine);
   public projectService = inject(ProjectService);
@@ -167,6 +168,19 @@ export class ChatComponent implements OnDestroy {
   constructor() {
     this.loadSkills();
     this.loadKits();
+
+    // Cancel any active generation when the project is being switched
+    this.projectService.projectSwitching$.pipe(
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      if (this.activeSubscription) {
+        console.log('[ChatComponent] Cancelling active generation due to project switch');
+        this.activeSubscription.unsubscribe();
+        this.activeSubscription = null;
+        this.loading.set(false);
+        this.progressiveStore.markAllComplete();
+      }
+    });
 
     effect(() => {
         // Auto-scroll when messages change, but only if user is at bottom
@@ -1545,5 +1559,7 @@ Analyze the attached design images carefully and create matching Angular compone
 
   ngOnDestroy() {
     this.activeSubscription?.unsubscribe();
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 }

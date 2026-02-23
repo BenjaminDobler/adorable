@@ -11,6 +11,7 @@ interface FileUpdate {
 export class HMRTriggerService {
   private containerEngine = inject(SmartContainerEngine);
   private fileUpdates$ = new Subject<FileUpdate>();
+  private _paused = false;
 
   constructor() {
     // Batch all file updates within a 200ms window into a single mount call
@@ -18,6 +19,9 @@ export class HMRTriggerService {
       bufferTime(200),
       filter(updates => updates.length > 0)
     ).subscribe(async (updates) => {
+      // Skip mounting if paused (project is switching)
+      if (this._paused) return;
+
       // Deduplicate: keep only the last update per path
       const latestByPath = new Map<string, string>();
       for (const update of updates) {
@@ -50,6 +54,21 @@ export class HMRTriggerService {
 
   triggerUpdate(path: string, content: string): void {
     this.fileUpdates$.next({ path, content });
+  }
+
+  /**
+   * Pause HMR updates (e.g. during project switch) to prevent
+   * buffered file updates from bleeding into the new project.
+   */
+  pause(): void {
+    this._paused = true;
+  }
+
+  /**
+   * Resume HMR updates after project switch is complete.
+   */
+  resume(): void {
+    this._paused = false;
   }
 
   /**

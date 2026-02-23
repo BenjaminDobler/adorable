@@ -171,6 +171,12 @@ export class AppComponent implements AfterViewChecked {
     this.route.params.subscribe(async (params) => {
       const projectId = params['id'];
       if (projectId && projectId !== 'new') {
+        // Auto-save the current project before switching to a different one
+        const currentId = this.projectService.projectId();
+        if (currentId && currentId !== 'new' && currentId !== projectId && !this.projectService.fileStore.isEmpty()) {
+          console.log('[AppComponent] Auto-saving project before switch:', currentId);
+          await this.projectService.saveProject();
+        }
         this.projectService.loadProject(projectId);
       } else {
         this.projectService.projectId.set(null);

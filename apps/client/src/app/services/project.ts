@@ -1,4 +1,5 @@
 import { Injectable, inject, signal, computed, Signal } from '@angular/core';
+import { Subject } from 'rxjs';
 import { ApiService } from './api';
 import { ContainerEngine } from './container-engine';
 import { ToastService } from './toast';
@@ -11,6 +12,7 @@ import { FileSystemStore } from './file-system.store';
 import { WebContainerFiles, FigmaImportPayload, mergeFiles as sharedMergeFiles } from '@adorable/shared-types';
 import { ScreenshotService } from './screenshot';
 import { Kit, WebContainerFiles as KitWebContainerFiles } from './kit-types';
+import { HMRTriggerService } from './hmr-trigger.service';
 
 export interface QuestionOption {
   value: string;
@@ -71,10 +73,14 @@ export class ProjectService {
   private toastService = inject(ToastService);
   private router = inject(Router);
   private screenshotService = inject(ScreenshotService);
+  private hmrTrigger = inject(HMRTriggerService);
   public fileStore = inject(FileSystemStore);
 
   // Guard against concurrent loadProject/reloadPreview calls (fast project switching)
   private _loadEpoch = 0;
+
+  // Emitted when switching projects so active generation streams can be cancelled
+  readonly projectSwitching$ = new Subject<void>();
 
   // State
   projectId = signal<string | null>(null);
@@ -108,10 +114,16 @@ export class ProjectService {
     // Bump epoch so any in-flight loadProject/reloadPreview from a previous call bails out
     const epoch = ++this._loadEpoch;
 
-    this.loading.set(true);
-
-    // Only eagerly stop the dev server if we're switching to a different project
+    // Cancel any active AI generation before switching projects
+    // This prevents SSE events from the old project bleeding into the new one
     const sameProject = this.projectId() === id && this.webContainerService.url();
+    if (!sameProject) {
+      this.projectSwitching$.next();
+      // Pause HMR to prevent buffered file updates from bleeding across projects
+      this.hmrTrigger.pause();
+    }
+
+    this.loading.set(true);
     const stopPromise = sameProject
       ? Promise.resolve()
       : Promise.race([
@@ -160,6 +172,8 @@ export class ProjectService {
 
       // skipStop=true if we already stopped above; false if same project (let reloadPreview fast-path handle it)
       await this.reloadPreview(project.files, undefined, !sameProject, epoch);
+      // Resume HMR after new project files are loaded
+      this.hmrTrigger.resume();
 
     } catch (err) {
       if (this._loadEpoch !== epoch) return; // stale, don't show error
@@ -167,22 +181,18 @@ export class ProjectService {
       this.toastService.show('Failed to load project', 'error');
       this.router.navigate(['/dashboard']);
       this.loading.set(false);
+      this.hmrTrigger.resume();
     }
   }
 
   async saveProject(thumbnail?: string) {
     const name = this.projectName();
-    const files = this.files();
     if (!name || this.fileStore.isEmpty()) return;
 
     this.loading.set(true);
 
     const id = this.projectId();
     const saveId = id && id !== 'new' ? id : undefined;
-
-    // Strip file snapshots from messages — git commits handle time-travel now.
-    // This keeps the save payload small.
-    const messagesWithoutFiles = this.messages().map(({ files: _files, ...rest }) => rest);
 
     // Start thumbnail capture in parallel — don't block the save
     let thumbnailPromise: Promise<string | null> | undefined;
@@ -192,10 +202,15 @@ export class ProjectService {
     }
 
     const doSave = (thumb?: string) => {
+      // Capture files at save-execution time (not earlier) to avoid stale snapshots
+      const currentFiles = this.files();
+      // Strip file snapshots from messages — git commits handle time-travel now.
+      const messagesWithoutFiles = this.messages().map(({ files: _files, ...rest }) => rest);
+
       this.apiService
         .saveProject(
           name,
-          files,
+          currentFiles,
           messagesWithoutFiles,
           saveId,
           thumb,
@@ -204,8 +219,12 @@ export class ProjectService {
         )
         .subscribe({
           next: (project) => {
+            // Guard: only update projectId if we're still on the same project
+            // A project switch may have happened while the save was in flight
+            if (this.projectId() === id || !this.projectId() || this.projectId() === 'new') {
+              this.projectId.set(project.id);
+            }
             this.toastService.show('Project saved successfully!', 'success');
-            this.projectId.set(project.id);
             this.loading.set(false);
             this.saveVersion.update(v => v + 1);
           },
@@ -227,12 +246,15 @@ export class ProjectService {
       ]);
       doSave(quickThumb ?? undefined);
 
-      // If thumbnail wasn't ready yet, update it after capture completes
-      if (!quickThumb) {
+      // If thumbnail wasn't ready yet, update it via a follow-up save
+      if (!quickThumb && saveId) {
         thumbnailPromise.then(captured => {
-          if (captured && saveId) {
+          // Only update if we're still on the same project
+          if (captured && this.projectId() === id) {
             console.log('[ProjectService] Updating thumbnail after save');
-            this.apiService.saveProject(name, files, messagesWithoutFiles, saveId, captured, this.figmaImports(), this.selectedKitId()).subscribe();
+            const latestFiles = this.files();
+            const latestMsgs = this.messages().map(({ files: _f, ...rest }) => rest);
+            this.apiService.saveProject(name, latestFiles, latestMsgs, saveId, captured, this.figmaImports(), this.selectedKitId()).subscribe();
           }
         });
       }
