@@ -72,6 +72,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     // Prepare shared context
     const { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName } = await this.prepareAgentContext(options, 'anthropic');
     const skills = await this.addSkillTools(availableTools, skillRegistry, fs, options.userId);
+    // Tools with no parameters (e.g. take_screenshot) legitimately receive empty input
+    const noInputTools = new Set(availableTools.filter((t: any) => !t.input_schema?.required?.length && !Object.keys(t.input_schema?.properties || {}).length).map((t: any) => t.name));
 
     logger.log('START', { model: modelToUse, promptLength: options.prompt.length, totalMessageLength: userMessage.length });
 
@@ -187,8 +189,9 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       }
 
       // Detect tools with empty input (possible truncation or streaming interruption)
+      // Skip warning for tools that take no parameters (e.g. take_screenshot)
       for (const tool of toolUses) {
-        if (!tool.input || !tool.input.trim()) {
+        if ((!tool.input || !tool.input.trim()) && !noInputTools.has(tool.name)) {
           console.warn(`[Anthropic] Tool '${tool.name}' (id: ${tool.id}) received empty input - possible truncation or streaming interruption`);
         }
       }
@@ -336,8 +339,9 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       }
 
       // Detect tools with empty input (possible truncation or streaming interruption)
+      // Skip warning for tools that take no parameters (e.g. take_screenshot)
       for (const t of toolUsesRaw) {
-        if (!t.input || !t.input.trim()) {
+        if ((!t.input || !t.input.trim()) && !noInputTools.has(t.name)) {
           console.warn(`[Anthropic] Tool '${t.name}' (id: ${t.id}) received empty input in build-fix loop - possible truncation`);
         }
       }

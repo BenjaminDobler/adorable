@@ -32,6 +32,7 @@ export class ApiService {
       }).then(response => {
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
+        let buffer = '';
 
         if (!reader) {
           observer.error('No reader');
@@ -45,16 +46,18 @@ export class ApiService {
               return;
             }
 
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n');
-            
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            // Keep the last element — it may be an incomplete line
+            buffer = lines.pop() || '';
+
             for (const line of lines) {
               if (line.startsWith('data: ')) {
                 try {
                   const data = JSON.parse(line.substring(6));
                   observer.next(data);
                 } catch (e) {
-                  // Partial JSON, skip or wait
+                  // Malformed JSON in a complete line, skip
                 }
               }
             }

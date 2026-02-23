@@ -789,10 +789,9 @@ Only proceed with implementation after receiving the user's answers.`;
   }
 
   protected parseToolInput(input: string): any {
-    // Handle empty input gracefully - this can happen when streaming is interrupted
-    // after tool_use starts but before any input_json_delta events arrive
+    // Handle empty input gracefully - expected for no-parameter tools (e.g. take_screenshot),
+    // can also happen when streaming is interrupted
     if (!input || !input.trim()) {
-      console.warn(`[ParseTool] Empty tool input received - possible streaming interruption or truncation`);
       return {};
     }
 
