@@ -56,10 +56,21 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       });
     }
 
+    // Build tools config, optionally including built-in Gemini tools
+    const geminiTools: any[] = [{ functionDeclarations: tools as any }];
+    if (options.builtInTools?.webSearch) {
+      geminiTools.push({ googleSearch: {} });
+      console.log('[Gemini] Google Search grounding enabled');
+    }
+    if (options.builtInTools?.urlContext) {
+      geminiTools.push({ urlContext: {} });
+      console.log('[Gemini] URL Context tool enabled');
+    }
+
     const chat = ai.chats.create({
       model: modelName,
       config: {
-        tools: [{ functionDeclarations: tools as any }],
+        tools: geminiTools,
         systemInstruction: ANGULAR_KNOWLEDGE_BASE + '\n\n' + effectiveSystemPrompt,
       },
       history: []

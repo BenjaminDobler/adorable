@@ -118,7 +118,7 @@ router.get('/models/:provider', async (req: any, res) => {
 });
 
 router.post('/generate-stream', async (req: any, res) => {
-    let { prompt, previousFiles, provider, model, apiKey, images, openFiles, use_container_context, forcedSkill, planMode, kitId, projectId } = req.body;
+    let { prompt, previousFiles, provider, model, apiKey, images, openFiles, use_container_context, forcedSkill, planMode, kitId, projectId, builtInTools } = req.body;
     const user = req.user;
 
     // Debug: Log images received
@@ -233,7 +233,8 @@ router.post('/generate-stream', async (req: any, res) => {
           planMode,
           baseUrl: getBaseUrl(provider),
           activeKit,
-          projectId
+          projectId,
+          builtInTools
       }, {
           onText: (text) => {
               res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);

@@ -848,6 +848,7 @@ Analyze the attached design images carefully and create matching Angular compone
     let provider = 'anthropic';
     let apiKey = '';
     let model = '';
+    let builtInTools: { webSearch?: boolean, urlContext?: boolean } | undefined;
 
     if (this.appSettings) {
       if (this.appSettings.profiles && this.appSettings.activeProfileId) {
@@ -856,6 +857,7 @@ Analyze the attached design images carefully and create matching Angular compone
             provider = active.provider;
             apiKey = active.apiKey;
             model = active.model;
+            builtInTools = active.builtInTools;
          }
       } else {
          provider = this.appSettings.provider || provider;
@@ -873,6 +875,7 @@ Analyze the attached design images carefully and create matching Angular compone
            const profileForProvider = this.appSettings.profiles.find((p: any) => p.provider === provider);
            if (profileForProvider) {
                apiKey = profileForProvider.apiKey;
+               builtInTools = profileForProvider.builtInTools;
            }
         }
     }
@@ -902,7 +905,8 @@ Analyze the attached design images carefully and create matching Angular compone
       forcedSkill: this.selectedSkill()?.name,
       planMode: this.planMode(),
       kitId: this.projectService.selectedKitId() || undefined,
-      projectId: this.projectService.projectId() || undefined
+      projectId: this.projectService.projectId() || undefined,
+      builtInTools
     }).subscribe({
       next: async (event) => {
         if (event.type !== 'tool_delta' && event.type !== 'text') { 

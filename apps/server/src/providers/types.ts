@@ -2,6 +2,11 @@ import { MCPServerConfig } from '../mcp/types';
 import { Kit } from './kits/types';
 import { Question } from './question-manager';
 
+export interface BuiltInToolConfig {
+  webSearch?: boolean;
+  urlContext?: boolean;
+}
+
 export interface GenerateOptions {
   prompt: string;
   previousFiles?: any;
@@ -17,6 +22,7 @@ export interface GenerateOptions {
   baseUrl?: string; // Optional custom base URL for API proxy
   activeKit?: Kit; // Active component kit for this generation
   projectId?: string; // Project ID for debug log filenames
+  builtInTools?: BuiltInToolConfig; // Built-in provider tools (web search, etc.)
 }
 
 export interface TokenUsage {

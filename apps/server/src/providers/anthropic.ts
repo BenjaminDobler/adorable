@@ -20,6 +20,12 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     // Tools with no parameters (e.g. take_screenshot) legitimately receive empty input
     const noInputTools = new Set(availableTools.filter((t: any) => !t.input_schema?.required?.length && !Object.keys(t.input_schema?.properties || {}).length).map((t: any) => t.name));
 
+    // Inject Anthropic web_search built-in tool if enabled
+    if (options.builtInTools?.webSearch) {
+      availableTools.push({ type: 'web_search_20250305', name: 'web_search' } as any);
+      console.log('[Anthropic] Web search tool enabled');
+    }
+
     logger.log('START', { model: modelToUse, promptLength: options.prompt.length, totalMessageLength: userMessage.length });
 
     // Log the full prompts for debugging
@@ -116,6 +122,13 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
             callbacks.onToolStart?.(assistantMessageContent.length - 1, event.content_block.name);
           } else if (event.content_block.type === 'text') {
             assistantMessageContent.push({ type: 'text', text: '' });
+          } else if (event.content_block.type === 'server_tool_use') {
+            // Anthropic server-side tool (e.g. web_search) — track but don't execute locally
+            assistantMessageContent.push(event.content_block);
+            callbacks.onToolStart?.(assistantMessageContent.length - 1, event.content_block.name);
+          } else if (event.content_block.type === 'web_search_tool_result') {
+            // Server-side tool result — pass through to message history
+            assistantMessageContent.push(event.content_block);
           }
         }
         if (event.type === 'content_block_delta') {
@@ -266,6 +279,11 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
             callbacks.onToolStart?.(assistantContent.length - 1, event.content_block.name);
           } else if (event.content_block.type === 'text') {
             assistantContent.push({ type: 'text', text: '' });
+          } else if (event.content_block.type === 'server_tool_use') {
+            assistantContent.push(event.content_block);
+            callbacks.onToolStart?.(assistantContent.length - 1, event.content_block.name);
+          } else if (event.content_block.type === 'web_search_tool_result') {
+            assistantContent.push(event.content_block);
           }
         }
         if (event.type === 'content_block_delta') {

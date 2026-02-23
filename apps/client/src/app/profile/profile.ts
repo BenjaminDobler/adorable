@@ -14,6 +14,11 @@ export type ProviderType = 'anthropic' | 'gemini' | 'figma';
 export type MCPAuthType = 'none' | 'bearer';
 export type MCPTransport = 'http' | 'stdio';
 
+export interface BuiltInToolConfig {
+  webSearch?: boolean;
+  urlContext?: boolean;
+}
+
 export interface AIProfile {
   id: string;
   name: string;
@@ -21,6 +26,7 @@ export interface AIProfile {
   apiKey: string;
   model: string;
   baseUrl?: string; // Optional custom API base URL (e.g., for company proxy)
+  builtInTools?: BuiltInToolConfig;
 }
 
 export interface MCPServerConfig {
@@ -276,6 +282,12 @@ export class ProfileComponent implements OnInit {
       ...s,
       profiles: s.profiles.map(p => p.id === id ? { ...p, ...updates } : p)
     }));
+  }
+
+  toggleBuiltInTool(profileId: string, tool: keyof BuiltInToolConfig, enabled: boolean) {
+    const profile = this.settings().profiles.find(p => p.id === profileId);
+    const current = profile?.builtInTools || {};
+    this.updateProfile(profileId, { builtInTools: { ...current, [tool]: enabled } });
   }
 
   getFigmaProfile(): AIProfile | undefined {

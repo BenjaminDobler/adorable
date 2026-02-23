@@ -215,6 +215,46 @@
                         <small class="help-text">Custom API endpoint for company proxy</small>
                       </div>
                     }
+
+                    <div class="form-group">
+                      <label>Built-in Tools</label>
+                      <div class="header-with-toggle">
+                        <div>
+                          <label>Web Search</label>
+                          <small class="help-text">
+                            @if (profile.provider === 'anthropic') {
+                              Allow Claude to search the web during generation
+                            } @else {
+                              Enable Google Search grounding for responses
+                            }
+                          </small>
+                        </div>
+                        <label class="switch">
+                          <input
+                            type="checkbox"
+                            [ngModel]="profile.builtInTools?.webSearch || false"
+                            (ngModelChange)="toggleBuiltInTool(profile.id, 'webSearch', $event)"
+                          >
+                          <span class="slider round"></span>
+                        </label>
+                      </div>
+                      @if (profile.provider === 'gemini') {
+                        <div class="header-with-toggle" style="margin-top: 12px;">
+                          <div>
+                            <label>URL Context</label>
+                            <small class="help-text">Allow Gemini to fetch and read web page content (docs, references)</small>
+                          </div>
+                          <label class="switch">
+                            <input
+                              type="checkbox"
+                              [ngModel]="profile.builtInTools?.urlContext || false"
+                              (ngModelChange)="toggleBuiltInTool(profile.id, 'urlContext', $event)"
+                            >
+                            <span class="slider round"></span>
+                          </label>
+                        </div>
+                      }
+                    </div>
                   </div>
                 </div>
               }
