@@ -75,6 +75,7 @@ export class SmartContainerEngine extends ContainerEngine {
   async boot() { await this.activeEngine().boot(); }
   async teardown() { await this.activeEngine().teardown(); }
   async mount(files: WebContainerFiles) { await this.activeEngine().mount(files); }
+  override async mountProject(projectId: string, kitId: string | null) { await this.activeEngine().mountProject?.(projectId, kitId); }
   async writeFile(path: string, content: string | Uint8Array) { await this.activeEngine().writeFile(path, content); }
   async readFile(path: string) { return await this.activeEngine().readFile(path); }
   async readBinaryFile(path: string) { return await this.activeEngine().readBinaryFile(path); }

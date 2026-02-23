@@ -68,7 +68,8 @@ async function startEmbeddedServer(): Promise<number> {
       JWT_SECRET: jwtSecret,
       SITES_DIR: sitesDir,
       STORAGE_DIR: storageDir,
-      ADORABLE_DESKTOP_MODE: 'true'
+      ADORABLE_DESKTOP_MODE: 'true',
+      ADORABLE_PROJECTS_DIR: path.join(storageDir, 'projects')
     },
     stdio: ['pipe', 'pipe', 'pipe', 'ipc']
   });

@@ -127,6 +127,27 @@ export class NativeContainerEngine extends ContainerEngine {
     });
   }
 
+  override async mountProject(projectId: string, kitId: string | null): Promise<void> {
+    const needsReboot = this.status() === 'Idle' || this.status() === 'Stopped' || this.status() === 'Server stopped'
+      || (this.currentProjectId && this.currentProjectId !== this.lastBootedProjectId);
+    if (needsReboot) {
+      await this.boot();
+    }
+    this.status.set('Mounting files...');
+    // Call the server's endpoint (port 3333), not the local-agent's (port 3334),
+    // since the server does the file preparation and both share the same directory
+    const serverUrl = 'http://localhost:3333/api/container';
+    const token = localStorage.getItem('adorable_token');
+    await fetch(`${serverUrl}/mount-project`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ projectId, kitId })
+    });
+  }
+
   async exec(cmd: string, args: string[], options?: any): Promise<ProcessOutput> {
     try {
       if (options?.stream) {

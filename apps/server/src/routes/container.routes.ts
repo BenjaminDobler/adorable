@@ -1,6 +1,7 @@
 import express from 'express';
 import { containerRegistry } from '../providers/container/container-registry';
 import { authenticate } from '../middleware/auth';
+import { mountService } from '../services/mount.service';
 
 const router = express.Router();
 
@@ -102,6 +103,20 @@ router.get('/watch', async (req: any, res) => {
   } catch (e) {
     res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
     res.end();
+  }
+});
+
+router.post('/mount-project', async (req: any, res) => {
+  const { projectId, kitId } = req.body;
+  try {
+    if (!projectId) {
+      return res.status(400).json({ error: 'projectId is required' });
+    }
+    await mountService.prepareAndWriteFiles(projectId, kitId || null);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Failed to mount project', e);
+    res.status(500).json({ error: e.message });
   }
 });
 

@@ -111,6 +111,17 @@ export class LocalContainerEngine extends ContainerEngine {
     await this.http.post(`${this.apiUrl}/mount`, { files }).toPromise();
   }
 
+  override async mountProject(projectId: string, kitId: string | null): Promise<void> {
+    const needsReboot = this.status() === 'Idle' || this.status() === 'Stopped' || this.status() === 'Server stopped'
+      || (this.currentProjectId && this.currentProjectId !== this.lastBootedProjectId);
+    if (needsReboot) {
+        await this.boot();
+    }
+
+    this.status.set('Mounting files...');
+    await this.http.post(`${this.apiUrl}/mount-project`, { projectId, kitId }).toPromise();
+  }
+
   async exec(cmd: string, args: string[], options?: any): Promise<ProcessOutput> {
     try {
         if (options?.stream) {

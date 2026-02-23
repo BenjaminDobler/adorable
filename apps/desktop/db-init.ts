@@ -89,9 +89,10 @@ function createSchema(db: Database.Database): void {
     CREATE TABLE IF NOT EXISTS "Project" (
       "id" TEXT PRIMARY KEY NOT NULL,
       "name" TEXT NOT NULL,
-      "files" TEXT NOT NULL,
+      "files" TEXT,
       "thumbnail" TEXT,
       "figmaImports" TEXT,
+      "selectedKitId" TEXT,
       "userId" TEXT NOT NULL,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -122,6 +123,7 @@ function createSchema(db: Database.Database): void {
       "role" TEXT NOT NULL,
       "text" TEXT NOT NULL,
       "files" TEXT,
+      "commitSha" TEXT,
       "usage" TEXT,
       "timestamp" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE
@@ -139,13 +141,33 @@ function createSchema(db: Database.Database): void {
  * Ensures all required tables exist (for database upgrades).
  */
 function ensureSchema(db: Database.Database): void {
-  // Check if tables exist and create missing ones
-  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[];
-  const tableNames = new Set(tables.map(t => t.name));
+  // Ensure all tables exist
+  createSchema(db); // Uses IF NOT EXISTS, safe to re-run
 
-  if (!tableNames.has('User') || !tableNames.has('Project') || !tableNames.has('ChatMessage') || !tableNames.has('McpServer')) {
-    console.log('[Desktop] Missing tables detected, creating schema...');
-    createSchema(db);
+  // Add missing columns (ALTER TABLE is idempotent via try/catch)
+  const migrations: { table: string; column: string; type: string }[] = [
+    { table: 'User', column: 'githubId', type: 'TEXT UNIQUE' },
+    { table: 'User', column: 'githubUsername', type: 'TEXT' },
+    { table: 'User', column: 'githubAccessToken', type: 'TEXT' },
+    { table: 'User', column: 'githubAvatarUrl', type: 'TEXT' },
+    { table: 'Project', column: 'githubRepoId', type: 'TEXT' },
+    { table: 'Project', column: 'githubRepoFullName', type: 'TEXT' },
+    { table: 'Project', column: 'githubBranch', type: 'TEXT' },
+    { table: 'Project', column: 'githubLastSyncAt', type: 'DATETIME' },
+    { table: 'Project', column: 'githubLastCommitSha', type: 'TEXT' },
+    { table: 'Project', column: 'githubSyncEnabled', type: 'BOOLEAN NOT NULL DEFAULT 0' },
+    { table: 'Project', column: 'githubPagesUrl', type: 'TEXT' },
+    { table: 'Project', column: 'selectedKitId', type: 'TEXT' },
+    { table: 'ChatMessage', column: 'commitSha', type: 'TEXT' },
+  ];
+
+  for (const { table, column, type } of migrations) {
+    try {
+      db.exec(`ALTER TABLE "${table}" ADD COLUMN "${column}" ${type}`);
+      console.log(`[Desktop] Added column ${table}.${column}`);
+    } catch {
+      // Column already exists, ignore
+    }
   }
 }
 

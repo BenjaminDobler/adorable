@@ -8,7 +8,7 @@ import { RUNTIME_SCRIPTS } from '../runtime-scripts';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { FileSystemStore } from './file-system.store';
-import { WebContainerFiles, FigmaImportPayload } from '@adorable/shared-types';
+import { WebContainerFiles, FigmaImportPayload, mergeFiles as sharedMergeFiles } from '@adorable/shared-types';
 import { ScreenshotService } from './screenshot';
 import { Kit, WebContainerFiles as KitWebContainerFiles } from './kit-types';
 
@@ -407,17 +407,24 @@ export class ProjectService {
 
       this.fileStore.setFiles(mergedFiles);
 
-      // Yield before preparing mount tree
-      await new Promise(resolve => setTimeout(resolve, 0));
+      // Use server-side mount when project has been saved (has a projectId on disk)
+      const pid = this.projectId();
+      if (pid && pid !== 'new' && this.webContainerService.mountProject) {
+        await this.webContainerService.mountProject(pid, this.selectedKitId() || null);
+      } else {
+        // Fallback for new unsaved projects: send files over HTTP
+        await new Promise(resolve => setTimeout(resolve, 0));
 
-      const { tree, binaries } = this.prepareFilesForMount(mergedFiles);
+        const { tree, binaries } = this.prepareFilesForMount(mergedFiles);
 
-      await this.webContainerService.mount(tree);
-      if (isStale()) return;
+        await this.webContainerService.mount(tree);
+        if (isStale()) return;
 
-      for (const bin of binaries) {
-        await this.webContainerService.writeFile(bin.path, bin.content);
+        for (const bin of binaries) {
+          await this.webContainerService.writeFile(bin.path, bin.content);
+        }
       }
+      if (isStale()) return;
 
       const exitCode = await this.webContainerService.runInstall();
       if (isStale()) return;
@@ -541,21 +548,10 @@ export class ProjectService {
   // updateFileInTree -> fileStore.updateFile
 
   mergeFiles(base: any, generated: any): any {
-    const result = { ...base };
-    for (const key in generated) {
-      if (generated[key].directory && result[key]?.directory) {
-        result[key] = {
-          directory: this.mergeFiles(
-            result[key].directory,
-            generated[key].directory,
-          ),
-        };
-      } else {
-        result[key] = generated[key];
-      }
-    }
-    return result;
+    return sharedMergeFiles(base, generated);
   }
+
+  private static SKIP_DIRS = new Set(['node_modules', 'dist', '.angular', '.cache', '.git', '.adorable']);
 
   private prepareFilesForMount(
     files: any,
@@ -565,6 +561,9 @@ export class ProjectService {
     let binaries: { path: string; content: Uint8Array }[] = [];
 
     for (const key in files) {
+      // Skip build artifacts and large directories that shouldn't be mounted
+      if (files[key].directory && ProjectService.SKIP_DIRS.has(key)) continue;
+
       const fullPath = prefix + key;
       if (files[key].file) {
         let content = files[key].file.contents;

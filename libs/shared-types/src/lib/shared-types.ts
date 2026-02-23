@@ -149,6 +149,24 @@ export interface DesignTokens {
   borderRadius?: DesignToken[];
 }
 
+/**
+ * Deep-merge two WebContainerFiles trees. `generated` values override `base`.
+ * When both sides have a directory at the same key, their contents are merged recursively.
+ */
+export function mergeFiles(base: WebContainerFiles, generated: WebContainerFiles): WebContainerFiles {
+  const result: WebContainerFiles = { ...base };
+  for (const key in generated) {
+    if (generated[key].directory && result[key]?.directory) {
+      result[key] = {
+        directory: mergeFiles(result[key].directory!, generated[key].directory!),
+      };
+    } else {
+      result[key] = generated[key];
+    }
+  }
+  return result;
+}
+
 export interface StorybookComponent {
   id: string;
   title: string;

@@ -36,6 +36,7 @@ export abstract class ContainerEngine {
 
   // File System
   abstract mount(files: WebContainerFiles): Promise<void>;
+  mountProject?(projectId: string, kitId: string | null): Promise<void>;
   abstract writeFile(path: string, content: string | Uint8Array): Promise<void>;
   abstract readFile(path: string): Promise<string>;
   abstract readBinaryFile(path: string): Promise<Uint8Array>;

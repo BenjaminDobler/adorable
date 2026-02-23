@@ -26,9 +26,8 @@ class NativeManager {
     return process.env['ADORABLE_PROJECTS_DIR'] || path.join(os.homedir(), 'adorable-projects');
   }
 
-  async createProject(userId: string, projectName?: string): Promise<string> {
-    const dirName = projectName || `project-${userId}`;
-    this.projectPath = path.join(this.baseDir, dirName);
+  async createProject(projectId: string): Promise<string> {
+    this.projectPath = path.join(this.baseDir, projectId);
     await fs.mkdir(this.projectPath, { recursive: true });
     return this.projectPath;
   }
@@ -223,14 +222,14 @@ const manager = new NativeManager();
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '200mb' }));
 
 const AGENT_PORT = parseInt(process.env['ADORABLE_AGENT_PORT'] || '3334', 10);
 
-app.post('/api/native/start', async (_req, res) => {
+app.post('/api/native/start', async (req, res) => {
   try {
-    // Desktop = single user, use a fixed userId
-    const projectPath = await manager.createProject('desktop');
+    const { projectId } = req.body;
+    const projectPath = await manager.createProject(projectId || 'desktop');
     res.json({ projectPath });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
