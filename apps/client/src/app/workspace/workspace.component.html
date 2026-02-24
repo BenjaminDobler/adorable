@@ -52,7 +52,6 @@
         [visualEditorData]="visualEditorData"
         [pendingFigmaImport]="pendingFigmaImport()"
         (fileUploaded)="onFileContentChange($event.content, 'public/assets/' + $event.name)"
-        (closeVisualEdit)="visualEditorData.set(null)"
         (figmaImportProcessed)="pendingFigmaImport.set(null)"
         (popoverToggled)="sidebarPopoverOpen.set($event)"
       ></app-chat>
@@ -103,6 +102,16 @@
       <app-versions-panel></app-versions-panel>
       }
     </div>
+
+    @if (visualEditorData()) {
+      <div class="visual-editor-overlay">
+        <app-visual-editor-panel
+          [visualEditorData]="visualEditorData"
+          (closeEditor)="visualEditorData.set(null)"
+          (aiChangeRequested)="onVisualEditAiChange($event)">
+        </app-visual-editor-panel>
+      </div>
+    }
   </aside>
 
   <div class="resizer-sidebar" (mousedown)="startSidebarResizing($event)"></div>

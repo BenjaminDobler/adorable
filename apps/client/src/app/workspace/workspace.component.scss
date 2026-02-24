@@ -38,10 +38,19 @@
   background: var(--bg-surface-1);
   z-index: 10;
   border-right: 1px solid var(--panel-border);
+  position: relative;
 
   &.popover-open {
     z-index: 10000;
   }
+}
+
+.visual-editor-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: var(--bg-surface-1);
+  overflow-y: auto;
 }
 
 .resizer-sidebar {

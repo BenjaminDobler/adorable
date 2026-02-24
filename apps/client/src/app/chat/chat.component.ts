@@ -16,7 +16,7 @@ import { BASE_FILES } from '../base-project';
 import { FigmaImportPayload } from '@adorable/shared-types';
 
 // Sub-components
-import { VisualEditorPanelComponent } from './visual-editor-panel/visual-editor-panel.component';
+
 import { ChatMessageListComponent } from './chat-message-list/chat-message-list.component';
 import { ChatInputComponent } from './chat-input/chat-input.component';
 import { AiSettingsPopoverComponent } from './ai-settings-popover/ai-settings-popover.component';
@@ -29,7 +29,7 @@ import { McpToolsPanelComponent } from './mcp-tools-panel/mcp-tools-panel.compon
     CommonModule,
     FormsModule,
     SafeUrlPipe,
-    VisualEditorPanelComponent,
+
     ChatMessageListComponent,
     ChatInputComponent,
     AiSettingsPopoverComponent,
@@ -76,7 +76,6 @@ export class ChatComponent implements OnDestroy {
   }
 
   @Output() fileUploaded = new EventEmitter<{name: string, content: string}>();
-  @Output() closeVisualEdit = new EventEmitter<void>();
   @Output() figmaImportProcessed = new EventEmitter<void>();
   @Output() popoverToggled = new EventEmitter<boolean>();
 
@@ -339,14 +338,9 @@ export class ChatComponent implements OnDestroy {
 
   // ===== Visual Editor =====
 
-  closeVisualEditor() {
-    this.closeVisualEdit.emit();
-  }
-
   onAiChangeRequested(prompt: string) {
     this.prompt = prompt;
     this.generate();
-    this.closeVisualEditor();
   }
 
   // ===== File Upload Handlers =====

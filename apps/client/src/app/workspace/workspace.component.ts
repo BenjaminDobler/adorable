@@ -28,6 +28,7 @@ import { TemplateService } from '../services/template';
 import { AnnotationOverlayComponent, AnnotationResult } from '../annotation-overlay/annotation-overlay';
 
 import { VersionsPanelComponent } from '../versions/versions-panel.component';
+import { VisualEditorPanelComponent } from '../chat/visual-editor-panel/visual-editor-panel.component';
 import { PreviewToolbarComponent } from './preview-toolbar/preview-toolbar.component';
 import { DebugOverlayComponent } from './debug-overlay/debug-overlay.component';
 
@@ -44,6 +45,7 @@ import { DebugOverlayComponent } from './debug-overlay/debug-overlay.component';
     FigmaPanelComponent,
     AnnotationOverlayComponent,
     VersionsPanelComponent,
+    VisualEditorPanelComponent,
     PreviewToolbarComponent,
     DebugOverlayComponent,
   ],
@@ -288,6 +290,13 @@ export class WorkspaceComponent implements AfterViewChecked {
     // Disable inspector when entering annotation mode
     if (newState && this.isInspectionActive()) {
       this.toggleInspection();
+    }
+  }
+
+  onVisualEditAiChange(prompt: string) {
+    this.visualEditorData.set(null);
+    if (this.chatComponent) {
+      this.chatComponent.onAiChangeRequested(prompt);
     }
   }
 
