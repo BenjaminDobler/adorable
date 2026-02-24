@@ -502,52 +502,6 @@ export class ProjectService {
 
   }
 
-  async migrateProject() {
-    const files = this.files();
-    if (this.fileStore.isEmpty()) return;
-
-    this.loading.set(true);
-    try {
-      // Direct updates via store
-      if (!files['public']) {
-        this.fileStore.updateFile('public/.gitkeep', '');
-      }
-
-      if (files['angular.json'] && files['angular.json'].file) {
-        const content = files['angular.json'].file.contents;
-        const config = JSON.parse(content);
-
-        const appArchitect = config.projects.app.architect;
-        // Enable HMR (requires optimization: false in build options)
-        const buildOptions = appArchitect.build.options;
-        const hasPublic = buildOptions.assets.some(
-          (a: any) => typeof a === 'object' && a.input === 'public',
-        );
-        if (!hasPublic) {
-          buildOptions.assets.push({ glob: '**/*', input: 'public' });
-        }
-
-        buildOptions.optimization = false;
-
-        const serveOptions = appArchitect.serve.options;
-        serveOptions.hmr = true;
-        serveOptions.allowedHosts = ['all'];
-
-        const newConfig = JSON.stringify(config, null, 2);
-        this.fileStore.updateFile('angular.json', newConfig);
-      }
-
-      // Reload with new state
-      await this.reloadPreview(this.files());
-      this.toastService.show('Project configuration updated', 'success');
-    } catch (err) {
-      console.error(err);
-      this.toastService.show('Migration failed', 'error');
-    } finally {
-      this.loading.set(false);
-    }
-  }
-
   // Helpers
   addSystemMessage(text: string) {
     this.messages.update((msgs) => [
