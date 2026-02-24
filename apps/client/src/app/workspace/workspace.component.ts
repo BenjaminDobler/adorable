@@ -272,6 +272,9 @@ export class WorkspaceComponent implements AfterViewChecked {
     // Disable annotation mode when enabling inspector
     if (isActive) this.isAnnotating.set(false);
 
+    // Close properties panel when inspector is toggled off
+    if (!isActive) this.visualEditorData.set(null);
+
     const iframe = document.querySelector('iframe');
     if (iframe && iframe.contentWindow) {
       iframe.contentWindow.postMessage(
