@@ -79,7 +79,7 @@ export const routes: Routes = [
   {
     path: 'editor/:id',
     canActivate: [authGuard],
-    loadComponent: () => import('./app').then(m => m.AppComponent)
+    loadComponent: () => import('./workspace/workspace.component').then(m => m.WorkspaceComponent)
   },
   {
     path: '',

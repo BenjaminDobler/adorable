@@ -1,0 +1,10 @@
+@if (confirmService.dialog()) {
+<div class="confirm-backdrop" (click)="confirmService.cancel()"></div>
+<div class="confirm-dialog">
+  <p>{{ confirmService.dialog()!.message }}</p>
+  <div class="confirm-actions">
+    <button class="btn-cancel" (click)="confirmService.cancel()">{{ confirmService.dialog()!.cancelLabel }}</button>
+    <button class="btn-confirm" (click)="confirmService.accept()">{{ confirmService.dialog()!.confirmLabel }}</button>
+  </div>
+</div>
+}

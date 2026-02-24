@@ -1,0 +1,73 @@
+.debug-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 99999;
+  padding: 2rem;
+  overflow: auto;
+  font-family: monospace;
+}
+
+.debug-panel {
+  background: #1e1e1e;
+  padding: 1.5rem;
+  border-radius: 8px;
+  min-height: 100%;
+  border: 1px solid #333;
+}
+
+.debug-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+
+  h2 {
+    margin: 0;
+    color: var(--accent-color);
+  }
+
+  .btn-close {
+    background: #333;
+    border: none;
+    color: #fff;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+}
+
+.log-entry {
+  border-bottom: 1px solid #333;
+  padding: 0.75rem 0;
+}
+
+.log-meta {
+  color: #888;
+  font-size: 0.8rem;
+  margin-bottom: 4px;
+
+  .log-type {
+    color: var(--text-primary);
+    font-weight: bold;
+  }
+}
+
+.log-content {
+  color: #ccc;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  margin: 0;
+  background: #111;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.empty-state {
+  color: #666;
+  text-align: center;
+  padding: 2rem;
+}

@@ -1,0 +1,25 @@
+@if (visible()) {
+<div class="debug-overlay">
+  <div class="debug-panel">
+    <div class="debug-header">
+      <h2>Agent Debug Log</h2>
+      <button class="btn-close" (click)="closed.emit()">
+        Close (Cmd+Shift+D)
+      </button>
+    </div>
+    @for (log of logs(); track $index) {
+    <div class="log-entry">
+      <div class="log-meta">
+        <span class="log-type">{{ log.type | uppercase }}</span>
+        - {{ log.timestamp | date:'mediumTime' }}
+      </div>
+      <pre class="log-content">{{ log | json }}</pre>
+    </div>
+    } @if (logs().length === 0) {
+    <div class="empty-state">
+      No logs captured yet. Make a request!
+    </div>
+    }
+  </div>
+</div>
+}

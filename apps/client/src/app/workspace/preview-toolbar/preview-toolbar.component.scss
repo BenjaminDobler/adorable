@@ -1,0 +1,43 @@
+.preview-toolbar {
+  background: var(--bg-surface-2);
+  border-bottom: 1px solid var(--panel-border);
+  padding: 6px 12px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+
+  .device-buttons {
+    display: flex;
+    gap: 4px;
+    margin-right: auto;
+  }
+
+  .toolbar-separator {
+    width: 1px;
+    height: 20px;
+    background: var(--panel-border);
+    margin: 0 4px;
+  }
+
+  button {
+    background: var(--bg-surface-3);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+
+    &:hover {
+      background: var(--bg-surface-3);
+      color: var(--text-primary);
+      border-color: var(--text-muted);
+    }
+
+    &.active {
+      background: var(--accent-glow) !important;
+      border-color: var(--accent-color) !important;
+      color: var(--accent-color) !important;
+    }
+  }
+}
