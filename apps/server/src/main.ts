@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 
 import { JWT_SECRET, PORT, SITES_DIR } from './config';
 import { containerProxy, getUserId } from './middleware/proxy';
+import { containerRegistry } from './providers/container/container-registry';
 import { authRouter } from './routes/auth.routes';
 import { projectRouter } from './routes/project.routes';
 import { aiRouter } from './routes/ai.routes';
@@ -55,6 +56,19 @@ app.use(async (req: any, res, next) => {
 
   const userId = getUserId(req);
   if (userId) {
+    // Only proxy when the user actually has a running container.
+    // Without this check, http-proxy-middleware falls back to the placeholder
+    // target (localhost:3333) — the server's own port — creating a self-proxy
+    // loop that triggers EAGAIN / EADDRNOTAVAIL errors.
+    try {
+      const manager = containerRegistry.getManager(userId);
+      if (!manager || !manager.isRunning()) {
+        return next();
+      }
+    } catch {
+      return next();
+    }
+
     const queryUser = new URL(req.url, `http://${req.headers.host}`).searchParams.get('user');
     const cookieUser = req.signedCookies?.['adorable_container_user'];
 

@@ -74,7 +74,7 @@ export const containerProxy = createProxyMiddleware({
     error: (err: any, req, res: any) => {
       // Suppress common transient errors (client disconnected, container restarting)
       const code = err?.code;
-      if (code === 'ECONNRESET' || code === 'ECONNREFUSED' || code === 'EPIPE') {
+      if (code === 'ECONNRESET' || code === 'ECONNREFUSED' || code === 'EPIPE' || code === 'EAGAIN' || code === 'EADDRNOTAVAIL') {
         // Only log at debug level — these are expected when clients close connections
         return;
       }
