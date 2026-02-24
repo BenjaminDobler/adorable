@@ -1,0 +1,42 @@
+@if (visible) {
+  <div class="mcp-tools-panel">
+    <div class="mcp-tools-header">
+      <h4>MCP Tools</h4>
+      <button class="tool-btn close-btn" (click)="closed.emit()">×</button>
+    </div>
+
+    @if (loading) {
+      <div class="mcp-loading">
+        <div class="typing-indicator">
+          <span></span><span></span><span></span>
+        </div>
+        <span>Loading tools...</span>
+      </div>
+    } @else if (servers.length === 0) {
+      <div class="mcp-empty">
+        <div class="mcp-empty-icon">🔌</div>
+        <p>No MCP servers configured</p>
+        <a href="/profile" class="mcp-settings-link">Configure in Settings</a>
+      </div>
+    } @else {
+      <div class="mcp-servers-list">
+        @for (server of servers; track server.id) {
+          <div class="mcp-server-group">
+            <div class="mcp-server-header">
+              <span class="server-name">{{ server.name }}</span>
+              <span class="tool-count">{{ getToolsForServer(server.id).length }} tools</span>
+            </div>
+            <div class="mcp-tools-list">
+              @for (tool of getToolsForServer(server.id); track tool.name) {
+                <div class="mcp-tool-item">
+                  <div class="tool-name">{{ tool.originalName }}</div>
+                  <div class="tool-description">{{ tool.description }}</div>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+}

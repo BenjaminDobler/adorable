@@ -1,0 +1,209 @@
+:host {
+  display: block;
+  flex-shrink: 0;
+}
+
+.input-container {
+  margin: 0 1.25rem 1.25rem 1.25rem;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-xl);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s var(--ease-out-expo);
+  flex-shrink: 0;
+  box-shadow: var(--shadow-lg);
+  overflow: visible;
+  position: relative;
+  z-index: 1;
+
+  &:focus-within {
+    border-color: var(--accent-color);
+    background: var(--bg-surface-3);
+    box-shadow: 0 0 0 3px var(--accent-glow), var(--shadow-xl);
+    transform: translateY(-2px);
+  }
+
+  &.dragging {
+    border-color: var(--accent-color);
+    background: var(--bg-surface-3);
+    border-style: dashed;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 60px;
+    max-height: 300px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    color: var(--text-primary);
+    padding: 1.125rem 1.375rem;
+    resize: none;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    box-shadow: none;
+    font-family: inherit;
+    overflow-y: auto;
+    transition: none;
+
+    &::placeholder {
+      color: var(--text-muted);
+    }
+
+    &:focus {
+      background: transparent;
+      box-shadow: none;
+    }
+  }
+
+  .input-footer {
+    padding: 0.75rem 1.125rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid var(--panel-border);
+    background: rgba(0, 0, 0, 0.1);
+  }
+}
+
+.tool-group {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.tool-btn {
+  position: relative;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  &.active {
+    color: var(--accent-color);
+    background: var(--accent-glow);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.image-chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--bg-surface-3);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  gap: 8px;
+  width: fit-content;
+
+  img {
+    height: 40px;
+    width: 40px;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--panel-border);
+    cursor: pointer;
+    transition: opacity 0.15s;
+
+    &:hover {
+      opacity: 0.8;
+    }
+  }
+
+  .chip-remove {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: var(--error-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s;
+
+    &:hover {
+      transform: scale(1.1);
+      background: #ff5555;
+    }
+  }
+}
+
+.btn-generate {
+  background: var(--accent-color);
+  color: #000;
+  border: none;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 0 15px var(--accent-glow);
+  transition: all 0.25s var(--ease-out-expo);
+
+  &:hover:not(:disabled) {
+    background: var(--accent-hover);
+    transform: scale(1.08);
+    box-shadow: 0 0 25px var(--accent-glow-intense);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+
+  &:disabled {
+    background: var(--bg-surface-3);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  &.btn-cancel {
+    background: var(--error-color);
+    box-shadow: 0 0 15px var(--error-glow);
+
+    &:hover {
+      background: #ef4444;
+      box-shadow: 0 0 25px var(--error-glow);
+    }
+  }
+}
+
+/* MCP Badge on Button */
+.mcp-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--accent-color);
+  color: #000;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+  min-width: 14px;
+  text-align: center;
+}

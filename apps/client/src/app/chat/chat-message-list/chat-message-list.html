@@ -1,0 +1,174 @@
+<div class="chat-messages" #scrollContainer (scroll)="onScroll()">
+  @for (msg of messages; track msg) {
+    <div class="message" [class.user]="msg.role === 'user'" [class.assistant]="msg.role === 'assistant'" [class.system]="msg.role === 'system'">
+      @if (msg.role === 'assistant') {
+        <div class="assistant-header" style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; padding-left: 4px;">
+          <img src="logo.png" style="width: 16px; height: 16px; object-fit: contain; filter: drop-shadow(0 0 5px var(--accent-glow));" />
+          <span style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Adorable AI</span>
+        </div>
+      }
+      <div class="message-content">
+        <div class="markdown-body" [innerHTML]="msg.text | markdown"></div>
+
+        @if (getActivatedSkills(msg).length > 0) {
+           <div class="skill-badges" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--panel-border-glow);">
+              @for (skill of getActivatedSkills(msg); track skill) {
+                <span class="skill-indicator" style="font-size: 10px; background: rgba(62, 207, 142, 0.1); color: var(--accent-color); padding: 4px 10px; border-radius: 6px; font-weight: 700; border: 1px solid rgba(62, 207, 142, 0.2); display: flex; align-items: center; gap: 6px; animation: slideIn 0.3s ease-out;">
+                    <div style="background: var(--accent-color); color: #000; width: 14px; height: 14px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px;">⚡</div>
+                    {{ skill }}
+                </span>
+              }
+           </div>
+        }
+
+        @if (msg.updatedFiles && msg.updatedFiles.length > 0) {
+          <div class="updated-files-container" style="margin-top: 1.25rem; border: 1px solid var(--panel-border); border-radius: var(--radius-md); overflow: hidden; background: rgba(0,0,0,0.1);">
+            <button (click)="msg.isExpanded = !msg.isExpanded" style="width: 100%; text-align: left; padding: 10px 12px; background: var(--bg-surface-2); border: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; color: var(--text-secondary); font-size: 0.8rem; transition: background 0.2s;">
+              <span style="font-weight: 700;">Updated files ({{ msg.updatedFiles.length }})</span>
+              <svg [style.transform]="msg.isExpanded ? 'rotate(180deg)' : 'rotate(0)'" style="transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            @if (msg.isExpanded) {
+              <div style="padding: 8px 12px; background: var(--bg-surface-1); border-top: 1px solid var(--panel-border);">
+                @for (file of msg.updatedFiles; track file) {
+                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--accent-color); padding: 6px 0; display: flex; align-items: center; gap: 8px;">
+                    <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+                    {{ file }}
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+
+        @if (msg.toolResults && msg.toolResults.length > 0) {
+          <div class="tool-results-wrapper" style="margin-top: 1rem;">
+             <button (click)="msg.areToolsExpanded = !msg.areToolsExpanded"
+                     class="tool-toggle-btn"
+                     style="width: 100%; background: var(--bg-surface-2); border: 1px solid var(--panel-border); padding: 8px 12px; border-radius: var(--radius-md); cursor: pointer; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; transition: background 0.2s;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                   <svg [style.transform]="(msg.areToolsExpanded || !compactMode) ? 'rotate(180deg)' : 'rotate(0)'" style="transition: transform 0.2s;" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                   <span style="font-weight: 700; font-size: 0.75rem; color: var(--text-secondary);">
+                     {{ msg.toolResults.length }} System Actions
+                   </span>
+                </div>
+                @if (!msg.areToolsExpanded && compactMode) {
+                   <span style="font-size: 0.7rem; color: var(--text-muted); max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'JetBrains Mono', monospace;">
+                      Latest: {{ msg.toolResults[msg.toolResults.length - 1].tool }}
+                   </span>
+                }
+             </button>
+
+             @if (!compactMode || msg.areToolsExpanded) {
+                <div class="tool-results-container" style="animation: slideIn 0.2s ease-out;">
+                  @for (res of msg.toolResults; track res) {
+                    <div class="tool-result-item" style="border: 1px solid var(--panel-border); border-radius: var(--radius-md); overflow: hidden; margin-bottom: 0.5rem;">
+                      <div style="background: var(--bg-surface-2); padding: 6px 12px; font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--panel-border);">
+                        <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                        {{ res.tool | uppercase }}
+                        @if (res.isError) {
+                          <span style="color: var(--error-color); font-size: 0.6rem; margin-left: auto;">FAILED</span>
+                        } @else {
+                          <span style="color: var(--accent-color); font-size: 0.6rem; margin-left: auto;">SUCCESS</span>
+                        }
+                      </div>
+                      <pre style="margin: 0; padding: 10px; background: #000; color: #ccc; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">{{ res.result }}</pre>
+                    </div>
+                  }
+                </div>
+             }
+          </div>
+        }
+
+        @if (msg.commitSha || msg.files) {
+          <div class="message-actions">
+            <button class="btn-restore" (click)="restoreVersion.emit(msg.commitSha || msg.files)" title="Restore project to this state">
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2v6h6M2.66 15.57a10 10 0 1 0 .57-8.38"/></svg>
+              Restore version
+            </button>
+          </div>
+        }
+      </div>
+
+      @if (msg.pendingQuestion) {
+        <app-question-panel
+          [message]="msg"
+          [projectImageAssets]="projectImageAssets"
+          (submitted)="questionSubmitted.emit($event)"
+          (cancelled)="questionCancelled.emit($event)"
+          (answerUpdated)="questionAnswerUpdated.emit($event)"
+          (checkboxToggled)="questionCheckboxToggled.emit($event)"
+          (defaultsAccepted)="questionDefaultsAccepted.emit($event)">
+        </app-question-panel>
+      }
+
+      @if (msg.status && !msg.pendingQuestion) {
+         <div class="message-status" style="margin-top: 10px; font-size: 0.75rem; color: var(--accent-color); font-weight: 600; display: flex; align-items: center; gap: 10px; padding-left: 8px;">
+            <div class="spinner-tiny" style="border-top-color: var(--accent-color);"></div>
+            {{ msg.status }}
+         </div>
+      }
+
+      <div class="message-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; padding: 0 4px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          @if (msg.duration) {
+            <div style="font-size: 9px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-weight: 500;">
+              {{ msg.duration >= 60000 ? (msg.duration / 60000 | number:'1.1-1') + 'm' : (msg.duration / 1000 | number:'1.0-0') + 's' }}
+            </div>
+          }
+          @if (msg.usage) {
+            <div class="message-usage" style="font-size: 9px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-weight: 500;">
+              {{ msg.usage.inputTokens }} IN / {{ msg.usage.outputTokens }} OUT
+            </div>
+          }
+          @if (msg.model) {
+            <div class="message-model" style="font-size: 9px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: var(--accent-color); background: var(--accent-glow); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--panel-border-glow);">
+              {{ msg.model }}
+            </div>
+          }
+        </div>
+        <div class="message-time" style="font-size: 10px; color: var(--text-muted); font-weight: 500;">
+          {{ msg.timestamp | date:'shortTime' }}
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (messages.length <= 1 && !loading) {
+    <div class="quick-starters" style="padding: 0 1.25rem 1.25rem 1.25rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+      @for (starter of quickStarters; track starter.label) {
+        <button (click)="useQuickStarter.emit(starter.prompt)" class="starter-card" style="background: var(--bg-surface-2); border: 1px solid var(--panel-border); padding: 16px; border-radius: var(--radius-lg); text-align: left; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); color: var(--text-primary); display: flex; flex-direction: column; gap: 6px; box-shadow: var(--shadow-sm);">
+          <div style="font-weight: 700; font-size: 0.9rem; color: var(--accent-color); letter-spacing: -0.01em;">{{ starter.label }}</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.5; font-weight: 500;">{{ starter.description }}</div>
+        </button>
+      }
+    </div>
+  }
+
+  @if (buildError) {
+    <div class="error-alert" style="margin: 1.25rem; padding: 1.25rem; background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: var(--radius-lg); box-shadow: var(--shadow-md);">
+      <div style="display: flex; gap: 12px; align-items: start; margin-bottom: 1rem;">
+        <svg viewBox="0 0 24 24" width="20" height="20" stroke="var(--error-color)" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        <div>
+          <div style="color: var(--error-color); font-weight: 700; font-size: 0.95rem; letter-spacing: -0.01em; margin-bottom: 4px;">Build Failed</div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">The application failed to compile.</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button (click)="autoRepair.emit(buildError!)" style="flex: 1; background: var(--error-color); color: white; border: none; padding: 8px 12px; border-radius: var(--radius-md); font-size: 0.85rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 10px rgba(239, 68, 68, 0.3);">
+          ✨ Fix with AI
+        </button>
+        <button (click)="dismissError.emit()" style="background: var(--bg-surface-3); border: 1px solid var(--panel-border); color: var(--text-secondary); padding: 8px 12px; border-radius: var(--radius-md); font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+          Dismiss
+        </button>
+      </div>
+    </div>
+  }
+
+  @if (loading) {
+    <div class="message assistant loading" style="background: transparent;">
+      <div class="typing-indicator">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  }
+</div>

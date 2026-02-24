@@ -1,0 +1,38 @@
+@if (isOpen) {
+  <div class="ai-settings-backdrop" (click)="closed.emit()"></div>
+  <div class="ai-settings-popover"
+       [style.bottom.px]="position.bottom"
+       [style.left.px]="position.left">
+    <div class="ai-settings-row">
+      <label>Model</label>
+      <select
+        [ngModel]="selectedModel"
+        (ngModelChange)="modelChanged.emit($event)">
+        @for (model of availableModels; track model.id) {
+          <option [ngValue]="model">{{ model.name }}</option>
+        }
+      </select>
+    </div>
+    <div class="ai-settings-row">
+      <label>Skill</label>
+      <select
+        [ngModel]="selectedSkill"
+        (ngModelChange)="skillChanged.emit($event)">
+        <option [ngValue]="null">Auto</option>
+        @for (skill of availableSkills; track skill.name) {
+          <option [ngValue]="skill">{{ skill.name }}</option>
+        }
+      </select>
+    </div>
+    <div class="ai-settings-row">
+      <label>Reasoning</label>
+      <select
+        [ngModel]="reasoningEffort"
+        (ngModelChange)="reasoningEffortChanged.emit($event)">
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+      </select>
+    </div>
+  </div>
+}
