@@ -51,7 +51,6 @@
         [appSettings]="appSettings"
         [visualEditorData]="visualEditorData"
         [pendingFigmaImport]="pendingFigmaImport()"
-        (startSelection)="startSelection()"
         (fileUploaded)="onFileContentChange($event.content, 'public/assets/' + $event.name)"
         (closeVisualEdit)="visualEditorData.set(null)"
         (figmaImportProcessed)="pendingFigmaImport.set(null)"
@@ -194,6 +193,7 @@
           (previewDeviceChange)="previewDevice.set($event)"
           (inspectionToggled)="toggleInspection()"
           (annotationToggled)="toggleAnnotation()"
+          (screenshotRequested)="startSelection()"
           (fullscreenToggled)="layoutService.isFullscreen.set(!layoutService.isFullscreen())"
           (reload)="reloadIframe()"
         />

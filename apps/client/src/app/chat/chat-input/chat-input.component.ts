@@ -28,15 +28,12 @@ export class ChatInputComponent {
   @Input() aiSettingsOpen = false;
   @Input() mcpToolsVisible = false;
   @Input() mcpToolsCount = 0;
-  @Input() previewUrl: string | null = null;
-
   @Output() generateRequested = new EventEmitter<void>();
   @Output() cancelGeneration = new EventEmitter<void>();
   @Output() promptChange = new EventEmitter<string>();
   @Output() fileSelected = new EventEmitter<Event>();
   @Output() removeAttachment = new EventEmitter<void>();
   @Output() removeFigmaAttachment = new EventEmitter<void>();
-  @Output() startSelection = new EventEmitter<void>();
   @Output() toggleAiSettings = new EventEmitter<MouseEvent>();
   @Output() togglePlanMode = new EventEmitter<void>();
   @Output() toggleCompactMode = new EventEmitter<void>();

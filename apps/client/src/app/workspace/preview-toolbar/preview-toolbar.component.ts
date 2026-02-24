@@ -15,6 +15,7 @@ export class PreviewToolbarComponent {
   previewDeviceChange = output<'desktop' | 'tablet' | 'phone'>();
   inspectionToggled = output<void>();
   annotationToggled = output<void>();
+  screenshotRequested = output<void>();
   fullscreenToggled = output<void>();
   reload = output<void>();
 }

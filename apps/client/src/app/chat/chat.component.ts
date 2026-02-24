@@ -75,7 +75,6 @@ export class ChatComponent implements OnDestroy {
     }
   }
 
-  @Output() startSelection = new EventEmitter<void>();
   @Output() fileUploaded = new EventEmitter<{name: string, content: string}>();
   @Output() closeVisualEdit = new EventEmitter<void>();
   @Output() figmaImportProcessed = new EventEmitter<void>();
