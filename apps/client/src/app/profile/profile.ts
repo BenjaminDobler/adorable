@@ -52,6 +52,7 @@ export interface AppSettings {
   theme?: ThemeCombined; // Legacy: combined theme mode
   themeSettings?: ThemeSettings; // New: separate type and mode
   mcpServers?: MCPServerConfig[];
+  angularMcpEnabled?: boolean;
 }
 
 @Component({
@@ -230,7 +231,8 @@ export class ProfileComponent implements OnInit {
           activeProfileId: parsed.activeProfileId || 'anthropic',
           theme: parsed.theme || 'dark',
           themeSettings,
-          mcpServers
+          mcpServers,
+          angularMcpEnabled: parsed.angularMcpEnabled !== false,
         };
 
         this.settings.set(newSettings);
@@ -438,6 +440,11 @@ export class ProfileComponent implements OnInit {
       mcpServers: updated
     }));
     // Auto-save to database
+    this.save();
+  }
+
+  toggleAngularMcp(enabled: boolean) {
+    this.settings.update(s => ({ ...s, angularMcpEnabled: enabled }));
     this.save();
   }
 

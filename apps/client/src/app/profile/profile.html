@@ -367,6 +367,20 @@
             </div>
           </div>
           <div class="card-body">
+            <div class="header-with-toggle" style="margin-bottom: 16px;">
+              <div>
+                <label>Angular CLI MCP</label>
+                <small class="help-text">Built-in server providing Angular documentation, best practices, and code examples to the AI.</small>
+              </div>
+              <label class="switch">
+                <input
+                  type="checkbox"
+                  [ngModel]="settings().angularMcpEnabled !== false"
+                  (ngModelChange)="toggleAngularMcp($event)"
+                >
+                <span class="slider round"></span>
+              </label>
+            </div>
             @if (mcpServers().length === 0) {
               <div class="mcp-empty">
                 <div class="mcp-empty-icon">🔌</div>

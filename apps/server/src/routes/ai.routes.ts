@@ -20,26 +20,42 @@ router.use(authenticate);
  * Load and decrypt MCP server configs from user settings
  */
 function loadMCPConfigs(userSettings: any): MCPServerConfig[] {
-  if (!userSettings?.mcpServers || !Array.isArray(userSettings.mcpServers)) {
-    return [];
+  // Built-in MCP servers
+  const builtInConfigs: MCPServerConfig[] = [];
+
+  // Angular CLI MCP server (built-in, enabled by default)
+  if (userSettings?.angularMcpEnabled !== false) {
+    builtInConfigs.push({
+      id: 'builtin-angular-cli',
+      name: 'angular-cli',
+      transport: 'stdio',
+      command: 'npx',
+      args: ['@angular/cli', 'mcp'],
+      enabled: true,
+    });
   }
 
-  return userSettings.mcpServers
-    .filter((server: MCPServerConfig) => server.enabled)
-    .map((server: MCPServerConfig) => {
-      // Decrypt API key if present and encrypted
-      if (server.apiKey && !server.apiKey.includes('...')) {
-        try {
-          // Check if it looks encrypted (contains colon separator for iv:encrypted format)
-          if (server.apiKey.includes(':')) {
-            return { ...server, apiKey: decrypt(server.apiKey) };
+  // User-configured MCP servers
+  const userConfigs: MCPServerConfig[] = (userSettings?.mcpServers && Array.isArray(userSettings.mcpServers))
+    ? userSettings.mcpServers
+        .filter((server: MCPServerConfig) => server.enabled)
+        .map((server: MCPServerConfig) => {
+          // Decrypt API key if present and encrypted
+          if (server.apiKey && !server.apiKey.includes('...')) {
+            try {
+              // Check if it looks encrypted (contains colon separator for iv:encrypted format)
+              if (server.apiKey.includes(':')) {
+                return { ...server, apiKey: decrypt(server.apiKey) };
+              }
+            } catch (e) {
+              console.error(`Failed to decrypt MCP API key for server "${server.name}":`, e);
+            }
           }
-        } catch (e) {
-          console.error(`Failed to decrypt MCP API key for server "${server.name}":`, e);
-        }
-      }
-      return server;
-    });
+          return server;
+        })
+    : [];
+
+  return [...builtInConfigs, ...userConfigs];
 }
 
 /**
