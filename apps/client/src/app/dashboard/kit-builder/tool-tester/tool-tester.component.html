@@ -1,0 +1,42 @@
+@if (hasComponents()) {
+  <div class="form-section">
+    <h4>Test Tools</h4>
+    <p class="section-hint">Preview what the AI sees when calling kit tools</p>
+    @if (kitId()) {
+      <div class="tool-tester">
+        <div class="tool-select-row">
+          <select [ngModel]="selectedTestTool()" (ngModelChange)="selectedTestTool.set($event)">
+            <option value="list_components">list_components</option>
+            <option value="get_component">get_component</option>
+            <option value="get_design_tokens">get_design_tokens</option>
+          </select>
+          @if (selectedTestTool() === 'get_component') {
+            <input
+              type="text"
+              class="tool-arg-input"
+              [ngModel]="testComponentName()"
+              (ngModelChange)="testComponentName.set($event)"
+              placeholder="Component name (e.g., Button)"
+            />
+          }
+          <button
+            class="btn-test"
+            (click)="testTool()"
+            [disabled]="testingTool()"
+          >
+            {{ testingTool() ? 'Testing...' : 'Test' }}
+          </button>
+        </div>
+        @if (toolTestResult()) {
+          <div class="tool-result" [class.error]="toolTestError()">
+            <pre>{{ toolTestResult() }}</pre>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="tool-tester-hint">
+        Save the kit first to test the AI tools.
+      </div>
+    }
+  </div>
+}

@@ -1,0 +1,123 @@
+@if (kitId()) {
+  <div class="form-section">
+    <div class="adorable-section-header">
+      <div class="adorable-title-row">
+        <h4>AI Component Docs (<code>.adorable</code>)</h4>
+        @if (adorableFileCount() > 0) {
+          <span class="adorable-file-count">{{ adorableFileCount() }} files</span>
+        }
+      </div>
+      <div class="adorable-actions">
+        <label class="btn-upload-files">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Upload
+          <input type="file" multiple (change)="uploadAdorableFiles($event)" style="display: none;" accept=".md,.txt,.json,.yaml,.yml"/>
+        </label>
+        @if (hasDiscoveredComponents()) {
+          <button class="btn-regenerate" (click)="regenerateDocs()">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+              <polyline points="23 4 23 10 17 10"/>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+            Regenerate
+          </button>
+        }
+      </div>
+    </div>
+    <p class="section-hint">Files in <code>.adorable/</code> are injected into the AI context when this kit is active. Edit component docs, add usage guides, or upload custom references.</p>
+
+    @if (loadingAdorableFiles()) {
+      <div class="adorable-loading">
+        <div class="spinner-small"></div>
+        Loading files...
+      </div>
+    } @else if (adorableFileCount() === 0) {
+      <div class="adorable-empty">
+        No <code>.adorable</code> files yet.
+        @if (hasDiscoveredComponents()) {
+          Click "Regenerate" to generate component docs, or upload files manually.
+        } @else {
+          Upload markdown files to provide the AI with component documentation.
+        }
+      </div>
+    } @else {
+      <div class="template-tree-editor">
+        <div class="tree-toolbar">
+          <span class="tree-file-count">{{ adorableFileCount() }} files</span>
+        </div>
+        <div class="template-file-list">
+          @for (entry of visibleAdorableEntries(); track entry.path) {
+            <div
+              class="template-file-item"
+              [class.is-directory]="entry.isDirectory"
+              [style.padding-left.px]="12 + entry.depth * 20"
+            >
+              @if (entry.isDirectory) {
+                <button class="btn-chevron" [class.expanded]="expandedAdorablePaths().has(entry.path)" (click)="toggleAdorableFolder(entry.path)">
+                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </button>
+                <svg class="entry-icon" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
+              } @else {
+                <span class="chevron-spacer"></span>
+                <svg class="entry-icon" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+              }
+              <span class="entry-name clickable-entry" [class.clickable]="!entry.isDirectory" (click)="!entry.isDirectory && openAdorableFile(entry.fullPath)">{{ entry.name }}</span>
+              @if (!entry.isDirectory && entry.size > 0) {
+                <span class="entry-size">{{ formatFileSize(entry.size) }}</span>
+              }
+              @if (!entry.isDirectory) {
+                <button
+                  class="btn-remove-entry"
+                  (click)="deleteAdorableFile(entry.fullPath)"
+                  title="Delete file"
+                >
+                  <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    }
+  </div>
+}
+
+<!-- Adorable File Editor Modal -->
+@if (editingAdorableFile()) {
+  <div class="modal-overlay" (click)="closeAdorableFileEditor()">
+    <div class="modal-content adorable-file-editor" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{ editingAdorableFile()!.path }}</h3>
+        <button class="btn-close" (click)="closeAdorableFileEditor()">×</button>
+      </div>
+      <div class="modal-body">
+        <textarea
+          class="adorable-editor-textarea"
+          [ngModel]="editingAdorableFile()!.content"
+          (ngModelChange)="updateAdorableFileContent($event)"
+          rows="20"
+        ></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" (click)="closeAdorableFileEditor()">Cancel</button>
+        <button class="btn-save" (click)="saveAdorableFile()" [disabled]="savingAdorableFile()">
+          {{ savingAdorableFile() ? 'Saving...' : 'Save' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

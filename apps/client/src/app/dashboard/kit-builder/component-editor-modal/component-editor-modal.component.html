@@ -1,0 +1,198 @@
+@if (component()) {
+  <div class="modal-overlay" (click)="close()">
+    <div class="modal-content component-editor" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Edit Component: {{ component()!.componentName || component()!.title }}</h3>
+        <button class="btn-close" (click)="close()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <p class="editor-hint">
+          Add documentation that the AI will use when generating code with this component.
+          This data is stored locally and won't be fetched from Storybook.
+        </p>
+
+        <div class="form-group">
+          <label>Usage Type</label>
+          <select [ngModel]="editUsageType()" (ngModelChange)="editUsageType.set($event)">
+            <option value="">Auto-detect</option>
+            <option value="directive">Directive (applied as attribute)</option>
+            <option value="component">Component (used as element)</option>
+          </select>
+          <span class="hint">Directives are applied to existing elements (e.g., &lt;button lxButton&gt;). Components are used as custom elements (e.g., &lt;lx-badge&gt;).</span>
+        </div>
+
+        <div class="form-group">
+          <label>Selector</label>
+          <input
+            type="text"
+            [ngModel]="editSelector()"
+            (ngModelChange)="editSelector.set($event)"
+            placeholder="e.g., [lxButton] or lx-badge"
+          />
+          <span class="hint">The Angular selector for this component. Use [brackets] for attribute selectors (directives).</span>
+        </div>
+
+        <div class="form-group">
+          <label>Description</label>
+          <textarea
+            [ngModel]="editDescription()"
+            (ngModelChange)="editDescription.set($event)"
+            placeholder="Brief description of what this component does..."
+            rows="2"
+          ></textarea>
+        </div>
+
+        <!-- Inputs Section -->
+        <div class="form-section inputs-section">
+          <div class="section-header">
+            <label>Inputs (Props)</label>
+            <button class="btn-add-item" (click)="addInput()">+ Add Input</button>
+          </div>
+
+          @if (editInputs().length > 0) {
+            <div class="inputs-list">
+              @for (input of editInputs(); track $index) {
+                <div class="input-item">
+                  <div class="input-row">
+                    <input
+                      type="text"
+                      class="input-name"
+                      [ngModel]="input.name"
+                      (ngModelChange)="updateInput($index, 'name', $event)"
+                      placeholder="name"
+                    />
+                    <input
+                      type="text"
+                      class="input-type"
+                      [ngModel]="input.type"
+                      (ngModelChange)="updateInput($index, 'type', $event)"
+                      placeholder="type"
+                    />
+                    <label class="input-required">
+                      <input
+                        type="checkbox"
+                        [checked]="input.required"
+                        (change)="updateInput($index, 'required', $any($event.target).checked)"
+                      />
+                      Required
+                    </label>
+                    <button class="btn-remove-item" (click)="removeInput($index)">×</button>
+                  </div>
+                  <input
+                    type="text"
+                    class="input-description"
+                    [ngModel]="input.description"
+                    (ngModelChange)="updateInput($index, 'description', $event)"
+                    placeholder="Description (optional)"
+                  />
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="no-items-hint">
+              No inputs defined. Click "+ Add Input" to add component inputs.
+            </div>
+          }
+        </div>
+
+        <!-- Outputs Section -->
+        <div class="form-section outputs-section">
+          <div class="section-header">
+            <label>Outputs (Events)</label>
+            <button class="btn-add-item" (click)="addOutput()">+ Add Output</button>
+          </div>
+
+          @if (editOutputs().length > 0) {
+            <div class="outputs-list">
+              @for (output of editOutputs(); track $index) {
+                <div class="output-item">
+                  <div class="output-row">
+                    <input
+                      type="text"
+                      class="output-name"
+                      [ngModel]="output.name"
+                      (ngModelChange)="updateOutput($index, 'name', $event)"
+                      placeholder="eventName"
+                    />
+                    <input
+                      type="text"
+                      class="output-description"
+                      [ngModel]="output.description"
+                      (ngModelChange)="updateOutput($index, 'description', $event)"
+                      placeholder="Description (optional)"
+                    />
+                    <button class="btn-remove-item" (click)="removeOutput($index)">×</button>
+                  </div>
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="no-items-hint">
+              No outputs defined. Click "+ Add Output" to add component events.
+            </div>
+          }
+        </div>
+
+        <!-- Generated Basic Usage -->
+        @if (generatedBasicUsage()) {
+          <div class="form-section generated-usage-section">
+            <label>Generated Basic Usage</label>
+            <p class="generated-usage-hint">This is automatically generated from the selector and required inputs. The AI will see this as the "Basic Usage" example.</p>
+            <div class="generated-usage-code">
+              <code>{{ generatedBasicUsage() }}</code>
+            </div>
+          </div>
+        }
+
+        <div class="form-section examples-section">
+          <div class="examples-header">
+            <label>Usage Examples</label>
+            <button class="btn-add-example" (click)="addExample()">+ Add Example</button>
+          </div>
+
+          @for (example of editExamples(); track $index) {
+            <div class="example-item">
+              <div class="example-header">
+                <input
+                  type="text"
+                  class="example-title"
+                  [ngModel]="example.title"
+                  (ngModelChange)="updateExample($index, 'title', $event)"
+                  placeholder="Example title (optional)"
+                />
+                <select
+                  class="example-language"
+                  [ngModel]="example.language"
+                  (ngModelChange)="updateExample($index, 'language', $event)"
+                >
+                  <option value="html">HTML</option>
+                  <option value="typescript">TypeScript</option>
+                </select>
+                <button class="btn-remove-example" (click)="removeExample($index)">×</button>
+              </div>
+              <textarea
+                class="example-code"
+                [ngModel]="example.code"
+                (ngModelChange)="updateExample($index, 'code', $event)"
+                placeholder="<button lxButton>Click me</button>"
+                rows="4"
+              ></textarea>
+            </div>
+          }
+
+          @if (editExamples().length === 0) {
+            <div class="no-examples">
+              No examples added. Click "Add Example" to add usage examples that the AI will use.
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-cancel" (click)="close()">Cancel</button>
+        <button class="btn-save" (click)="saveEdits()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+}
