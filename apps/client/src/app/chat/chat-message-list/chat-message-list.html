@@ -116,9 +116,14 @@
             </div>
           }
           @if (msg.usage) {
-            <div class="message-usage" style="font-size: 9px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-weight: 500;">
+            <div class="message-usage" style="font-size: 9px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-weight: 500;" [title]="getUsageTooltip(msg)">
               {{ msg.usage.inputTokens }} IN / {{ msg.usage.outputTokens }} OUT
             </div>
+            @if (msg.usage.cost) {
+              <div class="message-cost" style="font-size: 9px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); background: var(--bg-surface-2); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--panel-border);" [title]="getUsageTooltip(msg)">
+                ${{ msg.usage.cost.totalCost | number:'1.4-4' }}
+              </div>
+            }
           }
           @if (msg.model) {
             <div class="message-model" style="font-size: 9px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: var(--accent-color); background: var(--accent-glow); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--panel-border-glow);">

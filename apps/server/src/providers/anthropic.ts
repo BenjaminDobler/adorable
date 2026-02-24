@@ -75,6 +75,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
 
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
+    let totalCacheCreationTokens = 0;
+    let totalCacheReadTokens = 0;
 
     const ctx: AgentLoopContext = {
       fs, callbacks, skillRegistry, availableTools, logger,
@@ -111,11 +113,15 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       for await (const event of stream) {
         if (event.type === 'message_start' && event.message.usage) {
           totalInputTokens += event.message.usage.input_tokens;
-          callbacks.onTokenUsage?.({ inputTokens: totalInputTokens, outputTokens: totalOutputTokens, totalTokens: totalInputTokens + totalOutputTokens });
+          totalCacheCreationTokens += (event.message.usage as any).cache_creation_input_tokens || 0;
+          totalCacheReadTokens += (event.message.usage as any).cache_read_input_tokens || 0;
+          callbacks.onTokenUsage?.({ inputTokens: totalInputTokens, outputTokens: totalOutputTokens, totalTokens: totalInputTokens + totalOutputTokens, cacheCreationInputTokens: totalCacheCreationTokens || undefined, cacheReadInputTokens: totalCacheReadTokens || undefined });
         }
         if (event.type === 'message_delta' && event.usage) {
           totalOutputTokens += event.usage.output_tokens;
-          callbacks.onTokenUsage?.({ inputTokens: totalInputTokens, outputTokens: totalOutputTokens, totalTokens: totalInputTokens + totalOutputTokens });
+          totalCacheCreationTokens += (event.usage as any).cache_creation_input_tokens || 0;
+          totalCacheReadTokens += (event.usage as any).cache_read_input_tokens || 0;
+          callbacks.onTokenUsage?.({ inputTokens: totalInputTokens, outputTokens: totalOutputTokens, totalTokens: totalInputTokens + totalOutputTokens, cacheCreationInputTokens: totalCacheCreationTokens || undefined, cacheReadInputTokens: totalCacheReadTokens || undefined });
         }
         if (event.type === 'content_block_start') {
           if (event.content_block.type === 'thinking') {
@@ -142,6 +148,10 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
             // Accumulate thinking text for message history but don't stream to client
             const lastBlock = assistantMessageContent[assistantMessageContent.length - 1];
             if (lastBlock?.type === 'thinking') lastBlock.thinking += (event.delta as any).thinking;
+          } else if ((event.delta as any).type === 'signature_delta') {
+            // Capture the signature required when sending thinking blocks back in conversation history
+            const lastBlock = assistantMessageContent[assistantMessageContent.length - 1];
+            if (lastBlock?.type === 'thinking') lastBlock.signature = (event.delta as any).signature;
           } else if (event.delta.type === 'text_delta') {
             ctx.fullExplanation += event.delta.text;
             callbacks.onText?.(event.delta.text);
@@ -303,6 +313,9 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
           if (event.delta.type === 'thinking_delta') {
             const lastBlock = assistantContent[assistantContent.length - 1];
             if (lastBlock?.type === 'thinking') lastBlock.thinking += (event.delta as any).thinking;
+          } else if ((event.delta as any).type === 'signature_delta') {
+            const lastBlock = assistantContent[assistantContent.length - 1];
+            if (lastBlock?.type === 'thinking') lastBlock.signature = (event.delta as any).signature;
           } else if (event.delta.type === 'text_delta') {
             ctx.fullExplanation += event.delta.text;
             callbacks.onText?.(event.delta.text);

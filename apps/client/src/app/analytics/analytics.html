@@ -1,0 +1,201 @@
+<div class="analytics-container">
+  <div class="content">
+    <!-- Header -->
+    <div class="page-header">
+      <button class="btn-back" routerLink="/dashboard">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        Back
+      </button>
+      <h1>Usage Analytics</h1>
+    </div>
+
+    <!-- Time range toggle -->
+    <div class="range-toggle">
+      @for (r of ranges; track r.value) {
+        <button
+          class="range-btn"
+          [class.active]="selectedRange() === r.value"
+          (click)="setRange(r.value)">
+          {{ r.label }}
+        </button>
+      }
+    </div>
+
+    @if (loading()) {
+      <div class="loading-state">
+        <div class="spinner"></div>
+        Loading analytics...
+      </div>
+    } @else if (data()) {
+      <!-- Summary cards -->
+      <div class="summary-cards">
+        <div class="stat-card">
+          <div class="stat-label">Total Tokens</div>
+          <div class="stat-value">{{ formatNumber(data()!.summary.totalInputTokens + data()!.summary.totalOutputTokens) }}</div>
+          <div class="stat-detail">{{ formatNumber(data()!.summary.totalInputTokens) }} in / {{ formatNumber(data()!.summary.totalOutputTokens) }} out</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Cost</div>
+          <div class="stat-value">${{ data()!.summary.totalCost | number:'1.2-2' }}</div>
+          <div class="stat-detail">across all models</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Generations</div>
+          <div class="stat-value">{{ data()!.summary.totalGenerations }}</div>
+          <div class="stat-detail">AI responses</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Avg Cost / Gen</div>
+          <div class="stat-value">${{ data()!.summary.totalGenerations > 0 ? (data()!.summary.totalCost / data()!.summary.totalGenerations | number:'1.4-4') : '0.00' }}</div>
+          <div class="stat-detail">per generation</div>
+        </div>
+      </div>
+
+      <!-- Usage over time chart -->
+      @if (data()!.byDay.length > 0) {
+        <div class="chart-section">
+          <h2>Usage Over Time</h2>
+          <div class="chart-wrapper">
+            <canvas #barChartCanvas></canvas>
+          </div>
+        </div>
+      }
+
+      <!-- Model breakdown chart -->
+      @if (data()!.byModel.length > 0) {
+        <div class="chart-section">
+          <h2>Cost by Model</h2>
+          <div class="chart-wrapper chart-wrapper-short">
+            <canvas #donutChartCanvas></canvas>
+          </div>
+        </div>
+      }
+
+      <!-- Project breakdown table -->
+      @if (data()!.byProject.length > 0) {
+        <div class="chart-section">
+          <h2>Cost by Project</h2>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Project</th>
+                  <th class="num">Generations</th>
+                  <th class="num">Input Tokens</th>
+                  <th class="num">Output Tokens</th>
+                  <th class="num">Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (p of data()!.byProject; track p.projectId) {
+                  <tr>
+                    <td class="project-name">{{ p.projectName }}</td>
+                    <td class="num">{{ p.count }}</td>
+                    <td class="num">{{ formatNumber(p.inputTokens) }}</td>
+                    <td class="num">{{ formatNumber(p.outputTokens) }}</td>
+                    <td class="num cost">${{ p.cost | number:'1.4-4' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+
+      @if (data()!.summary.totalGenerations === 0) {
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24" width="48" height="48" stroke="var(--text-muted)" stroke-width="1" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
+          <p>No usage data for this time period.</p>
+          <p class="hint">Start generating with AI to see your usage analytics here.</p>
+        </div>
+      }
+    }
+
+    <!-- Pricing Configuration (always visible, independent of analytics data) -->
+    <div class="chart-section pricing-section">
+      <button class="pricing-toggle" (click)="togglePricing()">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"
+          [style.transform]="pricingExpanded() ? 'rotate(90deg)' : 'rotate(0deg)'"
+          style="transition: transform 0.2s">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+        <h2>Pricing Configuration</h2>
+        <span class="pricing-hint">Override per-model rates for custom tiers or third-party providers</span>
+      </button>
+
+      @if (pricingExpanded()) {
+        <div class="pricing-content">
+          <div class="pricing-actions">
+            <button class="btn-pricing btn-save" [disabled]="!pricingDirty() || pricingSaving()" (click)="savePricing()">
+              @if (pricingSaving()) {
+                <div class="spinner-sm"></div>
+                Saving...
+              } @else {
+                Save Overrides
+              }
+            </button>
+            <button class="btn-pricing btn-reset-all" (click)="resetAllPricing()" [disabled]="pricingSaving()">Reset All</button>
+          </div>
+
+          <div class="table-wrapper pricing-table-wrapper">
+            <table class="pricing-table">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th class="num">Input $/MTok</th>
+                  <th class="num">Output $/MTok</th>
+                  <th class="num">Cache Write $/MTok</th>
+                  <th class="num">Cache Read $/MTok</th>
+                  <th class="actions-col"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of pricingRows(); track row.model) {
+                  <tr [class.row-custom]="row.isCustom">
+                    <td class="model-name">
+                      {{ row.model }}
+                      @if (row.isCustom) {
+                        <span class="custom-badge">custom</span>
+                      }
+                    </td>
+                    <td class="num">
+                      <input type="number" step="0.01" min="0"
+                        [value]="row.inputCostPer1M"
+                        [placeholder]="row.defaults.inputCostPer1M"
+                        (input)="onPricingInput(row, 'inputCostPer1M', $event)">
+                    </td>
+                    <td class="num">
+                      <input type="number" step="0.01" min="0"
+                        [value]="row.outputCostPer1M"
+                        [placeholder]="row.defaults.outputCostPer1M"
+                        (input)="onPricingInput(row, 'outputCostPer1M', $event)">
+                    </td>
+                    <td class="num">
+                      <input type="number" step="0.01" min="0"
+                        [value]="row.cacheCreationCostPer1M"
+                        [placeholder]="row.defaults.cacheCreationCostPer1M"
+                        (input)="onPricingInput(row, 'cacheCreationCostPer1M', $event)">
+                    </td>
+                    <td class="num">
+                      <input type="number" step="0.01" min="0"
+                        [value]="row.cacheReadCostPer1M"
+                        [placeholder]="row.defaults.cacheReadCostPer1M"
+                        (input)="onPricingInput(row, 'cacheReadCostPer1M', $event)">
+                    </td>
+                    <td class="actions-col">
+                      @if (row.isCustom) {
+                        <button class="btn-reset-row" (click)="resetRow(row)" title="Reset to default">
+                          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                        </button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</div>

@@ -77,6 +77,11 @@ export const routes: Routes = [
     loadComponent: () => import('./dashboard/kit-builder/kit-builder').then(m => m.KitBuilderComponent)
   },
   {
+    path: 'analytics',
+    canActivate: [authGuard],
+    loadComponent: () => import('./analytics/analytics').then(m => m.AnalyticsComponent)
+  },
+  {
     path: 'editor/:id',
     canActivate: [authGuard],
     loadComponent: () => import('./workspace/workspace.component').then(m => m.WorkspaceComponent)

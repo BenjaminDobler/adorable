@@ -56,6 +56,33 @@ export class ChatMessageListComponent {
     }
   }
 
+  getUsageTooltip(msg: ChatMessage): string {
+    if (!msg.usage) return '';
+    const lines: string[] = [
+      `Input: ${msg.usage.inputTokens.toLocaleString()} tokens`,
+      `Output: ${msg.usage.outputTokens.toLocaleString()} tokens`,
+    ];
+    if (msg.usage.cacheCreationInputTokens) {
+      lines.push(`Cache write: ${msg.usage.cacheCreationInputTokens.toLocaleString()} tokens`);
+    }
+    if (msg.usage.cacheReadInputTokens) {
+      lines.push(`Cache read: ${msg.usage.cacheReadInputTokens.toLocaleString()} tokens`);
+    }
+    if (msg.usage.cost) {
+      lines.push('');
+      lines.push(`Input cost: $${msg.usage.cost.inputCost.toFixed(4)}`);
+      lines.push(`Output cost: $${msg.usage.cost.outputCost.toFixed(4)}`);
+      if (msg.usage.cost.cacheCreationCost > 0) {
+        lines.push(`Cache write cost: $${msg.usage.cost.cacheCreationCost.toFixed(4)}`);
+      }
+      if (msg.usage.cost.cacheReadCost > 0) {
+        lines.push(`Cache read cost: $${msg.usage.cost.cacheReadCost.toFixed(4)}`);
+      }
+      lines.push(`Total: $${msg.usage.cost.totalCost.toFixed(4)}`);
+    }
+    return lines.join('\n');
+  }
+
   getActivatedSkills(msg: ChatMessage): string[] {
     if (!msg.toolResults) return [];
 

@@ -10,6 +10,7 @@ import { questionManager } from '../providers/question-manager';
 import { MCPServerConfig } from '../mcp/types';
 import { Kit } from '../providers/kits/types';
 import { projectFsService } from '../services/project-fs.service';
+import { calculateCost } from '../providers/pricing';
 
 const router = express.Router();
 
@@ -250,7 +251,9 @@ router.post('/generate-stream', async (req: any, res) => {
               res.write(`data: ${JSON.stringify({ type: 'tool_result', tool_use_id, result, name })}\n\n`);
           },
           onTokenUsage: (usage) => {
-              res.write(`data: ${JSON.stringify({ type: 'usage', usage })}\n\n`);
+              const cost = calculateCost(usage, finalModel, userSettings.customPricing);
+              console.log(`[Cost] model=${finalModel} totalCost=${cost.totalCost.toFixed(6)} input=${usage.inputTokens} output=${usage.outputTokens}`);
+              res.write(`data: ${JSON.stringify({ type: 'usage', usage, cost })}\n\n`);
           },
           onFileWritten: (path, content) => {
               res.write(`data: ${JSON.stringify({ type: 'file_written', path, content })}\n\n`);

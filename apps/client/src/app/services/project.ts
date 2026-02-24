@@ -53,7 +53,14 @@ export interface ChatMessage {
   timestamp: Date;
   files?: any;
   commitSha?: string; // Git commit SHA for version restore
-  usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    cacheCreationInputTokens?: number;
+    cacheReadInputTokens?: number;
+    cost?: { inputCost: number; outputCost: number; cacheCreationCost: number; cacheReadCost: number; totalCost: number };
+  };
   status?: string;
   model?: string;
   updatedFiles?: string[];

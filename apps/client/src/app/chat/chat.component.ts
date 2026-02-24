@@ -868,7 +868,10 @@ Analyze the attached design images carefully and create matching Angular compone
         } else if (event.type === 'usage') {
            this.messages.update(msgs => {
              const newMsgs = [...msgs];
-             newMsgs[assistantMsgIndex].usage = event.usage;
+             newMsgs[assistantMsgIndex].usage = {
+               ...event.usage,
+               ...(event.cost ? { cost: event.cost } : {})
+             };
              return newMsgs;
            });
         } else if (event.type === 'file_written') {

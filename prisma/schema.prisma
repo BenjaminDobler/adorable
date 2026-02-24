@@ -73,5 +73,6 @@ model ChatMessage {
   files     String?  // JSON stringified snapshot (deprecated: use commitSha)
   commitSha String?  // Git commit SHA for version restore
   usage     String?  // JSON stringified usage data
+  model     String?  // AI model used for this message
   timestamp DateTime @default(now())
 }

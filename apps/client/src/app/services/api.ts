@@ -152,6 +152,17 @@ export class ApiService {
     return this.http.post<{ success: boolean; message: string }>(`${this.apiUrl}/question/${requestId}`, { cancelled: true });
   }
 
+  // Analytics
+  getPricing(): Observable<{ defaults: Record<string, any>, custom: Record<string, any> }> {
+    return this.http.get<{ defaults: Record<string, any>, custom: Record<string, any> }>(`${this.apiUrl}/analytics/pricing`);
+  }
+
+  getUsageAnalytics(range: string, projectId?: string): Observable<any> {
+    let url = `${this.apiUrl}/analytics/usage?range=${range}`;
+    if (projectId) url += `&projectId=${projectId}`;
+    return this.http.get<any>(url);
+  }
+
   // Kit Builder methods
   getDefaultSystemPrompt(): Observable<{ prompt: string }> {
     return this.http.get<{ prompt: string }>(`${this.apiUrl}/kits/default-system-prompt`);

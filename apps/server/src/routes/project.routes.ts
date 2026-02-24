@@ -46,6 +46,7 @@ router.post('/', async (req: any, res) => {
       files: m.files ? JSON.stringify(m.files) : undefined,
       commitSha: m.commitSha || undefined,
       usage: m.usage ? JSON.stringify(m.usage) : undefined,
+      model: m.model || undefined,
       timestamp: m.timestamp
     })) : [];
 
@@ -134,6 +135,7 @@ router.get('/:id', async (req: any, res) => {
             role: true,
             text: true,
             usage: true,
+            model: true,
             commitSha: true,
             timestamp: true,
           }
@@ -166,7 +168,8 @@ router.get('/:id', async (req: any, res) => {
         figmaImports: project.figmaImports ? JSON.parse(project.figmaImports) : [],
         messages: project.messages.map(m => ({
           ...m,
-          usage: m.usage ? JSON.parse(m.usage) : undefined
+          usage: m.usage ? JSON.parse(m.usage) : undefined,
+          model: m.model || undefined
         }))
     });
   } catch (error) {

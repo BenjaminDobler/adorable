@@ -18,6 +18,7 @@ import { githubRouter } from './routes/github.routes';
 import { webhooksRouter } from './routes/webhooks.routes';
 import { mcpRouter } from './routes/mcp.routes';
 import { kitRouter } from './routes/kit.routes';
+import { analyticsRouter } from './routes/analytics.routes';
 import { kitFsService } from './services/kit-fs.service';
 // Native routes are handled by the desktop local agent, not the cloud server
 // import { nativeRouter } from './routes/native.routes';
@@ -44,6 +45,7 @@ app.use(async (req: any, res, next) => {
       // Skip client-side routes (Angular SPA routes)
       req.path === '/profile' ||
       req.path === '/dashboard' ||
+      req.path === '/analytics' ||
       req.path.startsWith('/chat/') ||
       req.path === '/login' ||
       req.path === '/register' ||
@@ -101,6 +103,7 @@ app.use('/api/skills', skillsRouter);
 app.use('/api/figma', figmaRouter);
 app.use('/api/mcp', mcpRouter);
 app.use('/api/kits', kitRouter);
+app.use('/api/analytics', analyticsRouter);
 // app.use('/api/native', nativeRouter); // Handled by desktop local agent
 
 
