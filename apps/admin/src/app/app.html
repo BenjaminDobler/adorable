@@ -1,0 +1,47 @@
+@if (auth.isAuthenticated()) {
+  <div class="admin-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span class="brand-icon">A</span>
+        <span>Admin</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Dashboard</a>
+        <a routerLink="/users" routerLinkActive="active">Users</a>
+        <a routerLink="/invites" routerLinkActive="active">Invites</a>
+        <a routerLink="/settings" routerLinkActive="active">Settings</a>
+      </nav>
+      <div class="sidebar-footer">
+        <a href="/" class="back-link">Back to App</a>
+      </div>
+    </aside>
+    <main class="main-content">
+      <router-outlet />
+    </main>
+  </div>
+} @else {
+  <div class="login-page">
+    <div class="login-card">
+      <div class="login-header">
+        <span class="brand-icon">A</span>
+        <h1>Admin Login</h1>
+      </div>
+      <form (ngSubmit)="login()">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" [(ngModel)]="email" name="email" required />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" [(ngModel)]="password" name="password" required />
+        </div>
+        @if (loginError) {
+          <div class="error-msg">{{ loginError }}</div>
+        }
+        <button type="submit" [disabled]="loginLoading">
+          {{ loginLoading ? 'Signing in...' : 'Sign In' }}
+        </button>
+      </form>
+    </div>
+  </div>
+}

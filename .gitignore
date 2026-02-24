@@ -56,3 +56,4 @@ published-sites
 debug_logs/
 storage/
 .mcp.json
+.internal-doc/

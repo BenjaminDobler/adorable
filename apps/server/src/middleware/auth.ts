@@ -12,7 +12,11 @@ export const authenticate = async (req: any, res: any, next: any) => {
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
     const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
     if (!user) return res.status(401).json({ error: 'User not found' });
-    
+
+    if (!user.isActive) {
+      return res.status(403).json({ error: 'Your account has been disabled' });
+    }
+
     req.user = user;
     next();
   } catch (error) {

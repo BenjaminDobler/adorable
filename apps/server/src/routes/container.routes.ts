@@ -10,6 +10,15 @@ router.use(authenticate);
 router.post('/start', async (req: any, res) => {
   try {
     const { projectId } = req.body;
+
+    // Check capacity before starting a new container (allow if this user already has one running)
+    if (containerRegistry.isAtCapacity(req.user.id)) {
+      return res.status(503).json({
+        error: 'Server is at capacity. Please try again in a few minutes, or use the desktop app for unlimited local usage.',
+        code: 'CONTAINER_CAPACITY_REACHED'
+      });
+    }
+
     const manager = containerRegistry.getManager(req.user.id);
 
     // Set projectId on the manager so bind mount uses project-specific path

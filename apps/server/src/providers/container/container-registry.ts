@@ -1,4 +1,5 @@
 import { DockerManager } from './docker-manager';
+import { serverConfigService } from '../../services/server-config.service';
 
 export class ContainerRegistry {
   private managers = new Map<string, DockerManager>();
@@ -7,6 +8,42 @@ export class ContainerRegistry {
   constructor() {
     // Start the Reaper
     setInterval(() => this.reap(), 5 * 60 * 1000); // Every 5 minutes
+  }
+
+  /**
+   * Count containers that are actively running (not paused/stopped).
+   */
+  getActiveContainerCount(): number {
+    let count = 0;
+    for (const manager of this.managers.values()) {
+      if (manager.isRunning()) count++;
+    }
+    return count;
+  }
+
+  private getMaxActive(): number {
+    return parseInt(serverConfigService.get('containers.maxActive') || '5', 10);
+  }
+
+  isAtCapacity(excludeUserId?: string): boolean {
+    let count = 0;
+    for (const [userId, manager] of this.managers.entries()) {
+      if (userId === excludeUserId) continue;
+      if (manager.isRunning()) count++;
+    }
+    return count >= this.getMaxActive();
+  }
+
+  getContainerStatuses(): Array<{ userId: string; running: boolean; lastActivity: number | null }> {
+    const statuses: Array<{ userId: string; running: boolean; lastActivity: number | null }> = [];
+    for (const [userId, manager] of this.managers.entries()) {
+      statuses.push({
+        userId,
+        running: manager.isRunning(),
+        lastActivity: this.activities.get(userId) ?? null,
+      });
+    }
+    return statuses;
   }
 
   getManager(userId: string): DockerManager {

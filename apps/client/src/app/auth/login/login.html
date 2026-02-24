@@ -6,6 +6,10 @@
     </div>
     <p>Sign in to build adorable things</p>
 
+    @if (successMessage) {
+      <div class="success-message">{{ successMessage }}</div>
+    }
+
     <form (ngSubmit)="login()">
       <div class="form-group">
         <label>Email</label>

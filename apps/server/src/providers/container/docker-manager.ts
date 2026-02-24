@@ -119,6 +119,9 @@ export class DockerManager {
         PortBindings: {
           '4200/tcp': [{ HostIp: '0.0.0.0', HostPort: '0' }], // Random host port
         },
+        Memory: 1024 * 1024 * 1024, // 1GB RAM limit
+        CpuPeriod: 100000,
+        CpuQuota: 100000, // 1 CPU core
       },
       ExposedPorts: {
         '4200/tcp': {},

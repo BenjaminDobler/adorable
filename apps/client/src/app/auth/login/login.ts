@@ -1,7 +1,7 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { Router, RouterModule, ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../services/auth';
 
 @Component({
@@ -11,14 +11,23 @@ import { AuthService } from '../../services/auth';
   templateUrl: './login.html',
   styleUrl: './login.scss',
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private authService = inject(AuthService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   email = '';
   password = '';
   error = '';
+  successMessage = '';
   loading = false;
+
+  ngOnInit() {
+    const verified = this.route.snapshot.queryParamMap.get('verified');
+    if (verified === 'true') {
+      this.successMessage = 'Email verified successfully! You can now log in.';
+    }
+  }
 
   login() {
     this.loading = true;

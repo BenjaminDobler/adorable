@@ -6,33 +6,53 @@
     </div>
     <p>Start building Angular apps with AI</p>
 
-    <form (ngSubmit)="register()">
-      <div class="form-group">
-        <label>Name</label>
-        <input type="text" [(ngModel)]="name" name="name" required />
+    @if (successMessage) {
+      <div class="success-message">{{ successMessage }}</div>
+      <div class="footer">
+        <a routerLink="/login">Go to Login</a>
       </div>
+    } @else {
+      <form (ngSubmit)="register()">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" [(ngModel)]="name" name="name" required />
+        </div>
 
-      <div class="form-group">
-        <label>Email</label>
-        <input type="email" [(ngModel)]="email" name="email" required />
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" [(ngModel)]="email" name="email" required />
+        </div>
+
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" [(ngModel)]="password" name="password" required minlength="8" />
+          <small class="hint">Minimum 8 characters</small>
+        </div>
+
+        <div class="form-group">
+          <label>Confirm Password</label>
+          <input type="password" [(ngModel)]="confirmPassword" name="confirmPassword" required />
+        </div>
+
+        @if (requireInviteCode) {
+          <div class="form-group">
+            <label>Invite Code</label>
+            <input type="text" [(ngModel)]="inviteCode" name="inviteCode" required placeholder="Enter your invite code" />
+          </div>
+        }
+
+        @if (error) {
+          <div class="error-message">{{ error }}</div>
+        }
+
+        <button type="submit" [disabled]="loading">
+          {{ loading ? 'Creating account...' : 'Register' }}
+        </button>
+      </form>
+
+      <div class="footer">
+        Already have an account? <a routerLink="/login">Login here</a>
       </div>
-
-      <div class="form-group">
-        <label>Password</label>
-        <input type="password" [(ngModel)]="password" name="password" required />
-      </div>
-
-      @if (error) {
-        <div class="error-message">{{ error }}</div>
-      }
-
-      <button type="submit" [disabled]="loading">
-        {{ loading ? 'Creating account...' : 'Register' }}
-      </button>
-    </form>
-
-    <div class="footer">
-      Already have an account? <a routerLink="/login">Login here</a>
-    </div>
+    }
   </div>
 </div>

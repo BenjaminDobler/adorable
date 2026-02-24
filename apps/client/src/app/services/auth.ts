@@ -1,15 +1,24 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { tap } from 'rxjs';
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string | null;
+  role?: string;
+  emailVerified?: boolean;
+}
+
 export interface AuthResponse {
   token: string;
-  user: {
-    id: string;
-    email: string;
-    name: string | null;
-  };
+  user: AuthUser;
+}
+
+export interface RegistrationConfig {
+  registrationMode: string;
+  emailVerification: boolean;
 }
 
 @Injectable({
@@ -21,8 +30,10 @@ export class AuthService {
   private apiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api/auth';
   private baseApiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api';
 
-  currentUser = signal<AuthResponse['user'] | null>(null);
+  currentUser = signal<AuthUser | null>(null);
   token = signal<string | null>(localStorage.getItem('adorable_token'));
+
+  isAdmin = computed(() => this.currentUser()?.role === 'admin');
 
   // Signal to track if desktop auto-login is complete
   desktopAuthReady = signal<boolean>(false);
@@ -77,7 +88,7 @@ export class AuthService {
   /**
    * Fetches the user profile from the API.
    */
-  private async fetchProfile(token: string): Promise<AuthResponse['user'] | null> {
+  private async fetchProfile(token: string): Promise<AuthUser | null> {
     try {
       const response = await fetch(`${this.baseApiUrl}/profile`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -91,9 +102,18 @@ export class AuthService {
     return null;
   }
 
+  getRegistrationConfig() {
+    return this.http.get<RegistrationConfig>(`${this.apiUrl}/config`);
+  }
+
   register(data: any) {
     return this.http.post<AuthResponse>(`${this.apiUrl}/register`, data).pipe(
-      tap(res => this.handleAuth(res))
+      tap(res => {
+        // Only handle auth if we got a token (no token when email verification is required)
+        if (res.token) {
+          this.handleAuth(res);
+        }
+      })
     );
   }
 

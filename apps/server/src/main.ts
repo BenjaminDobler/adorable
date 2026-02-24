@@ -21,6 +21,8 @@ import { mcpRouter } from './routes/mcp.routes';
 import { kitRouter } from './routes/kit.routes';
 import { analyticsRouter } from './routes/analytics.routes';
 import { kitFsService } from './services/kit-fs.service';
+import { serverConfigService } from './services/server-config.service';
+import { adminRouter } from './routes/admin.routes';
 // Native routes are handled by the desktop local agent, not the cloud server
 // import { nativeRouter } from './routes/native.routes';
 
@@ -118,11 +120,17 @@ app.use('/api/figma', figmaRouter);
 app.use('/api/mcp', mcpRouter);
 app.use('/api/kits', kitRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/admin', adminRouter);
 // app.use('/api/native', nativeRouter); // Handled by desktop local agent
 
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   console.log(`Listening at http://localhost:${PORT}/api`);
+
+  // Initialize server config (loads defaults, promotes first admin)
+  await serverConfigService.initialize().catch(err =>
+    console.error('[ServerConfig] Failed to initialize:', err)
+  );
 
   // Migrate existing kits to disk storage (fire-and-forget, non-blocking)
   kitFsService.migrateAllKits().catch(err =>

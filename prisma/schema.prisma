@@ -17,6 +17,10 @@ model User {
   password  String
   name      String?
   settings  String?   // JSON stringified AppSettings
+  role      String    @default("user")   // "user" | "admin"
+  isActive  Boolean   @default(true)
+  emailVerified          Boolean  @default(false)
+  emailVerificationToken String?
   projects  Project[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -26,6 +30,22 @@ model User {
   githubUsername    String?
   githubAccessToken String?   // Encrypted OAuth access token
   githubAvatarUrl   String?
+}
+
+model InviteCode {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  createdBy String
+  usedBy    String?
+  usedAt    DateTime?
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model ServerConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 model Project {
