@@ -12,10 +12,12 @@ Adorable is an AI-powered IDE for Angular that lets users build, preview, and de
 # Development (run in separate terminals)
 npx nx serve server          # Express backend on port 3333
 npx nx serve client          # Angular dev server on port 4200
+npx nx serve admin           # Admin panel on port 4201
 
 # Build
 npx nx build client --configuration=production
 npx nx build server --configuration=production
+npx nx build admin --configuration=production
 
 # Testing
 npx nx test client           # Angular unit tests (vitest-angular)
@@ -42,6 +44,7 @@ npm run package:desktop:mac  # Package macOS app
 
 - **`apps/client`** — Angular 21 SPA (standalone components, signals, SCSS)
 - **`apps/server`** — Express API server (AI orchestration, Docker management, auth)
+- **`apps/admin`** — Admin dashboard (separate Angular app, served at `/admin/` in production)
 - **`apps/desktop`** — Electron main process (wraps client+server for desktop)
 - **`apps/figma-plugin`** — Figma plugin for design export
 - **`libs/shared-types`** — Shared TypeScript interfaces between client and server
@@ -75,7 +78,8 @@ Routing is in `app.routes.ts` with auth guards. The main editor UI lives in `app
 5. Skill instructions in `providers/skills/` inject conditional system prompt additions
 
 **Routes** — All mounted under `/api/` in `main.ts`:
-- `/api/auth` — JWT login/register
+- `/api/auth` — JWT login/register, email verification, registration config
+- `/api/admin` — Admin panel API (users, invites, config, stats) — requires admin role
 - `/api/projects` — CRUD
 - `/api/generate-stream` — SSE streaming AI generation (the main endpoint)
 - `/api/kits` — Component kit discovery
@@ -83,11 +87,11 @@ Routing is in `app.routes.ts` with auth guards. The main editor UI lives in `app
 
 **File System Abstraction** — `MemoryFileSystem` (in-memory for agentic loop) and `ContainerFileSystem` (Docker) implement a shared `FileSystemInterface`.
 
-**Auth** — JWT tokens validated by `middleware/auth.ts`; user API keys stored AES-256 encrypted in the database.
+**Auth** — JWT tokens validated by `middleware/auth.ts`; user API keys stored AES-256 encrypted in the database. Rate limiting via `express-rate-limit` on login/register. Role-based access (`admin`/`user`) enforced by `middleware/admin.ts`. Registration supports open or invite-only modes, optional email verification via nodemailer. Server-wide settings stored in `ServerConfig` model and cached in `server-config.service.ts`.
 
 ### Database
 
-Prisma with SQLite. Key models: `User`, `Project` (stores files as JSON string), `ChatMessage` (stores file snapshots per message for time-travel), `GitHubWebhook`.
+Prisma with SQLite. Key models: `User` (with role/isActive/emailVerified), `Project` (stores files as JSON string), `ChatMessage` (stores file snapshots per message for time-travel), `GitHubWebhook`, `InviteCode`, `ServerConfig`.
 
 Schema is at `prisma/schema.prisma`. After modifying, run `npx prisma migrate dev` then `npx prisma generate`.
 
@@ -103,3 +107,4 @@ Copy `.env.template` to `.env`. Key variables:
 - `DOCKER_SOCKET_PATH` — Docker socket for local container mode
 - `DATABASE_URL` — Prisma SQLite path (default `file:./dev.db`)
 - `JWT_SECRET`, `ENCRYPTION_KEY` — Auth and API key encryption
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` — Optional, for email verification
