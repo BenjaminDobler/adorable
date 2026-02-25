@@ -977,7 +977,7 @@ Analyze the attached design images carefully and create matching Angular compone
       const imageData = await this.screenshotService.captureThumbnail();
 
       if (!imageData) {
-        await fetch(`http://localhost:3333/api/screenshot/${requestId}`, {
+        await fetch(`${(window as any).electronAPI?.serverUrl || 'http://localhost:3333'}/api/screenshot/${requestId}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -988,7 +988,7 @@ Analyze the attached design images carefully and create matching Angular compone
         return;
       }
 
-      const response = await fetch(`http://localhost:3333/api/screenshot/${requestId}`, {
+      const response = await fetch(`${(window as any).electronAPI?.serverUrl || 'http://localhost:3333'}/api/screenshot/${requestId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1002,7 +1002,7 @@ Analyze the attached design images carefully and create matching Angular compone
     } catch (err) {
       console.error('[Screenshot] Error handling request:', err);
       try {
-        await fetch(`http://localhost:3333/api/screenshot/${requestId}`, {
+        await fetch(`${(window as any).electronAPI?.serverUrl || 'http://localhost:3333'}/api/screenshot/${requestId}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -73,6 +73,11 @@ model Project {
   githubSyncEnabled   Boolean   @default(false)
   githubPagesUrl      String?   // GitHub Pages URL if enabled
   githubWebhook       GitHubWebhook?
+
+  // Cloud Sync (desktop ↔ cloud)
+  cloudProjectId      String?   // On desktop: the cloud project's ID
+  cloudCommitSha      String?   // Last synced cloud commit SHA
+  cloudLastSyncAt     DateTime? // When the last sync happened
 }
 
 model GitHubWebhook {

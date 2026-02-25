@@ -30,7 +30,7 @@ export interface Skill {
 })
 export class SkillsService {
   private http = inject(HttpClient);
-  private apiUrl = 'http://localhost:3333/api';
+  private apiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api';
 
   getSkills(projectId?: string): Observable<Skill[]> {
     let url = `${this.apiUrl}/skills`;

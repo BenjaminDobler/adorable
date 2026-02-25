@@ -1,7 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { ContainerEngine, ProcessOutput } from './container-engine';
-import { FileSystemStore } from './file-system.store';
 import { WebContainerFiles } from '@adorable/shared-types';
 import { Observable, of, shareReplay } from 'rxjs';
 
@@ -10,9 +9,7 @@ import { Observable, of, shareReplay } from 'rxjs';
 })
 export class LocalContainerEngine extends ContainerEngine {
   private http = inject(HttpClient);
-  private fileStore = inject(FileSystemStore);
-  private apiUrl = 'http://localhost:3333/api/container';
-  private watchAbort: AbortController | null = null;
+  private apiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api/container';
 
   // State
   public mode = signal<'local' | 'native'>('local');
@@ -45,51 +42,10 @@ export class LocalContainerEngine extends ContainerEngine {
     }
   }
 
-  startFileWatcher(): void {
-    this.stopFileWatcher();
-    const token = localStorage.getItem('adorable_token');
-    const abort = new AbortController();
-    this.watchAbort = abort;
-
-    fetch(`${this.apiUrl}/watch`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-      credentials: 'include',
-      signal: abort.signal,
-    }).then(response => {
-      const reader = response.body?.getReader();
-      if (!reader) return;
-      const decoder = new TextDecoder();
-
-      const push = () => {
-        reader.read().then(({ done, value }) => {
-          if (done) return;
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.substring(6));
-                if (data.type === 'changed') {
-                  this.fileStore.updateFile(data.path, data.content);
-                } else if (data.type === 'deleted') {
-                  this.fileStore.deleteFile(data.path);
-                }
-              } catch { /* partial JSON, skip */ }
-            }
-          }
-          push();
-        }).catch(() => { /* aborted or connection lost */ });
-      };
-      push();
-    }).catch(() => { /* aborted or network error */ });
-  }
-
-  stopFileWatcher(): void {
-    if (this.watchAbort) {
-      this.watchAbort.abort();
-      this.watchAbort = null;
-    }
-  }
+  // No file watcher needed — Angular CLI handles HMR directly, and the AI
+  // agent's file writes already come through the streaming protocol.
+  startFileWatcher(): void {}
+  stopFileWatcher(): void {}
 
   async teardown(): Promise<void> {
     this.stopFileWatcher();
@@ -119,7 +75,7 @@ export class LocalContainerEngine extends ContainerEngine {
     }
 
     this.status.set('Mounting files...');
-    await this.http.post(`${this.apiUrl}/mount-project`, { projectId, kitId }).toPromise();
+    await this.http.post(`${this.apiUrl}/mount-project`, { projectId, kitId, baseHref: '/api/proxy/' }).toPromise();
   }
 
   async exec(cmd: string, args: string[], options?: any): Promise<ProcessOutput> {
@@ -243,7 +199,8 @@ export class LocalContainerEngine extends ContainerEngine {
         
         if (clean.includes('Application bundle generation complete')) {
              const userId = JSON.parse(localStorage.getItem('adorable_user') || '{}').id;
-             const proxyUrl = `http://localhost:3333/api/proxy/?user=${userId}`;
+             const serverBase = (window as any).electronAPI?.serverUrl || 'http://localhost:3333';
+             const proxyUrl = `${serverBase}/api/proxy/?user=${userId}`;
              
              // Small delay before setting URL to ensure server is actually listening and stable
              setTimeout(() => {

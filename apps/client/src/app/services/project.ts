@@ -9,7 +9,11 @@ import { RUNTIME_SCRIPTS } from '../runtime-scripts';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { FileSystemStore } from './file-system.store';
-import { WebContainerFiles, FigmaImportPayload, mergeFiles as sharedMergeFiles } from '@adorable/shared-types';
+import {
+  WebContainerFiles,
+  FigmaImportPayload,
+  mergeFiles as sharedMergeFiles,
+} from '@adorable/shared-types';
 import { ScreenshotService } from './screenshot';
 import { Kit, WebContainerFiles as KitWebContainerFiles } from './kit-types';
 import { HMRTriggerService } from './hmr-trigger.service';
@@ -59,7 +63,13 @@ export interface ChatMessage {
     totalTokens: number;
     cacheCreationInputTokens?: number;
     cacheReadInputTokens?: number;
-    cost?: { inputCost: number; outputCost: number; cacheCreationCost: number; cacheReadCost: number; totalCost: number };
+    cost?: {
+      inputCost: number;
+      outputCost: number;
+      cacheCreationCost: number;
+      cacheReadCost: number;
+      totalCost: number;
+    };
   };
   status?: string;
   model?: string;
@@ -120,30 +130,38 @@ export class ProjectService {
   async loadProject(id: string) {
     // Bump epoch so any in-flight loadProject/reloadPreview from a previous call bails out
     const epoch = ++this._loadEpoch;
+    console.log('load project 1');
 
     // Cancel any active AI generation before switching projects
     // This prevents SSE events from the old project bleeding into the new one
-    const sameProject = this.projectId() === id && this.webContainerService.url();
+    const sameProject =
+      this.projectId() === id && this.webContainerService.url();
+    console.log('load project 2');
+
     if (!sameProject) {
       this.projectSwitching$.next();
       // Pause HMR to prevent buffered file updates from bleeding across projects
       this.hmrTrigger.pause();
     }
+    console.log('load project 3');
 
     this.loading.set(true);
     const stopPromise = sameProject
       ? Promise.resolve()
       : Promise.race([
           this.webContainerService.stopDevServer(),
-          new Promise(resolve => setTimeout(resolve, 5000))
+          new Promise((resolve) => setTimeout(resolve, 5000)),
         ]);
+
+    console.log('load project 4');
 
     try {
       // Start API fetch (and server stop if needed) IN PARALLEL
       const [_, project] = await Promise.all([
         stopPromise,
-        this.apiService.loadProject(id).toPromise()
+        this.apiService.loadProject(id).toPromise(),
       ]);
+      console.log('load project 5');
 
       // Another loadProject was called while we were waiting — abort
       if (this._loadEpoch !== epoch) return;
@@ -181,7 +199,6 @@ export class ProjectService {
       await this.reloadPreview(project.files, undefined, !sameProject, epoch);
       // Resume HMR after new project files are loaded
       this.hmrTrigger.resume();
-
     } catch (err) {
       if (this._loadEpoch !== epoch) return; // stale, don't show error
       console.error(err);
@@ -192,18 +209,21 @@ export class ProjectService {
     }
   }
 
-  async saveProject(thumbnail?: string) {
+  async saveProject(thumbnail?: string, options?: { silent?: boolean }) {
     const name = this.projectName();
     if (!name || this.fileStore.isEmpty()) return;
 
-    this.loading.set(true);
+    const silent = options?.silent ?? false;
+
+    if (!silent) this.loading.set(true);
 
     const id = this.projectId();
     const saveId = id && id !== 'new' ? id : undefined;
 
     // Start thumbnail capture in parallel — don't block the save
+    // Skip thumbnail capture in silent mode (e.g. auto-save during project switch)
     let thumbnailPromise: Promise<string | null> | undefined;
-    if (!thumbnail) {
+    if (!thumbnail && !silent) {
       console.log('[ProjectService] capturing thumbnail (non-blocking)...');
       thumbnailPromise = this.screenshotService.captureThumbnail();
     }
@@ -212,7 +232,9 @@ export class ProjectService {
       // Capture files at save-execution time (not earlier) to avoid stale snapshots
       const currentFiles = this.files();
       // Strip file snapshots from messages — git commits handle time-travel now.
-      const messagesWithoutFiles = this.messages().map(({ files: _files, ...rest }) => rest);
+      const messagesWithoutFiles = this.messages().map(
+        ({ files: _files, ...rest }) => rest,
+      );
 
       this.apiService
         .saveProject(
@@ -228,17 +250,23 @@ export class ProjectService {
           next: (project) => {
             // Guard: only update projectId if we're still on the same project
             // A project switch may have happened while the save was in flight
-            if (this.projectId() === id || !this.projectId() || this.projectId() === 'new') {
+            if (
+              this.projectId() === id ||
+              !this.projectId() ||
+              this.projectId() === 'new'
+            ) {
               this.projectId.set(project.id);
             }
-            this.toastService.show('Project saved successfully!', 'success');
-            this.loading.set(false);
-            this.saveVersion.update(v => v + 1);
+            if (!silent)
+              this.toastService.show('Project saved successfully!', 'success');
+            if (!silent) this.loading.set(false);
+            this.saveVersion.update((v) => v + 1);
           },
           error: (err) => {
             console.error(err);
-            this.toastService.show('Failed to save project', 'error');
-            this.loading.set(false);
+            if (!silent)
+              this.toastService.show('Failed to save project', 'error');
+            if (!silent) this.loading.set(false);
           },
         });
     };
@@ -249,19 +277,31 @@ export class ProjectService {
       // Race: if thumbnail resolves quickly, include it; otherwise save without it
       const quickThumb = await Promise.race([
         thumbnailPromise,
-        new Promise<null>(r => setTimeout(() => r(null), 1500)),
+        new Promise<null>((r) => setTimeout(() => r(null), 1500)),
       ]);
       doSave(quickThumb ?? undefined);
 
       // If thumbnail wasn't ready yet, update it via a follow-up save
       if (!quickThumb && saveId) {
-        thumbnailPromise.then(captured => {
+        thumbnailPromise.then((captured) => {
           // Only update if we're still on the same project
           if (captured && this.projectId() === id) {
             console.log('[ProjectService] Updating thumbnail after save');
             const latestFiles = this.files();
-            const latestMsgs = this.messages().map(({ files: _f, ...rest }) => rest);
-            this.apiService.saveProject(name, latestFiles, latestMsgs, saveId, captured, this.figmaImports(), this.selectedKitId()).subscribe();
+            const latestMsgs = this.messages().map(
+              ({ files: _f, ...rest }) => rest,
+            );
+            this.apiService
+              .saveProject(
+                name,
+                latestFiles,
+                latestMsgs,
+                saveId,
+                captured,
+                this.figmaImports(),
+                this.selectedKitId(),
+              )
+              .subscribe();
           }
         });
       }
@@ -352,7 +392,12 @@ export class ProjectService {
     }
   }
 
-  async reloadPreview(files: any, kitTemplate?: KitWebContainerFiles, skipStop = false, epoch?: number) {
+  async reloadPreview(
+    files: any,
+    kitTemplate?: KitWebContainerFiles,
+    skipStop = false,
+    epoch?: number,
+  ) {
     // If no epoch provided (direct call, e.g. from version restore), create our own
     if (epoch === undefined) {
       epoch = ++this._loadEpoch;
@@ -365,7 +410,7 @@ export class ProjectService {
     this.webContainerService.currentProjectId = this.projectId() || null;
 
     // Yield to allow loading state to render
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
     if (isStale()) return;
 
     // Fast path: skip stop/clean/install/start when deps haven't changed
@@ -384,7 +429,7 @@ export class ProjectService {
 
           this.fileStore.setFiles(mergedFiles);
 
-          await new Promise(resolve => setTimeout(resolve, 0));
+          await new Promise((resolve) => setTimeout(resolve, 0));
           if (isStale()) return;
 
           const { tree, binaries } = this.prepareFilesForMount(mergedFiles);
@@ -397,7 +442,10 @@ export class ProjectService {
           return; // Angular HMR picks up the file changes
         } catch (err) {
           if (isStale()) return;
-          console.error('Fast-path reload failed, falling back to full reload', err);
+          console.error(
+            'Fast-path reload failed, falling back to full reload',
+            err,
+          );
           // Fall through to full reload below
         } finally {
           this.loading.set(false);
@@ -410,7 +458,7 @@ export class ProjectService {
         // Stop with timeout to prevent hanging
         await Promise.race([
           this.webContainerService.stopDevServer(),
-          new Promise(resolve => setTimeout(resolve, 5000))
+          new Promise((resolve) => setTimeout(resolve, 5000)),
         ]);
       }
       if (isStale()) return;
@@ -420,7 +468,7 @@ export class ProjectService {
       if (isStale()) return;
 
       // Yield before heavy sync operations
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
       // Use kit template if provided, otherwise use current kit template or default BASE_FILES
       const baseFiles = kitTemplate || this.currentKitTemplate() || BASE_FILES;
@@ -431,7 +479,7 @@ export class ProjectService {
       const mergedFiles = this.mergeFiles(baseFiles, files || {});
 
       // Yield before updating store (triggers change detection)
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
       if (isStale()) return;
 
       this.fileStore.setFiles(mergedFiles);
@@ -439,10 +487,13 @@ export class ProjectService {
       // Use server-side mount when project has been saved (has a projectId on disk)
       const pid = this.projectId();
       if (pid && pid !== 'new' && this.webContainerService.mountProject) {
-        await this.webContainerService.mountProject(pid, this.selectedKitId() || null);
+        await this.webContainerService.mountProject(
+          pid,
+          this.selectedKitId() || null,
+        );
       } else {
         // Fallback for new unsaved projects: send files over HTTP
-        await new Promise(resolve => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
         const { tree, binaries } = this.prepareFilesForMount(mergedFiles);
 
@@ -499,7 +550,6 @@ export class ProjectService {
         await this.reloadPreview(this.files(), template);
       }
     }
-
   }
 
   // Helpers
@@ -534,7 +584,14 @@ export class ProjectService {
     return sharedMergeFiles(base, generated);
   }
 
-  private static SKIP_DIRS = new Set(['node_modules', 'dist', '.angular', '.cache', '.git', '.adorable']);
+  private static SKIP_DIRS = new Set([
+    'node_modules',
+    'dist',
+    '.angular',
+    '.cache',
+    '.git',
+    '.adorable',
+  ]);
 
   private prepareFilesForMount(
     files: any,

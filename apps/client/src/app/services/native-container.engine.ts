@@ -1,7 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { ContainerEngine, ProcessOutput } from './container-engine';
-import { FileSystemStore } from './file-system.store';
 import { WebContainerFiles } from '@adorable/shared-types';
 import { Observable, of, shareReplay } from 'rxjs';
 
@@ -10,10 +9,10 @@ import { Observable, of, shareReplay } from 'rxjs';
 })
 export class NativeContainerEngine extends ContainerEngine {
   private http = inject(HttpClient);
-  private fileStore = inject(FileSystemStore);
   // In desktop mode, native ops go to the local agent (port 3334)
   private apiUrl = ((window as any).electronAPI?.nativeAgentUrl || 'http://localhost:3334') + '/api/native';
-  private watchAbort: AbortController | null = null;
+  private streamAbort: AbortController | null = null;
+  private activeReader: ReadableStreamDefaultReader | null = null;
 
   // State
   public mode = signal<'local' | 'native'>('native');
@@ -38,64 +37,33 @@ export class NativeContainerEngine extends ContainerEngine {
   async boot(): Promise<void> {
     this.status.set('Starting native project...');
     try {
-      await this.http.post(`${this.apiUrl}/start`, { projectId: this.currentProjectId }).toPromise();
+      console.log('[Native] boot() calling /start for', this.currentProjectId);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const res = await fetch(`${this.apiUrl}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: this.currentProjectId }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!res.ok) throw new Error(`Start failed: ${res.status}`);
+      console.log('[Native] boot() completed');
       this.lastBootedProjectId = this.currentProjectId;
       this.status.set('Project Ready');
     } catch (e) {
       this.status.set('Boot Failed');
-      console.error(e);
+      console.error('[Native] boot() failed:', e);
       throw e;
     }
   }
 
-  startFileWatcher(): void {
-    this.stopFileWatcher();
-    const token = localStorage.getItem('adorable_token');
-    const abort = new AbortController();
-    this.watchAbort = abort;
-
-    fetch(`${this.apiUrl}/watch`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-      credentials: 'include',
-      signal: abort.signal,
-    }).then(response => {
-      const reader = response.body?.getReader();
-      if (!reader) return;
-      const decoder = new TextDecoder();
-
-      const push = () => {
-        reader.read().then(({ done, value }) => {
-          if (done) return;
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.substring(6));
-                if (data.type === 'changed') {
-                  this.fileStore.updateFile(data.path, data.content);
-                } else if (data.type === 'deleted') {
-                  this.fileStore.deleteFile(data.path);
-                }
-              } catch { /* partial JSON, skip */ }
-            }
-          }
-          push();
-        }).catch(() => { /* aborted or connection lost */ });
-      };
-      push();
-    }).catch(() => { /* aborted or network error */ });
-  }
-
-  stopFileWatcher(): void {
-    if (this.watchAbort) {
-      this.watchAbort.abort();
-      this.watchAbort = null;
-    }
-  }
+  // No file watcher needed in native mode — Angular CLI watches the
+  // filesystem directly and handles HMR out of the box.
+  startFileWatcher(): void {}
+  stopFileWatcher(): void {}
 
   async teardown(): Promise<void> {
-    this.stopFileWatcher();
     await this.http.post(`${this.apiUrl}/stop`, {}).toPromise();
     this.status.set('Stopped');
   }
@@ -136,7 +104,7 @@ export class NativeContainerEngine extends ContainerEngine {
     this.status.set('Mounting files...');
     // Call the server's endpoint (port 3333), not the local-agent's (port 3334),
     // since the server does the file preparation and both share the same directory
-    const serverUrl = 'http://localhost:3333/api/container';
+    const serverUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api/container';
     const token = localStorage.getItem('adorable_token');
     await fetch(`${serverUrl}/mount-project`, {
       method: 'POST',
@@ -181,10 +149,23 @@ export class NativeContainerEngine extends ContainerEngine {
   }
 
   private async streamExec(cmd: string, args: string[], env?: any): Promise<ProcessOutput> {
+    // Detach previous reader/abort and defer cleanup to avoid blocking.
+    const prevReader = this.activeReader;
+    const prevAbort = this.streamAbort;
+    this.activeReader = null;
+    this.streamAbort = new AbortController();
+    if (prevReader || prevAbort) {
+      setTimeout(() => {
+        try { prevReader?.cancel().catch(() => {}); } catch {}
+        try { prevAbort?.abort(); } catch {}
+      }, 0);
+    }
+
     const token = localStorage.getItem('adorable_token');
     const response = await fetch(`${this.apiUrl}/exec-stream?cmd=${cmd}&args=${args.join(',')}&env=${env ? encodeURIComponent(JSON.stringify(env)) : ''}`, {
       headers: { 'Authorization': `Bearer ${token}` },
-      credentials: 'include'
+      credentials: 'include',
+      signal: this.streamAbort.signal,
     });
 
     if (!response.ok) {
@@ -198,6 +179,7 @@ export class NativeContainerEngine extends ContainerEngine {
     }
 
     const reader = response.body?.getReader();
+    this.activeReader = reader || null;
     const decoder = new TextDecoder();
 
     const stream = new Observable<string>(observer => {
@@ -222,6 +204,9 @@ export class NativeContainerEngine extends ContainerEngine {
             }
           }
           push();
+        }).catch(() => {
+          // Abort or connection lost — complete the Observable so exitPromise resolves
+          observer.complete();
         });
       };
       push();
@@ -290,43 +275,49 @@ export class NativeContainerEngine extends ContainerEngine {
   private isStopping = false;
 
   async stopDevServer(): Promise<void> {
+    console.log('stop dev server');
     if (this.isStopping) return;
     this.isStopping = true;
-
+    console.log('before stopping file watcher');
     this.stopFileWatcher();
     this.status.set('Stopping dev server...');
     this.url.set(null);
+    this.lastBootedProjectId = null;
 
-    try {
-      // Call the native stop endpoint with a timeout to prevent hanging
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-      await fetch(`${this.apiUrl}/stop`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal
-      }).catch(() => {});
-
-      clearTimeout(timeoutId);
-      this.status.set('Server stopped');
-    } catch (e) {
-      // Ignore errors - project may already be stopped or timed out
-      console.warn('Stop dev server timeout/error (continuing anyway)', e);
-      this.status.set('Idle');
-    } finally {
-      this.isStopping = false;
+    // Capture and null out references immediately, then defer the actual
+    // abort/cancel — these calls can synchronously block in Electron.
+    const reader = this.activeReader;
+    const abort = this.streamAbort;
+    this.activeReader = null;
+    this.streamAbort = null;
+    if (reader || abort) {
+      setTimeout(() => {
+        try { reader?.cancel().catch(() => {}); } catch {}
+        try { abort?.abort(); } catch {}
+      }, 0);
     }
+
+    // Fire-and-forget — don't wait for the stop to complete.
+    // createProject() in boot() will force-kill any remaining processes.
+    fetch(`${this.apiUrl}/stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    }).catch(() => {});
+
+    this.status.set('Server stopped');
+    this.isStopping = false;
   }
 
   async clean(full = false): Promise<void> {
-    await this.exec('rm', ['-rf', 'src']);
-    if (full) {
-      // Only remove node_modules on explicit full clean (e.g. kit/template change)
+    // In native mode, each project has its own directory with its own caches.
+    // No cleaning needed when switching projects — boot() points to the new directory.
+    // Only do a full clean (node_modules) when explicitly requested (kit/template change).
+    if (!full) return;
+
+    try {
       await this.exec('rm', ['-rf', 'node_modules', 'pnpm-lock.yaml', 'package-lock.json', '.angular']);
-    } else {
-      // Preserve node_modules for faster project switching
-      await this.exec('rm', ['-rf', '.angular']);
+    } catch {
+      // Project not initialized yet — will be set up by boot()
     }
   }
 

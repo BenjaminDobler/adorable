@@ -336,4 +336,81 @@ router.post('/install', async (req: any, res) => {
     }
 });
 
+/**
+ * Export a user skill (SKILL.md + reference files)
+ * GET /api/skills/:name/export
+ */
+router.get('/:name/export', async (req: any, res) => {
+  const user = req.user;
+  const { name } = req.params;
+
+  try {
+    const skillDir = path.join(process.cwd(), 'storage', 'users', user.id, 'skills', name);
+
+    // Read SKILL.md
+    let skillMd: string;
+    try {
+      skillMd = await fs.readFile(path.join(skillDir, 'SKILL.md'), 'utf-8');
+    } catch {
+      return res.status(404).json({ error: `Skill "${name}" not found` });
+    }
+
+    // Read reference files if they exist
+    const references: Record<string, string> = {};
+    const refsDir = path.join(skillDir, 'references');
+    try {
+      const refFiles = await fs.readdir(refsDir);
+      for (const refFile of refFiles) {
+        const refPath = path.join(refsDir, refFile);
+        const stat = await fs.stat(refPath);
+        if (stat.isFile()) {
+          references[refFile] = await fs.readFile(refPath, 'utf-8');
+        }
+      }
+    } catch {
+      // No references directory — that's fine
+    }
+
+    res.json({ name, skillMd, references });
+  } catch (error: any) {
+    console.error('Export skill error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Import a skill from exported data
+ * POST /api/skills/import
+ */
+router.post('/import', async (req: any, res) => {
+  const user = req.user;
+  const { name, skillMd, references } = req.body;
+
+  if (!name || !skillMd) {
+    return res.status(400).json({ error: 'name and skillMd are required' });
+  }
+
+  try {
+    const skillDir = path.join(process.cwd(), 'storage', 'users', user.id, 'skills', name);
+    await fs.mkdir(skillDir, { recursive: true });
+
+    // Write SKILL.md
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), skillMd);
+
+    // Write reference files if provided
+    if (references && Object.keys(references).length > 0) {
+      const refsDir = path.join(skillDir, 'references');
+      await fs.mkdir(refsDir, { recursive: true });
+      for (const [fileName, content] of Object.entries(references)) {
+        await fs.writeFile(path.join(refsDir, fileName), content as string);
+      }
+    }
+
+    res.json({ success: true, name });
+  } catch (error: any) {
+    console.error('Import skill error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export const skillsRouter = router;

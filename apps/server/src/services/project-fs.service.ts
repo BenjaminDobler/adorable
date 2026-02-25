@@ -10,7 +10,8 @@ export class ProjectFsService {
    * Get the filesystem path for a project.
    */
   getProjectPath(projectId: string): string {
-    return path.join(STORAGE_DIR, 'projects', projectId);
+    const projectsDir = process.env['ADORABLE_PROJECTS_DIR'] || path.join(STORAGE_DIR, 'projects');
+    return path.join(projectsDir, projectId);
   }
 
   /**

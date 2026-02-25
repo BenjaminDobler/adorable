@@ -116,12 +116,12 @@ router.get('/watch', async (req: any, res) => {
 });
 
 router.post('/mount-project', async (req: any, res) => {
-  const { projectId, kitId } = req.body;
+  const { projectId, kitId, baseHref } = req.body;
   try {
     if (!projectId) {
       return res.status(400).json({ error: 'projectId is required' });
     }
-    await mountService.prepareAndWriteFiles(projectId, kitId || null);
+    await mountService.prepareAndWriteFiles(projectId, kitId || null, baseHref || '/');
     res.json({ success: true });
   } catch (e) {
     console.error('Failed to mount project', e);

@@ -11,6 +11,9 @@ import { SkillDialogComponent } from './skill-dialog/skill-dialog.component';
 import { GitHubSkillDialogComponent } from './github-skill-dialog/github-skill-dialog.component';
 import { Kit, StorybookResource } from '../services/kit-types';
 import { DEFAULT_KIT } from '../base-project';
+import { CloudSyncService, CloudSyncStatus, CloudKit, CloudSkill } from '../services/cloud-sync.service';
+import { isDesktopApp } from '../services/smart-container.engine';
+import { SyncStatusProject } from '@adorable/shared-types';
 
 @Component({
   selector: 'app-dashboard',
@@ -27,16 +30,33 @@ export class DashboardComponent {
   confirmService = inject(ConfirmService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
+  public cloudSyncService = inject(CloudSyncService);
 
   projects = signal<any[]>([]);
   skills = signal<Skill[]>([]);
   kits = signal<Kit[]>([]);
   loading = signal(true);
 
-  activeTab = signal<'projects' | 'skills' | 'kits'>('projects');
+  activeTab = signal<'projects' | 'skills' | 'kits' | 'cloud'>('projects');
+
+  // Desktop mode detection
+  isDesktopMode = computed(() => isDesktopApp());
+  showCloudTab = computed(() => this.isDesktopMode() && this.cloudSyncService.isConnected());
+
+  // Cloud projects state
+  cloudProjects = signal<SyncStatusProject[]>([]);
+  cloudLoading = signal(false);
+  cloudSyncStatuses = signal<Record<string, CloudSyncStatus>>({});
+  cloudActionLoading = signal<Record<string, boolean>>({});
   showSkillDialog = signal(false);
   showGitHubDialog = signal(false);
   editingSkill = signal<Skill | null>(null);
+
+  // Cloud kit/skill state
+  cloudKits = signal<CloudKit[]>([]);
+  cloudSkills = signal<CloudSkill[]>([]);
+  kitSyncLoading = signal<Record<string, boolean>>({});
+  skillSyncLoading = signal<Record<string, boolean>>({});
 
   // Kit-related state
   showKitSelection = signal(false);
@@ -55,10 +75,13 @@ export class DashboardComponent {
   constructor() {
     // Check if we're returning from kit-builder with a tab param
     const tab = this.route.snapshot.queryParamMap.get('tab');
-    if (tab === 'kits' || tab === 'skills' || tab === 'projects') {
+    if (tab === 'kits' || tab === 'skills' || tab === 'projects' || tab === 'cloud') {
       this.activeTab.set(tab);
     }
     this.loadData();
+    if (this.showCloudTab()) {
+      this.loadCloudProjects();
+    }
   }
 
   loadData() {
@@ -267,5 +290,206 @@ export class DashboardComponent {
 
   cancelKitSelection() {
     this.showKitSelection.set(false);
+  }
+
+  // Cloud sync methods
+  async loadCloudProjects() {
+    if (!this.cloudSyncService.isConnected()) return;
+
+    this.cloudLoading.set(true);
+    try {
+      const [cloudProjects, cloudKits, cloudSkills] = await Promise.all([
+        this.cloudSyncService.getCloudProjects(),
+        this.cloudSyncService.getCloudKits(),
+        this.cloudSyncService.getCloudSkills(),
+      ]);
+      this.cloudProjects.set(cloudProjects);
+      this.cloudKits.set(cloudKits);
+      this.cloudSkills.set(cloudSkills);
+      this.computeSyncStatuses(cloudProjects);
+    } catch (e) {
+      console.warn('Failed to load cloud data:', e);
+    } finally {
+      this.cloudLoading.set(false);
+    }
+  }
+
+  private computeSyncStatuses(cloudProjects: SyncStatusProject[]) {
+    const statuses: Record<string, CloudSyncStatus> = {};
+    for (const cp of cloudProjects) {
+      const localProject = this.projects().find(p => p.cloudProjectId === cp.id);
+      if (localProject) {
+        statuses[cp.id] = this.cloudSyncService.getSyncStatus(localProject, cp);
+      }
+    }
+    this.cloudSyncStatuses.set(statuses);
+  }
+
+  getLocalProjectForCloud(cloudProjectId: string): any | null {
+    return this.projects().find(p => p.cloudProjectId === cloudProjectId) || null;
+  }
+
+  getCloudSyncStatus(cloudProjectId: string): CloudSyncStatus | null {
+    return this.cloudSyncStatuses()[cloudProjectId] || null;
+  }
+
+  isLocalProjectLinkedToCloud(project: any): boolean {
+    return !!project.cloudProjectId;
+  }
+
+  async downloadCloudProject(cloudProjectId: string) {
+    this.setCloudActionLoading(cloudProjectId, true);
+    try {
+      await this.cloudSyncService.importProject(cloudProjectId);
+      this.toastService.show('Project downloaded from cloud!', 'success');
+      this.loadData();
+      // Reload cloud statuses
+      setTimeout(() => this.loadCloudProjects(), 500);
+    } catch (e: any) {
+      this.toastService.show(e.message || 'Failed to download project', 'error');
+    } finally {
+      this.setCloudActionLoading(cloudProjectId, false);
+    }
+  }
+
+  async pushToCloud(cloudProjectId: string) {
+    const localProject = this.getLocalProjectForCloud(cloudProjectId);
+    if (!localProject) return;
+
+    this.setCloudActionLoading(cloudProjectId, true);
+    try {
+      await this.cloudSyncService.pushProject(localProject);
+      this.toastService.show('Pushed to cloud!', 'success');
+      this.loadData();
+      setTimeout(() => this.loadCloudProjects(), 500);
+    } catch (e: any) {
+      this.toastService.show(e.message || 'Failed to push', 'error');
+    } finally {
+      this.setCloudActionLoading(cloudProjectId, false);
+    }
+  }
+
+  async pullFromCloud(cloudProjectId: string) {
+    const localProject = this.getLocalProjectForCloud(cloudProjectId);
+    if (!localProject) return;
+
+    this.setCloudActionLoading(cloudProjectId, true);
+    try {
+      await this.cloudSyncService.pullProject(localProject);
+      this.toastService.show('Pulled from cloud!', 'success');
+      this.loadData();
+      setTimeout(() => this.loadCloudProjects(), 500);
+    } catch (e: any) {
+      this.toastService.show(e.message || 'Failed to pull', 'error');
+    } finally {
+      this.setCloudActionLoading(cloudProjectId, false);
+    }
+  }
+
+  private setCloudActionLoading(cloudProjectId: string, loading: boolean) {
+    this.cloudActionLoading.update(m => ({ ...m, [cloudProjectId]: loading }));
+  }
+
+  isCloudActionLoading(cloudProjectId: string): boolean {
+    return !!this.cloudActionLoading()[cloudProjectId];
+  }
+
+  publishLoading = signal<Record<string, boolean>>({});
+
+  isPublishLoading(projectId: string): boolean {
+    return !!this.publishLoading()[projectId];
+  }
+
+  async publishToCloud(projectId: string, event: Event) {
+    event.stopPropagation(); // Prevent navigation to editor
+    this.publishLoading.update(m => ({ ...m, [projectId]: true }));
+    try {
+      await this.cloudSyncService.publishProject(projectId);
+      this.toastService.show('Project published to cloud!', 'success');
+      this.loadData();
+      if (this.showCloudTab()) {
+        setTimeout(() => this.loadCloudProjects(), 500);
+      }
+    } catch (e: any) {
+      this.toastService.show(e.message || 'Failed to publish to cloud', 'error');
+    } finally {
+      this.publishLoading.update(m => ({ ...m, [projectId]: false }));
+    }
+  }
+
+  // Kit cloud sync
+  async publishKitToCloud(kitId: string, event: Event) {
+    event.stopPropagation();
+    this.kitSyncLoading.update(m => ({ ...m, [kitId]: true }));
+    try {
+      await this.cloudSyncService.publishKit(kitId);
+      this.toastService.show('Kit published to cloud!', 'success');
+      if (this.showCloudTab()) {
+        setTimeout(() => this.loadCloudProjects(), 500);
+      }
+    } catch (e: any) {
+      this.toastService.show(e.message || 'Failed to publish kit', 'error');
+    } finally {
+      this.kitSyncLoading.update(m => ({ ...m, [kitId]: false }));
+    }
+  }
+
+  isKitSyncLoading(kitId: string): boolean {
+    return !!this.kitSyncLoading()[kitId];
+  }
+
+  async importKitFromCloud(cloudKitId: string) {
+    this.kitSyncLoading.update(m => ({ ...m, [cloudKitId]: true }));
+    try {
+      await this.cloudSyncService.importKit(cloudKitId);
+      this.toastService.show('Kit downloaded from cloud!', 'success');
+      this.loadData();
+    } catch (e: any) {
+      this.toastService.show(e.message || 'Failed to download kit', 'error');
+    } finally {
+      this.kitSyncLoading.update(m => ({ ...m, [cloudKitId]: false }));
+    }
+  }
+
+  isCloudKitImported(cloudKitId: string): boolean {
+    return !!this.cloudSyncService.getLocalKitId(cloudKitId);
+  }
+
+  // Skill cloud sync
+  async publishSkillToCloud(skillName: string, event: Event) {
+    event.stopPropagation();
+    this.skillSyncLoading.update(m => ({ ...m, [skillName]: true }));
+    try {
+      await this.cloudSyncService.publishSkill(skillName);
+      this.toastService.show('Skill published to cloud!', 'success');
+      if (this.showCloudTab()) {
+        setTimeout(() => this.loadCloudProjects(), 500);
+      }
+    } catch (e: any) {
+      this.toastService.show(e.message || 'Failed to publish skill', 'error');
+    } finally {
+      this.skillSyncLoading.update(m => ({ ...m, [skillName]: false }));
+    }
+  }
+
+  isSkillSyncLoading(name: string): boolean {
+    return !!this.skillSyncLoading()[name];
+  }
+
+  async importSkillFromCloud(skillName: string) {
+    this.skillSyncLoading.update(m => ({ ...m, [skillName]: true }));
+    try {
+      await this.cloudSyncService.importSkill(skillName);
+      this.toastService.show('Skill downloaded from cloud!', 'success');
+      this.loadData();
+    } catch (e: any) {
+      this.toastService.show(e.message || 'Failed to download skill', 'error');
+    } finally {
+      this.skillSyncLoading.update(m => ({ ...m, [skillName]: false }));
+    }
+  }
+
+  isCloudSkillImported(skillName: string): boolean {
+    return this.skills().some(s => s.name === skillName);
   }
 }

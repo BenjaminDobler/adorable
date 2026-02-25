@@ -44,6 +44,17 @@
           </svg>
           MCP Servers
         </button>
+        @if (isDesktopMode()) {
+          <button
+            class="tab"
+            [class.active]="activeTab() === 'cloud'"
+            (click)="activeTab.set('cloud')">
+            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+              <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+            </svg>
+            Cloud Sync
+          </button>
+        }
       </div>
 
       <button class="btn-back" routerLink="/dashboard">
@@ -421,6 +432,85 @@
                     </div>
                   </div>
                 }
+              </div>
+            }
+          </div>
+        </section>
+      </div>
+    }
+
+    <!-- Cloud Sync Tab (Desktop only) -->
+    @if (activeTab() === 'cloud') {
+      <div class="tab-content">
+        <section class="settings-card">
+          <div class="card-header">
+            <h3>Cloud Sync</h3>
+            <p>Connect to a cloud Adorable server to sync projects between desktop and cloud.</p>
+          </div>
+          <div class="card-body">
+            @if (cloudSyncService.isConnected()) {
+              <div class="integration-box">
+                <div class="integration-connected">
+                  <div class="integration-user">
+                    <div class="cloud-icon-circle">
+                      <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none">
+                        <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                      </svg>
+                    </div>
+                    <div class="user-info">
+                      <span class="username">{{ cloudSyncService.cloudUser()?.email }}</span>
+                      <span class="status">Connected to {{ cloudSyncService.cloudUrl() }}</span>
+                    </div>
+                  </div>
+                  <button class="btn-disconnect" (click)="disconnectCloud()">Disconnect</button>
+                </div>
+                <div class="success-message">
+                  <span class="icon">&#10003;</span>
+                  <span>Cloud sync is active. Go to the Dashboard to manage cloud projects.</span>
+                </div>
+              </div>
+            } @else {
+              <div class="cloud-login-form">
+                <div class="form-group">
+                  <label>Cloud Server URL</label>
+                  <input
+                    type="url"
+                    [ngModel]="cloudLoginUrl()"
+                    (ngModelChange)="cloudLoginUrl.set($event)"
+                    placeholder="http://localhost:3333"
+                  />
+                  <small class="help-text">The Express API server URL (not the Angular dev server)</small>
+                </div>
+                <div class="form-group">
+                  <label>Email</label>
+                  <input
+                    type="email"
+                    [ngModel]="cloudLoginEmail()"
+                    (ngModelChange)="cloudLoginEmail.set($event)"
+                    placeholder="your@email.com"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>Password</label>
+                  <input
+                    type="password"
+                    [ngModel]="cloudLoginPassword()"
+                    (ngModelChange)="cloudLoginPassword.set($event)"
+                    placeholder="Password"
+                    autocomplete="new-password"
+                    (keydown.enter)="connectCloud()"
+                  />
+                </div>
+                @if (cloudLoginError()) {
+                  <div class="error-message">{{ cloudLoginError() }}</div>
+                }
+                <button
+                  class="btn-save"
+                  (click)="connectCloud()"
+                  [disabled]="cloudLoginLoading() || !cloudLoginUrl() || !cloudLoginEmail() || !cloudLoginPassword()"
+                >
+                  {{ cloudLoginLoading() ? 'Connecting...' : 'Connect' }}
+                </button>
               </div>
             }
           </div>

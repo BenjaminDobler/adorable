@@ -167,6 +167,30 @@ export function mergeFiles(base: WebContainerFiles, generated: WebContainerFiles
   return result;
 }
 
+// Cloud Sync Types
+export interface SyncStatusProject {
+  id: string;
+  name: string;
+  updatedAt: string;
+  thumbnail?: string;
+  headSha: string | null;
+}
+
+export interface ProjectImportResponse {
+  project: any;
+  files: any;
+  messages: any[];
+  headSha: string | null;
+}
+
+export interface ProjectPushBody {
+  files: any;
+  messages: any[];
+  name: string;
+  thumbnail?: string;
+  selectedKitId?: string;
+}
+
 export interface StorybookComponent {
   id: string;
   title: string;

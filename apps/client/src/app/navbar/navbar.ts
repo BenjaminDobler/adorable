@@ -288,7 +288,7 @@ export class NavbarComponent {
 
   openInVSCodeFolder() {
     this.vscodePanelOpen.set(false);
-    this.http.get<ContainerInfo>('http://localhost:3333/api/container/info').subscribe({
+    this.http.get<ContainerInfo>(`${(window as any).electronAPI?.serverUrl || 'http://localhost:3333'}/api/container/info`).subscribe({
       next: (info) => {
         const uri = `vscode://file/${info.hostProjectPath}?windowId=_blank`;
         window.open(uri, '_blank');
@@ -302,7 +302,7 @@ export class NavbarComponent {
 
   openInVSCodeContainer() {
     this.vscodePanelOpen.set(false);
-    this.http.get<ContainerInfo>('http://localhost:3333/api/container/info').subscribe({
+    this.http.get<ContainerInfo>(`${(window as any).electronAPI?.serverUrl || 'http://localhost:3333'}/api/container/info`).subscribe({
       next: (info) => {
         // Hex-encode the container ID for the Dev Containers URI
         const hexId = Array.from(new TextEncoder().encode(info.containerId))

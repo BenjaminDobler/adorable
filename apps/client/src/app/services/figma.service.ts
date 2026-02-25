@@ -46,7 +46,7 @@ export interface FigmaNodeInfo {
 })
 export class FigmaService {
   private http = inject(HttpClient);
-  private apiUrl = 'http://localhost:3333/api/figma';
+  private apiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api/figma';
 
   // Reactive state
   status = signal<FigmaStatus>({ configured: false });

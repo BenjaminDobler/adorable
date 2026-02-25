@@ -60,8 +60,8 @@ export class ApiService {
     });
   }
 
-  saveProject(name: string, files?: any, messages?: any[], id?: string, thumbnail?: string, figmaImports?: any[], selectedKitId?: string | null) {
-    return this.http.post<any>(`${this.apiUrl}/projects`, { name, files, messages, id, thumbnail, figmaImports, selectedKitId });
+  saveProject(name: string, files?: any, messages?: any[], id?: string, thumbnail?: string, figmaImports?: any[], selectedKitId?: string | null, cloudProjectId?: string, cloudCommitSha?: string, cloudLastSyncAt?: string) {
+    return this.http.post<any>(`${this.apiUrl}/projects`, { name, files, messages, id, thumbnail, figmaImports, selectedKitId, cloudProjectId, cloudCommitSha, cloudLastSyncAt });
   }
 
   listProjects() {

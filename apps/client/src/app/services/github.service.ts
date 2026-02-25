@@ -12,7 +12,7 @@ import {
 })
 export class GitHubService {
   private http = inject(HttpClient);
-  private apiUrl = 'http://localhost:3333/api/github';
+  private apiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api/github';
 
   // State
   connection = signal<GitHubConnection>({ connected: false });

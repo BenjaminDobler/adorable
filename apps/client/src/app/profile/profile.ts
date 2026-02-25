@@ -9,6 +9,7 @@ import { ToastService } from '../services/toast';
 import { GitHubService } from '../services/github.service';
 import { isDesktopApp } from '../services/smart-container.engine';
 import { FileExplorerState } from '../file-explorer/file-explorer';
+import { CloudSyncService } from '../services/cloud-sync.service';
 
 export type ProviderType = 'anthropic' | 'gemini' | 'figma';
 export type MCPAuthType = 'none' | 'bearer';
@@ -70,10 +71,11 @@ export class ProfileComponent implements OnInit {
   private toastService = inject(ToastService);
   public githubService = inject(GitHubService);
   public fileExplorerState = inject(FileExplorerState);
+  public cloudSyncService = inject(CloudSyncService);
 
   user = signal<any>(null);
   name = signal('');
-  activeTab = signal<'account' | 'providers' | 'integrations' | 'mcp'>('account');
+  activeTab = signal<'account' | 'providers' | 'integrations' | 'mcp' | 'cloud'>('account');
 
   // Detect if running in desktop mode (Electron)
   isDesktopMode = computed(() => isDesktopApp());
@@ -496,4 +498,35 @@ export class ProfileComponent implements OnInit {
     return text ? text.split(' ').filter(a => a.trim()) : [];
   }
 
+  // Cloud Sync
+  cloudLoginUrl = signal('');
+  cloudLoginEmail = signal('');
+  cloudLoginPassword = signal('');
+  cloudLoginLoading = signal(false);
+  cloudLoginError = signal<string | null>(null);
+
+  async connectCloud() {
+    this.cloudLoginLoading.set(true);
+    this.cloudLoginError.set(null);
+
+    try {
+      await this.cloudSyncService.login(
+        this.cloudLoginUrl(),
+        this.cloudLoginEmail(),
+        this.cloudLoginPassword()
+      );
+      this.toastService.show('Connected to cloud server!', 'success');
+      // Clear form
+      this.cloudLoginPassword.set('');
+    } catch (e: any) {
+      this.cloudLoginError.set(e.message || 'Connection failed');
+    } finally {
+      this.cloudLoginLoading.set(false);
+    }
+  }
+
+  disconnectCloud() {
+    this.cloudSyncService.disconnect();
+    this.toastService.show('Disconnected from cloud', 'success');
+  }
 }

@@ -1,5 +1,6 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, session } from 'electron';
 import * as path from 'path';
+import * as os from 'os';
 import { fork, ChildProcess } from 'child_process';
 import * as jwt from 'jsonwebtoken';
 import { ensureNode } from './node-bootstrap';
@@ -29,6 +30,11 @@ function createWindow() {
 
   // Load the Angular client from the local agent (bundled with the app)
   mainWindow.loadURL(`http://localhost:${AGENT_PORT}`);
+
+  // Enable dev tools in dev mode
+  if (!app.isPackaged) {
+    mainWindow.webContents.openDevTools();
+  }
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -69,7 +75,8 @@ async function startEmbeddedServer(): Promise<number> {
       SITES_DIR: sitesDir,
       STORAGE_DIR: storageDir,
       ADORABLE_DESKTOP_MODE: 'true',
-      ADORABLE_PROJECTS_DIR: path.join(storageDir, 'projects')
+      // Projects dir uses a space-free path — esbuild (Angular CLI) fails on paths with spaces
+      ADORABLE_PROJECTS_DIR: path.join(os.homedir(), '.adorable', 'projects')
     },
     stdio: ['pipe', 'pipe', 'pipe', 'ipc']
   });
@@ -156,6 +163,16 @@ app.on('ready', async () => {
       return localUserToken;
     });
 
+    // Register IPC handler for server port (used by preload)
+    ipcMain.on('get-server-port', (event) => {
+      event.returnValue = SERVER_PORT;
+    });
+
+    // Register IPC handler for agent port (used by preload)
+    ipcMain.on('get-agent-port', (event) => {
+      event.returnValue = AGENT_PORT;
+    });
+
     // Register IPC handler for fast screenshot capture
     ipcMain.handle('capture-page', async (_event, rect?: { x: number; y: number; width: number; height: number }) => {
       if (!mainWindow) return null;
@@ -171,6 +188,12 @@ app.on('ready', async () => {
       }
     });
 
+    // Set ADORABLE_PROJECTS_DIR in the main process env so the local agent
+    // (NativeManager) uses the same directory as the embedded server.
+    // Uses a space-free path — esbuild (Angular CLI) fails on paths with spaces
+    // like "Application Support".
+    process.env['ADORABLE_PROJECTS_DIR'] = path.join(os.homedir(), '.adorable', 'projects');
+
     // Start the embedded backend server
     console.log('[Desktop] Starting embedded server...');
     await startEmbeddedServer();
@@ -182,6 +205,9 @@ app.on('ready', async () => {
     const agentPort = await startLocalAgent(clientPath);
     console.log(`[Desktop] Local agent + client on http://localhost:${agentPort}`);
     console.log(`[Desktop] Embedded API server: http://localhost:${SERVER_PORT}`);
+
+    // Clear browser cache to ensure fresh client chunks are loaded after rebuilds
+    await session.defaultSession.clearCache();
 
     createWindow();
   } catch (error) {

@@ -14,7 +14,10 @@ import { ContainerEngine } from '../services/container-engine';
 import { SmartContainerEngine } from '../services/smart-container.engine';
 import { ProjectService } from '../services/project';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
-import { FileExplorerComponent, FileAction } from '../file-explorer/file-explorer';
+import {
+  FileExplorerComponent,
+  FileAction,
+} from '../file-explorer/file-explorer';
 import { EditorComponent } from '../editor/editor.component';
 import { SafeUrlPipe } from '../pipes/safe-url.pipe';
 import { LayoutService } from '../services/layout';
@@ -25,7 +28,10 @@ import { ScreenshotService } from '../services/screenshot';
 import { FigmaPanelComponent } from '../figma/figma-panel.component';
 import { FigmaImportPayload } from '@adorable/shared-types';
 import { TemplateService } from '../services/template';
-import { AnnotationOverlayComponent, AnnotationResult } from '../annotation-overlay/annotation-overlay';
+import {
+  AnnotationOverlayComponent,
+  AnnotationResult,
+} from '../annotation-overlay/annotation-overlay';
 
 import { VersionsPanelComponent } from '../versions/versions-panel.component';
 import { VisualEditorPanelComponent } from '../chat/visual-editor-panel/visual-editor-panel.component';
@@ -66,17 +72,22 @@ export class WorkspaceComponent implements AfterViewChecked {
 
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
 
-  @ViewChild('previewFrame', {static: false}) set previewFrame(ref: ElementRef<HTMLIFrameElement> | undefined) {
+  @ViewChild('previewFrame', { static: false }) set previewFrame(
+    ref: ElementRef<HTMLIFrameElement> | undefined,
+  ) {
     if (ref?.nativeElement) {
-      console.log('[WorkspaceComponent] Iframe ViewChild resolved, registering...');
+      console.log(
+        '[WorkspaceComponent] Iframe ViewChild resolved, registering...',
+      );
       this.screenshotService.registerIframe(ref.nativeElement);
     }
   }
 
-
   @ViewChild(ChatComponent) chatComponent!: ChatComponent;
 
-  activeTab = signal<'chat' | 'terminal' | 'files' | 'figma' | 'versions'>('chat');
+  activeTab = signal<'chat' | 'terminal' | 'files' | 'figma' | 'versions'>(
+    'chat',
+  );
 
   // Pending Figma import (passed to chat component when it renders)
   pendingFigmaImport = signal<FigmaImportPayload | null>(null);
@@ -134,11 +145,10 @@ export class WorkspaceComponent implements AfterViewChecked {
   isDragging = false;
 
   constructor() {
-
     this.fetchSettings();
 
     // Re-fetch settings when navigating back from profile
-    this.router.events.subscribe(event => {
+    this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd && event.url === '/dashboard') {
         this.fetchSettings();
       }
@@ -175,13 +185,9 @@ export class WorkspaceComponent implements AfterViewChecked {
     this.route.params.subscribe(async (params) => {
       const projectId = params['id'];
       if (projectId && projectId !== 'new') {
-        // Auto-save the current project before switching to a different one
-        const currentId = this.projectService.projectId();
-        if (currentId && currentId !== 'new' && currentId !== projectId && !this.projectService.fileStore.isEmpty()) {
-          console.log('[WorkspaceComponent] Auto-saving project before switch:', currentId);
-          await this.projectService.saveProject();
-        }
+        console.log('before load project');
         this.projectService.loadProject(projectId);
+        console.log('after load project');
       } else {
         this.projectService.projectId.set(null);
         this.projectService.projectName.set(
@@ -230,18 +236,18 @@ export class WorkspaceComponent implements AfterViewChecked {
           componentName: payload.componentName,
           hostTag: payload.hostTag,
           classes: payload.classes,
-          id: payload.attributes?.id
+          id: payload.attributes?.id,
         };
 
         console.log('[WorkspaceComponent] INLINE_TEXT_EDIT received:', {
           fingerprint,
           newText: payload.newText,
-          filesLoaded: !!this.projectService.files()
+          filesLoaded: !!this.projectService.files(),
         });
 
         const result = this.templateService.findAndModify(fingerprint, {
           type: 'text',
-          value: payload.newText
+          value: payload.newText,
         });
 
         console.log('[WorkspaceComponent] findAndModify result:', result);
@@ -253,13 +259,22 @@ export class WorkspaceComponent implements AfterViewChecked {
           this.webContainerService.writeFile(result.path, result.content);
 
           if (result.isInsideLoop) {
-            this.toastService.show('Text updated (all instances in loop affected)', 'info');
+            this.toastService.show(
+              'Text updated (all instances in loop affected)',
+              'info',
+            );
           } else {
             this.toastService.show('Text updated', 'success');
           }
         } else {
-          console.error('[WorkspaceComponent] In-place edit failed:', result.error);
-          this.toastService.show('Failed to update text: ' + result.error, 'error');
+          console.error(
+            '[WorkspaceComponent] In-place edit failed:',
+            result.error,
+          );
+          this.toastService.show(
+            'Failed to update text: ' + result.error,
+            'error',
+          );
         }
       }
     });
@@ -310,7 +325,10 @@ export class WorkspaceComponent implements AfterViewChecked {
       this.toastService.show('Failed to capture preview screenshot', 'error');
       return;
     }
-    const composited = await this.compositeImages(iframeScreenshot, result.imageDataUrl);
+    const composited = await this.compositeImages(
+      iframeScreenshot,
+      result.imageDataUrl,
+    );
     if (this.chatComponent) {
       this.chatComponent.setAnnotatedImage(composited, result.annotations);
       this.toastService.show('Annotation attached to chat', 'success');
@@ -481,15 +499,21 @@ export class WorkspaceComponent implements AfterViewChecked {
     switch (action.type) {
       case 'create-file':
         this.projectService.fileStore.createFile(action.path);
-        try { await this.webContainerService.writeFile(action.path, ''); } catch {}
+        try {
+          await this.webContainerService.writeFile(action.path, '');
+        } catch {}
         break;
       case 'create-folder':
         this.projectService.fileStore.createFolder(action.path);
-        try { await this.webContainerService.mkdir(action.path); } catch {}
+        try {
+          await this.webContainerService.mkdir(action.path);
+        } catch {}
         break;
       case 'delete':
         this.projectService.fileStore.deleteFile(action.path);
-        try { await this.webContainerService.deleteFile(action.path); } catch {}
+        try {
+          await this.webContainerService.deleteFile(action.path);
+        } catch {}
         // Clear editor if deleted file was selected
         if (this.selectedFilePath() === action.path) {
           this.selectedFileName.set('');
@@ -499,7 +523,8 @@ export class WorkspaceComponent implements AfterViewChecked {
         break;
       case 'rename':
         if (action.newPath) {
-          const content = this.projectService.fileStore.getFileContent(action.path) || '';
+          const content =
+            this.projectService.fileStore.getFileContent(action.path) || '';
           this.projectService.fileStore.renameFile(action.path, action.newPath);
           try {
             await this.webContainerService.writeFile(action.newPath, content);
@@ -519,11 +544,16 @@ export class WorkspaceComponent implements AfterViewChecked {
           try {
             let writeContent: string | Uint8Array = action.content;
             if (action.content.startsWith('data:')) {
-              writeContent = this.projectService.dataURIToUint8Array(action.content);
+              writeContent = this.projectService.dataURIToUint8Array(
+                action.content,
+              );
             }
             await this.webContainerService.writeFile(action.path, writeContent);
           } catch {}
-          this.toastService.show(`Uploaded ${action.path.split('/').pop()}`, 'success');
+          this.toastService.show(
+            `Uploaded ${action.path.split('/').pop()}`,
+            'success',
+          );
         }
         break;
     }
@@ -569,7 +599,6 @@ export class WorkspaceComponent implements AfterViewChecked {
       }
     }
   }
-
 
   goBack() {
     this.router.navigate(['/dashboard']);

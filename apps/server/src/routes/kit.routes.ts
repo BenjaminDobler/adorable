@@ -1158,4 +1158,141 @@ router.post('/:id/regenerate-docs', async (req: any, res) => {
   }
 });
 
+/**
+ * Export a complete kit (metadata + template files + .adorable docs)
+ * POST /api/kits/:id/export
+ */
+router.post('/:id/export', async (req: any, res) => {
+  const user = req.user;
+  const { id } = req.params;
+
+  try {
+    const settings = typeof user.settings === 'string'
+      ? JSON.parse(user.settings || '{}')
+      : (user.settings || {});
+
+    const kits = parseKitsFromSettings(settings);
+    const kit = kits.find(k => k.id === id);
+
+    if (!kit) {
+      return res.status(404).json({ error: 'Kit not found' });
+    }
+
+    // Load template files from disk if stored there
+    let templateFiles = kit.template?.files || {};
+    if (kit.template?.storedOnDisk) {
+      try {
+        templateFiles = await kitFsService.readKitTemplateFiles(id);
+      } catch (err) {
+        console.warn(`[Kit Export] Could not read template files from disk for kit ${id}:`, err);
+      }
+    }
+
+    // Load .adorable files from disk
+    let adorableFiles: Record<string, string> = {};
+    try {
+      adorableFiles = await kitFsService.readKitAdorableFiles(id);
+    } catch (err) {
+      // No .adorable files — that's fine
+    }
+
+    res.json({
+      name: kit.name,
+      description: kit.description,
+      template: { ...kit.template, files: templateFiles, storedOnDisk: false },
+      npmPackage: kit.npmPackage,
+      importSuffix: kit.importSuffix,
+      npmPackages: kit.npmPackages,
+      resources: kit.resources,
+      systemPrompt: kit.systemPrompt,
+      baseSystemPrompt: kit.baseSystemPrompt,
+      mcpServerIds: kit.mcpServerIds,
+      adorableFiles,
+    });
+  } catch (error) {
+    console.error('Export kit error:', error);
+    res.status(500).json({ error: 'Failed to export kit' });
+  }
+});
+
+/**
+ * Import a complete kit from exported data
+ * POST /api/kits/import
+ */
+router.post('/import', async (req: any, res) => {
+  const user = req.user;
+  const { name, description, template, npmPackage, importSuffix, npmPackages, resources, systemPrompt, baseSystemPrompt, mcpServerIds, adorableFiles } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ error: 'Kit name is required' });
+  }
+
+  try {
+    const settings = typeof user.settings === 'string'
+      ? JSON.parse(user.settings || '{}')
+      : (user.settings || {});
+
+    const kits = parseKitsFromSettings(settings);
+    const now = new Date().toISOString();
+
+    // Generate a new unique name if there's a conflict
+    let kitName = name;
+    let suffix = 1;
+    while (kits.some(k => k.name.toLowerCase() === kitName.toLowerCase())) {
+      kitName = `${name} (${suffix})`;
+      suffix++;
+    }
+
+    const newKit: Kit = {
+      id: crypto.randomUUID(),
+      name: kitName,
+      description: description || undefined,
+      template: template || { type: 'default', files: {}, angularVersion: '21' },
+      npmPackage: npmPackage || undefined,
+      importSuffix: importSuffix || 'Component',
+      npmPackages: npmPackages || undefined,
+      resources: resources || [],
+      systemPrompt: systemPrompt || undefined,
+      baseSystemPrompt: baseSystemPrompt || undefined,
+      mcpServerIds: mcpServerIds || [],
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    // Store template files on disk if template has files
+    if (newKit.template.files && Object.keys(newKit.template.files).length > 0) {
+      const adorableFromTemplate = kitFsService.extractAdorableFilesFromTemplate(newKit.template.files);
+      if (Object.keys(adorableFromTemplate).length > 0) {
+        await kitFsService.writeKitAdorableFiles(newKit.id, adorableFromTemplate);
+      }
+
+      const templateWithoutAdorable = kitFsService.removeAdorableFromTemplate(newKit.template.files);
+      if (Object.keys(templateWithoutAdorable).length > 0) {
+        await kitFsService.writeKitTemplateFiles(newKit.id, templateWithoutAdorable);
+      }
+
+      newKit.template = { ...newKit.template, files: {}, storedOnDisk: true };
+    }
+
+    // Write .adorable files from export data
+    if (adorableFiles && Object.keys(adorableFiles).length > 0) {
+      await kitFsService.writeKitAdorableFiles(newKit.id, adorableFiles);
+    }
+
+    kits.push(newKit);
+
+    // Save to database
+    const updatedSettings = updateKitsInSettings(settings, kits);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { settings: JSON.stringify(updatedSettings) },
+    });
+
+    res.json({ success: true, kit: newKit });
+  } catch (error) {
+    console.error('Import kit error:', error);
+    res.status(500).json({ error: 'Failed to import kit' });
+  }
+});
+
 export const kitRouter = router;

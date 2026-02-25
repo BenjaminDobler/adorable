@@ -17,7 +17,7 @@ router.get('/', async (req: any, res) => {
   try {
     const projects = await prisma.project.findMany({
       where: { userId: user.id },
-      select: { name: true, id: true, updatedAt: true, thumbnail: true },
+      select: { name: true, id: true, updatedAt: true, thumbnail: true, cloudProjectId: true, cloudCommitSha: true, cloudLastSyncAt: true },
       orderBy: { updatedAt: 'desc' }
     });
     res.json(projects);
@@ -27,10 +27,10 @@ router.get('/', async (req: any, res) => {
 });
 
 router.post('/', async (req: any, res) => {
-  const { name, files, id, thumbnail, messages, figmaImports, selectedKitId } = req.body;
+  const { name, files, id, thumbnail, messages, figmaImports, selectedKitId, cloudProjectId, cloudCommitSha, cloudLastSyncAt } = req.body;
   const user = req.user;
 
-  console.log(`[Save Project] Request for '${name}' (ID: ${id}) by ${user.email}`);
+  console.log(`[Save Project] Request for '${name}' (ID: ${id}) by ${user.email}, files keys: ${files ? Object.keys(files).join(', ') : 'none'}`);
 
   if (!name) {
     return res.status(400).json({ error: 'Name is required' });
@@ -77,7 +77,11 @@ router.post('/', async (req: any, res) => {
           thumbnail,
           figmaImports: figmaImports ? JSON.stringify(figmaImports) : undefined,
           selectedKitId: selectedKitId !== undefined ? selectedKitId : undefined,
-          messages: messageOp
+          messages: messageOp,
+          // Cloud sync fields
+          cloudProjectId: cloudProjectId !== undefined ? cloudProjectId : undefined,
+          cloudCommitSha: cloudCommitSha !== undefined ? cloudCommitSha : undefined,
+          cloudLastSyncAt: cloudLastSyncAt !== undefined ? (cloudLastSyncAt ? new Date(cloudLastSyncAt) : null) : undefined,
         }
       });
     } else {
@@ -119,6 +123,247 @@ router.post('/', async (req: any, res) => {
   } catch (error) {
     console.error('[Save Project] Error:', error);
     res.status(500).json({ error: 'Failed to save project' });
+  }
+});
+
+// ---- Cloud Sync Endpoints ----
+// These must be defined BEFORE /:id routes to avoid Express matching "sync-status" as an :id param.
+
+/**
+ * GET /api/projects/sync-status
+ * Returns all projects with their current git HEAD SHA for sync comparison.
+ */
+router.get('/sync-status', async (req: any, res) => {
+  const user = req.user;
+  try {
+    const projects = await prisma.project.findMany({
+      where: { userId: user.id },
+      select: { id: true, name: true, updatedAt: true, thumbnail: true }
+    });
+
+    const { gitService } = await import('../services/git.service');
+    const results = await Promise.all(
+      projects.map(async (p) => {
+        const projectPath = projectFsService.getProjectPath(p.id);
+        const headSha = await gitService.getHeadSha(projectPath);
+        return {
+          id: p.id,
+          name: p.name,
+          updatedAt: p.updatedAt.toISOString(),
+          thumbnail: p.thumbnail,
+          headSha,
+        };
+      })
+    );
+
+    res.json(results);
+  } catch (error) {
+    console.error('[Sync Status] Error:', error);
+    res.status(500).json({ error: 'Failed to get sync status' });
+  }
+});
+
+/**
+ * POST /api/projects/import
+ * Import/export a project for desktop sync. Returns full project data + files + messages + HEAD SHA.
+ */
+router.post('/import', async (req: any, res) => {
+  const user = req.user;
+  const { projectId } = req.body;
+
+  if (!projectId) {
+    return res.status(400).json({ error: 'projectId is required' });
+  }
+
+  try {
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, userId: user.id },
+      include: {
+        messages: {
+          orderBy: { timestamp: 'asc' },
+          select: {
+            id: true,
+            role: true,
+            text: true,
+            usage: true,
+            model: true,
+            commitSha: true,
+            timestamp: true,
+          }
+        }
+      }
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Read files from disk (with lazy migration fallback from DB)
+    let files: any = {};
+    const existsOnDisk = await projectFsService.projectExistsOnDisk(project.id);
+    if (existsOnDisk) {
+      files = await projectFsService.readProjectFiles(project.id);
+    } else if (project.files) {
+      // Lazy migration: files exist in DB but not on disk
+      console.log(`[Import] Lazy migrating files to disk for ${project.id}`);
+      files = JSON.parse(project.files);
+      await projectFsService.writeProjectFiles(project.id, files);
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { files: null }
+      });
+    }
+
+    // Get HEAD SHA
+    const { gitService } = await import('../services/git.service');
+    const projectPath = projectFsService.getProjectPath(project.id);
+    const headSha = await gitService.getHeadSha(projectPath);
+
+    res.json({
+      project: {
+        id: project.id,
+        name: project.name,
+        thumbnail: project.thumbnail,
+        selectedKitId: project.selectedKitId,
+        figmaImports: project.figmaImports ? JSON.parse(project.figmaImports) : [],
+      },
+      files,
+      messages: project.messages.map(m => ({
+        ...m,
+        usage: m.usage ? JSON.parse(m.usage) : undefined,
+        model: m.model || undefined,
+      })),
+      headSha,
+    });
+  } catch (error) {
+    console.error('[Import] Error:', error);
+    res.status(500).json({ error: 'Failed to import project' });
+  }
+});
+
+/**
+ * POST /api/projects/:id/push
+ * Desktop pushes local changes to cloud. Writes files, commits, returns new HEAD SHA.
+ */
+router.post('/:id/push', async (req: any, res) => {
+  const user = req.user;
+  const { id } = req.params;
+  const { files, messages, name, thumbnail, selectedKitId } = req.body;
+
+  try {
+    const project = await prisma.project.findFirst({
+      where: { id, userId: user.id }
+    });
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Update project metadata
+    const messageCreateData = messages ? messages.map((m: any) => ({
+      role: m.role,
+      text: m.text,
+      files: m.files ? JSON.stringify(m.files) : undefined,
+      commitSha: m.commitSha || undefined,
+      usage: m.usage ? JSON.stringify(m.usage) : undefined,
+      model: m.model || undefined,
+      timestamp: m.timestamp,
+    })) : [];
+
+    // Full replace messages on push to keep in sync
+    await prisma.project.update({
+      where: { id },
+      data: {
+        name: name || project.name,
+        thumbnail: thumbnail !== undefined ? thumbnail : project.thumbnail,
+        selectedKitId: selectedKitId !== undefined ? selectedKitId : project.selectedKitId,
+        messages: messages ? { deleteMany: {}, create: messageCreateData } : undefined,
+      }
+    });
+
+    // Write files to disk
+    if (files && Object.keys(files).length > 0) {
+      await projectFsService.writeProjectFiles(id, files);
+    }
+
+    // Git commit
+    const { gitService } = await import('../services/git.service');
+    const projectPath = projectFsService.getProjectPath(id);
+    await gitService.initRepo(projectPath);
+    await gitService.commit(projectPath, `Cloud sync push: ${name || project.name}`);
+
+    const headSha = await gitService.getHeadSha(projectPath);
+    res.json({ headSha });
+  } catch (error) {
+    console.error('[Push] Error:', error);
+    res.status(500).json({ error: 'Failed to push project' });
+  }
+});
+
+/**
+ * POST /api/projects/:id/pull
+ * Desktop pulls latest from cloud. Returns current files + messages + HEAD SHA.
+ */
+router.post('/:id/pull', async (req: any, res) => {
+  const user = req.user;
+  const { id } = req.params;
+
+  try {
+    const project = await prisma.project.findFirst({
+      where: { id, userId: user.id },
+      include: {
+        messages: {
+          orderBy: { timestamp: 'asc' },
+          select: {
+            id: true,
+            role: true,
+            text: true,
+            usage: true,
+            model: true,
+            commitSha: true,
+            timestamp: true,
+          }
+        }
+      }
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Read files from disk (with lazy migration fallback from DB)
+    let files: any = {};
+    const existsOnDisk = await projectFsService.projectExistsOnDisk(project.id);
+    if (existsOnDisk) {
+      files = await projectFsService.readProjectFiles(project.id);
+    } else if (project.files) {
+      console.log(`[Pull] Lazy migrating files to disk for ${project.id}`);
+      files = JSON.parse(project.files);
+      await projectFsService.writeProjectFiles(project.id, files);
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { files: null }
+      });
+    }
+
+    // Get HEAD SHA
+    const { gitService } = await import('../services/git.service');
+    const projectPath = projectFsService.getProjectPath(project.id);
+    const headSha = await gitService.getHeadSha(projectPath);
+
+    res.json({
+      files,
+      messages: project.messages.map(m => ({
+        ...m,
+        usage: m.usage ? JSON.parse(m.usage) : undefined,
+        model: m.model || undefined,
+      })),
+      name: project.name,
+      thumbnail: project.thumbnail,
+      headSha,
+    });
+  } catch (error) {
+    console.error('[Pull] Error:', error);
+    res.status(500).json({ error: 'Failed to pull project' });
   }
 });
 

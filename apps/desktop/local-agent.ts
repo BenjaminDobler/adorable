@@ -21,12 +21,32 @@ class NativeManager {
   private watcher: FSWatcher | null = null;
   private recentWrites = new Set<string>();
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private stopKillTimer: ReturnType<typeof setTimeout> | null = null;
 
   private get baseDir(): string {
     return process.env['ADORABLE_PROJECTS_DIR'] || path.join(os.homedir(), 'adorable-projects');
   }
 
   async createProject(projectId: string): Promise<string> {
+    // Cancel any pending delayed SIGKILL from a previous stop() call
+    // to prevent it from killing the new project's processes
+    if (this.stopKillTimer) {
+      clearTimeout(this.stopKillTimer);
+      this.stopKillTimer = null;
+    }
+
+    // If switching projects, force-kill any remaining child processes
+    if (this.childProcesses.length > 0) {
+      for (const child of this.childProcesses) {
+        if (!child.pid) continue;
+        try { process.kill(-child.pid, 'SIGKILL'); } catch {
+          try { child.kill('SIGKILL'); } catch { /* already dead */ }
+        }
+      }
+      this.childProcesses = [];
+    }
+    this.stopWatcher();
+
     this.projectPath = path.join(this.baseDir, projectId);
     await fs.mkdir(this.projectPath, { recursive: true });
     return this.projectPath;
@@ -194,23 +214,32 @@ class NativeManager {
   async stop(): Promise<void> {
     this.stopWatcher();
 
-    // Kill all tracked child processes - fire and forget, don't wait
+    // Kill all tracked child processes via their process groups.
+    // Use SIGTERM first to allow graceful shutdown, then SIGKILL.
     for (const child of this.childProcesses) {
       if (!child.pid) continue;
-
       try {
-        // Try to kill the process group first
-        process.kill(-child.pid, 'SIGKILL');
+        // Kill the entire process group (npm → ng → esbuild)
+        process.kill(-child.pid, 'SIGTERM');
       } catch {
-        try {
-          child.kill('SIGKILL');
-        } catch { /* already dead */ }
+        try { child.kill('SIGTERM'); } catch { /* already dead */ }
       }
     }
 
-    // Clear immediately - don't wait for processes to actually exit
-    this.childProcesses = [];
-    this.projectPath = null;
+    // Give processes a moment to exit gracefully, then force kill survivors.
+    // Store the timer so createProject() can cancel it if a new project starts
+    // before the timer fires (prevents killing the new project's processes).
+    this.stopKillTimer = setTimeout(() => {
+      this.stopKillTimer = null;
+      for (const child of this.childProcesses) {
+        if (!child.pid) continue;
+        try { process.kill(-child.pid, 'SIGKILL'); } catch { /* already dead */ }
+      }
+      this.childProcesses = [];
+    }, 1000);
+
+    // Don't null projectPath here — createProject() will override it.
+    // This prevents "Project not initialized" errors from racing exec calls.
   }
 }
 
@@ -227,11 +256,15 @@ app.use(express.json({ limit: '200mb' }));
 const AGENT_PORT = parseInt(process.env['ADORABLE_AGENT_PORT'] || '3334', 10);
 
 app.post('/api/native/start', async (req, res) => {
+  console.log('[Agent] POST /start received');
   try {
     const { projectId } = req.body;
+    console.log('[Agent] Creating project:', projectId);
     const projectPath = await manager.createProject(projectId || 'desktop');
+    console.log('[Agent] Project created at:', projectPath);
     res.json({ projectPath });
   } catch (e: any) {
+    console.error('[Agent] Start failed:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -247,12 +280,13 @@ app.get('/api/native/info', async (_req, res) => {
 });
 
 app.post('/api/native/stop', async (_req, res) => {
+  console.log('[Agent] POST /stop received');
   try {
     await manager.stop();
+    console.log('[Agent] Stop completed');
     res.json({ success: true });
   } catch (e: any) {
-    // Always return success for stop - even if already stopped
-    console.warn('[Local Agent] Stop warning:', e.message);
+    console.warn('[Agent] Stop warning:', e.message);
     res.json({ success: true, warning: e.message });
   }
 });
@@ -280,6 +314,7 @@ app.get('/api/native/watch', async (_req, res) => {
     clearInterval(heartbeat);
     manager.events.off('file-changed', onChanged);
     manager.events.off('file-deleted', onDeleted);
+    if (!res.writableEnded) res.end();
   });
 });
 
@@ -306,18 +341,38 @@ app.get('/api/native/exec-stream', async (req, res) => {
   const cmd = req.query.cmd as string;
   const args = req.query.args ? (req.query.args as string).split(',') : [];
   const env = req.query.env ? JSON.parse(req.query.env as string) : undefined;
+  console.log('[Agent] exec-stream:', cmd, args.join(' '));
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+
+  // Close response if client disconnects — critical for freeing the TCP
+  // connection slot in Chromium's per-origin pool (limit: 6 for HTTP/1.1).
+  // Without this, aborted SSE connections stay half-open and block new requests.
+  let clientDisconnected = false;
+  req.on('close', () => {
+    console.log('[Agent] exec-stream client disconnected:', cmd);
+    clientDisconnected = true;
+    if (!res.writableEnded) res.end();
+  });
+
   try {
     await manager.execStream([cmd, ...args], undefined, (chunk) => {
-      res.write(`data: ${JSON.stringify({ output: chunk })}\n\n`);
+      if (!clientDisconnected && !res.writableEnded) {
+        res.write(`data: ${JSON.stringify({ output: chunk })}\n\n`);
+      }
     }, env);
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-    res.end();
+    if (!clientDisconnected && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    }
+    console.log('[Agent] exec-stream completed:', cmd);
   } catch (e: any) {
-    res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
-    res.end();
+    if (!clientDisconnected && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
+      res.end();
+    }
+    console.log('[Agent] exec-stream error:', cmd, e.message);
   }
 });
 

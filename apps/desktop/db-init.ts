@@ -77,6 +77,10 @@ function createSchema(db: Database.Database): void {
       "password" TEXT NOT NULL,
       "name" TEXT,
       "settings" TEXT,
+      "role" TEXT NOT NULL DEFAULT 'user',
+      "isActive" BOOLEAN NOT NULL DEFAULT 1,
+      "emailVerified" BOOLEAN NOT NULL DEFAULT 0,
+      "emailVerificationToken" TEXT,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "githubId" TEXT UNIQUE,
@@ -103,7 +107,28 @@ function createSchema(db: Database.Database): void {
       "githubLastCommitSha" TEXT,
       "githubSyncEnabled" BOOLEAN NOT NULL DEFAULT 0,
       "githubPagesUrl" TEXT,
+      "cloudProjectId" TEXT,
+      "cloudCommitSha" TEXT,
+      "cloudLastSyncAt" DATETIME,
       FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE
+    );
+
+    -- InviteCode table
+    CREATE TABLE IF NOT EXISTS "InviteCode" (
+      "id" TEXT PRIMARY KEY NOT NULL,
+      "code" TEXT NOT NULL UNIQUE,
+      "createdBy" TEXT NOT NULL,
+      "usedBy" TEXT,
+      "usedAt" DATETIME,
+      "expiresAt" DATETIME,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- ServerConfig table
+    CREATE TABLE IF NOT EXISTS "ServerConfig" (
+      "key" TEXT PRIMARY KEY NOT NULL,
+      "value" TEXT NOT NULL,
+      "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
     -- GitHubWebhook table
@@ -125,6 +150,7 @@ function createSchema(db: Database.Database): void {
       "files" TEXT,
       "commitSha" TEXT,
       "usage" TEXT,
+      "model" TEXT,
       "timestamp" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE
     );
@@ -146,6 +172,10 @@ function ensureSchema(db: Database.Database): void {
 
   // Add missing columns (ALTER TABLE is idempotent via try/catch)
   const migrations: { table: string; column: string; type: string }[] = [
+    { table: 'User', column: 'role', type: "TEXT NOT NULL DEFAULT 'user'" },
+    { table: 'User', column: 'isActive', type: 'BOOLEAN NOT NULL DEFAULT 1' },
+    { table: 'User', column: 'emailVerified', type: 'BOOLEAN NOT NULL DEFAULT 0' },
+    { table: 'User', column: 'emailVerificationToken', type: 'TEXT' },
     { table: 'User', column: 'githubId', type: 'TEXT UNIQUE' },
     { table: 'User', column: 'githubUsername', type: 'TEXT' },
     { table: 'User', column: 'githubAccessToken', type: 'TEXT' },
@@ -159,6 +189,10 @@ function ensureSchema(db: Database.Database): void {
     { table: 'Project', column: 'githubPagesUrl', type: 'TEXT' },
     { table: 'Project', column: 'selectedKitId', type: 'TEXT' },
     { table: 'ChatMessage', column: 'commitSha', type: 'TEXT' },
+    { table: 'ChatMessage', column: 'model', type: 'TEXT' },
+    { table: 'Project', column: 'cloudProjectId', type: 'TEXT' },
+    { table: 'Project', column: 'cloudCommitSha', type: 'TEXT' },
+    { table: 'Project', column: 'cloudLastSyncAt', type: 'DATETIME' },
   ];
 
   for (const { table, column, type } of migrations) {

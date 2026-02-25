@@ -11,7 +11,7 @@ export class MountService {
    * 1. Copy missing kit template files into the project dir (if a kit is set)
    * 2. Transform index.html in-place (base href + runtime scripts)
    */
-  async prepareAndWriteFiles(projectId: string, kitId: string | null): Promise<void> {
+  async prepareAndWriteFiles(projectId: string, kitId: string | null, baseHref = '/'): Promise<void> {
     const projectPath = projectFsService.getProjectPath(projectId);
 
     // 1. If a custom kit is set, copy template files that don't exist in the project yet
@@ -23,8 +23,10 @@ export class MountService {
       }
     }
 
-    // 2. Transform index.html in-place
-    await this.transformIndexHtml(projectPath, '/api/proxy/');
+    // 2. Set the correct base href for the runtime environment.
+    // Desktop/native mode: "/" (direct dev server access).
+    // Docker/cloud mode: "/api/proxy/" (accessed through server proxy).
+    await this.normalizeIndexHtml(projectPath, baseHref);
   }
 
   /**
@@ -60,24 +62,28 @@ export class MountService {
   }
 
   /**
-   * Read index.html from the project directory, set base href and inject
-   * runtime scripts, then write it back.
+   * Find and normalize index.html: reset base href to "/" and inject runtime scripts.
+   * Searches both project root and src/ directory.
    */
-  private async transformIndexHtml(projectPath: string, baseHref: string): Promise<void> {
-    const indexPath = path.join(projectPath, 'index.html');
+  private async normalizeIndexHtml(projectPath: string, baseHref = '/'): Promise<void> {
+    // Try src/index.html first (Angular projects), then root index.html
+    let indexPath = path.join(projectPath, 'src', 'index.html');
+    try {
+      await fs.access(indexPath);
+    } catch {
+      indexPath = path.join(projectPath, 'index.html');
+    }
 
     let content: string;
     try {
       content = await fs.readFile(indexPath, 'utf-8');
     } catch {
-      return; // No index.html, nothing to transform
+      return; // No index.html, nothing to do
     }
 
-    // Set base href
+    // Set base href for the runtime environment
     if (content.includes('<base href=')) {
       content = content.replace(/<base href="[^"]*"/, `<base href="${baseHref}"`);
-    } else {
-      content = content.replace('<head>', `<head>\n  <base href="${baseHref}" />`);
     }
 
     // Inject runtime scripts
