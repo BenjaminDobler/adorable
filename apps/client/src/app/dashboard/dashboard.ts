@@ -37,11 +37,11 @@ export class DashboardComponent {
   kits = signal<Kit[]>([]);
   loading = signal(true);
 
-  activeTab = signal<'projects' | 'skills' | 'kits' | 'cloud'>('projects');
+  activeTab = signal<'projects' | 'skills' | 'kits'>('projects');
 
   // Desktop mode detection
   isDesktopMode = computed(() => isDesktopApp());
-  showCloudTab = computed(() => this.isDesktopMode() && this.cloudSyncService.isConnected());
+  isCloudConnected = computed(() => this.isDesktopMode() && this.cloudSyncService.isConnected());
 
   // Cloud projects state
   cloudProjects = signal<SyncStatusProject[]>([]);
@@ -66,6 +66,67 @@ export class DashboardComponent {
     return [DEFAULT_KIT, ...this.kits()];
   });
 
+  // Merged lists: local + cloud-only items
+  allProjects = computed(() => {
+    const local = this.projects().map((p: any) => ({
+      ...p,
+      isCloudOnly: false,
+      cloudId: p.cloudProjectId || null,
+    }));
+    if (!this.isCloudConnected()) return local;
+    const linkedCloudIds = new Set(this.projects().filter((p: any) => p.cloudProjectId).map((p: any) => p.cloudProjectId));
+    const cloudOnly = this.cloudProjects()
+      .filter(cp => !linkedCloudIds.has(cp.id))
+      .map(cp => ({
+        id: cp.id,
+        name: cp.name,
+        thumbnail: (cp as any).thumbnail || null,
+        updatedAt: cp.updatedAt,
+        isCloudOnly: true,
+        cloudId: cp.id,
+        cloudProjectId: null,
+      }));
+    return [...local, ...cloudOnly];
+  });
+
+  allKitsMerged = computed(() => {
+    const local = this.allKits().map((k: any) => ({ ...k, isCloudOnly: false }));
+    if (!this.isCloudConnected()) return local;
+    const localCloudKitIds = new Set(
+      this.kits().map((k: any) => this.cloudSyncService.getCloudKitId(k.id)).filter(Boolean)
+    );
+    const cloudOnly = this.cloudKits()
+      .filter(ck => !localCloudKitIds.has(ck.id))
+      .map(ck => ({
+        id: ck.id,
+        name: ck.name,
+        description: ck.description || '',
+        isCloudOnly: true,
+        isBuiltIn: false,
+        resources: [],
+        template: null,
+        thumbnail: null,
+      }));
+    return [...local, ...cloudOnly];
+  });
+
+  allSkillsMerged = computed(() => {
+    const local = this.skills().map((s: any) => ({ ...s, isCloudOnly: false }));
+    if (!this.isCloudConnected()) return local;
+    const localSkillNames = new Set(this.skills().map(s => s.name));
+    const cloudOnly = this.cloudSkills()
+      .filter(cs => !localSkillNames.has(cs.name))
+      .map(cs => ({
+        name: cs.name,
+        description: cs.description || '',
+        isCloudOnly: true,
+        sourcePath: null,
+        triggers: [],
+        instructions: '',
+      }));
+    return [...local, ...cloudOnly];
+  });
+
   // Clone dialog state
   showCloneDialog = signal(false);
   cloneTargetProject = signal<{ id: string; name: string } | null>(null);
@@ -75,11 +136,11 @@ export class DashboardComponent {
   constructor() {
     // Check if we're returning from kit-builder with a tab param
     const tab = this.route.snapshot.queryParamMap.get('tab');
-    if (tab === 'kits' || tab === 'skills' || tab === 'projects' || tab === 'cloud') {
+    if (tab === 'kits' || tab === 'skills' || tab === 'projects') {
       this.activeTab.set(tab);
     }
     this.loadData();
-    if (this.showCloudTab()) {
+    if (this.isCloudConnected()) {
       this.loadCloudProjects();
     }
   }
@@ -333,6 +394,11 @@ export class DashboardComponent {
     return this.cloudSyncStatuses()[cloudProjectId] || null;
   }
 
+  getCloudSyncStatusForLocalProject(project: any): CloudSyncStatus | null {
+    if (!project.cloudProjectId) return null;
+    return this.getCloudSyncStatus(project.cloudProjectId);
+  }
+
   isLocalProjectLinkedToCloud(project: any): boolean {
     return !!project.cloudProjectId;
   }
@@ -407,7 +473,7 @@ export class DashboardComponent {
       await this.cloudSyncService.publishProject(projectId);
       this.toastService.show('Project published to cloud!', 'success');
       this.loadData();
-      if (this.showCloudTab()) {
+      if (this.isCloudConnected()) {
         setTimeout(() => this.loadCloudProjects(), 500);
       }
     } catch (e: any) {
@@ -424,7 +490,7 @@ export class DashboardComponent {
     try {
       await this.cloudSyncService.publishKit(kitId);
       this.toastService.show('Kit published to cloud!', 'success');
-      if (this.showCloudTab()) {
+      if (this.isCloudConnected()) {
         setTimeout(() => this.loadCloudProjects(), 500);
       }
     } catch (e: any) {
@@ -462,7 +528,7 @@ export class DashboardComponent {
     try {
       await this.cloudSyncService.publishSkill(skillName);
       this.toastService.show('Skill published to cloud!', 'success');
-      if (this.showCloudTab()) {
+      if (this.isCloudConnected()) {
         setTimeout(() => this.loadCloudProjects(), 500);
       }
     } catch (e: any) {
