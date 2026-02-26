@@ -1,6 +1,7 @@
 import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
 import Anthropic from '@anthropic-ai/sdk';
 import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, AgentLoopContext } from './base';
+import { sanitizeCommandOutput } from './sanitize-output';
 
 export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
   async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any> {
@@ -207,8 +208,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
           console.log(`[AutoBuild] Build result: exitCode=${buildResult.exitCode}`);
           if (buildResult.exitCode !== 0) {
             callbacks.onText?.('Build failed. Fixing errors...\n');
-            const errorOutput = (buildResult.stderr || '') + '\n' + (buildResult.stdout || '');
-            const buildFailMsg = `The build failed with the following errors. You MUST fix ALL errors and then run \`npm run build\` again to verify.\n\n\`\`\`\n${errorOutput.slice(0, 4000)}\n\`\`\``;
+            const sanitizedBuildOutput = sanitizeCommandOutput('npm run build', buildResult.stdout || '', buildResult.stderr || '', buildResult.exitCode);
+            const buildFailMsg = `The build failed with the following errors. You MUST fix ALL errors and then run \`npm run build\` again to verify.\n\n\`\`\`\n${sanitizedBuildOutput}\n\`\`\``;
             logger.logText('INJECTED_USER_MESSAGE', buildFailMsg, { reason: 'auto_build_failure' });
             messages.push({ role: 'user', content: [{ type: 'text', text: buildFailMsg }] });
             ctx.hasRunBuild = false;

@@ -1,10 +1,15 @@
 import { FileSystemInterface } from '../types';
-import { DockerManager } from '../container/docker-manager';
+
+/** Minimal interface shared by DockerManager and NativeManager */
+export interface ContainerManagerLike {
+  exec(cmd: string[], workDir?: string, env?: Record<string, string>): Promise<{ output: string; exitCode: number }>;
+  copyFiles(files: any): Promise<void>;
+}
 
 export class ContainerFileSystem implements FileSystemInterface {
   private accumulatedFiles: any = {};
 
-  constructor(private manager: DockerManager) {}
+  constructor(private manager: ContainerManagerLike) {}
 
   async readFile(path: string): Promise<string> {
     // We use cat. If file doesn't exist, exit code will be non-zero.

@@ -3,6 +3,7 @@ import { ProviderFactory } from '../providers/factory';
 import { decrypt } from '../utils/crypto';
 import { authenticate } from '../middleware/auth';
 import { containerRegistry } from '../providers/container/container-registry';
+import { nativeRegistry } from '../providers/container/native-registry';
 import { ContainerFileSystem } from '../providers/filesystem/container-filesystem';
 import { MemoryFileSystem } from '../providers/filesystem/memory-filesystem';
 import { screenshotManager } from '../providers/screenshot-manager';
@@ -183,10 +184,27 @@ router.post('/generate-stream', async (req: any, res) => {
        const manager = containerRegistry.getManager(user.id);
        if (manager && manager.isRunning()) {
           fileSystem = new ContainerFileSystem(manager);
-          console.log(`[AgentMode] Auto-enabled for user ${user.id}`);
+          console.log(`[AgentMode] Auto-enabled via Docker for user ${user.id}`);
        }
     } catch (e) {
-       // No container available — fall back to disk-based MemoryFileSystem
+       // No Docker container available
+    }
+
+    // Check native (Electron/desktop) container if Docker wasn't available
+    if (!fileSystem) {
+       try {
+          const nativeManager = nativeRegistry.getManager(user.id);
+          if (nativeManager && nativeManager.isRunning()) {
+             fileSystem = new ContainerFileSystem(nativeManager);
+             console.log(`[AgentMode] Auto-enabled via Native for user ${user.id}`);
+          }
+       } catch (e) {
+          // No native container available
+       }
+    }
+
+    // Fall back to disk-based MemoryFileSystem
+    if (!fileSystem) {
        if (projectId) {
           try {
             const diskFiles = await projectFsService.readProjectFilesFlat(projectId);
@@ -199,7 +217,7 @@ router.post('/generate-stream', async (req: any, res) => {
           }
        }
        if (!fileSystem && use_container_context) {
-          console.warn(`[AgentMode] Requested but no container available: ${e.message}. Using memory mode.`);
+          console.warn(`[AgentMode] Requested but no container available. Using memory mode.`);
        }
     }
 

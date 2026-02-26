@@ -12,6 +12,7 @@ import { MCPToolResult } from '../mcp/types';
 import { Kit } from './kits/types';
 import { generateComponentCatalog, generateComponentDocFiles } from './kits/doc-generator';
 import { kitFsService } from '../services/kit-fs.service';
+import { sanitizeCommandOutput } from './sanitize-output';
 
 export const SYSTEM_PROMPT =
 "You are an expert Angular developer.\n"
@@ -627,7 +628,7 @@ Only proceed with implementation after receiving the user's answers.`;
           }
           {
             const res = await fs.exec(toolArgs.command);
-            content = `Exit Code: ${res.exitCode}\n\nSTDOUT:\n${res.stdout}\n\nSTDERR:\n${res.stderr}`;
+            content = sanitizeCommandOutput(toolArgs.command, res.stdout, res.stderr, res.exitCode);
             if (res.exitCode !== 0) isError = true;
             const isBuildCmd = toolArgs.command && toolArgs.command.includes('build');
             if (isBuildCmd) {
@@ -700,8 +701,8 @@ Only proceed with implementation after receiving the user's answers.`;
 
       if (buildResult.exitCode !== 0) {
         callbacks.onText?.('Build failed. Fixing errors...\n');
-        const errorOutput = (buildResult.stderr || '') + '\n' + (buildResult.stdout || '');
-        const fixMessage = `The build failed with the following errors. Fix ALL errors and then run \`npm run build\` again to verify.\n\n\`\`\`\n${errorOutput.slice(0, 4000)}\n\`\`\``;
+        const sanitizedBuildOutput = sanitizeCommandOutput('npm run build', buildResult.stdout || '', buildResult.stderr || '', buildResult.exitCode);
+        const fixMessage = `The build failed with the following errors. Fix ALL errors and then run \`npm run build\` again to verify.\n\n\`\`\`\n${sanitizedBuildOutput}\n\`\`\``;
 
         const FIX_TURNS = 5;
         let currentFixMessage = fixMessage;
