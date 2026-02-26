@@ -46,7 +46,16 @@ export class DashboardComponent {
   // Cloud projects state
   cloudProjects = signal<SyncStatusProject[]>([]);
   cloudLoading = signal(false);
-  cloudSyncStatuses = signal<Record<string, CloudSyncStatus>>({});
+  cloudSyncStatuses = computed(() => {
+    const statuses: Record<string, CloudSyncStatus> = {};
+    for (const cp of this.cloudProjects()) {
+      const localProject = this.projects().find((p: any) => p.cloudProjectId === cp.id);
+      if (localProject) {
+        statuses[cp.id] = this.cloudSyncService.getSyncStatus(localProject, cp);
+      }
+    }
+    return statuses;
+  });
   cloudActionLoading = signal<Record<string, boolean>>({});
   showSkillDialog = signal(false);
   showGitHubDialog = signal(false);
@@ -367,23 +376,11 @@ export class DashboardComponent {
       this.cloudProjects.set(cloudProjects);
       this.cloudKits.set(cloudKits);
       this.cloudSkills.set(cloudSkills);
-      this.computeSyncStatuses(cloudProjects);
     } catch (e) {
       console.warn('Failed to load cloud data:', e);
     } finally {
       this.cloudLoading.set(false);
     }
-  }
-
-  private computeSyncStatuses(cloudProjects: SyncStatusProject[]) {
-    const statuses: Record<string, CloudSyncStatus> = {};
-    for (const cp of cloudProjects) {
-      const localProject = this.projects().find(p => p.cloudProjectId === cp.id);
-      if (localProject) {
-        statuses[cp.id] = this.cloudSyncService.getSyncStatus(localProject, cp);
-      }
-    }
-    this.cloudSyncStatuses.set(statuses);
   }
 
   getLocalProjectForCloud(cloudProjectId: string): any | null {

@@ -339,6 +339,12 @@ export class CloudSyncService {
     }
 
     if (localSha === cloudSha) {
+      // SHAs match, but local may have been modified since last sync
+      const lastSync = localProject.cloudLastSyncAt ? new Date(localProject.cloudLastSyncAt).getTime() : 0;
+      const localUpdated = localProject.updatedAt ? new Date(localProject.updatedAt).getTime() : 0;
+      if (lastSync > 0 && localUpdated > lastSync + 1000) {
+        return 'local-ahead';
+      }
       return 'synced';
     }
 
