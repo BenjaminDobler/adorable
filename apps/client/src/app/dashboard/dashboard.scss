@@ -1231,10 +1231,14 @@ body.light-mode .dashboard-container::before {
 
 /* Cloud-only card modifier */
 .cloud-only {
-  opacity: 0.75;
   cursor: default !important;
   border-style: dashed !important;
   border-color: rgba(96, 165, 250, 0.3) !important;
+
+  .project-preview img {
+    opacity: 0.4;
+    filter: grayscale(0.3);
+  }
 
   &:hover {
     transform: none !important;

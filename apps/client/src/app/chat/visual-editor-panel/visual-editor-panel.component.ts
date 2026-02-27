@@ -16,7 +16,7 @@ import { ToastService } from '../../services/toast';
 export class VisualEditorPanelComponent {
   private templateService = inject(TemplateService);
   private projectService = inject(ProjectService);
-  private webContainerService = inject(ContainerEngine);
+  private containerEngine = inject(ContainerEngine);
   private toastService = inject(ToastService);
 
   @Input({ required: true }) visualEditorData!: ReturnType<typeof signal<any>>;
@@ -95,7 +95,7 @@ export class VisualEditorPanelComponent {
 
     if (result.success) {
       this.projectService.fileStore.updateFile(result.path, result.content);
-      this.webContainerService.writeFile(result.path, result.content);
+      this.containerEngine.writeFile(result.path, result.content);
       this.toastService.show('Update applied', 'success');
 
       if (type === 'text') {

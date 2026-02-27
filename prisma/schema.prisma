@@ -51,7 +51,7 @@ model ServerConfig {
 model Project {
   id        String   @id @default(cuid())
   name      String
-  files     String?  // JSON stringified WebContainerFiles (deprecated: files now stored on disk)
+  files     String?  // JSON stringified FileTree (deprecated: files now stored on disk)
   thumbnail String?  // Base64 preview image
   figmaImports String?  // JSON stringified FigmaImportPayload[]
   selectedKitId String?  // ID of the component kit to use for this project

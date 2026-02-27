@@ -49,7 +49,7 @@ export class MyComponent {
 - Use \`ReactiveFormsModule\` for complex logic.
 
 ## Best Practices
-- **Strict Typing:** Always define interfaces and type aliases. Establish type names in the model file FIRST, then use those exact names consistently across all files that import them.
+- **Strict Typing:** Always define interfaces and type aliases. Establish type names in the model file FIRST, then use those exact names consistently across all files that import them. NEVER give an interface the same name as a component class (e.g., use \`TodoItem\` not \`Todo\` if the class is \`Todo\`). TypeScript declaration merging will cause build errors.
 - **Separation of Concerns:** Move logic to Services (\`@Injectable({providedIn: 'root'})\`).
 - **Inputs/Outputs:** Use Signal Inputs \`input.required<string>()\` and \`output<void>()\`.
 - **Injection:** ALWAYS use \`inject(Service)\` — NEVER use constructor arguments.

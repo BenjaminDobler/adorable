@@ -1,7 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { ContainerEngine, ProcessOutput } from './container-engine';
-import { WebContainerFiles } from '@adorable/shared-types';
+import { FileTree } from '@adorable/shared-types';
 import { Observable, of, shareReplay } from 'rxjs';
 
 @Injectable({
@@ -55,7 +55,7 @@ export class LocalContainerEngine extends ContainerEngine {
 
   private lastBootedProjectId: string | null = null;
 
-  async mount(files: WebContainerFiles): Promise<void> {
+  async mount(files: FileTree): Promise<void> {
     // Reboot if container isn't running or if we switched to a different project
     const needsReboot = this.status() === 'Idle' || this.status() === 'Stopped' || this.status() === 'Server stopped'
       || (this.currentProjectId && this.currentProjectId !== this.lastBootedProjectId);
@@ -285,12 +285,8 @@ export class LocalContainerEngine extends ContainerEngine {
      if (typeof content === 'string') {
         current[fileName] = { file: { contents: content } };
      } else {
-        let binary = '';
-        const len = content.byteLength;
-        for (let i = 0; i < len; i++) {
-            binary += String.fromCharCode(content[i]);
-        }
-        current[fileName] = { file: { contents: btoa(binary), encoding: 'base64' } };
+        const base64 = btoa(String.fromCharCode(...content));
+        current[fileName] = { file: { contents: base64, encoding: 'base64' } };
      }
      
      await this.mount(tree);

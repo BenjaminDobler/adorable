@@ -61,7 +61,7 @@ import { DebugOverlayComponent } from './debug-overlay/debug-overlay.component';
 })
 export class WorkspaceComponent implements AfterViewChecked {
   private apiService = inject(ApiService);
-  public webContainerService = inject(ContainerEngine);
+  public containerEngine = inject(ContainerEngine);
   public projectService = inject(ProjectService);
   public layoutService = inject(LayoutService);
   private toastService = inject(ToastService);
@@ -189,7 +189,10 @@ export class WorkspaceComponent implements AfterViewChecked {
         this.projectService.loadProject(projectId);
         console.log('after load project');
       } else {
-        this.projectService.projectId.set(null);
+        // Generate a unique ID immediately so the native agent creates an
+        // isolated directory and DiskFileSystem can locate it for run_command.
+        this.projectService.projectId.set(crypto.randomUUID());
+        this.projectService.isSaved.set(false);
         this.projectService.projectName.set(
           this.route.snapshot.queryParams['name'] || 'New Project',
         );
@@ -215,7 +218,7 @@ export class WorkspaceComponent implements AfterViewChecked {
     // Listen for iframe messages
     window.addEventListener('message', (event) => {
       if (event.data.type === 'PREVIEW_CONSOLE') {
-        this.webContainerService.addConsoleLog({
+        this.containerEngine.addConsoleLog({
           level: event.data.level,
           message: event.data.message,
         });
@@ -256,7 +259,7 @@ export class WorkspaceComponent implements AfterViewChecked {
           // Update the file in the store
           this.projectService.fileStore.updateFile(result.path, result.content);
           // Write to container (no reload needed - text already updated in DOM)
-          this.webContainerService.writeFile(result.path, result.content);
+          this.containerEngine.writeFile(result.path, result.content);
 
           if (result.isInsideLoop) {
             this.toastService.show(
@@ -482,8 +485,8 @@ export class WorkspaceComponent implements AfterViewChecked {
 
   toggleEngine(event: Event) {
     const select = event.target as HTMLSelectElement;
-    if (this.webContainerService instanceof SmartContainerEngine) {
-      this.webContainerService.setMode(select.value as 'local' | 'native');
+    if (this.containerEngine instanceof SmartContainerEngine) {
+      this.containerEngine.setMode(select.value as 'local' | 'native');
       // Re-trigger preview in new engine
       this.projectService.reloadPreview(this.projectService.files());
     }
@@ -500,19 +503,19 @@ export class WorkspaceComponent implements AfterViewChecked {
       case 'create-file':
         this.projectService.fileStore.createFile(action.path);
         try {
-          await this.webContainerService.writeFile(action.path, '');
+          await this.containerEngine.writeFile(action.path, '');
         } catch {}
         break;
       case 'create-folder':
         this.projectService.fileStore.createFolder(action.path);
         try {
-          await this.webContainerService.mkdir(action.path);
+          await this.containerEngine.mkdir(action.path);
         } catch {}
         break;
       case 'delete':
         this.projectService.fileStore.deleteFile(action.path);
         try {
-          await this.webContainerService.deleteFile(action.path);
+          await this.containerEngine.deleteFile(action.path);
         } catch {}
         // Clear editor if deleted file was selected
         if (this.selectedFilePath() === action.path) {
@@ -527,8 +530,8 @@ export class WorkspaceComponent implements AfterViewChecked {
             this.projectService.fileStore.getFileContent(action.path) || '';
           this.projectService.fileStore.renameFile(action.path, action.newPath);
           try {
-            await this.webContainerService.writeFile(action.newPath, content);
-            await this.webContainerService.deleteFile(action.path);
+            await this.containerEngine.writeFile(action.newPath, content);
+            await this.containerEngine.deleteFile(action.path);
           } catch {}
           // Update editor if renamed file was selected
           if (this.selectedFilePath() === action.path) {
@@ -548,7 +551,7 @@ export class WorkspaceComponent implements AfterViewChecked {
                 action.content,
               );
             }
-            await this.webContainerService.writeFile(action.path, writeContent);
+            await this.containerEngine.writeFile(action.path, writeContent);
           } catch {}
           this.toastService.show(
             `Uploaded ${action.path.split('/').pop()}`,
@@ -593,7 +596,7 @@ export class WorkspaceComponent implements AfterViewChecked {
         if (typeof newContent === 'string' && newContent.startsWith('data:')) {
           writeContent = this.projectService.dataURIToUint8Array(newContent);
         }
-        await this.webContainerService.writeFile(path, writeContent);
+        await this.containerEngine.writeFile(path, writeContent);
       } catch (err) {
         console.error('Failed to write file to container', err);
       }

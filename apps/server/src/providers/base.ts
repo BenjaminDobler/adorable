@@ -1,9 +1,8 @@
-import { FileSystemInterface, StreamCallbacks, GenerateOptions } from './types';
+import { FileSystemInterface, StreamCallbacks, GenerateOptions, HistoryMessage } from './types';
 import { jsonrepair } from 'jsonrepair';
 import { TOOLS } from './tools';
 import { ANGULAR_KNOWLEDGE_BASE } from './knowledge-base';
 import { SkillRegistry } from './skills/skill-registry';
-import { MemoryFileSystem } from './filesystem/memory-filesystem';
 import { DebugLogger } from './debug-logger';
 import { screenshotManager } from './screenshot-manager';
 import { questionManager } from './question-manager';
@@ -37,6 +36,7 @@ export const SYSTEM_PROMPT =
 +"  2. All HTML element tags match the component doc's **Selector** field (e.g., `<ui5-li>` not `<ui5-list-item-standard>`)\n"
 +"  3. All exported type/interface names are consistent across files — use the exact names from your model file\n"
 +"  4. All services use `inject()` not constructor injection\n"
++"  5. All component imports in the `imports` array are actually used in the template — remove any unused ones\n"
 +"- **FIX BUILD ERRORS SURGICALLY:** When a build fails, use `edit_file` to fix the specific error — do NOT rewrite the entire file with `write_files`. Re-read the file first if you are unsure of its current content.\n\n"
 +"**RESTRICTED FILES (DO NOT EDIT):**\n"
 +"- `package.json`, `angular.json`, `tsconfig.json`, `tsconfig.app.json`: Do NOT modify these files unless you are explicitly adding a dependency or changing a build configuration.\n"
@@ -113,9 +113,14 @@ export abstract class BaseLLMProvider {
     maxTurns: number;
     mcpManager?: MCPManager;
     activeKitName?: string;
+    history?: HistoryMessage[];
+    contextSummary?: string;
   }> {
     const logger = new DebugLogger(providerName, options.projectId);
-    const fs: FileSystemInterface = options.fileSystem || new MemoryFileSystem(this.flattenFiles(options.previousFiles || {}));
+    if (!options.fileSystem) {
+      throw new Error('fileSystem is required — every project must have a DiskFileSystem');
+    }
+    const fs: FileSystemInterface = options.fileSystem;
 
     const skillRegistry = new SkillRegistry();
 
@@ -197,36 +202,15 @@ Only proceed with implementation after receiving the user's answers.`;
 
       const catalog = generateComponentCatalog(activeKit);
 
-      // Try reading persisted .adorable files from disk first, fall back to generation
-      let docFiles: Record<string, string>;
+      // .adorable symlink is created at project save/load time (project.routes.ts).
+      // Just count the doc files to decide whether to inject kit instructions.
+      let docFileCount = 0;
       try {
-        docFiles = await kitFsService.readKitAdorableFiles(activeKit.id);
-        if (Object.keys(docFiles).length === 0) {
-          docFiles = generateComponentDocFiles(activeKit);
-        }
-      } catch {
-        docFiles = generateComponentDocFiles(activeKit);
-      }
-      const docFileCount = Object.keys(docFiles).length;
+        const docFiles = await kitFsService.readKitAdorableFiles(activeKit.id);
+        docFileCount = Object.keys(docFiles).length;
+      } catch { /* kit has no .adorable docs */ }
 
-      // Inject doc files into the MemoryFileSystem so the AI can read_files them.
-      // Uses injectFile to avoid leaking .adorable into accumulatedFiles / project disk.
-      // This runs regardless of whether a catalog exists — kits may have .adorable files
-      // from their template even without storybook-generated catalogs.
       if (docFileCount > 0) {
-        for (const [filePath, content] of Object.entries(docFiles)) {
-          try {
-            await fs.readFile(filePath);
-            // File already exists (from template or saved project) — skip
-          } catch {
-            // File doesn't exist — inject the doc (readable but not accumulated)
-            if ('injectFile' in fs) {
-              (fs as MemoryFileSystem).injectFile(filePath, content);
-            } else {
-              await fs.writeFile(filePath, content);
-            }
-          }
-        }
         logger.log('KIT_DOC_FILES_INJECTED', { kitName: activeKit.name, docFiles: docFileCount });
       }
 
@@ -239,7 +223,7 @@ Only proceed with implementation after receiving the user's answers.`;
         userMessage += `\n\n**⚠️ MANDATORY — Component Documentation (READ BEFORE CODING):**\n`;
         userMessage += `This project uses the **${activeKit.name}** component library. You MUST follow this workflow:\n\n`;
         userMessage += `**Step 1: Read docs BEFORE writing any code.**\n`;
-        userMessage += `- Start by reading \`.adorable/components/README.md\` to see all available component doc files.\n`;
+        userMessage += `- Read \`.adorable/components/README.md\` first — it lists all available component doc filenames. Do NOT use \`list_dir\` on \`.adorable/\` — the README has everything you need.\n`;
         userMessage += `- Then read the docs for EVERY component you plan to use: \`read_files\` → \`.adorable/components/{ComponentName}.md\`\n`;
         userMessage += `- Batch-read multiple docs in one \`read_files\` call for efficiency.\n`;
         userMessage += `- The docs contain the **correct export names, import paths, selectors, inputs, outputs, and usage examples**.\n\n`;
@@ -271,7 +255,7 @@ Only proceed with implementation after receiving the user's answers.`;
           userMessage += `\n**⚠️ MANDATORY — Component Documentation (READ BEFORE CODING):**\n`;
           userMessage += `This project uses the **${activeKit.name}** component library. You MUST follow this workflow:\n\n`;
           userMessage += `**Step 1: Read docs BEFORE writing any code.**\n`;
-          userMessage += `- Start by listing files in the \`.adorable/\` directory to discover available documentation.\n`;
+          userMessage += `- Read \`.adorable/components/README.md\` first — it lists all available component doc filenames. Do NOT use \`list_dir\` on \`.adorable/\` — the README has everything you need.\n`;
           userMessage += `- Then read the docs for EVERY component you plan to use: \`read_files\` → \`.adorable/components/{ComponentName}.md\`\n`;
           userMessage += `- Batch-read multiple docs in one \`read_files\` call for efficiency.\n`;
           userMessage += `- The docs contain the **correct export names, import paths, selectors, inputs, outputs, and usage examples**.\n\n`;
@@ -307,7 +291,7 @@ Only proceed with implementation after receiving the user's answers.`;
       );
     }
 
-    return { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName: activeKit?.name };
+    return { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName: activeKit?.name, history: options.history, contextSummary: options.contextSummary };
   }
 
   protected async addSkillTools(availableTools: any[], skillRegistry: SkillRegistry, fs: FileSystemInterface, userId?: string) {

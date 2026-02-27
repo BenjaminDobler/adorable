@@ -4,12 +4,12 @@
     [loading]="loading()"
     [compactMode]="compactMode()"
     [quickStarters]="quickStarters"
-    [buildError]="webContainerService.buildError()"
+    [buildError]="containerEngine.buildError()"
     [projectImageAssets]="getProjectImageAssets()"
     (restoreVersion)="restoreVersion($event)"
     (useQuickStarter)="useQuickStarter($event)"
     (autoRepair)="autoRepair($event)"
-    (dismissError)="webContainerService.clearBuildError()"
+    (dismissError)="containerEngine.clearBuildError()"
     (questionSubmitted)="submitQuestionAnswers($event)"
     (questionCancelled)="cancelQuestion($event)"
     (questionAnswerUpdated)="updateQuestionAnswer($event)"
@@ -43,6 +43,7 @@
     (togglePlanMode)="planMode.set(!planMode())"
     (toggleCompactMode)="compactMode.set(!compactMode())"
     (toggleMcpTools)="toggleMcpTools()"
+    (clearContext)="clearContext()"
     (previewImage)="previewImageUrl.set($event)"
     (shouldAddToAssetsChange)="shouldAddToAssets.set($event)">
   </app-chat-input>

@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { FileSystemStore } from './file-system.store';
-import type { WebContainerFiles } from '@adorable/shared-types';
+import type { FileTree } from '@adorable/shared-types';
 
 describe('FileSystemStore', () => {
   let store: FileSystemStore;
@@ -16,7 +16,7 @@ describe('FileSystemStore', () => {
 
   describe('setFiles', () => {
     it('should initialize file tree', () => {
-      const files: WebContainerFiles = {
+      const files: FileTree = {
         'src': {
           directory: {
             'app.ts': { file: { contents: 'console.log("app")' } },

@@ -1,4 +1,4 @@
-import { WebContainerFiles, FileSystemNode } from '@adorable/shared-types';
+import { FileTree, FileSystemNode } from '@adorable/shared-types';
 
 const GITHUB_API = 'https://api.github.com';
 
@@ -19,9 +19,9 @@ interface GitFile {
 export class GitHubSyncService {
 
   /**
-   * Convert WebContainerFiles to flat list of GitFiles
+   * Convert FileTree to flat list of GitFiles
    */
-  flattenFiles(files: WebContainerFiles, prefix = ''): GitFile[] {
+  flattenFiles(files: FileTree, prefix = ''): GitFile[] {
     const result: GitFile[] = [];
 
     for (const [name, node] of Object.entries(files)) {
@@ -46,10 +46,10 @@ export class GitHubSyncService {
   }
 
   /**
-   * Convert flat file list back to WebContainerFiles structure
+   * Convert flat file list back to FileTree structure
    */
-  unflattenFiles(files: GitFile[]): WebContainerFiles {
-    const result: WebContainerFiles = {};
+  unflattenFiles(files: GitFile[]): FileTree {
+    const result: FileTree = {};
 
     for (const file of files) {
       const parts = file.path.split('/');
@@ -83,7 +83,7 @@ export class GitHubSyncService {
     accessToken: string,
     fullName: string,
     branch: string,
-    files: WebContainerFiles,
+    files: FileTree,
     commitMessage: string
   ): Promise<string> {
     const headers = {
@@ -247,7 +247,7 @@ export class GitHubSyncService {
     accessToken: string,
     fullName: string,
     branch: string
-  ): Promise<{ files: WebContainerFiles; commitSha: string }> {
+  ): Promise<{ files: FileTree; commitSha: string }> {
     const headers = {
       'Authorization': `Bearer ${accessToken}`,
       'Accept': 'application/vnd.github.v3+json',
@@ -322,7 +322,7 @@ export class GitHubSyncService {
       }
     }
 
-    // 4. Convert to WebContainerFiles structure
+    // 4. Convert to FileTree structure
     const files = this.unflattenFiles(gitFiles);
 
     return { files, commitSha };
@@ -423,7 +423,7 @@ jobs:
     accessToken: string,
     fullName: string,
     branch: string,
-    files: WebContainerFiles
+    files: FileTree
   ): Promise<string> {
     const repoName = fullName.split('/')[1];
 

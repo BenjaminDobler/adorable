@@ -1,7 +1,19 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
 const MAX_FIELD_LENGTH = 20000;
+
+function getLogDir(): string {
+  if (process.env['ADORABLE_DESKTOP_MODE'] === 'true') {
+    // Desktop app: write logs next to projects in ~/.adorable/debug_logs
+    const baseDir = process.env['ADORABLE_PROJECTS_DIR']
+      ? path.resolve(process.env['ADORABLE_PROJECTS_DIR'], '..')
+      : path.join(os.homedir(), '.adorable');
+    return path.join(baseDir, 'debug_logs');
+  }
+  return path.resolve(process.cwd(), 'debug_logs');
+}
 
 export class DebugLogger {
   private logPath: string;
@@ -11,8 +23,7 @@ export class DebugLogger {
     const filename = projectId
       ? `${providerName}_trace_${projectId}_${timestamp}.jsonl`
       : `${providerName}_trace_${timestamp}.jsonl`;
-    // Ensure debug_logs exists relative to where the server runs (usually project root)
-    const logDir = path.resolve(process.cwd(), 'debug_logs');
+    const logDir = getLogDir();
     if (!fs.existsSync(logDir)) {
         fs.mkdirSync(logDir, { recursive: true });
     }

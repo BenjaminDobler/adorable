@@ -1,7 +1,7 @@
 import { Component, EventEmitter, Output, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { WebContainerFiles, WebContainerFile, WebContainerDirectory } from '../../services/kit-types';
+import { FileTree, FileNode, DirectoryNode } from '../../services/kit-types';
 
 interface TreeNode {
   name: string;
@@ -32,7 +32,7 @@ interface FileEntry {
   styleUrl: './folder-import.scss'
 })
 export class FolderImportComponent {
-  @Output() import = new EventEmitter<{ files: WebContainerFiles; name: string; description: string }>();
+  @Output() import = new EventEmitter<{ files: FileTree; name: string; description: string }>();
   @Output() cancel = new EventEmitter<void>();
 
   // Form state
@@ -386,7 +386,7 @@ export class FolderImportComponent {
     this.importing.set(true);
 
     try {
-      const webContainerFiles = await this.convertToWebContainerFiles();
+      const webContainerFiles = await this.convertToFileTree();
       this.import.emit({
         files: webContainerFiles,
         name: this.kitName(),
@@ -399,8 +399,8 @@ export class FolderImportComponent {
     }
   }
 
-  private async convertToWebContainerFiles(): Promise<WebContainerFiles> {
-    const result: WebContainerFiles = {};
+  private async convertToFileTree(): Promise<FileTree> {
+    const result: FileTree = {};
     const selectedPaths = new Set(this.selectedFiles().map(f => f.path));
 
     for (const entry of this.flatFiles()) {
@@ -413,25 +413,39 @@ export class FolderImportComponent {
     return result;
   }
 
+  private static readonly BINARY_EXTS = new Set([
+    '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.svg',
+    '.pdf', '.eot', '.ttf', '.woff', '.woff2',
+    '.mp3', '.mp4', '.wav', '.ogg',
+    '.zip', '.tar', '.gz', '.bz2',
+  ]);
+
   private readFile(file: File): Promise<string> {
+    const ext = ('.' + (file.name.split('.').pop() || '')).toLowerCase();
+    const isBinary = FolderImportComponent.BINARY_EXTS.has(ext);
+
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
       reader.onerror = reject;
-      reader.readAsText(file);
+      if (isBinary) {
+        reader.readAsDataURL(file);
+      } else {
+        reader.readAsText(file);
+      }
     });
   }
 
-  private setNestedFile(root: WebContainerFiles, path: string, content: string) {
+  private setNestedFile(root: FileTree, path: string, content: string) {
     const parts = path.split('/');
-    let current: WebContainerFiles = root;
+    let current: FileTree = root;
 
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
       if (!current[part]) {
         current[part] = { directory: {} };
       }
-      const dir = current[part] as WebContainerDirectory;
+      const dir = current[part] as DirectoryNode;
       current = dir.directory;
     }
 

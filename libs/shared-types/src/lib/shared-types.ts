@@ -1,24 +1,26 @@
 export interface FileSystemNode {
   file?: {
     contents: string;
+    encoding?: 'base64';
   };
   directory?: {
     [name: string]: FileSystemNode;
   };
 }
 
-export interface WebContainerFiles {
+export interface FileTree {
   [name: string]: FileSystemNode;
 }
 
+
 export interface GenerateResponse {
-  files: WebContainerFiles;
+  files: FileTree;
   explanation: string;
 }
 
 export interface GenerateRequest {
   prompt: string;
-  previousFiles?: WebContainerFiles;
+  previousFiles?: FileTree;
   openFiles?: { [path: string]: string };
 }
 
@@ -123,7 +125,7 @@ export interface FileProgressEvent {
 // Kit / Starter Kit Types
 export interface KitTemplate {
   type: 'default' | 'custom';
-  files: WebContainerFiles;
+  files: FileTree;
   angularVersion?: string;
 }
 
@@ -150,11 +152,11 @@ export interface DesignTokens {
 }
 
 /**
- * Deep-merge two WebContainerFiles trees. `generated` values override `base`.
+ * Deep-merge two FileTree trees. `generated` values override `base`.
  * When both sides have a directory at the same key, their contents are merged recursively.
  */
-export function mergeFiles(base: WebContainerFiles, generated: WebContainerFiles): WebContainerFiles {
-  const result: WebContainerFiles = { ...base };
+export function mergeFiles(base: FileTree, generated: FileTree): FileTree {
+  const result: FileTree = { ...base };
   for (const key in generated) {
     if (generated[key].directory && result[key]?.directory) {
       result[key] = {
@@ -231,3 +233,11 @@ export interface Kit {
   createdAt: string;
   updatedAt: string;
 }
+
+/** Canonical list of binary file extensions (lowercase, with leading dot). */
+export const BINARY_EXTENSIONS = new Set([
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.svg',
+  '.pdf', '.eot', '.ttf', '.woff', '.woff2',
+  '.mp3', '.mp4', '.wav', '.ogg',
+  '.zip', '.tar', '.gz', '.bz2',
+]);

@@ -29,7 +29,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
     const modelName = model || 'gemini-2.5-flash';
 
     // Prepare shared context
-    const { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName } = await this.prepareAgentContext(options, 'gemini');
+    const { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName, history, contextSummary } = await this.prepareAgentContext(options, 'gemini');
     await this.addSkillTools(availableTools, skillRegistry, fs, options.userId);
 
     // Convert tools to Gemini format
@@ -72,6 +72,29 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
     const geminiEffort = options.reasoningEffort || 'high';
     const thinkingBudget = geminiEffort === 'low' ? 1024 : geminiEffort === 'medium' ? 8192 : -1;
 
+    // Build Gemini conversation history from prior turns
+    const geminiHistory: any[] = [];
+    if (contextSummary) {
+      geminiHistory.push({ role: 'user', parts: [{ text: `[Earlier conversation summary: ${contextSummary}]` }] });
+      geminiHistory.push({ role: 'model', parts: [{ text: 'Understood, I have context from our earlier conversation.' }] });
+    }
+    if (history?.length) {
+      for (const msg of history) {
+        geminiHistory.push({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: msg.text }]
+        });
+      }
+      // Gemini requires history to end with 'model' role
+      if (geminiHistory.length > 0 && geminiHistory[geminiHistory.length - 1].role === 'user') {
+        geminiHistory.pop();
+      }
+    }
+
+    if (geminiHistory.length > 0) {
+      logger.log('HISTORY_INJECTED', { messageCount: geminiHistory.length, hasSummary: !!contextSummary, totalChars: geminiHistory.reduce((sum: number, m: any) => sum + (m.parts?.[0]?.text?.length || 0), 0) });
+    }
+
     const chat = ai.chats.create({
       model: modelName,
       config: {
@@ -79,7 +102,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
         systemInstruction: ANGULAR_KNOWLEDGE_BASE + '\n\n' + effectiveSystemPrompt,
         thinkingConfig: { thinkingBudget },
       },
-      history: []
+      history: geminiHistory
     });
 
     let totalInputTokens = 0;

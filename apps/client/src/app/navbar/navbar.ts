@@ -9,8 +9,10 @@ import { ContainerEngine } from '../services/container-engine';
 import { FormsModule } from '@angular/forms';
 import { SmartContainerEngine, isDesktopApp } from '../services/smart-container.engine';
 import { GitHubService } from '../services/github.service';
+import { CloudSyncService } from '../services/cloud-sync.service';
 import { ToastService } from '../services/toast';
 import { ConfirmService } from '../services/confirm';
+import { CloudConnectComponent } from '../cloud-connect/cloud-connect.component';
 import { GitHubRepository, GitHubProjectSync } from '@adorable/shared-types';
 
 interface ContainerInfo {
@@ -24,20 +26,24 @@ interface ContainerInfo {
 @Component({
   selector: 'app-navbar',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [CommonModule, RouterModule, FormsModule, CloudConnectComponent],
   templateUrl: './navbar.html',
   styleUrl: './navbar.scss',
 })
 export class NavbarComponent {
   public authService = inject(AuthService);
   public projectService = inject(ProjectService);
-  public webContainerService = inject(ContainerEngine);
+  public containerEngine = inject(ContainerEngine);
   public githubService = inject(GitHubService);
+  public cloudSyncService = inject(CloudSyncService);
   public themeService = inject(ThemeService);
   private toastService = inject(ToastService);
   private confirmService = inject(ConfirmService);
   private router = inject(Router);
   private http = inject(HttpClient);
+
+  // Cloud panel
+  cloudPanelOpen = signal(false);
 
   // VS Code integration
   vscodePanelOpen = signal(false);
@@ -57,7 +63,7 @@ export class NavbarComponent {
   githubPagesDeploying = signal(false);
 
   // Agent Mode - available in Docker and Native modes
-  isDockerMode = computed(() => this.webContainerService.mode() === 'local');
+  isDockerMode = computed(() => this.containerEngine.mode() === 'local');
   isDesktop = isDesktopApp();
 
   constructor() {
@@ -73,12 +79,12 @@ export class NavbarComponent {
     this.authService.logout();
   }
 
-  isNativeMode = computed(() => this.webContainerService.mode() === 'native');
+  isNativeMode = computed(() => this.containerEngine.mode() === 'native');
 
   toggleEngine(event: Event) {
     const select = event.target as HTMLSelectElement;
-    if (this.webContainerService instanceof SmartContainerEngine) {
-       this.webContainerService.setMode(select.value as 'local' | 'native');
+    if (this.containerEngine instanceof SmartContainerEngine) {
+       this.containerEngine.setMode(select.value as 'local' | 'native');
        this.projectService.reloadPreview(this.projectService.files());
     }
   }
@@ -93,8 +99,7 @@ export class NavbarComponent {
   }
 
   get hasProject(): boolean {
-    const id = this.projectService.projectId();
-    return !!id && id !== 'new';
+    return this.projectService.hasProject();
   }
 
   toggleGitHubPanel() {
@@ -111,7 +116,7 @@ export class NavbarComponent {
 
   loadGitHubSyncStatus() {
     const projectId = this.projectService.projectId();
-    if (!projectId || projectId === 'new') return;
+    if (!projectId || !this.projectService.isSaved()) return;
 
     this.githubService.getSyncStatus(projectId).subscribe({
       next: (status) => {
@@ -269,7 +274,7 @@ export class NavbarComponent {
 
   loadGitHubPagesStatus() {
     const projectId = this.projectService.projectId();
-    if (!projectId || projectId === 'new') return;
+    if (!projectId || !this.projectService.isSaved()) return;
 
     this.githubService.getPagesStatus(projectId).subscribe({
       next: (status) => {

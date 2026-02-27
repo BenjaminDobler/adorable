@@ -92,7 +92,7 @@ export const TOOLS = [
   },
   {
     name: 'edit_file',
-    description: 'Make a precise edit to a file by replacing a unique string.',
+    description: 'Make a precise edit to a file. PREREQUISITE: You MUST call read_file/read_files on this file first. old_str must match the exact current content.',
     input_schema: {
       type: 'object',
       properties: {

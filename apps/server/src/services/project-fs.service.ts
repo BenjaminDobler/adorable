@@ -1,9 +1,9 @@
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import { STORAGE_DIR } from '../config';
+import { STORAGE_DIR, KITS_DIR } from '../config';
+import { BINARY_EXTENSIONS } from '@adorable/shared-types';
 
 const EXCLUDED_DIRS = new Set(['node_modules', '.git', '.angular', 'dist', '.cache', 'tmp', '.nx', '.adorable']);
-const BINARY_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.pdf', '.eot', '.ttf', '.woff', '.woff2', '.mp3', '.mp4', '.zip', '.tar', '.gz']);
 
 export class ProjectFsService {
   /**
@@ -28,7 +28,7 @@ export class ProjectFsService {
   }
 
   /**
-   * Write a WebContainerFiles tree to disk recursively.
+   * Write a FileTree to disk recursively.
    */
   async writeProjectFiles(projectId: string, files: any): Promise<void> {
     const projectPath = this.getProjectPath(projectId);
@@ -69,7 +69,7 @@ export class ProjectFsService {
   }
 
   /**
-   * Read project files from disk into a WebContainerFiles tree.
+   * Read project files from disk into a FileTree.
    * Excludes node_modules, .git, .angular, dist, etc.
    */
   async readProjectFiles(projectId: string): Promise<any> {
@@ -116,7 +116,7 @@ export class ProjectFsService {
 
   /**
    * Read project files into a flat Record<path, content> map.
-   * Useful for MemoryFileSystem initialization.
+   * Returns a flat Record<path, content> for convenient iteration.
    */
   async readProjectFilesFlat(projectId: string): Promise<Record<string, string>> {
     const projectPath = this.getProjectPath(projectId);
@@ -152,6 +152,39 @@ export class ProjectFsService {
         }
       }
     }
+  }
+
+  /**
+   * Symlink {projectPath}/.adorable → {kitsDir}/{kitId}/.adorable
+   * so kit docs are always visible in the project directory.
+   * Call this when a kit is assigned or changed on a project.
+   */
+  async linkKit(projectId: string, kitId: string | null): Promise<void> {
+    const projectPath = this.getProjectPath(projectId);
+    const symlinkPath = path.join(projectPath, '.adorable');
+
+    // Remove existing symlink or directory
+    try {
+      await fs.rm(symlinkPath, { recursive: true, force: true });
+    } catch {
+      // Doesn't exist — fine
+    }
+
+    if (!kitId) return; // Kit removed, just clean up
+
+    const kitAdorablePath = path.join(KITS_DIR, kitId, '.adorable');
+
+    // Only create symlink if the kit actually has .adorable docs
+    try {
+      const stat = await fs.stat(kitAdorablePath);
+      if (!stat.isDirectory()) return;
+    } catch {
+      return; // Kit has no .adorable dir
+    }
+
+    // Ensure project directory exists
+    await fs.mkdir(projectPath, { recursive: true });
+    await fs.symlink(kitAdorablePath, symlinkPath, 'dir');
   }
 
   /**

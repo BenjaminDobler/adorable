@@ -10,12 +10,12 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { FileSystemStore } from './file-system.store';
 import {
-  WebContainerFiles,
+  FileTree,
   FigmaImportPayload,
   mergeFiles as sharedMergeFiles,
 } from '@adorable/shared-types';
 import { ScreenshotService } from './screenshot';
-import { Kit, WebContainerFiles as KitWebContainerFiles } from './kit-types';
+import { Kit, FileTree as KitFileTree } from './kit-types';
 import { HMRTriggerService } from './hmr-trigger.service';
 
 export interface QuestionOption {
@@ -86,7 +86,7 @@ export interface ChatMessage {
 })
 export class ProjectService {
   private apiService = inject(ApiService);
-  private webContainerService = inject(ContainerEngine);
+  private containerEngine = inject(ContainerEngine);
   private toastService = inject(ToastService);
   private router = inject(Router);
   private screenshotService = inject(ScreenshotService);
@@ -102,11 +102,13 @@ export class ProjectService {
   // State
   projectId = signal<string | null>(null);
   projectName = signal<string>('');
+  /** Whether this project has been persisted to the database at least once. */
+  isSaved = signal(false);
   selectedKitId = signal<string | null>(null);
-  currentKitTemplate = signal<KitWebContainerFiles | null>(null);
+  currentKitTemplate = signal<KitFileTree | null>(null);
 
   // Use store for files
-  files: Signal<WebContainerFiles> = this.fileStore.files;
+  files: Signal<FileTree> = this.fileStore.files;
 
   messages = signal<ChatMessage[]>([
     {
@@ -119,13 +121,12 @@ export class ProjectService {
   buildError = signal<string | null>(null);
   debugLogs = signal<any[]>([]);
   figmaImports = signal<FigmaImportPayload[]>([]);
-  agentMode = signal(false);
 
   // Bumped after each successful save (so version history can auto-refresh)
   saveVersion = signal(0);
 
   // Computed
-  hasProject = computed(() => !!this.projectId() && this.projectId() !== 'new');
+  hasProject = computed(() => !!this.projectId() && this.isSaved());
 
   async loadProject(id: string) {
     // Bump epoch so any in-flight loadProject/reloadPreview from a previous call bails out
@@ -135,7 +136,7 @@ export class ProjectService {
     // Cancel any active AI generation before switching projects
     // This prevents SSE events from the old project bleeding into the new one
     const sameProject =
-      this.projectId() === id && this.webContainerService.url();
+      this.projectId() === id && this.containerEngine.url();
     console.log('load project 2');
 
     if (!sameProject) {
@@ -149,7 +150,7 @@ export class ProjectService {
     const stopPromise = sameProject
       ? Promise.resolve()
       : Promise.race([
-          this.webContainerService.stopDevServer(),
+          this.containerEngine.stopDevServer(),
           new Promise((resolve) => setTimeout(resolve, 5000)),
         ]);
 
@@ -175,6 +176,7 @@ export class ProjectService {
 
       this.projectId.set(project.id);
       this.projectName.set(project.name);
+      this.isSaved.set(true);
       this.selectedKitId.set(project.selectedKitId || null);
 
       if (project.messages) {
@@ -218,7 +220,7 @@ export class ProjectService {
     if (!silent) this.loading.set(true);
 
     const id = this.projectId();
-    const saveId = id && id !== 'new' ? id : undefined;
+    const saveId = id || undefined;
 
     // Start thumbnail capture in parallel — don't block the save
     // Skip thumbnail capture in silent mode (e.g. auto-save during project switch)
@@ -252,11 +254,11 @@ export class ProjectService {
             // A project switch may have happened while the save was in flight
             if (
               this.projectId() === id ||
-              !this.projectId() ||
-              this.projectId() === 'new'
+              !this.projectId()
             ) {
               this.projectId.set(project.id);
             }
+            this.isSaved.set(true);
             if (!silent)
               this.toastService.show('Project saved successfully!', 'success');
             if (!silent) this.loading.set(false);
@@ -312,7 +314,7 @@ export class ProjectService {
 
   async publish() {
     const id = this.projectId();
-    if (!id || id === 'new') {
+    if (!id || !this.isSaved()) {
       this.toastService.show('Please save the project first', 'info');
       return;
     }
@@ -321,7 +323,7 @@ export class ProjectService {
     this.addSystemMessage('Building and publishing your app...');
 
     try {
-      const exitCode = await this.webContainerService.runBuild([
+      const exitCode = await this.containerEngine.runBuild([
         '--base-href',
         './',
       ]);
@@ -369,11 +371,28 @@ export class ProjectService {
       // Files are already merged/current in the store
       const fullProject = files;
 
-      const addFilesToZip = (fs: WebContainerFiles, currentPath: string) => {
+      const addFilesToZip = (fs: FileTree, currentPath: string) => {
         for (const key in fs) {
           const node = fs[key];
           if (node.file) {
-            zip.file(`${currentPath}${key}`, node.file.contents);
+            const contents = node.file.contents;
+            if (
+              typeof contents === 'string' &&
+              contents.trim().startsWith('data:')
+            ) {
+              // Data URI → decode to binary for correct zip entry
+              const binary = this.dataURIToUint8Array(contents);
+              zip.file(`${currentPath}${key}`, binary);
+            } else if (node.file.encoding === 'base64') {
+              // Raw base64 → decode to binary
+              const byteStr = atob(contents);
+              const ab = new ArrayBuffer(byteStr.length);
+              const ia = new Uint8Array(ab);
+              for (let i = 0; i < byteStr.length; i++) ia[i] = byteStr.charCodeAt(i);
+              zip.file(`${currentPath}${key}`, ia);
+            } else {
+              zip.file(`${currentPath}${key}`, contents);
+            }
           } else if (node.directory) {
             addFilesToZip(node.directory, `${currentPath}${key}/`);
           }
@@ -394,7 +413,7 @@ export class ProjectService {
 
   async reloadPreview(
     files: any,
-    kitTemplate?: KitWebContainerFiles,
+    kitTemplate?: KitFileTree,
     skipStop = false,
     epoch?: number,
   ) {
@@ -407,7 +426,7 @@ export class ProjectService {
     this.loading.set(true);
 
     // Ensure container engine knows which project we're working with
-    this.webContainerService.currentProjectId = this.projectId() || null;
+    this.containerEngine.currentProjectId = this.projectId() || null;
 
     // Yield to allow loading state to render
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -415,7 +434,7 @@ export class ProjectService {
 
     // Fast path: skip stop/clean/install/start when deps haven't changed
     // and the dev server is already running (e.g. version restore with same package.json)
-    if (!kitTemplate && this.webContainerService.url()) {
+    if (!kitTemplate && this.containerEngine.url()) {
       const currentPkg = this.fileStore.getFileContent('package.json');
       const incomingPkg = files?.['package.json']?.file?.contents ?? null;
       // If incoming files don't include package.json, or it matches the current one, fast path
@@ -432,13 +451,10 @@ export class ProjectService {
           await new Promise((resolve) => setTimeout(resolve, 0));
           if (isStale()) return;
 
-          const { tree, binaries } = this.prepareFilesForMount(mergedFiles);
-          await this.webContainerService.mount(tree);
+          const tree = this.prepareFilesForMount(mergedFiles);
+          await this.containerEngine.mount(tree);
           if (isStale()) return;
 
-          for (const bin of binaries) {
-            await this.webContainerService.writeFile(bin.path, bin.content);
-          }
           return; // Angular HMR picks up the file changes
         } catch (err) {
           if (isStale()) return;
@@ -457,14 +473,14 @@ export class ProjectService {
       if (!skipStop) {
         // Stop with timeout to prevent hanging
         await Promise.race([
-          this.webContainerService.stopDevServer(),
+          this.containerEngine.stopDevServer(),
           new Promise((resolve) => setTimeout(resolve, 5000)),
         ]);
       }
       if (isStale()) return;
 
       // Full clean when switching kit templates to clear stale node_modules/lockfiles
-      await this.webContainerService.clean(!!kitTemplate);
+      await this.containerEngine.clean(!!kitTemplate);
       if (isStale()) return;
 
       // Yield before heavy sync operations
@@ -486,8 +502,8 @@ export class ProjectService {
 
       // Use server-side mount when project has been saved (has a projectId on disk)
       const pid = this.projectId();
-      if (pid && pid !== 'new' && this.webContainerService.mountProject) {
-        await this.webContainerService.mountProject(
+      if (pid && this.isSaved() && this.containerEngine.mountProject) {
+        await this.containerEngine.mountProject(
           pid,
           this.selectedKitId() || null,
         );
@@ -495,22 +511,18 @@ export class ProjectService {
         // Fallback for new unsaved projects: send files over HTTP
         await new Promise((resolve) => setTimeout(resolve, 0));
 
-        const { tree, binaries } = this.prepareFilesForMount(mergedFiles);
+        const tree = this.prepareFilesForMount(mergedFiles);
 
-        await this.webContainerService.mount(tree);
+        await this.containerEngine.mount(tree);
         if (isStale()) return;
-
-        for (const bin of binaries) {
-          await this.webContainerService.writeFile(bin.path, bin.content);
-        }
       }
       if (isStale()) return;
 
-      const exitCode = await this.webContainerService.runInstall();
+      const exitCode = await this.containerEngine.runInstall();
       if (isStale()) return;
 
       if (exitCode === 0) {
-        this.webContainerService.startDevServer();
+        this.containerEngine.startDevServer();
       }
     } catch (err) {
       console.error(err);
@@ -522,7 +534,7 @@ export class ProjectService {
   /**
    * Load kit template files for a given kit
    */
-  async loadKitTemplate(kitId: string): Promise<KitWebContainerFiles | null> {
+  async loadKitTemplate(kitId: string): Promise<KitFileTree | null> {
     if (kitId === DEFAULT_KIT.id) {
       return DEFAULT_KIT.template.files;
     }
@@ -593,30 +605,26 @@ export class ProjectService {
     '.adorable',
   ]);
 
-  private prepareFilesForMount(
-    files: any,
-    prefix = '',
-  ): { tree: any; binaries: { path: string; content: Uint8Array }[] } {
+  private prepareFilesForMount(files: any): any {
     const tree: any = {};
-    let binaries: { path: string; content: Uint8Array }[] = [];
 
     for (const key in files) {
       // Skip build artifacts and large directories that shouldn't be mounted
       if (files[key].directory && ProjectService.SKIP_DIRS.has(key)) continue;
 
-      const fullPath = prefix + key;
       if (files[key].file) {
         let content = files[key].file.contents;
         const isDataUri =
           typeof content === 'string' && content.trim().startsWith('data:');
 
         if (isDataUri) {
-          const binary = this.dataURIToUint8Array(content);
-          binaries.push({ path: fullPath, content: binary });
+          // Convert data URI to base64 inline — mount() handles encoding: 'base64'
+          const base64 = content.split(',')[1] || '';
+          tree[key] = { file: { contents: base64, encoding: 'base64' } };
         } else {
           if (key === 'index.html' && typeof content === 'string') {
             // Determine correct base href based on engine
-            const engine: any = this.webContainerService;
+            const engine: any = this.containerEngine;
             const isLocal = engine.mode && engine.mode() === 'local';
             const baseHref = isLocal ? '/api/proxy/' : '/';
 
@@ -650,15 +658,10 @@ export class ProjectService {
           tree[key] = { file: { contents: content } };
         }
       } else if (files[key].directory) {
-        const result = this.prepareFilesForMount(
-          files[key].directory,
-          fullPath + '/',
-        );
-        tree[key] = { directory: result.tree };
-        binaries = binaries.concat(result.binaries);
+        tree[key] = { directory: this.prepareFilesForMount(files[key].directory) };
       }
     }
-    return { tree, binaries };
+    return tree;
   }
 
   dataURIToUint8Array(dataURI: string): Uint8Array {
@@ -673,7 +676,7 @@ export class ProjectService {
 
   private async findWebRoot(currentPath: string): Promise<string | null> {
     try {
-      const entries = (await this.webContainerService.readdir(currentPath, {
+      const entries = (await this.containerEngine.readdir(currentPath, {
         withFileTypes: true,
       })) as any[];
       if (entries.some((e) => e.name === 'index.html')) return currentPath;
@@ -688,7 +691,7 @@ export class ProjectService {
   }
 
   private async getFilesRecursively(dirPath: string): Promise<any> {
-    const result = await this.webContainerService.readdir(dirPath, {
+    const result = await this.containerEngine.readdir(dirPath, {
       withFileTypes: true,
     });
     const entries = result as unknown as {
@@ -710,7 +713,7 @@ export class ProjectService {
           );
         if (isBinary) {
           const binary =
-            await this.webContainerService.readBinaryFile(fullPath);
+            await this.containerEngine.readBinaryFile(fullPath);
           files[entry.name] = {
             file: {
               contents: this.uint8ArrayToBase64(binary),
@@ -718,7 +721,7 @@ export class ProjectService {
             },
           };
         } else {
-          const contents = await this.webContainerService.readFile(fullPath);
+          const contents = await this.containerEngine.readFile(fullPath);
           files[entry.name] = {
             file: { contents },
           };

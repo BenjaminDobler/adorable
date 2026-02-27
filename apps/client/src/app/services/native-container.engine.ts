@@ -1,7 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { ContainerEngine, ProcessOutput } from './container-engine';
-import { WebContainerFiles } from '@adorable/shared-types';
+import { FileTree } from '@adorable/shared-types';
 import { Observable, of, shareReplay } from 'rxjs';
 
 @Injectable({
@@ -34,16 +34,16 @@ export class NativeContainerEngine extends ContainerEngine {
 
   private lastBootedProjectId: string | null = null;
 
-  async boot(): Promise<void> {
+  async boot(clean = false): Promise<void> {
     this.status.set('Starting native project...');
     try {
-      console.log('[Native] boot() calling /start for', this.currentProjectId);
+      console.log('[Native] boot() calling /start for', this.currentProjectId, 'clean:', clean);
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
       const res = await fetch(`${this.apiUrl}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: this.currentProjectId }),
+        body: JSON.stringify({ projectId: this.currentProjectId, clean }),
         signal: controller.signal,
       });
       clearTimeout(timeout);
@@ -68,7 +68,7 @@ export class NativeContainerEngine extends ContainerEngine {
     this.status.set('Stopped');
   }
 
-  async mount(files: WebContainerFiles): Promise<void> {
+  async mount(files: FileTree): Promise<void> {
     const needsReboot = this.status() === 'Idle' || this.status() === 'Stopped' || this.status() === 'Server stopped'
       || (this.currentProjectId && this.currentProjectId !== this.lastBootedProjectId);
     if (needsReboot) {
@@ -99,7 +99,9 @@ export class NativeContainerEngine extends ContainerEngine {
     const needsReboot = this.status() === 'Idle' || this.status() === 'Stopped' || this.status() === 'Server stopped'
       || (this.currentProjectId && this.currentProjectId !== this.lastBootedProjectId);
     if (needsReboot) {
-      await this.boot();
+      // Don't clean the project directory — files are already on disk and
+      // mountProject only copies missing kit template files on top of them.
+      await this.boot(false);
     }
     this.status.set('Mounting files...');
     // Call the server's endpoint (port 3333), not the local-agent's (port 3334),
@@ -334,12 +336,8 @@ export class NativeContainerEngine extends ContainerEngine {
     if (typeof content === 'string') {
       current[fileName] = { file: { contents: content } };
     } else {
-      let binary = '';
-      const len = content.byteLength;
-      for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(content[i]);
-      }
-      current[fileName] = { file: { contents: btoa(binary), encoding: 'base64' } };
+      const base64 = btoa(String.fromCharCode(...content));
+      current[fileName] = { file: { contents: base64, encoding: 'base64' } };
     }
 
     await this.mount(tree);

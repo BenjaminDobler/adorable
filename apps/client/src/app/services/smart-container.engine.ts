@@ -2,7 +2,7 @@ import { Injectable, inject, signal, computed, Signal } from '@angular/core';
 import { ContainerEngine, ProcessOutput } from './container-engine';
 import { LocalContainerEngine } from './local-container.engine';
 import { NativeContainerEngine } from './native-container.engine';
-import { WebContainerFiles } from '@adorable/shared-types';
+import { FileTree } from '@adorable/shared-types';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 
 export type ContainerMode = 'local' | 'native';
@@ -45,13 +45,6 @@ export class SmartContainerEngine extends ContainerEngine {
   override get serverOutput(): Signal<string> { return computed(() => this.activeEngine().serverOutput()); }
   override get shellOutput(): Signal<string> { return computed(() => this.activeEngine().shellOutput()); }
 
-  _status = signal('Idle'); // Legacy cleanup
-  _url = signal<string|null>(null);
-  _buildError = signal<string|null>(null);
-  _previewConsoleLogs = signal<any[]>([]);
-  _serverOutput = signal('');
-  _shellOutput = signal('');
-
   override set currentProjectId(value: string | null) {
     super.currentProjectId = value;
     this.localEngine.currentProjectId = value;
@@ -74,7 +67,7 @@ export class SmartContainerEngine extends ContainerEngine {
 
   async boot() { await this.activeEngine().boot(); }
   async teardown() { await this.activeEngine().teardown(); }
-  async mount(files: WebContainerFiles) { await this.activeEngine().mount(files); }
+  async mount(files: FileTree) { await this.activeEngine().mount(files); }
   override async mountProject(projectId: string, kitId: string | null) { await this.activeEngine().mountProject?.(projectId, kitId); }
   async writeFile(path: string, content: string | Uint8Array) { await this.activeEngine().writeFile(path, content); }
   async readFile(path: string) { return await this.activeEngine().readFile(path); }

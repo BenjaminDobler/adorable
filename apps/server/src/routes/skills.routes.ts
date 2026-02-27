@@ -3,28 +3,13 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import { authenticate } from '../middleware/auth';
 import { SkillRegistry } from '../providers/skills/skill-registry';
-import { MemoryFileSystem } from '../providers/filesystem/memory-filesystem';
+import { DiskFileSystem } from '../providers/filesystem/disk-filesystem';
 import { prisma } from '../db/prisma';
 import { projectFsService } from '../services/project-fs.service';
 
 const router = express.Router();
 
 router.use(authenticate);
-
-// Helper to flatten WebContainer files for MemoryFileSystem
-function flattenFiles(structure: any, prefix = ''): Record<string, string> {
-  const map: Record<string, string> = {};
-  for (const key in structure) {
-    const node = structure[key];
-    const path = prefix + key;
-    if (node.file) {
-      map[path] = node.file.contents;
-    } else if (node.directory) {
-      Object.assign(map, flattenFiles(node.directory, path + '/'));
-    }
-  }
-  return map;
-}
 
 // List available skills (System + User [+ Project])
 router.get('/', async (req: any, res) => {
@@ -33,25 +18,23 @@ router.get('/', async (req: any, res) => {
 
   try {
     const registry = new SkillRegistry();
-    let fs = new MemoryFileSystem({}); // Empty FS for system/user only
+    let projectPath: string | undefined;
 
     if (projectId) {
       try {
-        // Read project files from disk
         const existsOnDisk = await projectFsService.projectExistsOnDisk(projectId as string);
         if (existsOnDisk) {
-          const flattened = await projectFsService.readProjectFilesFlat(projectId as string);
-          fs = new MemoryFileSystem(flattened);
+          projectPath = projectFsService.getProjectPath(projectId as string);
         } else {
-          // Fallback to DB for legacy projects
+          // Legacy DB project — migrate files to disk first
           const project = await prisma.project.findFirst({
             where: { id: projectId as string, userId: user.id }
           });
 
           if (project && project.files) {
             const files = JSON.parse(project.files);
-            const flattened = flattenFiles(files);
-            fs = new MemoryFileSystem(flattened);
+            await projectFsService.writeProjectFiles(projectId as string, files);
+            projectPath = projectFsService.getProjectPath(projectId as string);
           }
         }
       } catch (e) {
@@ -59,7 +42,15 @@ router.get('/', async (req: any, res) => {
       }
     }
 
-    const skills = await registry.discover(fs, user.id);
+    // Use a temporary empty dir if no project — skills discovery only needs user-level skills
+    if (!projectPath) {
+      const tmpDir = path.join(process.cwd(), 'storage', 'tmp-skills');
+      await fs.mkdir(tmpDir, { recursive: true });
+      projectPath = tmpDir;
+    }
+
+    const fileSystem = new DiskFileSystem(projectPath);
+    const skills = await registry.discover(fileSystem, user.id);
     res.json(skills);
   } catch (error: any) {
     console.error('Failed to list skills:', error);

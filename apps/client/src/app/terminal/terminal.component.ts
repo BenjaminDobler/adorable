@@ -13,7 +13,7 @@ import { ProjectService } from '../services/project';
   styleUrls: ['./terminal.scss']
 })
 export class TerminalComponent {
-  public webContainerService = inject(ContainerEngine);
+  public containerEngine = inject(ContainerEngine);
   public projectService = inject(ProjectService); // For debugging potentially? Or maybe just webContainer is enough.
 
   terminalTab = signal<'server' | 'shell' | 'console'>('server');
@@ -26,9 +26,9 @@ export class TerminalComponent {
   async restartDevServer() {
     this.restarting.set(true);
     try {
-      await this.webContainerService.stopDevServer();
+      await this.containerEngine.stopDevServer();
       await new Promise(r => setTimeout(r, 1000));
-      await this.webContainerService.startDevServer();
+      await this.containerEngine.startDevServer();
     } finally {
       this.restarting.set(false);
     }
@@ -36,7 +36,7 @@ export class TerminalComponent {
 
   sendTerminalCommand() {
     if (!this.terminalInput) return;
-    this.webContainerService.writeToShell(this.terminalInput + '\n');
+    this.containerEngine.writeToShell(this.terminalInput + '\n');
     this.terminalInput = '';
   }
 }

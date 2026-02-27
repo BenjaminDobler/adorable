@@ -61,7 +61,6 @@ The client uses Angular standalone components with signals-based state managemen
 - **`ApiService`** (`services/api.ts`) — HTTP client for all backend calls; uses `authInterceptor` to attach JWT Bearer tokens
 - **`ProjectService`** (`services/project.ts`) — RxJS-based project state: files, messages, loading state
 - **`SmartContainerEngine`** (`services/smart-container.engine.ts`) — Routes between runtime engines:
-  - `BrowserContainerEngine` — WebContainer API (in-browser)
   - `LocalContainerEngine` — Docker containers
   - `NativeContainerEngine` — Electron IPC
 
@@ -85,7 +84,7 @@ Routing is in `app.routes.ts` with auth guards. The main editor UI lives in `app
 - `/api/kits` — Component kit discovery
 - `/api/github`, `/api/figma`, `/api/mcp` — Integrations
 
-**File System Abstraction** — `MemoryFileSystem` (in-memory for agentic loop) and `ContainerFileSystem` (Docker) implement a shared `FileSystemInterface`.
+**File System Abstraction** — `DiskFileSystem` (disk-backed), `MemoryFileSystem` (in-memory fallback), and `ContainerFileSystem` (Docker/Native) implement a shared `FileSystemInterface`.
 
 **Auth** — JWT tokens validated by `middleware/auth.ts`; user API keys stored AES-256 encrypted in the database. Rate limiting via `express-rate-limit` on login/register. Role-based access (`admin`/`user`) enforced by `middleware/admin.ts`. Registration supports open or invite-only modes, optional email verification via nodemailer. Server-wide settings stored in `ServerConfig` model and cached in `server-config.service.ts`.
 
@@ -97,7 +96,7 @@ Schema is at `prisma/schema.prisma`. After modifying, run `npx prisma migrate de
 
 ### Streaming Protocol
 
-AI generation uses Server-Sent Events (SSE). The client POSTs to `/api/generate-stream` and receives streamed events with types: `file_written`, `stream`, `tool_call`, `tool_result`, `status`. The server requires COEP/COOP headers for WebContainer support (configured in both dev server and Express middleware).
+AI generation uses Server-Sent Events (SSE). The client POSTs to `/api/generate-stream` and receives streamed events with types: `file_written`, `stream`, `tool_call`, `tool_result`, `status`.
 
 ## Environment
 

@@ -1,6 +1,12 @@
 import { defineConfig } from 'vitest/config';
+import * as path from 'path';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@adorable/shared-types': path.resolve(__dirname, '../../libs/shared-types/src/index.ts'),
+    },
+  },
   test: {
     globals: true,
     environment: 'node',

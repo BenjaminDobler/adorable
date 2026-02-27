@@ -4,7 +4,7 @@ import { KITS_DIR } from '../config';
 import { prisma } from '../db/prisma';
 import { parseKitsFromSettings, updateKitsInSettings } from '../providers/kits/kit-registry';
 import { generateComponentDocFiles } from '../providers/kits/doc-generator';
-import { Kit, WebContainerFiles, WebContainerFile, WebContainerDirectory } from '../providers/kits/types';
+import { Kit, FileTree, FileNode, DirectoryNode } from '../providers/kits/types';
 
 export interface KitFileEntry {
   path: string;
@@ -246,15 +246,15 @@ export class KitFsService {
   }
 
   /**
-   * Read template files from disk into WebContainerFiles tree format.
+   * Read template files from disk into FileTree tree format.
    */
-  async readKitTemplateFiles(kitId: string): Promise<WebContainerFiles> {
+  async readKitTemplateFiles(kitId: string): Promise<FileTree> {
     const templatePath = this.getKitTemplatePath(kitId);
-    return this.readDirAsWebContainerFiles(templatePath);
+    return this.readDirAsFileTree(templatePath);
   }
 
-  private async readDirAsWebContainerFiles(dirPath: string): Promise<WebContainerFiles> {
-    const result: WebContainerFiles = {};
+  private async readDirAsFileTree(dirPath: string): Promise<FileTree> {
+    const result: FileTree = {};
     let entries;
     try {
       entries = await fs.readdir(dirPath, { withFileTypes: true });
@@ -265,7 +265,7 @@ export class KitFsService {
     for (const entry of entries) {
       const fullPath = path.join(dirPath, entry.name);
       if (entry.isDirectory()) {
-        const subDir = await this.readDirAsWebContainerFiles(fullPath);
+        const subDir = await this.readDirAsFileTree(fullPath);
         result[entry.name] = { directory: subDir };
       } else if (entry.isFile()) {
         try {
@@ -299,22 +299,22 @@ export class KitFsService {
   }
 
   /**
-   * Write WebContainerFiles tree to disk as template files.
+   * Write FileTree tree to disk as template files.
    */
-  async writeKitTemplateFiles(kitId: string, files: WebContainerFiles): Promise<void> {
+  async writeKitTemplateFiles(kitId: string, files: FileTree): Promise<void> {
     const templatePath = this.getKitTemplatePath(kitId);
-    await this.writeWebContainerFilesToDisk(templatePath, files);
+    await this.writeFileTreeToDisk(templatePath, files);
   }
 
-  private async writeWebContainerFilesToDisk(basePath: string, files: WebContainerFiles): Promise<void> {
+  private async writeFileTreeToDisk(basePath: string, files: FileTree): Promise<void> {
     for (const [name, item] of Object.entries(files)) {
       const fullPath = path.join(basePath, name);
       if ('directory' in item) {
         await fs.mkdir(fullPath, { recursive: true });
-        await this.writeWebContainerFilesToDisk(fullPath, (item as WebContainerDirectory).directory);
+        await this.writeFileTreeToDisk(fullPath, (item as DirectoryNode).directory);
       } else if ('file' in item) {
         await fs.mkdir(path.dirname(fullPath), { recursive: true });
-        const contents = (item as WebContainerFile).file.contents;
+        const contents = (item as FileNode).file.contents;
         // Try to detect base64-encoded binary content
         if (typeof contents === 'string' && this.isBase64(contents) && contents.length > 100) {
           try {
@@ -339,29 +339,29 @@ export class KitFsService {
   }
 
   /**
-   * Flatten WebContainerFiles tree into flat Record<string, string> of paths.
+   * Flatten FileTree tree into flat Record<string, string> of paths.
    * Used to extract .adorable files from template trees.
    */
-  flattenWebContainerFiles(files: WebContainerFiles, prefix = ''): Record<string, string> {
+  flattenFileTree(files: FileTree, prefix = ''): Record<string, string> {
     const result: Record<string, string> = {};
     for (const [name, item] of Object.entries(files)) {
       const filePath = prefix ? `${prefix}/${name}` : name;
       if ('directory' in item) {
-        const subFiles = this.flattenWebContainerFiles((item as WebContainerDirectory).directory, filePath);
+        const subFiles = this.flattenFileTree((item as DirectoryNode).directory, filePath);
         Object.assign(result, subFiles);
       } else if ('file' in item) {
-        result[filePath] = (item as WebContainerFile).file.contents;
+        result[filePath] = (item as FileNode).file.contents;
       }
     }
     return result;
   }
 
   /**
-   * Extract .adorable files from a WebContainerFiles tree.
+   * Extract .adorable files from a FileTree tree.
    * Returns files with keys like ".adorable/components/Button.md".
    */
-  extractAdorableFilesFromTemplate(files: WebContainerFiles): Record<string, string> {
-    const flat = this.flattenWebContainerFiles(files);
+  extractAdorableFilesFromTemplate(files: FileTree): Record<string, string> {
+    const flat = this.flattenFileTree(files);
     const adorableFiles: Record<string, string> = {};
     for (const [filePath, content] of Object.entries(flat)) {
       if (filePath.startsWith('.adorable/') || filePath === '.adorable') {
@@ -372,10 +372,10 @@ export class KitFsService {
   }
 
   /**
-   * Remove .adorable entries from a WebContainerFiles tree (for storing template without .adorable).
+   * Remove .adorable entries from a FileTree tree (for storing template without .adorable).
    */
-  removeAdorableFromTemplate(files: WebContainerFiles): WebContainerFiles {
-    const result: WebContainerFiles = {};
+  removeAdorableFromTemplate(files: FileTree): FileTree {
+    const result: FileTree = {};
     for (const [name, item] of Object.entries(files)) {
       if (name === '.adorable') continue;
       result[name] = item;

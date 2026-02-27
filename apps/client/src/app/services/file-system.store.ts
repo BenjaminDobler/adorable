@@ -1,19 +1,19 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { FileSystemNode, WebContainerFiles } from '@adorable/shared-types';
+import { FileSystemNode, FileTree } from '@adorable/shared-types';
 
 @Injectable({
   providedIn: 'root'
 })
 export class FileSystemStore {
   // Core State
-  private _files = signal<WebContainerFiles>({});
+  private _files = signal<FileTree>({});
   
   // Readonly Signals
   public readonly files = this._files.asReadonly();
   public readonly isEmpty = computed(() => Object.keys(this.files()).length === 0);
 
   // Actions
-  setFiles(files: WebContainerFiles) {
+  setFiles(files: FileTree) {
     this._files.set(files);
   }
 
@@ -74,7 +74,7 @@ export class FileSystemStore {
 
   // --- Private Helpers ---
 
-  private setFileInTree(root: WebContainerFiles, path: string, content: string) {
+  private setFileInTree(root: FileTree, path: string, content: string) {
     const parts = path.split('/');
     let current = root;
 
@@ -94,7 +94,7 @@ export class FileSystemStore {
     current[fileName] = { file: { contents: content } };
   }
 
-  private removeFileFromTree(root: WebContainerFiles, path: string) {
+  private removeFileFromTree(root: FileTree, path: string) {
     const parts = path.split('/');
     const fileName = parts.pop()!;
     
@@ -107,7 +107,7 @@ export class FileSystemStore {
     delete current[fileName];
   }
 
-  private extractNode(root: WebContainerFiles, path: string): any | null {
+  private extractNode(root: FileTree, path: string): any | null {
     const parts = path.split('/');
     const name = parts.pop()!;
     let current = root;
@@ -120,7 +120,7 @@ export class FileSystemStore {
     return node;
   }
 
-  private insertNode(root: WebContainerFiles, path: string, node: any) {
+  private insertNode(root: FileTree, path: string, node: any) {
     const parts = path.split('/');
     const name = parts.pop()!;
     let current = root;
@@ -131,7 +131,7 @@ export class FileSystemStore {
     current[name] = node;
   }
 
-  private findNode(root: WebContainerFiles, path: string): FileSystemNode | null {
+  private findNode(root: FileTree, path: string): FileSystemNode | null {
     const parts = path.split('/');
     let current: any = root;
     

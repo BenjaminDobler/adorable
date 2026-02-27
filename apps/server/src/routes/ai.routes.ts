@@ -4,14 +4,14 @@ import { decrypt } from '../utils/crypto';
 import { authenticate } from '../middleware/auth';
 import { containerRegistry } from '../providers/container/container-registry';
 import { nativeRegistry } from '../providers/container/native-registry';
-import { ContainerFileSystem } from '../providers/filesystem/container-filesystem';
-import { MemoryFileSystem } from '../providers/filesystem/memory-filesystem';
+import { DiskFileSystem, ExecDelegate } from '../providers/filesystem/disk-filesystem';
 import { screenshotManager } from '../providers/screenshot-manager';
 import { questionManager } from '../providers/question-manager';
 import { MCPServerConfig } from '../mcp/types';
 import { Kit } from '../providers/kits/types';
 import { projectFsService } from '../services/project-fs.service';
 import { calculateCost } from '../providers/pricing';
+import * as fsSync from 'fs';
 
 const router = express.Router();
 
@@ -136,7 +136,7 @@ router.get('/models/:provider', async (req: any, res) => {
 });
 
 router.post('/generate-stream', async (req: any, res) => {
-    let { prompt, previousFiles, provider, model, apiKey, images, openFiles, use_container_context, forcedSkill, planMode, kitId, projectId, builtInTools, reasoningEffort } = req.body;
+    let { prompt, previousFiles, provider, model, apiKey, images, openFiles, forcedSkill, planMode, kitId, projectId, builtInTools, reasoningEffort, history, contextSummary } = req.body;
     const user = req.user;
 
     // Debug: Log images received
@@ -178,46 +178,65 @@ router.post('/generate-stream', async (req: any, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    // Auto-enable agent mode when a container is available (Docker/Native)
-    let fileSystem;
-    try {
-       const manager = containerRegistry.getManager(user.id);
-       if (manager && manager.isRunning()) {
-          fileSystem = new ContainerFileSystem(manager);
-          console.log(`[AgentMode] Auto-enabled via Docker for user ${user.id}`);
-       }
-    } catch (e) {
-       // No Docker container available
-    }
-
-    // Check native (Electron/desktop) container if Docker wasn't available
-    if (!fileSystem) {
+    // Resolve project path on disk and build exec delegate
+    let fileSystem: DiskFileSystem | undefined;
+    if (projectId) {
        try {
-          const nativeManager = nativeRegistry.getManager(user.id);
-          if (nativeManager && nativeManager.isRunning()) {
-             fileSystem = new ContainerFileSystem(nativeManager);
-             console.log(`[AgentMode] Auto-enabled via Native for user ${user.id}`);
-          }
-       } catch (e) {
-          // No native container available
-       }
-    }
+         let projectPath: string | null = null;
+         let execDelegate: ExecDelegate | undefined;
 
-    // Fall back to disk-based MemoryFileSystem
-    if (!fileSystem) {
-       if (projectId) {
-          try {
-            const diskFiles = await projectFsService.readProjectFilesFlat(projectId);
-            if (Object.keys(diskFiles).length > 0) {
-              fileSystem = new MemoryFileSystem(diskFiles);
-              console.log(`[AgentMode] Initialized MemoryFileSystem from disk for project ${projectId}`);
-            }
-          } catch (diskErr) {
-            console.warn(`[AgentMode] Failed to read project from disk:`, diskErr);
-          }
-       }
-       if (!fileSystem && use_container_context) {
-          console.warn(`[AgentMode] Requested but no container available. Using memory mode.`);
+         // Check Docker container first — its host path is authoritative
+         try {
+           const manager = containerRegistry.getManager(user.id);
+           if (manager && manager.isRunning()) {
+             const info = await manager.getContainerInfo();
+             if (info) {
+               projectPath = info.hostProjectPath;
+             }
+             execDelegate = async (command: string) => {
+               const { output, exitCode } = await manager.exec(['sh', '-c', command]);
+               return { stdout: output, stderr: '', exitCode };
+             };
+             console.log(`[AgentMode] Using Docker exec delegate for user ${user.id}`);
+           }
+         } catch { /* No Docker container */ }
+
+         // Check Native container — its project path is authoritative
+         if (!execDelegate) {
+           try {
+             const nativeManager = nativeRegistry.getManager(user.id);
+             if (nativeManager && nativeManager.isRunning()) {
+               const managerPath = nativeManager.getProjectPath();
+               if (managerPath) {
+                 projectPath = managerPath;
+               }
+               execDelegate = async (command: string) => {
+                 const { output, exitCode } = await nativeManager.exec(['sh', '-c', command]);
+                 return { stdout: output, stderr: '', exitCode };
+               };
+               console.log(`[AgentMode] Using Native exec delegate for user ${user.id}`);
+             }
+           } catch { /* No native container */ }
+         }
+
+         // Fallback: use projectFsService which already reads ADORABLE_PROJECTS_DIR
+         if (!projectPath) {
+           projectPath = projectFsService.getProjectPath(projectId);
+           if (!fsSync.existsSync(projectPath)) {
+             fsSync.mkdirSync(projectPath, { recursive: true });
+           }
+         }
+
+         fileSystem = new DiskFileSystem(projectPath, execDelegate);
+         console.log(`[AgentMode] Initialized DiskFileSystem at ${projectPath}`);
+
+         // Ensure kit docs symlink exists (created once, persists on disk).
+         // Needed here for new unsaved projects where save hasn't run yet.
+         if (kitId) {
+           projectFsService.linkKit(projectId, kitId).catch(() => {});
+         }
+       } catch (diskErr) {
+         console.warn(`[AgentMode] Failed to initialize DiskFileSystem:`, diskErr);
        }
     }
 
@@ -270,7 +289,9 @@ router.post('/generate-stream', async (req: any, res) => {
           activeKit,
           projectId,
           builtInTools,
-          reasoningEffort
+          reasoningEffort,
+          history,
+          contextSummary
       }, {
           onText: (text) => {
               res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);
@@ -303,33 +324,71 @@ router.post('/generate-stream', async (req: any, res) => {
           }
       });
       
-      // Write generated files to disk and commit if we have a projectId
-      let commitSha: string | null = null;
-      if (projectId && result.files && Object.keys(result.files).length > 0) {
-        try {
-          await projectFsService.writeProjectFiles(projectId, result.files);
-          console.log(`[AI] Written generated files to disk for project ${projectId}`);
-
-          // Git: commit after generation
-          const { gitService } = await import('../services/git.service');
-          const projectPath = projectFsService.getProjectPath(projectId);
-          commitSha = await gitService.commit(projectPath, `AI: ${prompt.substring(0, 80)}`);
-          if (commitSha) {
-            console.log(`[Git] Post-generation commit: ${commitSha}`);
-          }
-        } catch (writeErr) {
-          console.error(`[AI] Failed to write files to disk or commit:`, writeErr);
-        }
-      }
-
-      // Include commitSha in result so client can store it
-      const resultWithSha = { ...result, commitSha };
-      res.write(`data: ${JSON.stringify({ type: 'result', content: resultWithSha })}\n\n`);
+      // Send result to client immediately — don't block on git.
+      // DiskFileSystem already wrote all files to disk during the agentic loop,
+      // so writeProjectFiles is unnecessary.
+      res.write(`data: ${JSON.stringify({ type: 'result', content: result })}\n\n`);
       res.end();
+
+      // Git: commit after generation in the background (fire-and-forget).
+      // This doesn't block the client from receiving the result.
+      if (projectId) {
+        import('../services/git.service').then(async ({ gitService }) => {
+          try {
+            const projectPath = projectFsService.getProjectPath(projectId);
+            const commitSha = await gitService.commit(projectPath, `AI: ${prompt.substring(0, 80)}`);
+            if (commitSha) {
+              console.log(`[Git] Post-generation commit: ${commitSha}`);
+            }
+          } catch (gitErr) {
+            console.warn('[Git] Post-generation commit failed:', gitErr);
+          }
+        });
+      }
     } catch (error) {
       console.error('Error calling LLM:', error);
       res.write(`data: ${JSON.stringify({ type: 'error', content: error.message })}\n\n`);
       res.end();
+    }
+});
+
+// Summarize conversation context for history compaction
+router.post('/summarize-context', async (req: any, res) => {
+    const { messages } = req.body;
+    const user = req.user;
+
+    if (!messages?.length) return res.json({ summary: '' });
+
+    const userSettings = user.settings ? JSON.parse(user.settings) : {};
+
+    // Try to get an API key for summarization (prefer Anthropic, fall back to Google)
+    const getApiKeyForSummary = (p: string) => {
+      const profiles = userSettings.profiles || [];
+      const profile = profiles.find((pr: any) => pr.provider === p);
+      if (profile && profile.apiKey) {
+        return decrypt(profile.apiKey);
+      }
+      return undefined;
+    };
+
+    const anthropicKey = getApiKeyForSummary('anthropic');
+
+    if (!anthropicKey) return res.json({ summary: '' });
+
+    try {
+      const text = messages.map((m: any) => `${m.role}: ${m.text}`).join('\n\n');
+      const Anthropic = (await import('@anthropic-ai/sdk')).default;
+      const anthropic = new Anthropic({ apiKey: anthropicKey });
+      const response = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 500,
+        messages: [{ role: 'user', content: `Summarize this AI coding conversation in 2-3 sentences. Focus on what was built, what changes were requested, and key decisions made:\n\n${text}` }]
+      });
+      const summary = response.content[0]?.type === 'text' ? response.content[0].text : '';
+      res.json({ summary });
+    } catch (e) {
+      console.warn('[SummarizeContext] Failed:', e);
+      res.json({ summary: '' });
     }
 });
 

@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { ApiService } from '../../services/api';
 import { ToastService } from '../../services/toast';
-import { Kit, KitResource, StorybookComponent, StorybookResource, WebContainerFiles, KitTemplate, NpmPackageConfig } from '../../services/kit-types';
+import { Kit, KitResource, StorybookComponent, StorybookResource, FileTree, KitTemplate, NpmPackageConfig } from '../../services/kit-types';
 import { BASE_FILES } from '../../base-project';
 import { FolderImportComponent } from '../folder-import/folder-import';
 import { ComponentEditorModalComponent } from './component-editor-modal/component-editor-modal.component';
@@ -59,7 +59,7 @@ export class KitBuilderComponent {
 
   // Template state
   templateType = signal<'default' | 'custom'>('default');
-  customTemplate = signal<WebContainerFiles | null>(null);
+  customTemplate = signal<FileTree | null>(null);
   importedFileCount = signal(0);
   showFolderImport = signal(false);
   showTemplateTree = signal(false);
@@ -122,7 +122,7 @@ export class KitBuilderComponent {
     const files = this.customTemplate();
     if (!files) return [];
     const entries: TemplateFileEntry[] = [];
-    const walk = (obj: WebContainerFiles, prefix: string, depth: number) => {
+    const walk = (obj: FileTree, prefix: string, depth: number) => {
       const keys = Object.keys(obj).sort((a, b) => {
         const aIsDir = 'directory' in obj[a];
         const bIsDir = 'directory' in obj[b];
@@ -250,7 +250,7 @@ export class KitBuilderComponent {
     this.router.navigate(['/dashboard'], { queryParams: { tab: 'kits' } });
   }
 
-  private countFiles(files: WebContainerFiles): number {
+  private countFiles(files: FileTree): number {
     let count = 0;
     for (const key of Object.keys(files)) {
       const item = files[key];
@@ -472,7 +472,7 @@ export class KitBuilderComponent {
     this.showFolderImport.set(true);
   }
 
-  onFolderImport(data: { files: WebContainerFiles; name: string; description: string }) {
+  onFolderImport(data: { files: FileTree; name: string; description: string }) {
     this.customTemplate.set(data.files);
     this.importedFileCount.set(this.countFiles(data.files));
     this.templateType.set('custom');
@@ -616,7 +616,7 @@ export class KitBuilderComponent {
   }
 
   // Template tree methods
-  private getTopLevelDirPaths(files: WebContainerFiles): Set<string> {
+  private getTopLevelDirPaths(files: FileTree): Set<string> {
     const paths = new Set<string>();
     for (const key of Object.keys(files)) {
       if ('directory' in files[key]) {
@@ -651,7 +651,7 @@ export class KitBuilderComponent {
   removeTemplateFile(path: string) {
     const files = this.customTemplate();
     if (!files) return;
-    const newFiles = this.removeFromWebContainerFiles(files, path);
+    const newFiles = this.removeFromFileTree(files, path);
     if (Object.keys(newFiles).length === 0) {
       this.customTemplate.set(null);
       this.importedFileCount.set(0);
@@ -666,7 +666,7 @@ export class KitBuilderComponent {
   removeTemplateFolder(folderPath: string) {
     const files = this.customTemplate();
     if (!files) return;
-    const newFiles = this.removeFromWebContainerFiles(files, folderPath);
+    const newFiles = this.removeFromFileTree(files, folderPath);
     const expanded = new Set(this.expandedTemplatePaths());
     for (const p of expanded) {
       if (p === folderPath || p.startsWith(folderPath + '/')) {
@@ -685,15 +685,15 @@ export class KitBuilderComponent {
     }
   }
 
-  private removeFromWebContainerFiles(files: WebContainerFiles, targetPath: string): WebContainerFiles {
-    const result: WebContainerFiles = {};
+  private removeFromFileTree(files: FileTree, targetPath: string): FileTree {
+    const result: FileTree = {};
     for (const key of Object.keys(files)) {
       if (key === targetPath) continue;
       const item = files[key];
       if ('directory' in item) {
         if (targetPath.startsWith(key + '/')) {
           const subPath = targetPath.slice(key.length + 1);
-          const newDir = this.removeFromWebContainerFiles(item.directory, subPath);
+          const newDir = this.removeFromFileTree(item.directory, subPath);
           if (Object.keys(newDir).length > 0) {
             result[key] = { directory: newDir };
           }

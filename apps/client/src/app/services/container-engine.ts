@@ -1,6 +1,6 @@
 import { Signal, WritableSignal } from '@angular/core';
 import { Observable } from 'rxjs';
-import { WebContainerFiles } from '@adorable/shared-types';
+import { FileTree } from '@adorable/shared-types';
 
 export interface ProcessOutput {
   stream: Observable<string>;
@@ -35,7 +35,7 @@ export abstract class ContainerEngine {
   abstract teardown(): Promise<void>;
 
   // File System
-  abstract mount(files: WebContainerFiles): Promise<void>;
+  abstract mount(files: FileTree): Promise<void>;
   mountProject?(projectId: string, kitId: string | null): Promise<void>;
   abstract writeFile(path: string, content: string | Uint8Array): Promise<void>;
   abstract readFile(path: string): Promise<string>;

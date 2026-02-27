@@ -1,7 +1,7 @@
 import { RUNTIME_SCRIPTS } from './runtime-scripts';
-import type { Kit, WebContainerFiles } from './services/kit-types';
+import type { Kit, FileTree } from './services/kit-types';
 
-export const BASE_FILES: WebContainerFiles = {
+export const BASE_FILES: FileTree = {
   'package.json': {
     file: {
       contents: JSON.stringify(

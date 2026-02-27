@@ -42,7 +42,7 @@ export class ChatComponent implements OnDestroy {
   private activeSubscription: Subscription | null = null;
   private destroy$ = new Subject<void>();
   private apiService = inject(ApiService);
-  public webContainerService = inject(ContainerEngine);
+  public containerEngine = inject(ContainerEngine);
   public projectService = inject(ProjectService);
   private toastService = inject(ToastService);
   private confirmService = inject(ConfirmService);
@@ -121,6 +121,10 @@ export class ChatComponent implements OnDestroy {
   // Plan Mode
   planMode = signal(false);
 
+  // Conversation history context
+  private contextSummary = signal<string | null>(null);
+  private contextCleared = signal(false);
+
   get isAttachedImage(): boolean {
     if (this.attachedFile?.type.startsWith('image/')) return true;
     if (this.attachedFileContent?.startsWith('data:image/')) return true;
@@ -183,11 +187,6 @@ export class ChatComponent implements OnDestroy {
         }, 0);
     });
 
-    // Agent mode is always enabled (Docker/Native only)
-    effect(() => {
-       const mode = this.webContainerService.mode();
-       this.projectService.agentMode.set(mode === 'local' || mode === 'native');
-    });
   }
 
   // ===== AI Settings =====
@@ -767,10 +766,34 @@ Analyze the attached design images carefully and create matching Angular compone
       allImages.push(...this.figmaImages());
     }
 
+    // Build conversation history (skip if context was cleared)
+    let historyToSend: { role: string; text: string }[] | undefined;
+    let summaryToSend: string | undefined;
+
+    if (!this.contextCleared()) {
+      const history: { role: string; text: string }[] = [];
+      const currentMessages = this.messages();
+      // Exclude the last message (current user prompt just added above)
+      for (let i = 0; i < currentMessages.length - 1; i++) {
+        const msg = currentMessages[i];
+        if (msg.role === 'system' || !msg.text?.trim()) continue;
+        history.push({ role: msg.role, text: msg.text });
+      }
+      if (this.contextSummary() && history.length > 6) {
+        summaryToSend = this.contextSummary()!;
+        historyToSend = history.slice(-6);
+      } else {
+        historyToSend = history.length > 20 ? history.slice(-20) : history;
+      }
+    }
+    this.contextCleared.set(false);
+
     console.log('[Generate] Sending request with:', {
       promptLength: currentPrompt.length,
       imageCount: allImages.length,
-      hasFigmaContext: !!this.figmaContext()
+      hasFigmaContext: !!this.figmaContext(),
+      historyLength: historyToSend?.length || 0,
+      hasContextSummary: !!summaryToSend
     });
 
     this.activeSubscription = this.apiService.generateStream(currentPrompt, previousFiles, {
@@ -779,13 +802,14 @@ Analyze the attached design images carefully and create matching Angular compone
       model,
       images: allImages.length > 0 ? allImages : undefined,
       openFiles: this.getContextFiles(),
-      use_container_context: this.projectService.agentMode(),
       forcedSkill: this.selectedSkill()?.name,
       planMode: this.planMode(),
       kitId: this.projectService.selectedKitId() || undefined,
       projectId: this.projectService.projectId() || undefined,
       builtInTools,
-      reasoningEffort: this.reasoningEffort()
+      reasoningEffort: this.reasoningEffort(),
+      history: historyToSend?.length ? historyToSend : undefined,
+      contextSummary: summaryToSend
     }).subscribe({
       next: async (event) => {
         if (event.type !== 'tool_delta' && event.type !== 'text') {
@@ -922,6 +946,17 @@ Analyze the attached design images carefully and create matching Angular compone
             this.projectService.fileStore.setFiles(projectFiles);
             this.loading.set(false);
 
+            // Background: summarize context if conversation is getting long
+            const allMsgs = this.messages();
+            const textMsgs = allMsgs.filter(m => m.role !== 'system' && m.text?.trim());
+            if (textMsgs.length > 10 && !this.contextSummary()) {
+              const toSummarize = textMsgs.slice(0, -6).map(m => ({ role: m.role, text: m.text }));
+              this.apiService.summarizeContext(toSummarize).subscribe({
+                next: (res) => { if (res.summary) this.contextSummary.set(res.summary); },
+                error: () => {} // Non-fatal
+              });
+            }
+
           } catch (err) {
             console.error('Container error:', err);
             this.projectService.addSystemMessage('An error occurred while building the project.');
@@ -950,6 +985,11 @@ Analyze the attached design images carefully and create matching Angular compone
         this.activeSubscription = null;
       }
     });
+  }
+
+  clearContext() {
+    this.contextSummary.set(null);
+    this.contextCleared.set(true);
   }
 
   cancelGeneration() {

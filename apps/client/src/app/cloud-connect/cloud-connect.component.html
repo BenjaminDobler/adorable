@@ -1,0 +1,59 @@
+@if (cloudSyncService.isConnected()) {
+  <div class="cloud-connected">
+    <div class="cloud-user-row">
+      <div class="cloud-icon-circle">
+        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none">
+          <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+        </svg>
+      </div>
+      <div class="cloud-user-info">
+        <span class="cloud-user-email">{{ cloudSyncService.cloudUser()?.email }}</span>
+        <span class="cloud-user-url">{{ cloudSyncService.cloudUrl() }}</span>
+      </div>
+    </div>
+    <button class="btn-disconnect" (click)="disconnect()">Disconnect</button>
+  </div>
+} @else {
+  <div class="cloud-login-form">
+    <div class="form-group">
+      <label>Cloud Server URL</label>
+      <input
+        type="url"
+        [ngModel]="loginUrl()"
+        (ngModelChange)="loginUrl.set($event)"
+        placeholder="http://localhost:3333"
+      />
+      <small class="help-text">The Express API server URL</small>
+    </div>
+    <div class="form-group">
+      <label>Email</label>
+      <input
+        type="email"
+        [ngModel]="loginEmail()"
+        (ngModelChange)="loginEmail.set($event)"
+        placeholder="your@email.com"
+      />
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input
+        type="password"
+        [ngModel]="loginPassword()"
+        (ngModelChange)="loginPassword.set($event)"
+        placeholder="Password"
+        autocomplete="new-password"
+        (keydown.enter)="connect()"
+      />
+    </div>
+    @if (loginError()) {
+      <div class="error-message">{{ loginError() }}</div>
+    }
+    <button
+      class="btn-connect"
+      (click)="connect()"
+      [disabled]="loginLoading() || !loginUrl() || !loginEmail() || !loginPassword()"
+    >
+      {{ loginLoading() ? 'Connecting...' : 'Connect' }}
+    </button>
+  </div>
+}

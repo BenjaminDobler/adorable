@@ -192,7 +192,7 @@
       class="preview-wrapper"
       style="display: flex; flex: 1; flex-direction: column; min-height: 0"
     >
-      @if (webContainerService.url()) {
+      @if (containerEngine.url()) {
       <div class="preview-frame-container" [class]="'device-' + previewDevice()">
         <app-preview-toolbar
           [previewDevice]="previewDevice()"
@@ -209,8 +209,7 @@
         <div class="iframe-wrapper">
           <iframe
             #previewFrame
-            [src]="webContainerService.url() | safeUrl"
-            allow="cross-origin-isolated"
+            [src]="containerEngine.url() | safeUrl"
             [style.pointer-events]="isResizingSidebar || isResizingEditor || isAnnotating() || isSelecting ? 'none' : 'auto'"
           ></iframe>
         </div>
@@ -227,7 +226,7 @@
           <h2>Building your app...</h2>
           <p class="loading-text">{{ currentMessage() }}</p>
           <p class="status-detail">
-            > {{ webContainerService.status() }}
+            > {{ containerEngine.status() }}
           </p>
         </div>
       </div>

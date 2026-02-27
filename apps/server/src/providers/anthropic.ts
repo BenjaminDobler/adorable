@@ -16,7 +16,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     });
 
     // Prepare shared context
-    const { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName } = await this.prepareAgentContext(options, 'anthropic');
+    const { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName, history, contextSummary } = await this.prepareAgentContext(options, 'anthropic');
     const skills = await this.addSkillTools(availableTools, skillRegistry, fs, options.userId);
     // Tools with no parameters (e.g. take_screenshot) legitimately receive empty input
     const noInputTools = new Set(availableTools.filter((t: any) => !t.input_schema?.required?.length && !Object.keys(t.input_schema?.properties || {}).length).map((t: any) => t.name));
@@ -34,17 +34,48 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     logger.logText('KNOWLEDGE_BASE', ANGULAR_KNOWLEDGE_BASE);
     logger.logText('USER_MESSAGE', userMessage);
 
-    // Build initial messages
-    const messages: any[] = [{
-      role: 'user',
-      content: [{
-        type: 'text',
-        text: userMessage,
-        cache_control: { type: 'ephemeral' }
-      }]
-    }];
+    // Build initial messages with conversation history
+    const messages: any[] = [];
 
-    // Handle Attachments
+    // 1. Context summary (compacted older turns)
+    if (contextSummary) {
+      messages.push({ role: 'user', content: [{ type: 'text', text: `[Earlier conversation summary: ${contextSummary}]` }] });
+      messages.push({ role: 'assistant', content: [{ type: 'text', text: 'Understood, I have context from our earlier conversation.' }] });
+    }
+
+    // 2. Recent history messages
+    if (history?.length) {
+      for (let i = 0; i < history.length; i++) {
+        const msg = history[i];
+        const isLast = i === history.length - 1;
+        messages.push({
+          role: msg.role,
+          content: [{
+            type: 'text', text: msg.text,
+            ...(isLast && msg.role === 'assistant' ? { cache_control: { type: 'ephemeral' } } : {})
+          }]
+        });
+      }
+      // Ensure alternating roles: drop trailing user message since we're about to add one
+      if (messages.length > 0 && messages[messages.length - 1].role === 'user') {
+        messages.pop();
+      }
+    }
+
+    const historyCount = messages.length;
+    if (historyCount > 0) {
+      logger.log('HISTORY_INJECTED', { messageCount: historyCount, hasSummary: !!contextSummary, totalChars: messages.reduce((sum: number, m: any) => sum + (m.content?.[0]?.text?.length || 0), 0) });
+    }
+
+    // 3. Current enriched user message
+    const currentUserContent: any[] = [{
+      type: 'text',
+      text: userMessage,
+      cache_control: { type: 'ephemeral' }
+    }];
+    messages.push({ role: 'user', content: currentUserContent });
+
+    // Handle Attachments — append to current user message
     if (options.images && options.images.length > 0) {
       options.images.forEach(dataUri => {
         const match = dataUri.match(/^data:([^;]+);base64,(.+)$/);
@@ -52,19 +83,19 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
           const mimeType = match[1];
           const data = match[2];
           if (['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(mimeType)) {
-            messages[0].content.push({
+            currentUserContent.push({
               type: 'image',
               source: { type: 'base64', media_type: mimeType as any, data }
             });
           } else if (mimeType === 'application/pdf') {
-            messages[0].content.push({
+            currentUserContent.push({
               type: 'document',
               source: { type: 'base64', media_type: 'application/pdf', data }
             });
           } else if (mimeType.startsWith('text/') || mimeType === 'application/json') {
             try {
               const textContent = Buffer.from(data, 'base64').toString('utf-8');
-              messages[0].content.push({
+              currentUserContent.push({
                 type: 'text',
                 text: `\n[Attached File Content (${mimeType})]:\n${textContent}\n`
               });

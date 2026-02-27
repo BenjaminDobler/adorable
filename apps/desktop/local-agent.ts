@@ -27,7 +27,7 @@ class NativeManager {
     return process.env['ADORABLE_PROJECTS_DIR'] || path.join(os.homedir(), 'adorable-projects');
   }
 
-  async createProject(projectId: string): Promise<string> {
+  async createProject(projectId: string, clean = true): Promise<string> {
     // Cancel any pending delayed SIGKILL from a previous stop() call
     // to prevent it from killing the new project's processes
     if (this.stopKillTimer) {
@@ -49,6 +49,22 @@ class NativeManager {
 
     this.projectPath = path.join(this.baseDir, projectId);
     await fs.mkdir(this.projectPath, { recursive: true });
+
+    // Clean stale source files from previous runs, but preserve node_modules
+    // and .angular cache to keep installs fast across project switches.
+    // Skip cleaning when clean=false (e.g. mountProject — files are already on disk).
+    if (clean) {
+      const KEEP = new Set(['node_modules', '.angular', '.nx']);
+      try {
+        const entries = await fs.readdir(this.projectPath);
+        await Promise.all(
+          entries
+            .filter(e => !KEEP.has(e))
+            .map(e => fs.rm(path.join(this.projectPath!, e), { recursive: true, force: true }))
+        );
+      } catch { /* empty or inaccessible — fine, mount will populate it */ }
+    }
+
     return this.projectPath;
   }
 
@@ -258,9 +274,9 @@ const AGENT_PORT = parseInt(process.env['ADORABLE_AGENT_PORT'] || '3334', 10);
 app.post('/api/native/start', async (req, res) => {
   console.log('[Agent] POST /start received');
   try {
-    const { projectId } = req.body;
-    console.log('[Agent] Creating project:', projectId);
-    const projectPath = await manager.createProject(projectId || 'desktop');
+    const { projectId, clean } = req.body;
+    console.log('[Agent] Creating project:', projectId, 'clean:', clean !== false);
+    const projectPath = await manager.createProject(projectId || 'desktop', clean !== false);
     console.log('[Agent] Project created at:', projectPath);
     res.json({ projectPath });
   } catch (e: any) {

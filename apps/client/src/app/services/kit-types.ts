@@ -4,23 +4,24 @@
  * Mirror of server-side types for use in client code
  */
 
-// WebContainer file structure type
-export interface WebContainerFile {
+// File tree structure types
+export interface FileNode {
   file: {
     contents: string;
+    encoding?: 'base64';
   };
 }
 
-export interface WebContainerDirectory {
-  directory: Record<string, WebContainerFile | WebContainerDirectory>;
+export interface DirectoryNode {
+  directory: Record<string, FileNode | DirectoryNode>;
 }
 
-export type WebContainerFiles = Record<string, WebContainerFile | WebContainerDirectory>;
+export type FileTree = Record<string, FileNode | DirectoryNode>;
 
 // Kit Template - defines the base files for a project
 export interface KitTemplate {
   type: 'default' | 'custom';
-  files: WebContainerFiles;
+  files: FileTree;
   angularVersion?: string;  // e.g., "17", "18", "21"
   storedOnDisk?: boolean;   // true when template files are stored on disk
 }

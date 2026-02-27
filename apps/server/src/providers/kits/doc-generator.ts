@@ -200,7 +200,7 @@ export function generateComponentCatalog(kit: Kit): string {
 }
 
 // ---------------------------------------------------------------------------
-// Doc file generation (written to .adorable/components/ in MemoryFileSystem)
+// Doc file generation (written to .adorable/components/ via symlink or disk)
 // ---------------------------------------------------------------------------
 
 /**

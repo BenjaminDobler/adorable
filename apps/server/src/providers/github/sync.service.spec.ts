@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { GitHubSyncService } from './sync.service';
-import type { WebContainerFiles } from '@adorable/shared-types';
+import type { FileTree } from '@adorable/shared-types';
 
 describe('GitHubSyncService', () => {
   const service = new GitHubSyncService();
 
   describe('flattenFiles', () => {
     it('should convert nested structure to flat paths', () => {
-      const files: WebContainerFiles = {
+      const files: FileTree = {
         'src': {
           directory: {
             'app': {
@@ -32,7 +32,7 @@ describe('GitHubSyncService', () => {
     });
 
     it('should handle empty directories', () => {
-      const files: WebContainerFiles = {
+      const files: FileTree = {
         'src': {
           directory: {
             'empty': { directory: {} },
@@ -53,7 +53,7 @@ describe('GitHubSyncService', () => {
   console.log("world");
   return true;
 }`;
-      const files: WebContainerFiles = {
+      const files: FileTree = {
         'index.ts': { file: { contents: multilineContent } },
       };
 
@@ -63,7 +63,7 @@ describe('GitHubSyncService', () => {
     });
 
     it('should mark base64 encoded files correctly', () => {
-      const files: WebContainerFiles = {
+      const files: FileTree = {
         'image.png': {
           file: {
             contents: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
@@ -131,7 +131,7 @@ describe('GitHubSyncService', () => {
 
   describe('round-trip conversion', () => {
     it('should preserve structure through flatten and unflatten', () => {
-      const original: WebContainerFiles = {
+      const original: FileTree = {
         'src': {
           directory: {
             'components': {

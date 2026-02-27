@@ -38,6 +38,7 @@ export class ChatInputComponent {
   @Output() togglePlanMode = new EventEmitter<void>();
   @Output() toggleCompactMode = new EventEmitter<void>();
   @Output() toggleMcpTools = new EventEmitter<void>();
+  @Output() clearContext = new EventEmitter<void>();
   @Output() previewImage = new EventEmitter<string>();
   @Output() shouldAddToAssetsChange = new EventEmitter<boolean>();
 

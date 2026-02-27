@@ -7,15 +7,16 @@ import { RUNTIME_SCRIPTS } from '@adorable/shared-types';
 export class MountService {
   /**
    * Prepare a project directory for the dev server.
-   * Files are already on disk — we only need to:
-   * 1. Copy missing kit template files into the project dir (if a kit is set)
-   * 2. Transform index.html in-place (base href + runtime scripts)
+   * For existing projects, files are already on disk — just normalize index.html.
+   * Kit template files are only copied for new/empty projects (no src/ yet).
    */
   async prepareAndWriteFiles(projectId: string, kitId: string | null, baseHref = '/'): Promise<void> {
     const projectPath = projectFsService.getProjectPath(projectId);
 
-    // 1. If a custom kit is set, copy template files that don't exist in the project yet
-    if (kitId && kitId !== 'default-angular-21') {
+    // Only copy kit template files for new/empty projects.
+    // Existing projects already have their files on disk — never overwrite with template.
+    const hasSrc = await this.dirExists(path.join(projectPath, 'src'));
+    if (!hasSrc && kitId && kitId !== 'default-angular-21') {
       const hasTemplate = await kitFsService.hasTemplateFiles(kitId);
       if (hasTemplate) {
         const templatePath = kitFsService.getKitTemplatePath(kitId);
@@ -23,10 +24,19 @@ export class MountService {
       }
     }
 
-    // 2. Set the correct base href for the runtime environment.
+    // Set the correct base href for the runtime environment.
     // Desktop/native mode: "/" (direct dev server access).
     // Docker/cloud mode: "/api/proxy/" (accessed through server proxy).
     await this.normalizeIndexHtml(projectPath, baseHref);
+  }
+
+  private async dirExists(dirPath: string): Promise<boolean> {
+    try {
+      const stat = await fs.stat(dirPath);
+      return stat.isDirectory();
+    } catch {
+      return false;
+    }
   }
 
   /**

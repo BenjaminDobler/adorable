@@ -2,6 +2,11 @@ import { MCPServerConfig } from '../mcp/types';
 import { Kit } from './kits/types';
 import { Question } from './question-manager';
 
+export interface HistoryMessage {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
 export interface BuiltInToolConfig {
   webSearch?: boolean;
   urlContext?: boolean;
@@ -24,6 +29,8 @@ export interface GenerateOptions {
   projectId?: string; // Project ID for debug log filenames
   builtInTools?: BuiltInToolConfig; // Built-in provider tools (web search, etc.)
   reasoningEffort?: 'low' | 'medium' | 'high'; // Controls model thinking depth
+  history?: HistoryMessage[]; // Previous conversation turns (text only)
+  contextSummary?: string; // Compacted summary of older conversation turns
 }
 
 export interface TokenUsage {

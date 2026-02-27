@@ -50,7 +50,10 @@ router.post('/', async (req: any, res) => {
       timestamp: m.timestamp
     })) : [];
 
-    if (id && id !== 'new-project' && id !== 'new') {
+    // Check if this project already exists in DB (supports client-generated IDs)
+    const existingProject = id ? await prisma.project.findFirst({ where: { id, userId: user.id } }) : null;
+
+    if (existingProject) {
       // Update existing project
       console.log(`[Save Project] Updating existing project ${id}`);
 
@@ -85,12 +88,12 @@ router.post('/', async (req: any, res) => {
         }
       });
     } else {
-      // Create new project
-      console.log(`[Save Project] Creating new project`);
+      // Create new project (use client-supplied ID if provided)
+      console.log(`[Save Project] Creating new project${id ? ` with ID ${id}` : ''}`);
       project = await prisma.project.create({
         data: {
+          ...(id ? { id } : {}),
           name,
-          // No files blob in DB for new projects
           userId: user.id,
           thumbnail,
           figmaImports: figmaImports ? JSON.stringify(figmaImports) : undefined,
@@ -115,6 +118,15 @@ router.post('/', async (req: any, res) => {
         await gitService.commit(projectPath, `Save: ${name}`);
       } catch (e) {
         console.warn('[Save Project] Git commit failed (non-fatal):', e);
+      }
+    }
+
+    // Symlink kit docs into project directory when kit is assigned/changed
+    if (selectedKitId !== undefined) {
+      try {
+        await projectFsService.linkKit(project.id, selectedKitId || null);
+      } catch (e) {
+        console.warn('[Save Project] Kit symlink failed (non-fatal):', e);
       }
     }
 

@@ -936,31 +936,3 @@ input:checked + .slider:before {
   }
 }
 
-/* Cloud Sync Tab */
-.cloud-icon-circle {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, rgba(96, 165, 250, 0.15) 0%, rgba(96, 165, 250, 0.05) 100%);
-  color: #60a5fa;
-  border-radius: var(--radius-md);
-  border: 1px solid rgba(96, 165, 250, 0.25);
-}
-
-.cloud-login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  max-width: 420px;
-}
-
-.error-message {
-  padding: 0.75rem 1rem;
-  background: rgba(239, 68, 68, 0.1);
-  color: var(--error-color);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: var(--radius-md);
-  font-size: 0.875rem;
-}
