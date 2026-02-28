@@ -9,6 +9,7 @@ import { screenshotManager } from '../providers/screenshot-manager';
 import { questionManager } from '../providers/question-manager';
 import { MCPServerConfig } from '../mcp/types';
 import { Kit } from '../providers/kits/types';
+import { kitService } from '../services/kit.service';
 import { projectFsService } from '../services/project-fs.service';
 import { calculateCost } from '../providers/pricing';
 import * as fsSync from 'fs';
@@ -60,21 +61,13 @@ function loadMCPConfigs(userSettings: any): MCPServerConfig[] {
 }
 
 /**
- * Load kit from user settings by ID
- * If kitId is provided, use it; otherwise fall back to activeKitId from settings
+ * Load kit from Kit table by ID.
+ * If kitId is provided, use it; otherwise fall back to activeKitId from settings.
  */
-function loadActiveKit(userSettings: any, kitId?: string): Kit | undefined {
-  if (!userSettings?.kits || !Array.isArray(userSettings.kits)) {
-    return undefined;
-  }
-
-  // Use explicit kitId if provided, otherwise fall back to settings activeKitId
-  const targetKitId = kitId || userSettings.activeKitId;
-  if (!targetKitId) {
-    return undefined;
-  }
-
-  return userSettings.kits.find((kit: Kit) => kit.id === targetKitId);
+async function loadActiveKit(userId: string, userSettings: any, kitId?: string): Promise<Kit | undefined> {
+  const targetKitId = kitId || userSettings?.activeKitId;
+  if (!targetKitId) return undefined;
+  return (await kitService.getById(targetKitId, userId)) || undefined;
 }
 
 router.get('/models/:provider', async (req: any, res) => {
@@ -268,7 +261,7 @@ router.post('/generate-stream', async (req: any, res) => {
       }
 
       // Load active kit (from request kitId or fall back to settings)
-      const activeKit = loadActiveKit(userSettings, kitId);
+      const activeKit = await loadActiveKit(user.id, userSettings, kitId);
       if (activeKit) {
         console.log(`[AI] Active kit: ${activeKit.name} (from ${kitId ? 'project' : 'settings'})`);
       }

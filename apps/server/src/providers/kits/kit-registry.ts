@@ -1,11 +1,14 @@
 /**
  * Kit Registry
  *
- * Manages Kit CRUD operations. Kits are stored in the user's settings JSON.
+ * @deprecated Kits are now stored in the Prisma Kit table. Use `kitService` from
+ * `services/kit.service.ts` instead. This file is kept only for the startup migration
+ * that reads kits from user settings before moving them to the Kit table.
  */
 
 import { Kit, StorybookResource, KitResource } from './types';
 
+/** @deprecated Use `kitService` from `services/kit.service.ts` instead. */
 export class KitRegistry {
   private kits: Map<string, Kit> = new Map();
 
@@ -142,7 +145,9 @@ export class KitRegistry {
 }
 
 /**
- * Parse kits from user settings
+ * Parse kits from user settings.
+ * @deprecated Kits are now stored in the Prisma Kit table. Use `kitService.listByUser()` instead.
+ * Kept for startup migration in `kit-fs.service.ts`.
  */
 export function parseKitsFromSettings(settings: any): Kit[] {
   if (!settings || !settings.kits || !Array.isArray(settings.kits)) {
@@ -152,7 +157,9 @@ export function parseKitsFromSettings(settings: any): Kit[] {
 }
 
 /**
- * Update kits in user settings
+ * Update kits in user settings.
+ * @deprecated Kits are now stored in the Prisma Kit table. Use `kitService` methods instead.
+ * Kept for backward compatibility with `kit-fs.service.ts` migration.
  */
 export function updateKitsInSettings(settings: any, kits: Kit[]): any {
   return {

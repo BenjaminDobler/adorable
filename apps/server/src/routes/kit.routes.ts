@@ -10,9 +10,8 @@ import express from 'express';
 import { authenticate } from '../middleware/auth';
 import { StorybookParser } from '../providers/kits/storybook-parser';
 import { Kit, StorybookResource, StorybookComponent, KitTemplate } from '../providers/kits/types';
-import { parseKitsFromSettings, updateKitsInSettings } from '../providers/kits/kit-registry';
-import { prisma } from '../db/prisma';
 import { generateComponentCatalog, generateComponentDocFiles } from '../providers/kits/doc-generator';
+import { kitService } from '../services/kit.service';
 import { analyzeNpmPackage, validateStorybookComponents, fetchComponentMetadata, fetchAllComponentMetadata, discoverComponentsFromNpm } from '../providers/kits/npm-analyzer';
 import { SYSTEM_PROMPT } from '../providers/base';
 import { kitFsService } from '../services/kit-fs.service';
@@ -360,11 +359,7 @@ router.get('/', async (req: any, res) => {
   const user = req.user;
 
   try {
-    const settings = typeof user.settings === 'string'
-      ? JSON.parse(user.settings || '{}')
-      : (user.settings || {});
-
-    const kits = parseKitsFromSettings(settings);
+    const kits = await kitService.listByUser(user.id);
     res.json({ kits });
   } catch (error) {
     console.error('List kits error:', error);
@@ -381,12 +376,7 @@ router.get('/:id', async (req: any, res) => {
   const { id } = req.params;
 
   try {
-    const settings = typeof user.settings === 'string'
-      ? JSON.parse(user.settings || '{}')
-      : (user.settings || {});
-
-    const kits = parseKitsFromSettings(settings);
-    const kit = kits.find(k => k.id === id);
+    const kit = await kitService.getById(id, user.id);
 
     if (!kit) {
       return res.status(404).json({ error: 'Kit not found' });
@@ -423,14 +413,8 @@ router.post('/', async (req: any, res) => {
   }
 
   try {
-    const settings = typeof user.settings === 'string'
-      ? JSON.parse(user.settings || '{}')
-      : (user.settings || {});
-
-    const kits = parseKitsFromSettings(settings);
-
     // Check for duplicate name
-    if (kits.some(k => k.name.toLowerCase() === name.toLowerCase())) {
+    if (await kitService.nameExists(name, user.id)) {
       return res.status(400).json({ error: 'A kit with this name already exists' });
     }
 
@@ -493,14 +477,8 @@ router.post('/', async (req: any, res) => {
       newKit.template = { ...newKit.template, files: {}, storedOnDisk: true };
     }
 
-    kits.push(newKit);
-
-    // Save to database
-    const updatedSettings = updateKitsInSettings(settings, kits);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { settings: JSON.stringify(updatedSettings) }
-    });
+    // Save to Kit table
+    await kitService.create(newKit, user.id);
 
     // Generate and persist .adorable doc files on disk
     const docFiles = generateComponentDocFiles(newKit);
@@ -529,18 +507,12 @@ router.put('/:id', async (req: any, res) => {
   const { name, description, template, npmPackage, importSuffix, npmPackages, storybookUrl, components, selectedComponentIds, mcpServerIds, systemPrompt, baseSystemPrompt } = req.body;
 
   try {
-    const settings = typeof user.settings === 'string'
-      ? JSON.parse(user.settings || '{}')
-      : (user.settings || {});
+    const existingKit = await kitService.getById(id, user.id);
 
-    const kits = parseKitsFromSettings(settings);
-    const kitIndex = kits.findIndex(k => k.id === id);
-
-    if (kitIndex === -1) {
+    if (!existingKit) {
       return res.status(404).json({ error: 'Kit not found' });
     }
 
-    const existingKit = kits[kitIndex];
     const now = new Date().toISOString();
 
     // Build or update Storybook resource (components from npm discovery or Storybook)
@@ -610,14 +582,8 @@ router.put('/:id', async (req: any, res) => {
       updatedAt: now
     };
 
-    kits[kitIndex] = updatedKit;
-
-    // Save to database
-    const updatedSettings = updateKitsInSettings(settings, kits);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { settings: JSON.stringify(updatedSettings) }
-    });
+    // Save to Kit table
+    await kitService.update(id, updatedKit, user.id);
 
     // Regenerate .adorable files if components changed (preserves user edits)
     if (components !== undefined) {
@@ -647,25 +613,11 @@ router.delete('/:id', async (req: any, res) => {
   const { id } = req.params;
 
   try {
-    const settings = typeof user.settings === 'string'
-      ? JSON.parse(user.settings || '{}')
-      : (user.settings || {});
+    const deleted = await kitService.delete(id, user.id);
 
-    const kits = parseKitsFromSettings(settings);
-    const kitIndex = kits.findIndex(k => k.id === id);
-
-    if (kitIndex === -1) {
+    if (!deleted) {
       return res.status(404).json({ error: 'Kit not found' });
     }
-
-    kits.splice(kitIndex, 1);
-
-    // Save to database
-    const updatedSettings = updateKitsInSettings(settings, kits);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { settings: JSON.stringify(updatedSettings) }
-    });
 
     // Clean up .adorable files from disk
     kitFsService.deleteKitFiles(id).catch(err =>
@@ -693,18 +645,11 @@ router.put('/:id/components', async (req: any, res) => {
   }
 
   try {
-    const settings = typeof user.settings === 'string'
-      ? JSON.parse(user.settings || '{}')
-      : (user.settings || {});
+    const kit = await kitService.getById(id, user.id);
 
-    const kits = parseKitsFromSettings(settings);
-    const kitIndex = kits.findIndex(k => k.id === id);
-
-    if (kitIndex === -1) {
+    if (!kit) {
       return res.status(404).json({ error: 'Kit not found' });
     }
-
-    const kit = kits[kitIndex];
 
     // Find the Storybook resource
     const storybookIndex = kit.resources.findIndex(r => r.type === 'storybook');
@@ -716,14 +661,8 @@ router.put('/:id/components', async (req: any, res) => {
     (kit.resources[storybookIndex] as StorybookResource).selectedComponentIds = selectedComponentIds;
     kit.updatedAt = new Date().toISOString();
 
-    kits[kitIndex] = kit;
-
-    // Save to database
-    const updatedSettings = updateKitsInSettings(settings, kits);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { settings: JSON.stringify(updatedSettings) }
-    });
+    // Save to Kit table
+    await kitService.update(id, kit, user.id);
 
     // Regenerate .adorable files for the updated selection (preserves user edits)
     const docFiles = generateComponentDocFiles(kit);
@@ -749,18 +688,11 @@ router.post('/:id/rediscover', async (req: any, res) => {
   const { id } = req.params;
 
   try {
-    const settings = typeof user.settings === 'string'
-      ? JSON.parse(user.settings || '{}')
-      : (user.settings || {});
+    const kit = await kitService.getById(id, user.id);
 
-    const kits = parseKitsFromSettings(settings);
-    const kitIndex = kits.findIndex(k => k.id === id);
-
-    if (kitIndex === -1) {
+    if (!kit) {
       return res.status(404).json({ error: 'Kit not found' });
     }
-
-    const kit = kits[kitIndex];
 
     // Find the Storybook resource
     const storybookIndex = kit.resources.findIndex(r => r.type === 'storybook');
@@ -811,7 +743,7 @@ router.post('/:id/rediscover', async (req: any, res) => {
     // Preserve previously selected components that still exist
     const existingIds = new Set(components.map(c => c.id));
     const preservedSelections = storybookResource.selectedComponentIds.filter(
-      id => existingIds.has(id)
+      sid => existingIds.has(sid)
     );
 
     // Update the resource
@@ -825,14 +757,9 @@ router.post('/:id/rediscover', async (req: any, res) => {
 
     kit.resources[storybookIndex] = storybookResource;
     kit.updatedAt = new Date().toISOString();
-    kits[kitIndex] = kit;
 
-    // Save to database
-    const updatedSettings = updateKitsInSettings(settings, kits);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { settings: JSON.stringify(updatedSettings) }
-    });
+    // Save to Kit table
+    await kitService.update(id, kit, user.id);
 
     // Regenerate .adorable files (preserves user edits, removes stale docs)
     const docFiles = generateComponentDocFiles(kit);
@@ -866,12 +793,7 @@ router.post('/:id/preview-docs', async (req: any, res) => {
   const { componentName } = req.body;
 
   try {
-    const settings = typeof user.settings === 'string'
-      ? JSON.parse(user.settings || '{}')
-      : (user.settings || {});
-
-    const kits = parseKitsFromSettings(settings);
-    const kit = kits.find(k => k.id === id);
+    const kit = await kitService.getById(id, user.id);
 
     if (!kit) {
       return res.status(404).json({ error: 'Kit not found' });
@@ -924,12 +846,7 @@ router.get('/:id/catalog', async (req: any, res) => {
   const { id } = req.params;
 
   try {
-    const settings = typeof user.settings === 'string'
-      ? JSON.parse(user.settings || '{}')
-      : (user.settings || {});
-
-    const kits = parseKitsFromSettings(settings);
-    const kit = kits.find(k => k.id === id);
+    const kit = await kitService.getById(id, user.id);
 
     if (!kit) {
       return res.status(404).json({ error: 'Kit not found' });
@@ -1126,12 +1043,7 @@ router.post('/:id/regenerate-docs', async (req: any, res) => {
   const { overwrite } = req.body; // if true, discard user edits
 
   try {
-    const settings = typeof user.settings === 'string'
-      ? JSON.parse(user.settings || '{}')
-      : (user.settings || {});
-
-    const kits = parseKitsFromSettings(settings);
-    const kit = kits.find(k => k.id === id);
+    const kit = await kitService.getById(id, user.id);
 
     if (!kit) {
       return res.status(404).json({ error: 'Kit not found' });
@@ -1167,12 +1079,7 @@ router.post('/:id/export', async (req: any, res) => {
   const { id } = req.params;
 
   try {
-    const settings = typeof user.settings === 'string'
-      ? JSON.parse(user.settings || '{}')
-      : (user.settings || {});
-
-    const kits = parseKitsFromSettings(settings);
-    const kit = kits.find(k => k.id === id);
+    const kit = await kitService.getById(id, user.id);
 
     if (!kit) {
       return res.status(404).json({ error: 'Kit not found' });
@@ -1228,17 +1135,12 @@ router.post('/import', async (req: any, res) => {
   }
 
   try {
-    const settings = typeof user.settings === 'string'
-      ? JSON.parse(user.settings || '{}')
-      : (user.settings || {});
-
-    const kits = parseKitsFromSettings(settings);
     const now = new Date().toISOString();
 
     // Generate a new unique name if there's a conflict
     let kitName = name;
     let suffix = 1;
-    while (kits.some(k => k.name.toLowerCase() === kitName.toLowerCase())) {
+    while (await kitService.nameExists(kitName, user.id)) {
       kitName = `${name} (${suffix})`;
       suffix++;
     }
@@ -1279,14 +1181,8 @@ router.post('/import', async (req: any, res) => {
       await kitFsService.writeKitAdorableFiles(newKit.id, adorableFiles);
     }
 
-    kits.push(newKit);
-
-    // Save to database
-    const updatedSettings = updateKitsInSettings(settings, kits);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { settings: JSON.stringify(updatedSettings) },
-    });
+    // Save to Kit table
+    await kitService.create(newKit, user.id);
 
     res.json({ success: true, kit: newKit });
   } catch (error) {

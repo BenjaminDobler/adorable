@@ -21,6 +21,7 @@ import { mcpRouter } from './routes/mcp.routes';
 import { kitRouter } from './routes/kit.routes';
 import { analyticsRouter } from './routes/analytics.routes';
 import { kitFsService } from './services/kit-fs.service';
+import { kitService } from './services/kit.service';
 import { serverConfigService } from './services/server-config.service';
 import { adminRouter } from './routes/admin.routes';
 import { sessionAnalyzerRouter } from './routes/session-analyzer.routes';
@@ -134,9 +135,14 @@ const server = app.listen(PORT, async () => {
     console.error('[ServerConfig] Failed to initialize:', err)
   );
 
-  // Migrate existing kits to disk storage (fire-and-forget, non-blocking)
-  kitFsService.migrateAllKits().catch(err =>
-    console.error('[Kit Migration] Failed:', err)
+  // Migrate existing kits to disk storage (reads from user.settings, must run first)
+  kitFsService.migrateAllKits().then(() =>
+    // Move kits from user.settings JSON → Kit table, then clean up settings
+    kitService.migrateFromSettings().catch(err =>
+      console.error('[Kit DB Migration] Failed:', err)
+    )
+  ).catch(err =>
+    console.error('[Kit FS Migration] Failed:', err)
   );
 
   // Signal to Electron that server is ready (for desktop mode)
