@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -23,12 +23,12 @@ export class RegisterComponent implements OnInit {
   error = '';
   successMessage = '';
   loading = false;
-  requireInviteCode = false;
+  requireInviteCode = signal(false);
 
   ngOnInit() {
     this.authService.getRegistrationConfig().subscribe({
       next: (config) => {
-        this.requireInviteCode = config.registrationMode === 'invite-only';
+        this.requireInviteCode.set(config.registrationMode === 'invite-only');
       },
       error: () => {} // Fail silently — default to open registration
     });

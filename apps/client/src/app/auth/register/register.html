@@ -34,7 +34,7 @@
           <input type="password" [(ngModel)]="confirmPassword" name="confirmPassword" required />
         </div>
 
-        @if (requireInviteCode) {
+        @if (requireInviteCode()) {
           <div class="form-group">
             <label>Invite Code</label>
             <input type="text" [(ngModel)]="inviteCode" name="inviteCode" required placeholder="Enter your invite code" />
