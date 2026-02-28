@@ -23,6 +23,7 @@ import { analyticsRouter } from './routes/analytics.routes';
 import { kitFsService } from './services/kit-fs.service';
 import { serverConfigService } from './services/server-config.service';
 import { adminRouter } from './routes/admin.routes';
+import { sessionAnalyzerRouter } from './routes/session-analyzer.routes';
 // Native routes are handled by the desktop local agent, not the cloud server
 // import { nativeRouter } from './routes/native.routes';
 
@@ -121,6 +122,7 @@ app.use('/api/mcp', mcpRouter);
 app.use('/api/kits', kitRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/sessions', sessionAnalyzerRouter);
 // app.use('/api/native', nativeRouter); // Handled by desktop local agent
 
 

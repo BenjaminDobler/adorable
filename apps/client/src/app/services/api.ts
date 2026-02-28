@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { SessionLogEntry, SessionSuggestion, AnalysisStreamEvent } from '@adorable/shared-types';
 
 @Injectable({
   providedIn: 'root'
@@ -326,5 +327,64 @@ export class ApiService {
     total: number;
   }> {
     return this.http.post<any>(`${this.apiUrl}/kits/batch-metadata`, { packageName, componentNames });
+  }
+
+  // Session Analyzer methods
+  listSessions(projectId: string): Observable<{ sessions: SessionLogEntry[] }> {
+    return this.http.get<{ sessions: SessionLogEntry[] }>(`${this.apiUrl}/sessions?projectId=${projectId}`);
+  }
+
+  analyzeSession(filename: string, projectId?: string, kitId?: string): Observable<AnalysisStreamEvent> {
+    return new Observable(observer => {
+      const token = localStorage.getItem('adorable_token');
+
+      fetch(`${this.apiUrl}/sessions/analyze`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ filename, projectId, kitId })
+      }).then(response => {
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        if (!reader) {
+          observer.error('No reader');
+          return;
+        }
+
+        const push = () => {
+          reader.read().then(({ done, value }) => {
+            if (done) {
+              observer.complete();
+              return;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.substring(6));
+                  observer.next(data);
+                } catch {
+                  // Skip malformed JSON
+                }
+              }
+            }
+            push();
+          });
+        };
+        push();
+      }).catch(err => observer.error(err));
+    });
+  }
+
+  applySuggestion(suggestion: SessionSuggestion): Observable<{ success: boolean; error?: string }> {
+    return this.http.post<{ success: boolean; error?: string }>(`${this.apiUrl}/sessions/apply`, { suggestion });
   }
 }

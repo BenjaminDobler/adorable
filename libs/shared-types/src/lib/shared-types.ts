@@ -234,6 +234,62 @@ export interface Kit {
   updatedAt: string;
 }
 
+// Session Analyzer Types
+export type SuggestionType =
+  | 'kit_doc_improvement'
+  | 'system_prompt_improvement'
+  | 'kit_config'
+  | 'workflow_recommendation'
+  | 'project_structure';
+
+export type SuggestionSeverity = 'high' | 'medium' | 'low';
+
+export interface SessionSuggestionPatch {
+  filePath: string;
+  newContent: string;
+  kitId?: string;
+}
+
+export interface SessionSuggestion {
+  id: string;
+  type: SuggestionType;
+  severity: SuggestionSeverity;
+  title: string;
+  description: string;
+  patch?: SessionSuggestionPatch;
+  applied?: boolean;
+}
+
+export interface SessionOverview {
+  provider: string;
+  model: string;
+  turns: number;
+  timestamp: string;
+  promptSummary: string;
+  kitName?: string;
+  buildAttempts: number;
+  buildSuccesses: number;
+  buildFailures: number;
+  toolCallCount: number;
+  errorCount: number;
+}
+
+export interface SessionLogEntry {
+  filename: string;
+  projectId?: string;
+  provider: string;
+  timestamp: string;
+  overview: SessionOverview;
+}
+
+export interface AnalysisStreamEvent {
+  type: 'progress' | 'overview' | 'suggestion' | 'complete' | 'error';
+  message?: string;
+  overview?: SessionOverview;
+  suggestion?: SessionSuggestion;
+  error?: string;
+}
+
 /** Canonical list of binary file extensions (lowercase, with leading dot). */
 export const BINARY_EXTENSIONS = new Set([
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.svg',

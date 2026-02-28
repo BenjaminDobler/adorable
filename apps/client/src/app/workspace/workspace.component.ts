@@ -34,6 +34,7 @@ import {
 } from '../annotation-overlay/annotation-overlay';
 
 import { VersionsPanelComponent } from '../versions/versions-panel.component';
+import { InsightsPanelComponent } from '../insights/insights-panel.component';
 import { VisualEditorPanelComponent } from '../chat/visual-editor-panel/visual-editor-panel.component';
 import { PreviewToolbarComponent } from './preview-toolbar/preview-toolbar.component';
 import { DebugOverlayComponent } from './debug-overlay/debug-overlay.component';
@@ -51,6 +52,7 @@ import { DebugOverlayComponent } from './debug-overlay/debug-overlay.component';
     FigmaPanelComponent,
     AnnotationOverlayComponent,
     VersionsPanelComponent,
+    InsightsPanelComponent,
     VisualEditorPanelComponent,
     PreviewToolbarComponent,
     DebugOverlayComponent,
@@ -85,7 +87,7 @@ export class WorkspaceComponent implements AfterViewChecked {
 
   @ViewChild(ChatComponent) chatComponent!: ChatComponent;
 
-  activeTab = signal<'chat' | 'terminal' | 'files' | 'figma' | 'versions'>(
+  activeTab = signal<'chat' | 'terminal' | 'files' | 'figma' | 'versions' | 'insights'>(
     'chat',
   );
 

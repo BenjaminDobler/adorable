@@ -44,6 +44,13 @@
         >
           Versions
         </button>
+        <button
+          class="tab-btn"
+          [class.active]="activeTab() === 'insights'"
+          (click)="activeTab.set('insights')"
+        >
+          Insights
+        </button>
       </div>
 
       @if (activeTab() === 'chat') {
@@ -100,6 +107,9 @@
       }
       @if (activeTab() === 'versions') {
       <app-versions-panel></app-versions-panel>
+      }
+      @if (activeTab() === 'insights') {
+      <app-insights-panel></app-insights-panel>
       }
     </div>
 
