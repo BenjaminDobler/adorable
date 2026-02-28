@@ -141,12 +141,87 @@ router.patch('/config', async (req, res) => {
   }
 });
 
+// --- Teams ---
+
+router.get('/teams', async (req, res) => {
+  try {
+    const teams = await prisma.team.findMany({
+      include: {
+        _count: { select: { members: true, projects: true, kits: true } },
+        members: {
+          where: { role: 'owner' },
+          include: { user: { select: { email: true, name: true } } },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(teams.map(t => ({
+      id: t.id,
+      name: t.name,
+      slug: t.slug,
+      createdAt: t.createdAt,
+      memberCount: t._count.members,
+      projectCount: t._count.projects,
+      kitCount: t._count.kits,
+      owner: t.members[0]?.user ?? null,
+    })));
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to list teams' });
+  }
+});
+
+router.get('/teams/:id', async (req, res) => {
+  try {
+    const team = await prisma.team.findUnique({
+      where: { id: req.params.id },
+      include: {
+        members: {
+          include: { user: { select: { id: true, name: true, email: true } } },
+          orderBy: { joinedAt: 'asc' },
+        },
+        invites: { orderBy: { createdAt: 'desc' } },
+        _count: { select: { projects: true, kits: true } },
+      },
+    });
+    if (!team) return res.status(404).json({ error: 'Team not found' });
+    res.json({
+      ...team,
+      projectCount: team._count.projects,
+      kitCount: team._count.kits,
+      _count: undefined,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get team' });
+  }
+});
+
+router.delete('/teams/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const team = await prisma.team.findUnique({ where: { id } });
+    if (!team) return res.status(404).json({ error: 'Team not found' });
+
+    // Unassign projects from team
+    await prisma.project.updateMany({ where: { teamId: id }, data: { teamId: null } });
+    // Unassign kits from team
+    await prisma.kit.updateMany({ where: { teamId: id }, data: { teamId: null } });
+    // Delete team (cascades members + invites)
+    await prisma.team.delete({ where: { id } });
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete team' });
+  }
+});
+
 // --- Stats ---
 
 router.get('/stats', async (req, res) => {
   try {
     const userCount = await prisma.user.count();
     const projectCount = await prisma.project.count();
+    const teamCount = await prisma.team.count();
     const containerStatuses = containerRegistry.getContainerStatuses();
     const activeContainers = containerStatuses.filter(c => c.running).length;
 
@@ -161,6 +236,7 @@ router.get('/stats', async (req, res) => {
     res.json({
       users: userCount,
       projects: projectCount,
+      teams: teamCount,
       containers: {
         active: activeContainers,
         total: containerStatuses.length,

@@ -20,6 +20,10 @@ import { AdminApiService } from '../services/admin-api';
           <div class="stat-label">Projects</div>
         </div>
         <div class="stat-card">
+          <div class="stat-value">{{ stats()?.teams ?? '—' }}</div>
+          <div class="stat-label">Teams</div>
+        </div>
+        <div class="stat-card">
           <div class="stat-value">{{ stats()?.containers?.active ?? '—' }} / {{ stats()?.containers?.max ?? '—' }}</div>
           <div class="stat-label">Active Containers</div>
         </div>

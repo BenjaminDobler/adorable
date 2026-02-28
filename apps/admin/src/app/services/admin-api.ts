@@ -38,6 +38,19 @@ export class AdminApiService {
     return this.http.delete<any>(`${this.baseUrl}/invites/${id}`, { headers: this.headers() });
   }
 
+  // Teams
+  getTeams() {
+    return this.http.get<any[]>(`${this.baseUrl}/teams`, { headers: this.headers() });
+  }
+
+  getTeam(id: string) {
+    return this.http.get<any>(`${this.baseUrl}/teams/${id}`, { headers: this.headers() });
+  }
+
+  deleteTeam(id: string) {
+    return this.http.delete<any>(`${this.baseUrl}/teams/${id}`, { headers: this.headers() });
+  }
+
   // Config
   getConfig() {
     return this.http.get<Record<string, string>>(`${this.baseUrl}/config`, { headers: this.headers() });

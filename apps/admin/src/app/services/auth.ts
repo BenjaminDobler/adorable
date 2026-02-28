@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 
 interface AdminUser {
   id: string;
@@ -27,6 +27,12 @@ export class AdminAuthService {
       const user = JSON.parse(userJson) as AdminUser;
       if (user.role === 'admin') {
         this.user.set(user);
+        // Verify the token is still valid
+        this.http.get('/api/admin/stats', {
+          headers: new HttpHeaders({ Authorization: `Bearer ${token}` }),
+        }).subscribe({
+          error: () => this.logout(),
+        });
       }
     } catch {
       // Invalid stored data
