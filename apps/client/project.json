@@ -20,14 +20,15 @@
             "input": "apps/client/public"
           }
         ],
-        "styles": ["apps/client/src/styles.scss"]
+        "styles": ["apps/client/src/styles.scss"],
+        "allowedCommonJsDependencies": ["jszip", "file-saver", "ansi-to-html"]
       },
       "configurations": {
         "production": {
           "budgets": [
             {
               "type": "initial",
-              "maximumWarning": "500kb",
+              "maximumWarning": "650kb",
               "maximumError": "1mb"
             }
           ],

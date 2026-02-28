@@ -378,7 +378,7 @@
                         @if (kit.isBuiltIn) {
                           <span class="kit-badge built-in">Built-in</span>
                         }
-                        @if (kit.template?.angularVersion) {
+                        @if (kit.template.angularVersion) {
                           <span class="kit-badge">Angular {{ kit.template.angularVersion }}</span>
                         }
                         @if (getKitComponentCount(kit) > 0) {
@@ -506,7 +506,7 @@
                 @if (kit.isBuiltIn) {
                   <span class="kit-badge built-in">Built-in</span>
                 }
-                @if (kit.template?.angularVersion) {
+                @if (kit.template.angularVersion) {
                   <span class="kit-badge">Angular {{ kit.template.angularVersion }}</span>
                 }
                 @if (getKitComponentCount(kit) > 0) {
