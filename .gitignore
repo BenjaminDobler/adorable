@@ -3,6 +3,9 @@
 # compiled output
 dist
 tmp
+
+# deploy script (contains server IP)
+deploy.sh
 out-tsc
 .env
 
