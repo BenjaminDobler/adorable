@@ -265,11 +265,15 @@ export class LocalContainerEngine extends ContainerEngine {
     // NEVER rm -rf src — that would delete the project's source from disk.
     // mount() overwrites files in place, git checkout handles version restore,
     // and project switches get a fresh bind mount via container reboot.
-    if (full) {
-      // Only remove node_modules/caches on kit/template change (different deps)
-      await this.exec('rm', ['-rf', 'node_modules', 'pnpm-lock.yaml', 'package-lock.json', '.angular']);
-    } else {
-      await this.exec('rm', ['-rf', '.angular']);
+    try {
+      if (full) {
+        // Only remove node_modules/caches on kit/template change (different deps)
+        await this.exec('rm', ['-rf', 'node_modules', 'pnpm-lock.yaml', 'package-lock.json', '.angular']);
+      } else {
+        await this.exec('rm', ['-rf', '.angular']);
+      }
+    } catch {
+      // Ignore — container may not be running yet; nothing to clean
     }
   }
 

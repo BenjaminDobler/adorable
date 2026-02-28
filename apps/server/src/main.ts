@@ -131,6 +131,20 @@ app.use('/api/sessions', sessionAnalyzerRouter);
 app.use('/api/teams', teamRouter);
 // app.use('/api/native', nativeRouter); // Handled by desktop local agent
 
+// Production SPA fallback: serve client index.html for non-API, non-proxy routes.
+// In production, Nginx forwards unknown paths here (via @backend fallback)
+// so Express can either proxy to a container or serve the Angular SPA shell.
+const clientDistDir = path.join(__dirname, '../client/browser');
+app.use(express.static(clientDistDir));
+app.get('*', (req, res, next) => {
+  // Don't serve index.html for API or asset paths
+  if (req.path.startsWith('/api/') || req.path.startsWith('/sites/') || req.path.startsWith('/assets/')) {
+    return next();
+  }
+  res.sendFile(path.join(clientDistDir, 'index.html'), (err) => {
+    if (err) next(); // File not found in dev mode — just skip
+  });
+});
 
 const server = app.listen(PORT, async () => {
   console.log(`Listening at http://localhost:${PORT}/api`);
