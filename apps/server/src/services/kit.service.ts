@@ -54,7 +54,7 @@ function dbRowToKit(row: KitRow): Kit {
 /**
  * Extract top-level DB columns and serialize the rest into `config` JSON.
  */
-function kitToDbData(kit: Kit, userId?: string) {
+function kitToDbData(kit: Kit, userId?: string, teamId?: string) {
   const config = {
     template: kit.template,
     npmPackage: kit.npmPackage,
@@ -73,21 +73,29 @@ function kitToDbData(kit: Kit, userId?: string) {
     thumbnail: kit.thumbnail || null,
     isBuiltIn: kit.isBuiltIn || false,
     config: JSON.stringify(config),
-    userId: userId || null,
-    teamId: null as string | null,
+    userId: teamId ? null : (userId || null),
+    teamId: teamId || null,
   };
 }
 
 class KitService {
   /**
-   * List all kits owned by a user (plus built-in kits with no owner).
+   * List all kits owned by a user, their teams, or built-in.
    */
   async listByUser(userId: string): Promise<Kit[]> {
+    // Find all teams the user belongs to
+    const memberships = await prisma.teamMember.findMany({
+      where: { userId },
+      select: { teamId: true },
+    });
+    const teamIds = memberships.map((m) => m.teamId);
+
     const rows = await prisma.kit.findMany({
       where: {
         OR: [
           { userId },
           { userId: null, isBuiltIn: true },
+          ...(teamIds.length > 0 ? [{ teamId: { in: teamIds } }] : []),
         ],
       },
       orderBy: { createdAt: 'asc' },
@@ -96,15 +104,22 @@ class KitService {
   }
 
   /**
-   * Get a single kit by ID, scoped to the user (or built-in).
+   * Get a single kit by ID, scoped to the user, their teams, or built-in.
    */
   async getById(kitId: string, userId: string): Promise<Kit | undefined> {
+    const memberships = await prisma.teamMember.findMany({
+      where: { userId },
+      select: { teamId: true },
+    });
+    const teamIds = memberships.map((m) => m.teamId);
+
     const row = await prisma.kit.findFirst({
       where: {
         id: kitId,
         OR: [
           { userId },
           { userId: null, isBuiltIn: true },
+          ...(teamIds.length > 0 ? [{ teamId: { in: teamIds } }] : []),
         ],
       },
     });
@@ -113,9 +128,10 @@ class KitService {
 
   /**
    * Create a new kit in the database.
+   * When teamId is set, userId is cleared (exclusive ownership).
    */
-  async create(kit: Kit, userId: string): Promise<Kit> {
-    const data = kitToDbData(kit, userId);
+  async create(kit: Kit, userId: string, teamId?: string): Promise<Kit> {
+    const data = kitToDbData(kit, userId, teamId);
     const row = await prisma.kit.create({ data });
     return dbRowToKit(row);
   }
