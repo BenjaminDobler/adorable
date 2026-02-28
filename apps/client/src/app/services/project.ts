@@ -17,6 +17,7 @@ import {
 import { ScreenshotService } from './screenshot';
 import { Kit, FileTree as KitFileTree } from './kit-types';
 import { HMRTriggerService } from './hmr-trigger.service';
+import { getServerUrl } from './server-url';
 
 export interface QuestionOption {
   value: string;
@@ -431,6 +432,23 @@ export class ProjectService {
     // Yield to allow loading state to render
     await new Promise((resolve) => setTimeout(resolve, 0));
     if (isStale()) return;
+
+    // Fast reconnect: if container already has our project with dev server running, skip everything
+    if (!kitTemplate && this.projectId() && this.containerEngine.checkStatus) {
+      try {
+        const status = await this.containerEngine.checkStatus();
+        if (status.running && status.projectId === this.projectId() && status.devServerReady) {
+          // Container already has the right project with dev server running — just reconnect
+          const userId = JSON.parse(localStorage.getItem('adorable_user') || '{}').id;
+          const serverBase = getServerUrl();
+          (this.containerEngine.url as any).set(`${serverBase}/api/proxy/?user=${userId}`);
+          (this.containerEngine.status as any).set('Ready');
+          this.containerEngine.lastBootedProjectId = this.projectId();
+          this.loading.set(false);
+          return;
+        }
+      } catch { /* status check failed, continue with normal flow */ }
+    }
 
     // Fast path: skip stop/clean/install/start when deps haven't changed
     // and the dev server is already running (e.g. version restore with same package.json)

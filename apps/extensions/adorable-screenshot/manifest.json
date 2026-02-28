@@ -7,13 +7,13 @@
   "host_permissions": ["<all_urls>"],
   "content_scripts": [
     {
-      "matches": ["http://localhost:*/*", "https://*.adorable.dev/*"],
+      "matches": ["http://localhost:*/*", "https://adorable.run/*", "https://*.adorable.run/*"],
       "js": ["page.js"],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": ["http://localhost:*/*", "https://*.adorable.dev/*"],
+      "matches": ["http://localhost:*/*", "https://adorable.run/*", "https://*.adorable.run/*"],
       "js": ["content.js"],
       "run_at": "document_start"
     }

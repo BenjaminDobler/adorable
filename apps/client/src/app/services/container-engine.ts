@@ -37,6 +37,8 @@ export abstract class ContainerEngine {
   // File System
   abstract mount(files: FileTree): Promise<void>;
   mountProject?(projectId: string, kitId: string | null): Promise<void>;
+  checkStatus?(): Promise<{ running: boolean; projectId?: string; devServerReady?: boolean }>;
+  lastBootedProjectId?: string | null;
   abstract writeFile(path: string, content: string | Uint8Array): Promise<void>;
   abstract readFile(path: string): Promise<string>;
   abstract readBinaryFile(path: string): Promise<Uint8Array>;

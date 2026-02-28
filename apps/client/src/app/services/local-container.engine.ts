@@ -30,6 +30,15 @@ export class LocalContainerEngine extends ContainerEngine {
   clearPreviewLogs() { this.previewConsoleLogs.set([]); }
   clearBuildError() { this.buildError.set(null); }
 
+  override async checkStatus(): Promise<{ running: boolean; projectId?: string; devServerReady?: boolean }> {
+    try {
+      const result = await this.http.get<any>(`${this.apiUrl}/status`).toPromise();
+      return result || { running: false };
+    } catch {
+      return { running: false };
+    }
+  }
+
   async boot(): Promise<void> {
     this.status.set('Booting Local Container...');
     try {
@@ -54,7 +63,7 @@ export class LocalContainerEngine extends ContainerEngine {
     this.status.set('Stopped');
   }
 
-  private lastBootedProjectId: string | null = null;
+  public override lastBootedProjectId: string | null = null;
 
   async mount(files: FileTree): Promise<void> {
     // Reboot if container isn't running or if we switched to a different project

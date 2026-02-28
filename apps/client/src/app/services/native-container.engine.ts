@@ -33,7 +33,7 @@ export class NativeContainerEngine extends ContainerEngine {
   clearPreviewLogs() { this.previewConsoleLogs.set([]); }
   clearBuildError() { this.buildError.set(null); }
 
-  private lastBootedProjectId: string | null = null;
+  public override lastBootedProjectId: string | null = null;
 
   async boot(clean = false): Promise<void> {
     this.status.set('Starting native project...');

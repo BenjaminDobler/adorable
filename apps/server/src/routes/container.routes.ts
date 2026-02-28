@@ -48,6 +48,31 @@ router.post('/start', async (req: any, res) => {
   }
 });
 
+router.get('/status', async (req: any, res) => {
+  try {
+    const manager = containerRegistry.getManager(req.user.id);
+    if (!manager.isRunning()) {
+      return res.json({ running: false });
+    }
+    const projectId = manager.getProjectId();
+
+    // Check if dev server is listening on port 4200 inside the container
+    let devServerReady = false;
+    try {
+      const { exitCode } = await manager.exec(
+        ['sh', '-c', '(echo > /dev/tcp/localhost/4200) 2>/dev/null']
+      );
+      devServerReady = exitCode === 0;
+    } catch {
+      devServerReady = false;
+    }
+
+    res.json({ running: true, projectId, devServerReady });
+  } catch (e) {
+    res.json({ running: false });
+  }
+});
+
 router.get('/info', async (req: any, res) => {
   try {
     const manager = containerRegistry.getManager(req.user.id);

@@ -51,6 +51,7 @@ export const containerProxy = createProxyMiddleware({
         const code = e.statusCode;
         if (
           msg.includes('Container not started') ||
+          msg.includes('Port not mapped') || // port not yet assigned (container starting)
           code === 404 || // container removed, not yet recreated
           code === 409    // container marked for removal
         ) {

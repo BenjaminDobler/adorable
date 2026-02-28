@@ -89,13 +89,20 @@ export class DockerManager {
             try {
               await this.container.start();
             } catch (e: any) {
-              if (e.statusCode !== 304) throw e;
-              // 304 = already running, benign
+              if (e.statusCode === 304) {
+                // 304 = already running, benign
+              } else {
+                // Container is in a bad state (port conflict, etc.) — remove and recreate
+                console.warn(`[Docker] Failed to start existing container, removing and recreating:`, e.message || e);
+                this.container = null;
+                try { await existing.remove({ force: true }); } catch (_) { /* ignore */ }
+                // Fall through to create a new container below
+              }
             }
           } else {
             console.log(`[Docker] Using already running container: ${name}`);
           }
-          return this.container.id;
+          if (this.container) return this.container.id;
         }
       } catch (e) {
         // Container doesn't exist, proceed to create
@@ -114,6 +121,7 @@ export class DockerManager {
       Cmd: ['/bin/sh', '-c', 'tail -f /dev/null'], // Keep alive
       Tty: true,
       WorkingDir: '/app',
+      User: `${process.getuid()}:${process.getgid()}`, // Match host user so bind-mounted files stay writable
       HostConfig: {
         Binds: [`${hostAppPath}:/app`],
         PortBindings: {
@@ -131,8 +139,30 @@ export class DockerManager {
     try {
       await this.container.start();
     } catch (e: any) {
-      if (e.statusCode !== 304) throw e;
-      // 304 = already running, benign
+      if (e.statusCode === 304) {
+        // 304 = already running, benign
+      } else {
+        // Start failed (port conflict, etc.) — remove and retry once with a fresh container
+        console.warn(`[Docker] New container failed to start, retrying:`, e.message || e);
+        try { await this.container.remove({ force: true }); } catch (_) { /* ignore */ }
+        this.container = await this.docker.createContainer({
+          Image: image,
+          name: name, // Reuse same name (old one was removed above)
+          Cmd: ['/bin/sh', '-c', 'tail -f /dev/null'],
+          Tty: true,
+          WorkingDir: '/app',
+          User: `${process.getuid()}:${process.getgid()}`,
+          HostConfig: {
+            Binds: [`${hostAppPath}:/app`],
+            PortBindings: { '4200/tcp': [{ HostIp: '0.0.0.0', HostPort: '0' }] },
+            Memory: 1024 * 1024 * 1024,
+            CpuPeriod: 100000,
+            CpuQuota: 100000,
+          },
+          ExposedPorts: { '4200/tcp': {} },
+        });
+        await this.container.start();
+      }
     }
 
     // Ensure psmisc (for fuser) is installed for robust port cleanup
@@ -277,11 +307,14 @@ export class DockerManager {
   async getContainerUrl(): Promise<string> {
     await this.ensureRunning();
 
-    const data = await this.container!.inspect();
-    const ports = data.NetworkSettings.Ports['4200/tcp'];
-    if (ports && ports[0]) {
-      // On macOS, always use 127.0.0.1 for the host side of mapping
-      return `http://127.0.0.1:${ports[0].HostPort}`;
+    // Retry briefly — port mapping may not be immediately available after start
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const data = await this.container!.inspect();
+      const ports = data.NetworkSettings.Ports['4200/tcp'];
+      if (ports && ports[0]) {
+        return `http://127.0.0.1:${ports[0].HostPort}`;
+      }
+      if (attempt < 2) await new Promise(r => setTimeout(r, 500));
     }
     throw new Error('Port not mapped');
   }
