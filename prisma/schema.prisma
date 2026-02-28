@@ -22,6 +22,8 @@ model User {
   emailVerified          Boolean  @default(false)
   emailVerificationToken String?
   projects  Project[]
+  teams     TeamMember[]
+  kits      Kit[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -56,8 +58,10 @@ model Project {
   figmaImports String?  // JSON stringified FigmaImportPayload[]
   selectedKitId String?  // ID of the component kit to use for this project
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  userId    String?
+  teamId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  team      Team?    @relation(fields: [teamId], references: [id])
 
   messages  ChatMessage[]
 
@@ -100,4 +104,60 @@ model ChatMessage {
   usage     String?  // JSON stringified usage data
   model     String?  // AI model used for this message
   timestamp DateTime @default(now())
+}
+
+model Team {
+  id        String        @id @default(cuid())
+  name      String
+  slug      String        @unique
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  members   TeamMember[]
+  projects  Project[]
+  kits      Kit[]
+  invites   TeamInvite[]
+}
+
+model TeamMember {
+  id       String   @id @default(cuid())
+  teamId   String
+  userId   String
+  role     String   @default("member") // "owner" | "admin" | "member"
+  joinedAt DateTime @default(now())
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+}
+
+model TeamInvite {
+  id        String    @id @default(cuid())
+  teamId    String
+  team      Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  code      String    @unique
+  email     String?
+  role      String    @default("member")
+  createdBy String
+  usedBy    String?
+  usedAt    DateTime?
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model Kit {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  thumbnail   String?
+  isBuiltIn   Boolean  @default(false)
+  config      String   // JSON: template, npmPackages, resources, designTokens, systemPrompt, etc.
+
+  // Ownership: one of these is set, not both
+  userId      String?
+  teamId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team        Team?    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
