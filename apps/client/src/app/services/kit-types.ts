@@ -137,6 +137,7 @@ export interface Kit {
   mcpServerIds: string[];
 
   isBuiltIn?: boolean;
+  teamId?: string;
   createdAt: string;
   updatedAt: string;
 }

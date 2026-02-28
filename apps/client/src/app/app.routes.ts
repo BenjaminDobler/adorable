@@ -77,6 +77,11 @@ export const routes: Routes = [
     loadComponent: () => import('./dashboard/kit-builder/kit-builder').then(m => m.KitBuilderComponent)
   },
   {
+    path: 'teams/:teamId',
+    canActivate: [authGuard],
+    loadComponent: () => import('./team-settings/team-settings').then(m => m.TeamSettingsComponent)
+  },
+  {
     path: 'analytics',
     canActivate: [authGuard],
     loadComponent: () => import('./analytics/analytics').then(m => m.AnalyticsComponent)

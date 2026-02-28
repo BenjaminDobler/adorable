@@ -13,7 +13,8 @@ import { Kit, StorybookResource } from '../services/kit-types';
 import { DEFAULT_KIT } from '../base-project';
 import { CloudSyncService, CloudSyncStatus, CloudKit, CloudSkill } from '../services/cloud-sync.service';
 import { isDesktopApp } from '../services/smart-container.engine';
-import { SyncStatusProject } from '@adorable/shared-types';
+import { SyncStatusProject, Team } from '@adorable/shared-types';
+import { TeamService } from '../services/team.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -31,6 +32,7 @@ export class DashboardComponent {
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   public cloudSyncService = inject(CloudSyncService);
+  public teamService = inject(TeamService);
 
   projects = signal<any[]>([]);
   skills = signal<Skill[]>([]);
@@ -38,6 +40,31 @@ export class DashboardComponent {
   loading = signal(true);
 
   activeTab = signal<'projects' | 'skills' | 'kits'>('projects');
+
+  // Team dialog state
+  showCreateTeamDialog = signal(false);
+  showJoinTeamDialog = signal(false);
+  showMoveToTeamDialog = signal<{ type: 'project' | 'kit'; id: string } | null>(null);
+  createTeamName = signal('');
+  joinTeamCode = signal('');
+
+  // Filtered computed signals for workspace switching
+  filteredProjects = computed(() => {
+    const teamId = this.teamService.selectedTeamId();
+    return this.allProjects().filter(p => {
+      if (teamId === null) return !p.teamId;
+      return p.teamId === teamId;
+    });
+  });
+
+  filteredKits = computed(() => {
+    const teamId = this.teamService.selectedTeamId();
+    return this.allKitsMerged().filter((k: any) => {
+      if (k.isBuiltIn) return teamId === null; // Show built-in only in personal
+      if (teamId === null) return !k.teamId;
+      return k.teamId === teamId;
+    });
+  });
 
   // Desktop mode detection
   isDesktopMode = computed(() => isDesktopApp());
@@ -149,6 +176,7 @@ export class DashboardComponent {
       this.activeTab.set(tab);
     }
     this.loadData();
+    this.teamService.loadTeams().subscribe();
     if (this.isCloudConnected()) {
       this.loadCloudProjects();
     }
@@ -554,5 +582,100 @@ export class DashboardComponent {
 
   isCloudSkillImported(skillName: string): boolean {
     return this.skills().some(s => s.name === skillName);
+  }
+
+  // ---- Team methods ----
+
+  selectWorkspace(teamId: string | null) {
+    this.teamService.selectedTeamId.set(teamId);
+  }
+
+  openCreateTeamDialog() {
+    this.createTeamName.set('');
+    this.showCreateTeamDialog.set(true);
+  }
+
+  cancelCreateTeam() {
+    this.showCreateTeamDialog.set(false);
+  }
+
+  confirmCreateTeam() {
+    const name = this.createTeamName().trim();
+    if (!name) return;
+    this.teamService.createTeam(name).subscribe({
+      next: (team) => {
+        this.toastService.show(`Team "${team.name}" created!`, 'success');
+        this.showCreateTeamDialog.set(false);
+        this.teamService.selectedTeamId.set(team.id);
+      },
+      error: (err) => this.toastService.show(err.error?.error || 'Failed to create team', 'error')
+    });
+  }
+
+  openJoinTeamDialog() {
+    this.joinTeamCode.set('');
+    this.showJoinTeamDialog.set(true);
+  }
+
+  cancelJoinTeam() {
+    this.showJoinTeamDialog.set(false);
+  }
+
+  confirmJoinTeam() {
+    const code = this.joinTeamCode().trim();
+    if (!code) return;
+    this.teamService.joinTeam(code).subscribe({
+      next: () => {
+        this.toastService.show('Joined team!', 'success');
+        this.showJoinTeamDialog.set(false);
+      },
+      error: (err) => this.toastService.show(err.error?.error || 'Failed to join team', 'error')
+    });
+  }
+
+  openMoveToTeamDialog(type: 'project' | 'kit', id: string, event: Event) {
+    event.stopPropagation();
+    this.showMoveToTeamDialog.set({ type, id });
+  }
+
+  cancelMoveToTeam() {
+    this.showMoveToTeamDialog.set(null);
+  }
+
+  moveToTeam(teamId: string) {
+    const target = this.showMoveToTeamDialog();
+    if (!target) return;
+    const obs = target.type === 'project'
+      ? this.teamService.moveProjectToTeam(teamId, target.id)
+      : this.teamService.moveKitToTeam(teamId, target.id);
+    obs.subscribe({
+      next: () => {
+        this.toastService.show(`Moved to team!`, 'success');
+        this.showMoveToTeamDialog.set(null);
+        this.loadData();
+      },
+      error: (err) => this.toastService.show(err.error?.error || 'Failed to move', 'error')
+    });
+  }
+
+  removeFromTeam(type: 'project' | 'kit', id: string, event: Event) {
+    event.stopPropagation();
+    const teamId = this.teamService.selectedTeamId();
+    if (!teamId) return;
+    const obs = type === 'project'
+      ? this.teamService.removeProjectFromTeam(teamId, id)
+      : this.teamService.removeKitFromTeam(teamId, id);
+    obs.subscribe({
+      next: () => {
+        this.toastService.show('Moved back to personal', 'success');
+        this.loadData();
+      },
+      error: (err) => this.toastService.show(err.error?.error || 'Failed to remove', 'error')
+    });
+  }
+
+  navigateToTeamSettings(teamId: string, event: Event) {
+    event.stopPropagation();
+    this.router.navigate(['/teams', teamId]);
   }
 }

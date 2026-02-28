@@ -137,6 +137,7 @@ export interface Kit {
   mcpServerIds: string[];      // IDs of MCP servers to activate with this kit
 
   isBuiltIn?: boolean;         // System kits vs user-created
+  teamId?: string;             // Team ownership (exclusive with userId)
   createdAt: string;           // ISO date
   updatedAt: string;           // ISO date
 }

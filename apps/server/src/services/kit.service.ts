@@ -48,6 +48,7 @@ function dbRowToKit(row: KitRow): Kit {
     systemPrompt: config.systemPrompt,
     baseSystemPrompt: config.baseSystemPrompt,
     mcpServerIds: config.mcpServerIds || [],
+    teamId: row.teamId || undefined,
   };
 }
 

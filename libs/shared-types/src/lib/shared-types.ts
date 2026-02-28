@@ -290,6 +290,41 @@ export interface AnalysisStreamEvent {
   error?: string;
 }
 
+// Team Types
+export type TeamRole = 'owner' | 'admin' | 'member';
+
+export interface Team {
+  id: string;
+  name: string;
+  slug: string;
+  myRole: TeamRole;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { members: number; projects: number; kits: number };
+}
+
+export interface TeamMember {
+  id: string;
+  teamId: string;
+  userId: string;
+  role: TeamRole;
+  joinedAt: string;
+  user: { id: string; name: string | null; email: string };
+}
+
+export interface TeamInvite {
+  id: string;
+  teamId: string;
+  code: string;
+  email: string | null;
+  role: string;
+  createdBy: string;
+  usedBy: string | null;
+  usedAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
 /** Canonical list of binary file extensions (lowercase, with leading dot). */
 export const BINARY_EXTENSIONS = new Set([
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.svg',

@@ -15,9 +15,21 @@ router.use(authenticate);
 router.get('/', async (req: any, res) => {
   const user = req.user;
   try {
-    const projects = await prisma.project.findMany({
+    // Find teams the user belongs to
+    const memberships = await prisma.teamMember.findMany({
       where: { userId: user.id },
-      select: { name: true, id: true, updatedAt: true, thumbnail: true, cloudProjectId: true, cloudCommitSha: true, cloudLastSyncAt: true },
+      select: { teamId: true },
+    });
+    const teamIds = memberships.map((m) => m.teamId);
+
+    const projects = await prisma.project.findMany({
+      where: {
+        OR: [
+          { userId: user.id },
+          ...(teamIds.length > 0 ? [{ teamId: { in: teamIds } }] : []),
+        ],
+      },
+      select: { name: true, id: true, updatedAt: true, thumbnail: true, teamId: true, cloudProjectId: true, cloudCommitSha: true, cloudLastSyncAt: true },
       orderBy: { updatedAt: 'desc' }
     });
     res.json(projects);

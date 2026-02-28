@@ -34,6 +34,119 @@ body.light-mode .dashboard-container::before {
   z-index: 1;
 }
 
+/* Workspace Switcher */
+.workspace-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.workspace-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--bg-surface-1);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s var(--ease-out-expo);
+  white-space: nowrap;
+
+  svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0.6;
+    flex-shrink: 0;
+  }
+
+  .pill-count {
+    font-size: 0.6875rem;
+    background: var(--bg-surface-3);
+    color: var(--text-muted);
+    padding: 0.0625rem 0.375rem;
+    border-radius: var(--radius-full);
+    font-weight: 700;
+  }
+
+  .pill-settings {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    border-radius: var(--radius-sm);
+    opacity: 0.6;
+    transition: all 0.2s;
+
+    &:hover {
+      opacity: 1;
+      background: rgba(255, 255, 255, 0.1);
+    }
+  }
+
+  &:hover:not(.active) {
+    background: var(--bg-surface-2);
+    border-color: var(--panel-border-hover);
+    color: var(--text-primary);
+
+    svg { opacity: 0.8; }
+  }
+
+  &.active {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: #000;
+    box-shadow: 0 0 12px var(--accent-glow);
+
+    svg { opacity: 1; }
+
+    .pill-count {
+      background: rgba(0, 0, 0, 0.15);
+      color: #000;
+    }
+
+    .pill-settings {
+      color: #000;
+      opacity: 0.7;
+
+      &:hover {
+        opacity: 1;
+        background: rgba(0, 0, 0, 0.1);
+      }
+    }
+  }
+
+  &.add-pill, &.join-pill {
+    padding: 0.5rem 0.625rem;
+    background: transparent;
+    border-style: dashed;
+    color: var(--text-muted);
+
+    svg { opacity: 0.5; }
+
+    &:hover {
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+      background: rgba(52, 211, 153, 0.05);
+
+      svg { opacity: 1; }
+    }
+  }
+}
+
+.workspace-add-group {
+  display: flex;
+  gap: 0.25rem;
+}
+
 /* Tabs Header */
 .tabs-header {
   display: flex;
@@ -1416,6 +1529,182 @@ body.light-mode .dashboard-container::before {
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+}
+
+/* Team Dialogs */
+.team-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10001;
+  background: var(--bg-surface-1);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-xl);
+  padding: 1.75rem 2rem;
+  min-width: 400px;
+  max-width: 480px;
+  box-shadow: var(--shadow-xl);
+  animation: dialogScaleIn 0.25s var(--ease-out-expo);
+
+  h3 {
+    margin: 0 0 1.5rem;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .team-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+
+    > label {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: var(--bg-surface-2);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: 0.9375rem;
+      transition: all 0.2s;
+
+      &:focus {
+        outline: none;
+        border-color: var(--accent-color);
+        box-shadow: 0 0 0 3px var(--accent-glow);
+      }
+
+      &::placeholder {
+        color: var(--text-muted);
+      }
+    }
+  }
+
+  .team-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--panel-border);
+  }
+
+  .btn-cancel {
+    padding: 0.625rem 1.125rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--panel-border);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s var(--ease-out-expo);
+
+    &:hover {
+      background: var(--bg-surface-2);
+      color: var(--text-primary);
+    }
+  }
+
+  .btn-confirm {
+    padding: 0.625rem 1.25rem;
+    border-radius: var(--radius-md);
+    border: none;
+    background: var(--accent-color);
+    color: #000;
+    font-size: 0.875rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s var(--ease-out-expo);
+    box-shadow: 0 0 15px var(--accent-glow);
+
+    &:hover:not(:disabled) {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 0 25px var(--accent-glow-intense);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+  }
+
+  &.move-dialog {
+    max-width: 520px;
+
+    .move-hint {
+      margin: -0.5rem 0 1.25rem;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+  }
+}
+
+.team-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.team-pick-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.25s var(--ease-out-expo);
+  text-align: left;
+
+  svg {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    transition: color 0.25s;
+  }
+
+  .team-pick-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+
+  .team-pick-name {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .team-pick-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  &:hover {
+    border-color: var(--accent-color);
+    background: rgba(52, 211, 153, 0.05);
+    transform: translateX(4px);
+
+    svg { color: var(--accent-color); }
   }
 }
 

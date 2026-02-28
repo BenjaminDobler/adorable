@@ -1,5 +1,59 @@
 <div class="dashboard-container">
   <main class="content">
+    <!-- Workspace Switcher -->
+    <div class="workspace-switcher">
+      <button
+        class="workspace-pill"
+        [class.active]="teamService.selectedTeamId() === null"
+        (click)="selectWorkspace(null)">
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+        Personal
+      </button>
+      @for (team of teamService.teams(); track team.id) {
+        <button
+          class="workspace-pill"
+          [class.active]="teamService.selectedTeamId() === team.id"
+          (click)="selectWorkspace(team.id)">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          {{ team.name }}
+          @if (team._count?.members) {
+            <span class="pill-count">{{ team._count!.members }}</span>
+          }
+          @if (teamService.selectedTeamId() === team.id) {
+            <button class="pill-settings" (click)="navigateToTeamSettings(team.id, $event)" title="Team Settings">
+              <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </button>
+          }
+        </button>
+      }
+      <div class="workspace-add-group">
+        <button class="workspace-pill add-pill" (click)="openCreateTeamDialog()" title="Create Team">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+        <button class="workspace-pill join-pill" (click)="openJoinTeamDialog()" title="Join Team">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+            <polyline points="10 17 15 12 10 7"/>
+            <line x1="15" y1="12" x2="3" y2="12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
     <div class="tabs-header">
       <div class="tabs">
         <button
@@ -10,7 +64,7 @@
             <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>
           </svg>
           Projects
-          <span class="badge">{{ allProjects().length }}</span>
+          <span class="badge">{{ filteredProjects().length }}</span>
         </button>
         <button
           class="tab"
@@ -32,7 +86,7 @@
             <line x1="12" y1="22.08" x2="12" y2="12"></line>
           </svg>
           Kits
-          <span class="badge">{{ allKitsMerged().length }}</span>
+          <span class="badge">{{ filteredKits().length }}</span>
         </button>
       </div>
 
@@ -82,7 +136,7 @@
       @if (activeTab() === 'projects') {
         <div class="tab-content">
           <div class="project-grid">
-            @for (project of allProjects(); track project.id) {
+            @for (project of filteredProjects(); track project.id) {
               @if (project.isCloudOnly) {
                 <!-- Cloud-only project card -->
                 <div class="project-card cloud-only">
@@ -213,6 +267,21 @@
                           </svg>
                         </button>
                       }
+                      @if (teamService.selectedTeamId() === null && teamService.teams().length > 0) {
+                        <button class="btn-action" (click)="openMoveToTeamDialog('project', project.id, $event)" title="Move to Team">
+                          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                          </svg>
+                        </button>
+                      }
+                      @if (teamService.selectedTeamId() !== null) {
+                        <button class="btn-action" (click)="removeFromTeam('project', project.id, $event)" title="Move to Personal">
+                          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                          </svg>
+                        </button>
+                      }
                       <button class="btn-action" (click)="openCloneDialog(project.id, project.name, $event)" title="Clone Project">
                         <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                       </button>
@@ -316,7 +385,7 @@
       @if (activeTab() === 'kits') {
         <div class="tab-content">
           <div class="kits-grid">
-            @for (kit of allKitsMerged(); track kit.id) {
+            @for (kit of filteredKits(); track kit.id) {
               @if (kit.isCloudOnly) {
                 <!-- Cloud-only kit card -->
                 <div class="kit-card cloud-only">
@@ -388,6 +457,21 @@
                     </div>
                     @if (!kit.isBuiltIn) {
                       <div class="kit-actions">
+                        @if (teamService.selectedTeamId() === null && teamService.teams().length > 0) {
+                          <button class="btn-action" (click)="openMoveToTeamDialog('kit', kit.id, $event)" title="Move to Team">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                            </svg>
+                          </button>
+                        }
+                        @if (teamService.selectedTeamId() !== null) {
+                          <button class="btn-action" (click)="removeFromTeam('kit', kit.id, $event)" title="Move to Personal">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                            </svg>
+                          </button>
+                        }
                         @if (isCloudConnected()) {
                           <button
                             class="btn-action"
@@ -519,6 +603,84 @@
       </div>
       <div class="kit-selection-actions">
         <button class="btn-cancel" (click)="cancelKitSelection()">Cancel</button>
+      </div>
+    </div>
+  }
+
+  <!-- Create Team Dialog -->
+  @if (showCreateTeamDialog()) {
+    <div class="confirm-backdrop" (click)="cancelCreateTeam()"></div>
+    <div class="team-dialog">
+      <h3>Create Team</h3>
+      <div class="team-form">
+        <div class="form-group">
+          <label>Team Name</label>
+          <input
+            type="text"
+            [value]="createTeamName()"
+            (input)="createTeamName.set($any($event.target).value)"
+            (keydown.enter)="confirmCreateTeam()"
+            placeholder="e.g. Design Team"
+            autofocus
+          />
+        </div>
+      </div>
+      <div class="team-dialog-actions">
+        <button class="btn-cancel" (click)="cancelCreateTeam()">Cancel</button>
+        <button class="btn-confirm" (click)="confirmCreateTeam()" [disabled]="!createTeamName().trim()">Create</button>
+      </div>
+    </div>
+  }
+
+  <!-- Join Team Dialog -->
+  @if (showJoinTeamDialog()) {
+    <div class="confirm-backdrop" (click)="cancelJoinTeam()"></div>
+    <div class="team-dialog">
+      <h3>Join Team</h3>
+      <div class="team-form">
+        <div class="form-group">
+          <label>Invite Code</label>
+          <input
+            type="text"
+            [value]="joinTeamCode()"
+            (input)="joinTeamCode.set($any($event.target).value)"
+            (keydown.enter)="confirmJoinTeam()"
+            placeholder="Paste invite code"
+            autofocus
+          />
+        </div>
+      </div>
+      <div class="team-dialog-actions">
+        <button class="btn-cancel" (click)="cancelJoinTeam()">Cancel</button>
+        <button class="btn-confirm" (click)="confirmJoinTeam()" [disabled]="!joinTeamCode().trim()">Join</button>
+      </div>
+    </div>
+  }
+
+  <!-- Move to Team Dialog -->
+  @if (showMoveToTeamDialog()) {
+    <div class="confirm-backdrop" (click)="cancelMoveToTeam()"></div>
+    <div class="team-dialog move-dialog">
+      <h3>Move to Team</h3>
+      <p class="move-hint">Select a team to move this {{ showMoveToTeamDialog()!.type }} to:</p>
+      <div class="team-pick-list">
+        @for (team of teamService.teams(); track team.id) {
+          <button class="team-pick-card" (click)="moveToTeam(team.id)">
+            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            <div class="team-pick-info">
+              <span class="team-pick-name">{{ team.name }}</span>
+              @if (team._count?.members) {
+                <span class="team-pick-count">{{ team._count!.members }} members</span>
+              }
+            </div>
+          </button>
+        }
+      </div>
+      <div class="team-dialog-actions">
+        <button class="btn-cancel" (click)="cancelMoveToTeam()">Cancel</button>
       </div>
     </div>
   }
