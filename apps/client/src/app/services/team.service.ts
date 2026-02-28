@@ -2,11 +2,12 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap, map } from 'rxjs';
 import { Team, TeamMember, TeamInvite, TeamRole } from '@adorable/shared-types';
+import { getServerUrl } from './server-url';
 
 @Injectable({ providedIn: 'root' })
 export class TeamService {
   private http = inject(HttpClient);
-  private apiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api/teams';
+  private apiUrl = getServerUrl() + '/api/teams';
 
   teams = signal<Team[]>([]);
   selectedTeamId = signal<string | null>(null);

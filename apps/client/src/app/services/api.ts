@@ -2,13 +2,14 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { SessionLogEntry, SessionSuggestion, AnalysisStreamEvent } from '@adorable/shared-types';
+import { getServerUrl } from './server-url';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ApiService {
   private http = inject(HttpClient);
-  private apiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api';
+  private apiUrl = getServerUrl() + '/api';
 
   generateStream(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[], openFiles?: { [path: string]: string }, forcedSkill?: string, planMode?: boolean, kitId?: string, projectId?: string, builtInTools?: { webSearch?: boolean, urlContext?: boolean }, reasoningEffort?: string, history?: { role: string; text: string }[], contextSummary?: string }): Observable<any> {
     return new Observable(observer => {

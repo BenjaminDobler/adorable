@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { ContainerEngine, ProcessOutput } from './container-engine';
 import { FileTree } from '@adorable/shared-types';
 import { Observable, of, shareReplay } from 'rxjs';
+import { getServerUrl } from './server-url';
 
 @Injectable({
   providedIn: 'root'
@@ -106,7 +107,7 @@ export class NativeContainerEngine extends ContainerEngine {
     this.status.set('Mounting files...');
     // Call the server's endpoint (port 3333), not the local-agent's (port 3334),
     // since the server does the file preparation and both share the same directory
-    const serverUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api/container';
+    const serverUrl = getServerUrl() + '/api/container';
     const token = localStorage.getItem('adorable_token');
     await fetch(`${serverUrl}/mount-project`, {
       method: 'POST',

@@ -6,13 +6,14 @@ import {
   GitHubRepository,
   GitHubProjectSync,
 } from '@adorable/shared-types';
+import { getServerUrl } from './server-url';
 
 @Injectable({
   providedIn: 'root',
 })
 export class GitHubService {
   private http = inject(HttpClient);
-  private apiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api/github';
+  private apiUrl = getServerUrl() + '/api/github';
 
   // State
   connection = signal<GitHubConnection>({ connected: false });

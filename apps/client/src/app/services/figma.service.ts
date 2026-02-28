@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap, catchError, of } from 'rxjs';
 import { FigmaImportPayload } from '@adorable/shared-types';
+import { getServerUrl } from './server-url';
 
 export interface FigmaUser {
   id: string;
@@ -46,7 +47,7 @@ export interface FigmaNodeInfo {
 })
 export class FigmaService {
   private http = inject(HttpClient);
-  private apiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api/figma';
+  private apiUrl = getServerUrl() + '/api/figma';
 
   // Reactive state
   status = signal<FigmaStatus>({ configured: false });

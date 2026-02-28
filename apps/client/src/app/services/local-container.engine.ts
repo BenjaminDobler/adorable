@@ -3,13 +3,14 @@ import { HttpClient } from '@angular/common/http';
 import { ContainerEngine, ProcessOutput } from './container-engine';
 import { FileTree } from '@adorable/shared-types';
 import { Observable, of, shareReplay } from 'rxjs';
+import { getServerUrl } from './server-url';
 
 @Injectable({
   providedIn: 'root'
 })
 export class LocalContainerEngine extends ContainerEngine {
   private http = inject(HttpClient);
-  private apiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api/container';
+  private apiUrl = getServerUrl() + '/api/container';
 
   // State
   public mode = signal<'local' | 'native'>('local');
@@ -199,7 +200,7 @@ export class LocalContainerEngine extends ContainerEngine {
         
         if (clean.includes('Application bundle generation complete')) {
              const userId = JSON.parse(localStorage.getItem('adorable_user') || '{}').id;
-             const serverBase = (window as any).electronAPI?.serverUrl || 'http://localhost:3333';
+             const serverBase = getServerUrl();
              const proxyUrl = `${serverBase}/api/proxy/?user=${userId}`;
              
              // Small delay before setting URL to ensure server is actually listening and stable

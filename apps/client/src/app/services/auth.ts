@@ -2,6 +2,7 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { tap } from 'rxjs';
+import { getServerUrl } from './server-url';
 
 export interface AuthUser {
   id: string;
@@ -27,8 +28,8 @@ export interface RegistrationConfig {
 export class AuthService {
   private http = inject(HttpClient);
   private router = inject(Router);
-  private apiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api/auth';
-  private baseApiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api';
+  private apiUrl = getServerUrl() + '/api/auth';
+  private baseApiUrl = getServerUrl() + '/api';
 
   currentUser = signal<AuthUser | null>(null);
   token = signal<string | null>(localStorage.getItem('adorable_token'));

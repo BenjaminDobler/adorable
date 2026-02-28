@@ -2,6 +2,7 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from './api';
 import { SyncStatusProject } from '@adorable/shared-types';
+import { getServerUrl } from './server-url';
 
 export type CloudSyncStatus = 'synced' | 'local-ahead' | 'cloud-ahead' | 'both-changed' | 'unlinked';
 
@@ -558,8 +559,7 @@ export class CloudSyncService {
   }
 
   private get localApiUrl(): string {
-    // Must match ApiService's URL pattern: electronAPI.serverUrl or http://localhost:3333, plus /api
-    return ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api';
+    return getServerUrl() + '/api';
   }
 
   private get localToken(): string {

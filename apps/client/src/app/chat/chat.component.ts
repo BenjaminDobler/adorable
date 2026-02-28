@@ -11,6 +11,7 @@ import { SkillsService, Skill } from '../services/skills';
 import { HMRTriggerService } from '../services/hmr-trigger.service';
 import { ProgressiveEditorStore } from '../services/progressive-editor.store';
 import { ScreenshotService } from '../services/screenshot';
+import { getServerUrl } from '../services/server-url';
 import { SafeUrlPipe } from '../pipes/safe-url.pipe';
 import { BASE_FILES } from '../base-project';
 import { FigmaImportPayload } from '@adorable/shared-types';
@@ -1017,7 +1018,7 @@ Analyze the attached design images carefully and create matching Angular compone
       const imageData = await this.screenshotService.captureThumbnail();
 
       if (!imageData) {
-        await fetch(`${(window as any).electronAPI?.serverUrl || 'http://localhost:3333'}/api/screenshot/${requestId}`, {
+        await fetch(`${getServerUrl()}/api/screenshot/${requestId}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1028,7 +1029,7 @@ Analyze the attached design images carefully and create matching Angular compone
         return;
       }
 
-      const response = await fetch(`${(window as any).electronAPI?.serverUrl || 'http://localhost:3333'}/api/screenshot/${requestId}`, {
+      const response = await fetch(`${getServerUrl()}/api/screenshot/${requestId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1042,7 +1043,7 @@ Analyze the attached design images carefully and create matching Angular compone
     } catch (err) {
       console.error('[Screenshot] Error handling request:', err);
       try {
-        await fetch(`${(window as any).electronAPI?.serverUrl || 'http://localhost:3333'}/api/screenshot/${requestId}`, {
+        await fetch(`${getServerUrl()}/api/screenshot/${requestId}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

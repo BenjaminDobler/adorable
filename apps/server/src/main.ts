@@ -31,6 +31,9 @@ import { teamRouter } from './routes/team.routes';
 
 const app = express();
 
+// Trust Nginx reverse proxy (needed for rate limiting to read client IPs correctly)
+app.set('trust proxy', 1);
+
 app.use(cors({
   origin: (origin, callback) => callback(null, true),
   credentials: true

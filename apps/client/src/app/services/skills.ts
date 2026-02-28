@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { getServerUrl } from './server-url';
 
 export interface SkillReference {
   name: string;
@@ -30,7 +31,7 @@ export interface Skill {
 })
 export class SkillsService {
   private http = inject(HttpClient);
-  private apiUrl = ((window as any).electronAPI?.serverUrl || 'http://localhost:3333') + '/api';
+  private apiUrl = getServerUrl() + '/api';
 
   getSkills(projectId?: string): Observable<Skill[]> {
     let url = `${this.apiUrl}/skills`;

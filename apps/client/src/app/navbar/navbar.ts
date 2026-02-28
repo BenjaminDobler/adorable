@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../services/auth';
+import { getServerUrl } from '../services/server-url';
 import { ThemeService, ThemeType, ThemeMode } from '../services/theme';
 import { ProjectService } from '../services/project';
 import { ContainerEngine } from '../services/container-engine';
@@ -293,7 +294,7 @@ export class NavbarComponent {
 
   openInVSCodeFolder() {
     this.vscodePanelOpen.set(false);
-    this.http.get<ContainerInfo>(`${(window as any).electronAPI?.serverUrl || 'http://localhost:3333'}/api/container/info`).subscribe({
+    this.http.get<ContainerInfo>(`${getServerUrl()}/api/container/info`).subscribe({
       next: (info) => {
         const uri = `vscode://file/${info.hostProjectPath}?windowId=_blank`;
         window.open(uri, '_blank');
@@ -307,7 +308,7 @@ export class NavbarComponent {
 
   openInVSCodeContainer() {
     this.vscodePanelOpen.set(false);
-    this.http.get<ContainerInfo>(`${(window as any).electronAPI?.serverUrl || 'http://localhost:3333'}/api/container/info`).subscribe({
+    this.http.get<ContainerInfo>(`${getServerUrl()}/api/container/info`).subscribe({
       next: (info) => {
         // Hex-encode the container ID for the Dev Containers URI
         const hexId = Array.from(new TextEncoder().encode(info.containerId))
