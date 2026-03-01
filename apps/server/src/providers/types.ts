@@ -12,6 +12,14 @@ export interface BuiltInToolConfig {
   urlContext?: boolean;
 }
 
+export interface SapAiCoreConfig {
+  authUrl: string;
+  clientId: string;
+  clientSecret: string; // decrypted
+  resourceGroup: string;
+  baseUrl: string;
+}
+
 export interface GenerateOptions {
   prompt: string;
   previousFiles?: any;
@@ -31,6 +39,7 @@ export interface GenerateOptions {
   reasoningEffort?: 'low' | 'medium' | 'high'; // Controls model thinking depth
   history?: HistoryMessage[]; // Previous conversation turns (text only)
   contextSummary?: string; // Compacted summary of older conversation turns
+  sapAiCore?: SapAiCoreConfig; // SAP AI Core connection config
 }
 
 export interface TokenUsage {

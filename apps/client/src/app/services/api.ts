@@ -120,6 +120,15 @@ export class ApiService {
     return this.http.post<any>(`${this.apiUrl}/projects/publish/${projectId}`, { files });
   }
 
+  testProviderConnection(config: {
+    provider: string;
+    apiKey?: string;
+    baseUrl?: string;
+    sapAiCore?: { enabled: boolean; authUrl: string; clientId: string; clientSecret: string; resourceGroup: string };
+  }): Observable<{ success: boolean; message?: string; error?: string }> {
+    return this.http.post<{ success: boolean; message?: string; error?: string }>(`${this.apiUrl}/test-provider`, config);
+  }
+
   // MCP Server methods
   testMcpConnection(config: {
     transport?: 'http' | 'stdio';

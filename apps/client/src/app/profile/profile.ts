@@ -21,6 +21,14 @@ export interface BuiltInToolConfig {
   urlContext?: boolean;
 }
 
+export interface SapAiCoreConfig {
+  enabled: boolean;
+  authUrl: string;
+  clientId: string;
+  clientSecret: string;
+  resourceGroup: string;
+}
+
 export interface AIProfile {
   id: string;
   name: string;
@@ -29,6 +37,7 @@ export interface AIProfile {
   model: string;
   baseUrl?: string; // Optional custom API base URL (e.g., for company proxy)
   builtInTools?: BuiltInToolConfig;
+  sapAiCore?: SapAiCoreConfig;
 }
 
 export interface MCPServerConfig {
@@ -80,6 +89,10 @@ export class ProfileComponent implements OnInit {
 
   // Detect if running in desktop mode (Electron)
   isDesktopMode = computed(() => isDesktopApp());
+
+  // AI Provider connection test
+  testingProvider = signal<string | null>(null); // profile id being tested
+  providerTestResult = signal<Record<string, {success: boolean; message?: string; error?: string}>>({});
 
   // MCP Server management
   mcpServers = signal<MCPServerConfig[]>([]);
@@ -293,6 +306,46 @@ export class ProfileComponent implements OnInit {
     const profile = this.settings().profiles.find(p => p.id === profileId);
     const current = profile?.builtInTools || {};
     this.updateProfile(profileId, { builtInTools: { ...current, [tool]: enabled } });
+  }
+
+  toggleSapMode(profileId: string, enabled: boolean) {
+    const profile = this.settings().profiles.find(p => p.id === profileId);
+    const current = profile?.sapAiCore || { enabled: false, authUrl: '', clientId: '', clientSecret: '', resourceGroup: 'default' };
+    this.updateProfile(profileId, { sapAiCore: { ...current, enabled } });
+  }
+
+  updateSapConfig(profileId: string, updates: Partial<SapAiCoreConfig>) {
+    const profile = this.settings().profiles.find(p => p.id === profileId);
+    const current = profile?.sapAiCore || { enabled: false, authUrl: '', clientId: '', clientSecret: '', resourceGroup: 'default' };
+    this.updateProfile(profileId, { sapAiCore: { ...current, ...updates } });
+  }
+
+  testProviderConnection(profile: AIProfile) {
+    this.testingProvider.set(profile.id);
+    this.providerTestResult.update(r => {
+      const copy = { ...r };
+      delete copy[profile.id];
+      return copy;
+    });
+
+    this.apiService.testProviderConnection({
+      provider: profile.provider,
+      apiKey: profile.apiKey,
+      baseUrl: profile.baseUrl,
+      sapAiCore: profile.sapAiCore,
+    }).subscribe({
+      next: (result) => {
+        this.providerTestResult.update(r => ({ ...r, [profile.id]: result }));
+        this.testingProvider.set(null);
+      },
+      error: (err) => {
+        this.providerTestResult.update(r => ({
+          ...r,
+          [profile.id]: { success: false, error: err.error?.error || err.message || 'Connection failed' }
+        }));
+        this.testingProvider.set(null);
+      }
+    });
   }
 
   getFigmaProfile(): AIProfile | undefined {

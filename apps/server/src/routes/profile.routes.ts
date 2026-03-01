@@ -26,11 +26,14 @@ router.get('/', async (req: any, res) => {
     try {
       const settings = JSON.parse(userWithoutPassword.settings);
 
-      // Mask profile API keys
+      // Mask profile API keys and SAP secrets
       if (settings.profiles) {
         settings.profiles = settings.profiles.map((p: any) => {
           if (p.apiKey) {
             p.apiKey = maskApiKey(p.apiKey);
+          }
+          if (p.sapAiCore?.clientSecret) {
+            p.sapAiCore = { ...p.sapAiCore, clientSecret: maskApiKey(p.sapAiCore.clientSecret) };
           }
           return p;
         });
@@ -75,10 +78,23 @@ router.post('/', async (req: any, res) => {
 
         if (p.apiKey) {
           if (p.apiKey.includes('...')) {
-            return { ...p, apiKey: existing ? existing.apiKey : '' };
+            p = { ...p, apiKey: existing ? existing.apiKey : '' };
+          } else {
+            p = { ...p, apiKey: encrypt(p.apiKey) };
           }
-          return { ...p, apiKey: encrypt(p.apiKey) };
         }
+
+        // Handle SAP AI Core client secret encryption
+        if (p.sapAiCore?.clientSecret) {
+          if (p.sapAiCore.clientSecret.includes('...')) {
+            // Masked — keep existing encrypted value
+            p = { ...p, sapAiCore: { ...p.sapAiCore, clientSecret: existing?.sapAiCore?.clientSecret || '' } };
+          } else {
+            // New value — encrypt it
+            p = { ...p, sapAiCore: { ...p.sapAiCore, clientSecret: encrypt(p.sapAiCore.clientSecret) } };
+          }
+        }
+
         return p;
       });
 
@@ -125,7 +141,10 @@ router.post('/', async (req: any, res) => {
     if (userSettings.profiles) {
       userSettings.profiles = userSettings.profiles.map((p: any) => {
         if (p.apiKey) {
-          return { ...p, apiKey: maskApiKey(p.apiKey) };
+          p = { ...p, apiKey: maskApiKey(p.apiKey) };
+        }
+        if (p.sapAiCore?.clientSecret) {
+          p = { ...p, sapAiCore: { ...p.sapAiCore, clientSecret: maskApiKey(p.sapAiCore.clientSecret) } };
         }
         return p;
       });

@@ -9,6 +9,8 @@ import { screenshotManager } from '../providers/screenshot-manager';
 import { questionManager } from '../providers/question-manager';
 import { MCPServerConfig } from '../mcp/types';
 import { Kit } from '../providers/kits/types';
+import { SapAiCoreConfig } from '../providers/types';
+import { getAvailableModels as getSapModels } from '../providers/sap-ai-core';
 import { kitService } from '../services/kit.service';
 import { projectFsService } from '../services/project-fs.service';
 import { calculateCost } from '../providers/pricing';
@@ -75,6 +77,39 @@ router.get('/models/:provider', async (req: any, res) => {
   let apiKey = req.headers['x-api-key'] as string;
   const user = req.user;
 
+  // Check for SAP AI Core config
+  let sapConfig: SapAiCoreConfig | undefined;
+  if (user.settings) {
+    try {
+      const settings = JSON.parse(user.settings);
+      const profiles = settings.profiles || [];
+      const profile = profiles.find((p: any) => p.provider === provider || (provider === 'google' && p.provider === 'gemini'));
+
+      if (profile?.sapAiCore?.enabled && provider === 'anthropic') {
+        sapConfig = {
+          authUrl: profile.sapAiCore.authUrl,
+          clientId: profile.sapAiCore.clientId,
+          clientSecret: decrypt(profile.sapAiCore.clientSecret),
+          resourceGroup: profile.sapAiCore.resourceGroup || 'default',
+          baseUrl: profile.baseUrl,
+        };
+      }
+    } catch (e) {
+      console.error('Error reading SAP config for models', e);
+    }
+  }
+
+  // If SAP mode, use SAP deployment listing instead of direct API
+  if (sapConfig) {
+    try {
+      const models = await getSapModels(sapConfig);
+      return res.json(models);
+    } catch (error: any) {
+      console.error('Failed to fetch SAP models', error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
   // Security: If key is masked or missing, try to load from DB
   if (!apiKey || apiKey.includes('...')) {
       if (user.settings) {
@@ -82,7 +117,7 @@ router.get('/models/:provider', async (req: any, res) => {
               const settings = JSON.parse(user.settings);
               const profiles = settings.profiles || [];
               const profile = profiles.find((p: any) => p.provider === provider || (provider === 'google' && p.provider === 'gemini'));
-              
+
               if (profile && profile.apiKey) {
                   apiKey = decrypt(profile.apiKey);
               }
@@ -160,8 +195,33 @@ router.post('/generate-stream', async (req: any, res) => {
        return profile?.baseUrl;
     };
 
+    const getSapConfig = (): SapAiCoreConfig | undefined => {
+      try {
+        const profiles = userSettings.profiles || [];
+        const profile = profiles.find((pr: any) => pr.provider === provider);
+        if (!profile?.sapAiCore?.enabled) return undefined;
+        return {
+          authUrl: profile.sapAiCore.authUrl,
+          clientId: profile.sapAiCore.clientId,
+          clientSecret: decrypt(profile.sapAiCore.clientSecret),
+          resourceGroup: profile.sapAiCore.resourceGroup || 'default',
+          baseUrl: profile.baseUrl,
+        };
+      } catch (e) {
+        console.error('[SAP AI Core] Failed to load SAP config:', e);
+        return undefined;
+      }
+    };
+
+    const sapAiCore = getSapConfig();
+
     let effectiveApiKey = apiKey;
     if (!effectiveApiKey || effectiveApiKey.includes('...')) effectiveApiKey = getApiKey(provider);
+
+    // SAP AI Core uses OAuth, not API keys
+    if (sapAiCore) {
+      effectiveApiKey = 'sap-managed';
+    }
 
     if (!effectiveApiKey) {
       return res.status(400).send({ error: `No API Key provided for ${provider}. Please enter one in settings.` });
@@ -284,7 +344,8 @@ router.post('/generate-stream', async (req: any, res) => {
           builtInTools,
           reasoningEffort,
           history,
-          contextSummary
+          contextSummary,
+          sapAiCore
       }, {
           onText: (text) => {
               res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);
@@ -419,6 +480,99 @@ router.post('/question/:requestId', async (req: any, res) => {
 
     const resolved = questionManager.resolveAnswers(requestId, answers);
     res.json({ success: resolved, message: resolved ? 'Answers received' : 'No pending request found' });
+});
+
+// Test AI provider connection
+router.post('/test-provider', async (req: any, res) => {
+  const { provider, apiKey, baseUrl, sapAiCore } = req.body;
+  const user = req.user;
+
+  try {
+    if (provider === 'anthropic') {
+      // SAP AI Core mode: test OAuth + deployment listing
+      if (sapAiCore?.enabled) {
+        const userSettings = user.settings ? JSON.parse(user.settings) : {};
+        const profiles = userSettings.profiles || [];
+        const profile = profiles.find((p: any) => p.provider === 'anthropic');
+
+        // Resolve client secret: if masked, decrypt from DB; otherwise use as-is
+        let clientSecret = sapAiCore.clientSecret;
+        if (clientSecret?.includes('...') && profile?.sapAiCore?.clientSecret) {
+          clientSecret = decrypt(profile.sapAiCore.clientSecret);
+        }
+
+        const sapConfig: SapAiCoreConfig = {
+          authUrl: sapAiCore.authUrl,
+          clientId: sapAiCore.clientId,
+          clientSecret,
+          resourceGroup: sapAiCore.resourceGroup || 'default',
+          baseUrl: baseUrl,
+        };
+
+        const models = await getSapModels(sapConfig);
+        return res.json({
+          success: true,
+          message: `Connected to SAP AI Core. ${models.length} model(s) available: ${models.join(', ')}`,
+        });
+      }
+
+      // Direct mode: resolve API key if masked
+      let effectiveKey = apiKey;
+      if (!effectiveKey || effectiveKey.includes('...')) {
+        const userSettings = user.settings ? JSON.parse(user.settings) : {};
+        const profiles = userSettings.profiles || [];
+        const profile = profiles.find((p: any) => p.provider === 'anthropic');
+        if (profile?.apiKey) effectiveKey = decrypt(profile.apiKey);
+      }
+
+      if (!effectiveKey || effectiveKey.includes('...')) {
+        return res.json({ success: false, error: 'No API key configured' });
+      }
+
+      const url = baseUrl ? `${baseUrl}/v1/models` : 'https://api.anthropic.com/v1/models';
+      const response = await fetch(url, {
+        headers: { 'x-api-key': effectiveKey, 'anthropic-version': '2023-06-01' },
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        return res.json({ success: false, error: `API returned ${response.status}: ${text.substring(0, 200)}` });
+      }
+
+      const data = await response.json();
+      const modelCount = data.data?.filter((m: any) => m.id.includes('claude')).length || 0;
+      return res.json({ success: true, message: `Connected to Anthropic API. ${modelCount} Claude model(s) available.` });
+
+    } else if (provider === 'gemini' || provider === 'google') {
+      let effectiveKey = apiKey;
+      if (!effectiveKey || effectiveKey.includes('...')) {
+        const userSettings = user.settings ? JSON.parse(user.settings) : {};
+        const profiles = userSettings.profiles || [];
+        const profile = profiles.find((p: any) => p.provider === 'gemini');
+        if (profile?.apiKey) effectiveKey = decrypt(profile.apiKey);
+      }
+
+      if (!effectiveKey || effectiveKey.includes('...')) {
+        return res.json({ success: false, error: 'No API key configured' });
+      }
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${effectiveKey}`);
+      if (!response.ok) {
+        const text = await response.text();
+        return res.json({ success: false, error: `API returned ${response.status}: ${text.substring(0, 200)}` });
+      }
+
+      const data = await response.json();
+      const modelCount = data.models?.length || 0;
+      return res.json({ success: true, message: `Connected to Google AI. ${modelCount} model(s) available.` });
+
+    } else {
+      return res.json({ success: false, error: `Unknown provider: ${provider}` });
+    }
+  } catch (error: any) {
+    console.error('[TestProvider] Error:', error);
+    return res.json({ success: false, error: error.message || 'Connection failed' });
+  }
 });
 
 export const aiRouter = router;

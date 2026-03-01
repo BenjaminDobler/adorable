@@ -2,6 +2,7 @@ import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
 import Anthropic from '@anthropic-ai/sdk';
 import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, AgentLoopContext } from './base';
 import { sanitizeCommandOutput } from './sanitize-output';
+import { createSapFetch } from './sap-ai-core';
 
 export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
   async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any> {
@@ -10,10 +11,21 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
 
     const modelToUse = model || 'claude-sonnet-4-5-20250929';
 
-    const anthropic = new Anthropic({
-      apiKey,
-      ...(baseUrl && { baseURL: baseUrl })
-    });
+    let anthropicOptions: ConstructorParameters<typeof Anthropic>[0];
+    if (options.sapAiCore) {
+      const sapFetch = createSapFetch(options.sapAiCore, modelToUse);
+      anthropicOptions = {
+        apiKey: 'sap-managed',
+        fetch: sapFetch,
+        baseURL: options.sapAiCore.baseUrl,
+      };
+    } else {
+      anthropicOptions = {
+        apiKey,
+        ...(baseUrl && { baseURL: baseUrl }),
+      };
+    }
+    const anthropic = new Anthropic(anthropicOptions);
 
     // Prepare shared context
     const { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName, history, contextSummary } = await this.prepareAgentContext(options, 'anthropic');

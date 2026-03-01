@@ -173,17 +173,89 @@
                   </div>
 
                   <div class="provider-body">
-                    <div class="form-group">
-                      <label>API Key</label>
-                      <input
-                        type="password"
-                        [name]="'apiKey-' + profile.id"
-                        [ngModel]="profile.apiKey"
-                        (ngModelChange)="updateProfile(profile.id, {apiKey: $event})"
-                        placeholder="sk-..."
-                        autocomplete="new-password"
-                      />
-                    </div>
+                    @if (profile.provider === 'anthropic') {
+                      <div class="form-group">
+                        <label>Connection Mode</label>
+                        <select
+                          [name]="'connectionMode-' + profile.id"
+                          [ngModel]="profile.sapAiCore?.enabled ? 'sap' : 'direct'"
+                          (ngModelChange)="toggleSapMode(profile.id, $event === 'sap')"
+                        >
+                          <option value="direct">Direct (Anthropic API)</option>
+                          <option value="sap">SAP AI Core</option>
+                        </select>
+                      </div>
+                    }
+
+                    @if (profile.provider !== 'anthropic' || !profile.sapAiCore?.enabled) {
+                      <div class="form-group">
+                        <label>API Key</label>
+                        <input
+                          type="password"
+                          [name]="'apiKey-' + profile.id"
+                          [ngModel]="profile.apiKey"
+                          (ngModelChange)="updateProfile(profile.id, {apiKey: $event})"
+                          placeholder="sk-..."
+                          autocomplete="new-password"
+                        />
+                      </div>
+                    }
+
+                    @if (profile.provider === 'anthropic' && profile.sapAiCore?.enabled) {
+                      <div class="form-group">
+                        <label>Auth URL</label>
+                        <input
+                          type="url"
+                          [name]="'sapAuthUrl-' + profile.id"
+                          [ngModel]="profile.sapAiCore?.authUrl"
+                          (ngModelChange)="updateSapConfig(profile.id, {authUrl: $event})"
+                          placeholder="https://mysubaccount.authentication.eu10.hana.ondemand.com"
+                        />
+                        <small class="help-text">OAuth token endpoint (XSUAA URL)</small>
+                      </div>
+                      <div class="form-group">
+                        <label>Client ID</label>
+                        <input
+                          type="text"
+                          [name]="'sapClientId-' + profile.id"
+                          [ngModel]="profile.sapAiCore?.clientId"
+                          (ngModelChange)="updateSapConfig(profile.id, {clientId: $event})"
+                          placeholder="sb-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx!..."
+                        />
+                      </div>
+                      <div class="form-group">
+                        <label>Client Secret</label>
+                        <input
+                          type="password"
+                          [name]="'sapClientSecret-' + profile.id"
+                          [ngModel]="profile.sapAiCore?.clientSecret"
+                          (ngModelChange)="updateSapConfig(profile.id, {clientSecret: $event})"
+                          placeholder="Client secret"
+                          autocomplete="new-password"
+                        />
+                      </div>
+                      <div class="form-group">
+                        <label>Resource Group</label>
+                        <input
+                          type="text"
+                          [name]="'sapResourceGroup-' + profile.id"
+                          [ngModel]="profile.sapAiCore?.resourceGroup"
+                          (ngModelChange)="updateSapConfig(profile.id, {resourceGroup: $event})"
+                          placeholder="default"
+                        />
+                      </div>
+                      <div class="form-group">
+                        <label>Base URL</label>
+                        <input
+                          type="url"
+                          [name]="'sapBaseUrl-' + profile.id"
+                          [ngModel]="profile.baseUrl"
+                          (ngModelChange)="updateProfile(profile.id, {baseUrl: $event})"
+                          placeholder="https://api.ai.prod.eu-central-1.aws.ml.hana.ondemand.com"
+                        />
+                        <small class="help-text">SAP AI Core API base URL</small>
+                      </div>
+                    }
 
                     <div class="form-group">
                       <div class="label-row">
@@ -213,7 +285,7 @@
                       </select>
                     </div>
 
-                    @if (profile.provider === 'anthropic') {
+                    @if (profile.provider === 'anthropic' && !profile.sapAiCore?.enabled) {
                       <div class="form-group">
                         <label>Base URL <span class="optional-hint">(optional)</span></label>
                         <input
@@ -263,6 +335,26 @@
                             >
                             <span class="slider round"></span>
                           </label>
+                        </div>
+                      }
+                    </div>
+
+                    <div class="test-connection" style="margin-top: 16px;">
+                      <button
+                        class="btn-test"
+                        (click)="testProviderConnection(profile)"
+                        [disabled]="testingProvider() === profile.id"
+                      >
+                        {{ testingProvider() === profile.id ? 'Testing...' : 'Test Connection' }}
+                      </button>
+
+                      @if (providerTestResult()[profile.id]; as result) {
+                        <div class="test-result" [class.success]="result.success" [class.error]="!result.success">
+                          @if (result.success) {
+                            <span>{{ result.message }}</span>
+                          } @else {
+                            <span>{{ result.error }}</span>
+                          }
                         </div>
                       }
                     </div>
