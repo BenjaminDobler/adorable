@@ -155,6 +155,25 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
+          body: |
+            ## Installation
+
+            ### macOS
+            If you see an **"app is damaged"** error, run this in Terminal:
+            ```
+            xattr -cr /Applications/Adorable.app
+            ```
+
+            ### Windows
+            Run the `.exe` installer. If SmartScreen warns about an unrecognized app, click **"More info"** → **"Run anyway"**.
+
+            ### Linux
+            Make the AppImage executable: `chmod +x Adorable-*.AppImage`, then run it.
+
+            ---
+
+            ### Chrome Extension
+            Download `adorable-screenshot-extension.zip`, unzip it, then load it in `chrome://extensions` with **Developer mode** enabled → **Load unpacked**.
           files: |
             artifacts/adorable-macos/*
             artifacts/adorable-windows/*
