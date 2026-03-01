@@ -94,6 +94,18 @@ export class DashboardComponent {
   kitSyncLoading = signal<Record<string, boolean>>({});
   skillSyncLoading = signal<Record<string, boolean>>({});
 
+  // Companion app state
+  hasExtension = signal(false);
+  extensionBannerDismissed = signal(localStorage.getItem('adorable_ext_banner_dismissed') === 'true');
+  showExtensionBanner = computed(() =>
+    !isDesktopApp() && !this.hasExtension() && !this.extensionBannerDismissed()
+  );
+  showDesktopBanner = computed(() => !isDesktopApp());
+  desktopDownloadDialogOpen = signal(false);
+  extensionInstallDialogOpen = signal(false);
+
+  githubReleasesUrl = 'https://github.com/BenjaminDobler/adorable/releases/latest';
+
   // Kit-related state
   showKitSelection = signal(false);
 
@@ -179,6 +191,13 @@ export class DashboardComponent {
     this.teamService.loadTeams().subscribe();
     if (this.isCloudConnected()) {
       this.loadCloudProjects();
+    }
+
+    // Check for Chrome extension after a short delay (page.js needs to run first)
+    if (!isDesktopApp()) {
+      setTimeout(() => {
+        this.hasExtension.set(!!(window as any).__adorableExtension);
+      }, 500);
     }
   }
 
@@ -384,6 +403,11 @@ export class DashboardComponent {
       return storybookResource.selectedComponentIds.length;
     }
     return 0;
+  }
+
+  dismissExtensionBanner() {
+    this.extensionBannerDismissed.set(true);
+    localStorage.setItem('adorable_ext_banner_dismissed', 'true');
   }
 
   cancelKitSelection() {

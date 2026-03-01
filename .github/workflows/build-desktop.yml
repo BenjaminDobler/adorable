@@ -130,6 +130,15 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Package Chrome Extension
+        run: |
+          cd apps/extensions/adorable-screenshot
+          zip -r ../../../adorable-screenshot-extension.zip .
+          cd ../../..
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -150,3 +159,4 @@ jobs:
             artifacts/adorable-macos/*
             artifacts/adorable-windows/*
             artifacts/adorable-linux/*
+            adorable-screenshot-extension.zip
