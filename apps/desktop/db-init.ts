@@ -155,11 +155,65 @@ function createSchema(db: Database.Database): void {
       FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE
     );
 
+    -- Team table
+    CREATE TABLE IF NOT EXISTS "Team" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "name" TEXT NOT NULL,
+      "slug" TEXT NOT NULL,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- TeamMember table
+    CREATE TABLE IF NOT EXISTS "TeamMember" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "teamId" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "role" TEXT NOT NULL DEFAULT 'member',
+      "joinedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE CASCADE,
+      FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE
+    );
+
+    -- TeamInvite table
+    CREATE TABLE IF NOT EXISTS "TeamInvite" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "teamId" TEXT NOT NULL,
+      "code" TEXT NOT NULL,
+      "email" TEXT,
+      "role" TEXT NOT NULL DEFAULT 'member',
+      "createdBy" TEXT NOT NULL,
+      "usedBy" TEXT,
+      "usedAt" DATETIME,
+      "expiresAt" DATETIME,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE CASCADE
+    );
+
+    -- Kit table
+    CREATE TABLE IF NOT EXISTS "Kit" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "name" TEXT NOT NULL,
+      "description" TEXT,
+      "thumbnail" TEXT,
+      "isBuiltIn" BOOLEAN NOT NULL DEFAULT 0,
+      "config" TEXT NOT NULL,
+      "userId" TEXT,
+      "teamId" TEXT,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE,
+      FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE CASCADE
+    );
+
     -- Create indexes
     CREATE INDEX IF NOT EXISTS "Project_userId_idx" ON "Project"("userId");
     CREATE INDEX IF NOT EXISTS "ChatMessage_projectId_idx" ON "ChatMessage"("projectId");
     CREATE UNIQUE INDEX IF NOT EXISTS "User_githubId_key" ON "User"("githubId");
     CREATE UNIQUE INDEX IF NOT EXISTS "GitHubWebhook_projectId_key" ON "GitHubWebhook"("projectId");
+    CREATE UNIQUE INDEX IF NOT EXISTS "Team_slug_key" ON "Team"("slug");
+    CREATE UNIQUE INDEX IF NOT EXISTS "TeamMember_teamId_userId_key" ON "TeamMember"("teamId", "userId");
+    CREATE UNIQUE INDEX IF NOT EXISTS "TeamInvite_code_key" ON "TeamInvite"("code");
   `);
 }
 
@@ -193,6 +247,7 @@ function ensureSchema(db: Database.Database): void {
     { table: 'Project', column: 'cloudProjectId', type: 'TEXT' },
     { table: 'Project', column: 'cloudCommitSha', type: 'TEXT' },
     { table: 'Project', column: 'cloudLastSyncAt', type: 'DATETIME' },
+    { table: 'Project', column: 'teamId', type: 'TEXT' },
   ];
 
   for (const { table, column, type } of migrations) {

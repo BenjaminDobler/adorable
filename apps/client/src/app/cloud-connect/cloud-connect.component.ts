@@ -15,7 +15,7 @@ export class CloudConnectComponent {
   public cloudSyncService = inject(CloudSyncService);
   private toastService = inject(ToastService);
 
-  loginUrl = signal('');
+  loginUrl = signal('https://adorable.run');
   loginEmail = signal('');
   loginPassword = signal('');
   loginLoading = signal(false);

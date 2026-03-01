@@ -32,9 +32,14 @@ export class CloudSyncService {
   cloudUser = signal<{ email: string; name?: string } | null>(null);
 
   isConnected = computed(() => !!this.cloudUrl() && !!this.cloudToken());
+  reconnecting = signal(false);
 
   loading = signal(false);
   error = signal<string | null>(null);
+
+  private reconnectTimer: any = null;
+  private reconnectAttempt = 0;
+  private readonly MAX_RECONNECT_ATTEMPTS = 5;
 
   constructor() {
     // If we have stored credentials, validate them
@@ -84,6 +89,9 @@ export class CloudSyncService {
   }
 
   disconnect(): void {
+    this.clearReconnectTimer();
+    this.reconnecting.set(false);
+    this.reconnectAttempt = 0;
     this.cloudUrl.set('');
     this.cloudToken.set('');
     this.cloudUser.set(null);
@@ -535,12 +543,42 @@ export class CloudSyncService {
       if (response.ok) {
         const data = await response.json();
         this.cloudUser.set({ email: data.email, name: data.name });
+        this.reconnecting.set(false);
+        this.reconnectAttempt = 0;
+        this.clearReconnectTimer();
       } else {
         // Token expired or invalid
         this.disconnect();
       }
     } catch {
-      // Network error — keep credentials, user might be offline
+      // Network error — keep credentials and schedule retry
+      this.scheduleReconnect();
+    }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectAttempt >= this.MAX_RECONNECT_ATTEMPTS) {
+      this.reconnecting.set(false);
+      return;
+    }
+
+    this.reconnecting.set(true);
+    this.reconnectAttempt++;
+
+    // Exponential backoff: 3s, 6s, 12s, 24s, 48s
+    const delay = 3000 * Math.pow(2, this.reconnectAttempt - 1);
+
+    this.reconnectTimer = setTimeout(() => {
+      if (this.isConnected()) {
+        this.validateConnection();
+      }
+    }, delay);
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
   }
 
