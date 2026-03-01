@@ -79,7 +79,7 @@ export class ThemeService {
       return 'pro';
     }
 
-    return 'standard';
+    return 'pro';
   }
 
   private loadThemeMode(): ThemeMode {
