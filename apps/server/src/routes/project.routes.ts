@@ -646,7 +646,9 @@ router.post('/publish/:id', async (req: any, res) => {
       }
     }
 
-    const publicUrl = `http://localhost:${PORT}/sites/${id}/index.html`;
+    const protocol = req.get('x-forwarded-proto') || req.protocol;
+    const host = req.get('host');
+    const publicUrl = `${protocol}://${host}/sites/${id}/index.html`;
     console.log(`[Publish] Published at: ${publicUrl}`);
     res.json({ url: publicUrl });
   } catch (error: any) {

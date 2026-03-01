@@ -60,6 +60,27 @@ export class AdminApiService {
     return this.http.patch<any>(`${this.baseUrl}/config`, data, { headers: this.headers() });
   }
 
+  // Containers
+  getContainers() {
+    return this.http.get<any[]>(`${this.baseUrl}/containers`, { headers: this.headers() });
+  }
+
+  pauseContainer(userId: string) {
+    return this.http.post<any>(`${this.baseUrl}/containers/${userId}/pause`, {}, { headers: this.headers() });
+  }
+
+  unpauseContainer(userId: string) {
+    return this.http.post<any>(`${this.baseUrl}/containers/${userId}/unpause`, {}, { headers: this.headers() });
+  }
+
+  stopContainer(userId: string) {
+    return this.http.post<any>(`${this.baseUrl}/containers/${userId}/stop`, {}, { headers: this.headers() });
+  }
+
+  restartContainer(userId: string) {
+    return this.http.post<any>(`${this.baseUrl}/containers/${userId}/restart`, {}, { headers: this.headers() });
+  }
+
   // Stats
   getStats() {
     return this.http.get<any>(`${this.baseUrl}/stats`, { headers: this.headers() });

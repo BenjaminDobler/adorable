@@ -360,6 +360,8 @@ export class DockerManager {
     this.trackRecentWrites(files);
 
     const pack = tar.pack();
+    const uid = process.getuid();
+    const gid = process.getgid();
 
     const addFiles = (tree: any, prefix = '') => {
       for (const key in tree) {
@@ -370,12 +372,12 @@ export class DockerManager {
           const content = node.file.contents;
           // Handle base64 if needed, but assuming string/buffer
           if (node.file.encoding === 'base64') {
-            pack.entry({ name: path }, Buffer.from(content, 'base64'));
+            pack.entry({ name: path, uid, gid }, Buffer.from(content, 'base64'));
           } else {
-            pack.entry({ name: path }, content);
+            pack.entry({ name: path, uid, gid }, content);
           }
         } else if (node.directory) {
-          pack.entry({ name: path + '/', type: 'directory' }); // Explicit dir entry
+          pack.entry({ name: path + '/', type: 'directory', uid, gid }); // Explicit dir entry
           addFiles(node.directory, path + '/');
         }
       }
@@ -504,6 +506,30 @@ export class DockerManager {
 
       (stream as any).on('error', reject);
     });
+  }
+
+  async getInspectData(): Promise<any> {
+    if (!this.container) return null;
+    try {
+      const data = await this.container.inspect();
+      return {
+        id: data.Id?.substring(0, 12),
+        name: data.Name?.replace(/^\//, ''),
+        image: data.Config?.Image,
+        status: data.State?.Status,
+        startedAt: data.State?.StartedAt,
+        ports: data.NetworkSettings?.Ports,
+        memoryLimit: data.HostConfig?.Memory,
+        cpuLimit: data.HostConfig?.NanoCpus,
+        mounts: data.Mounts?.map((m: any) => ({
+          source: m.Source,
+          destination: m.Destination,
+          type: m.Type,
+        })),
+      };
+    } catch {
+      return null;
+    }
   }
 
   async stop() {

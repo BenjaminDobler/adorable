@@ -238,7 +238,7 @@
   }
 
   a {
-    color: var(--accent-color);
+    color: var(--accent-hover, var(--accent-color));
     text-decoration: none;
     &:hover { text-decoration: underline; }
   }

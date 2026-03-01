@@ -195,6 +195,10 @@ export class LocalContainerEngine extends ContainerEngine {
 
   async startDevServer(): Promise<void> {
     this.status.set('Starting dev server...');
+    // Kill anything lingering on port 4200 before starting (prevents "Port already in use")
+    try {
+      await this.exec('sh', ['-c', 'fuser -k 4200/tcp 2>/dev/null || true']);
+    } catch { /* ignore — fuser may not be available or port may be free */ }
     const userId = JSON.parse(localStorage.getItem('adorable_user') || '{}').id;
     // Pass --host 0.0.0.0 to ensure it listens on all interfaces for Docker networking
     const res = await this.exec('npm', ['start', '--', '--host=0.0.0.0', '--allowed-hosts=all'], {
@@ -233,6 +237,13 @@ export class LocalContainerEngine extends ContainerEngine {
     this.status.set('Stopping dev server...');
     this.url.set(null); // Clear URL immediately
     try {
+      // Skip if no container is running — avoids exec() auto-reboot creating
+      // a container prematurely (e.g. for a brand new user with no container yet)
+      if (this.status() === 'Idle' || !this.lastBootedProjectId) {
+        this.status.set('Server stopped');
+        return;
+      }
+
       // 1. Check if anything is actually listening on 4200 before killing
       // 2. Try killing anything on port 4200 specifically (most reliable)
       // 3. Fallback to pkill for node/npm/ng processes

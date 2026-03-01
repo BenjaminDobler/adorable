@@ -215,6 +215,70 @@ router.delete('/teams/:id', async (req, res) => {
   }
 });
 
+// --- Containers ---
+
+router.get('/containers', async (req, res) => {
+  try {
+    const statuses = await containerRegistry.getDetailedStatuses();
+    const userIds = statuses.map(s => s.userId);
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, email: true, name: true },
+    });
+    const userMap = Object.fromEntries(users.map(u => [u.id, u]));
+    res.json(statuses.map(s => ({
+      ...s,
+      user: userMap[s.userId] || { email: 'unknown' },
+    })));
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to list containers' });
+  }
+});
+
+router.post('/containers/:userId/pause', async (req, res) => {
+  try {
+    const manager = containerRegistry.getManagerIfExists(req.params.userId);
+    if (!manager) return res.status(404).json({ error: 'No container for this user' });
+    await manager.pause();
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to pause container' });
+  }
+});
+
+router.post('/containers/:userId/unpause', async (req, res) => {
+  try {
+    const manager = containerRegistry.getManagerIfExists(req.params.userId);
+    if (!manager) return res.status(404).json({ error: 'No container for this user' });
+    await manager.unpause();
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to unpause container' });
+  }
+});
+
+router.post('/containers/:userId/stop', async (req, res) => {
+  try {
+    const manager = containerRegistry.getManagerIfExists(req.params.userId);
+    if (!manager) return res.status(404).json({ error: 'No container for this user' });
+    await containerRegistry.removeManager(req.params.userId);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to stop container' });
+  }
+});
+
+router.post('/containers/:userId/restart', async (req, res) => {
+  try {
+    const manager = containerRegistry.getManagerIfExists(req.params.userId);
+    if (!manager) return res.status(404).json({ error: 'No container for this user' });
+    await containerRegistry.removeManager(req.params.userId);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to restart container' });
+  }
+});
+
 // --- Stats ---
 
 router.get('/stats', async (req, res) => {

@@ -1,8 +1,12 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { exec as execCb } from 'child_process';
+import { promisify } from 'util';
 import { projectFsService } from './project-fs.service';
 import { kitFsService } from './kit-fs.service';
 import { RUNTIME_SCRIPTS } from '@adorable/shared-types';
+
+const exec = promisify(execCb);
 
 export class MountService {
   /**
@@ -12,6 +16,9 @@ export class MountService {
    */
   async prepareAndWriteFiles(projectId: string, kitId: string | null, baseHref = '/'): Promise<void> {
     const projectPath = projectFsService.getProjectPath(projectId);
+
+    // Fix legacy root-owned files (from containers that ran as root before the User fix)
+    await this.fixOwnership(projectPath);
 
     // Only copy kit template files for new/empty projects.
     // Existing projects already have their files on disk — never overwrite with template.
@@ -28,6 +35,24 @@ export class MountService {
     // Desktop/native mode: "/" (direct dev server access).
     // Docker/cloud mode: "/api/proxy/" (accessed through server proxy).
     await this.normalizeIndexHtml(projectPath, baseHref);
+  }
+
+  /**
+   * Fix ownership of project files that may have been created by root-owned Docker containers.
+   * Uses sudo chown (requires sudoers rule for the deploy user).
+   */
+  private async fixOwnership(projectPath: string): Promise<void> {
+    try {
+      const stat = await fs.stat(projectPath);
+      if (stat.uid !== process.getuid()) {
+        const uid = process.getuid();
+        const gid = process.getgid();
+        await exec(`sudo -n chown -R ${uid}:${gid} "${projectPath}"`);
+        console.log(`[Mount] Fixed ownership of ${projectPath}`);
+      }
+    } catch {
+      // sudo not available or directory doesn't exist — skip silently
+    }
   }
 
   private async dirExists(dirPath: string): Promise<boolean> {

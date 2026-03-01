@@ -46,6 +46,25 @@ export class ContainerRegistry {
     return statuses;
   }
 
+  getManagerIfExists(userId: string): DockerManager | undefined {
+    return this.managers.get(userId);
+  }
+
+  async getDetailedStatuses(): Promise<any[]> {
+    const results = [];
+    for (const [userId, manager] of this.managers) {
+      const inspect = await manager.getInspectData();
+      results.push({
+        userId,
+        projectId: manager.getProjectId(),
+        running: manager.isRunning(),
+        lastActivity: this.activities.get(userId) ?? null,
+        inspect,
+      });
+    }
+    return results;
+  }
+
   getManager(userId: string): DockerManager {
     let manager = this.managers.get(userId);
     if (!manager) {
