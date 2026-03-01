@@ -96,12 +96,11 @@ export class DashboardComponent {
 
   // Companion app state
   hasExtension = signal(false);
+  extensionChecked = signal(false);
   extensionBannerDismissed = signal(localStorage.getItem('adorable_ext_banner_dismissed') === 'true');
   showExtensionBanner = computed(() =>
-    !isDesktopApp() && !this.hasExtension() && !this.extensionBannerDismissed()
+    this.extensionChecked() && !isDesktopApp() && !this.hasExtension() && !this.extensionBannerDismissed()
   );
-  showDesktopBanner = computed(() => !isDesktopApp());
-  desktopDownloadDialogOpen = signal(false);
   extensionInstallDialogOpen = signal(false);
 
   githubReleasesUrl = 'https://github.com/BenjaminDobler/adorable/releases/latest';
@@ -197,6 +196,7 @@ export class DashboardComponent {
     if (!isDesktopApp()) {
       setTimeout(() => {
         this.hasExtension.set(!!(window as any).__adorableExtension);
+        this.extensionChecked.set(true);
       }, 500);
     }
   }

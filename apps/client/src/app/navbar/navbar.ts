@@ -43,6 +43,10 @@ export class NavbarComponent {
   private router = inject(Router);
   private http = inject(HttpClient);
 
+  // Desktop download
+  desktopDownloadOpen = signal(false);
+  githubReleasesUrl = 'https://github.com/BenjaminDobler/adorable/releases/latest';
+
   // Cloud panel
   cloudPanelOpen = signal(false);
 

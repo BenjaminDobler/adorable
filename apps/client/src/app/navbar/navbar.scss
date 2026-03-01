@@ -1030,6 +1030,153 @@
   }
 }
 
+/* Desktop Download Dialog */
+.desktop-download-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  animation: fadeIn 0.2s var(--ease-out-expo);
+}
+
+.desktop-download-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10001;
+  background: var(--bg-surface-1);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-xl);
+  width: 90%;
+  max-width: 540px;
+  box-shadow: var(--shadow-xl);
+  animation: dialogScaleIn 0.25s var(--ease-out-expo);
+
+  .dialog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 1.75rem 0;
+
+    h3 {
+      margin: 0;
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0.25rem 0.5rem;
+      border-radius: var(--radius-sm);
+      line-height: 1;
+      transition: all 0.2s;
+
+      &:hover {
+        color: var(--text-primary);
+        background: var(--bg-surface-2);
+      }
+    }
+  }
+
+  .dialog-body {
+    padding: 1.25rem 1.75rem 1.75rem;
+
+    > p {
+      margin: 0 0 1.5rem;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+  }
+
+  .dialog-footer-note {
+    margin: 1.25rem 0 0 !important;
+    font-size: 0.8125rem !important;
+    color: var(--text-muted) !important;
+    text-align: center;
+
+    a {
+      color: var(--accent-color);
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .download-options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.875rem;
+  }
+
+  .download-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 1.5rem 1rem;
+    background: var(--bg-surface-2);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.25s var(--ease-out-expo);
+    text-align: center;
+
+    svg {
+      color: var(--text-secondary);
+      opacity: 0.7;
+      transition: all 0.25s var(--ease-out-expo);
+    }
+
+    strong {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    span {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    &:hover {
+      border-color: var(--accent-color);
+      background: rgba(52, 211, 153, 0.05);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+
+      svg {
+        color: var(--accent-color);
+        opacity: 1;
+      }
+    }
+  }
+}
+
+@keyframes dialogScaleIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .navbar {
