@@ -51,6 +51,10 @@ export class ProjectFsService {
             const contents = node.file.contents;
             if (node.file.encoding === 'base64') {
               return fs.writeFile(targetPath, Buffer.from(contents, 'base64'));
+            } else if (typeof contents === 'string' && contents.startsWith('data:') && contents.includes(';base64,')) {
+              // Data URIs (from user image uploads) — decode to actual binary
+              const base64 = contents.split(',')[1] || '';
+              return fs.writeFile(targetPath, Buffer.from(base64, 'base64'));
             } else {
               return fs.writeFile(targetPath, contents);
             }

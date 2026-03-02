@@ -729,7 +729,7 @@ export class ProjectService {
         };
       } else {
         const isBinary =
-          /\.(png|jpg|jpeg|gif|svg|webp|ico|pdf|eot|ttf|woff|woff2)$/i.test(
+          /\.(png|jpg|jpeg|gif|webp|ico|pdf|eot|ttf|woff|woff2)$/i.test(
             entry.name,
           );
         if (isBinary) {

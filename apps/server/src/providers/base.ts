@@ -416,7 +416,8 @@ Only proceed with implementation after receiving the user's answers.`;
               // Sanitize file content — fixes double-escaping issues from LLM serialization
               f.content = this.sanitizeFileContent(f.content, f.path);
               // Detect still-corrupted content (long single-line files are almost certainly broken)
-              if (f.content.length > 100 && !f.content.includes('\n')) {
+              // Exempt XML/HTML content (e.g. SVG icons are often single-line)
+              if (f.content.length > 100 && !f.content.includes('\n') && !f.content.trimStart().startsWith('<')) {
                 corrupted.push(f.path);
                 continue;
               }

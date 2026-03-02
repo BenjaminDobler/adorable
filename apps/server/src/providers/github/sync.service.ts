@@ -295,7 +295,7 @@ export class GitHubSyncService {
       const blobData = await blobResponse.json();
 
       // Check if it's a binary file by checking the path extension
-      const isBinary = /\.(png|jpg|jpeg|gif|ico|svg|webp|woff|woff2|ttf|eot|pdf)$/i.test(item.path);
+      const isBinary = /\.(png|jpg|jpeg|gif|ico|webp|woff|woff2|ttf|eot|pdf)$/i.test(item.path);
 
       if (blobData.encoding === 'base64') {
         if (isBinary) {
