@@ -44,12 +44,12 @@ export async function initializeDatabase(): Promise<DatabaseInitResult> {
 
     if (!dbExists) {
       console.log('[Desktop] Fresh install - creating database schema...');
-      createSchema(db);
     } else {
       console.log('[Desktop] Existing database - checking schema...');
-      // Ensure all tables exist (for upgrades)
-      ensureSchema(db);
     }
+    // Always run ensureSchema — createSchema (called inside) uses IF NOT EXISTS,
+    // and ALTER TABLE migrations use try/catch, so it's safe for both fresh and existing DBs.
+    ensureSchema(db);
 
     // Ensure local user exists for auto-login
     localUser = ensureLocalUser(db);
