@@ -194,6 +194,35 @@ export class AdorableFileBrowserComponent implements OnChanges {
     });
   }
 
+  deleteAdorableFolder(folderPath: string) {
+    const id = this.kitId();
+    if (!id) return;
+    // Find all files under this folder
+    const filesToDelete = this.adorableFiles().filter(f => f.path.startsWith(folderPath + '/'));
+    if (filesToDelete.length === 0) return;
+
+    let completed = 0;
+    let errors = 0;
+    for (const file of filesToDelete) {
+      this.apiService.deleteKitFile(id, file.path).subscribe({
+        next: () => {
+          completed++;
+          if (completed + errors === filesToDelete.length) {
+            this.toastService.show(`Deleted ${completed} file(s)`, 'success');
+            this.loadAdorableFiles();
+          }
+        },
+        error: () => {
+          errors++;
+          if (completed + errors === filesToDelete.length) {
+            this.toastService.show(`Deleted ${completed} file(s), ${errors} failed`, 'error');
+            this.loadAdorableFiles();
+          }
+        }
+      });
+    }
+  }
+
   uploadAdorableFiles(event: Event) {
     const input = event.target as HTMLInputElement;
     const id = this.kitId();

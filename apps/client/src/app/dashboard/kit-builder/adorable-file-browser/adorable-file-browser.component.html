@@ -83,6 +83,18 @@
               @if (!entry.isDirectory && entry.size > 0) {
                 <span class="entry-size">{{ formatFileSize(entry.size) }}</span>
               }
+              @if (entry.isDirectory && entry.fullPath !== '.adorable') {
+                <button
+                  class="btn-remove-entry"
+                  (click)="deleteAdorableFolder(entry.fullPath)"
+                  title="Delete folder"
+                >
+                  <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              }
               @if (!entry.isDirectory) {
                 <button
                   class="btn-remove-entry"
