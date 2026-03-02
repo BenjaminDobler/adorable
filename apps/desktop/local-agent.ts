@@ -401,9 +401,10 @@ export function startLocalAgent(clientPath?: string): Promise<number> {
   if (clientPath) {
     app.use(expressStatic(clientPath));
 
-    // SPA catch-all for Angular routing
+    // SPA catch-all for Angular routing (skip static file requests)
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api/')) return next();
+      if (pathModule.extname(req.path)) return next();
       res.sendFile(pathModule.join(clientPath, 'index.html'));
     });
   }
