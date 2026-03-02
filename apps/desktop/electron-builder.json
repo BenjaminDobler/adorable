@@ -28,9 +28,14 @@
     }
   ],
   "mac": {
-    "target": ["dmg"],
+    "target": ["dmg", "zip"],
     "category": "public.app-category.developer-tools",
-    "icon": "apps/desktop/icons/icon.icns"
+    "icon": "apps/desktop/icons/icon.icns",
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "entitlements": "apps/desktop/entitlements.mac.plist",
+    "entitlementsInherit": "apps/desktop/entitlements.mac.plist",
+    "notarize": true
   },
   "win": {
     "target": ["nsis"],
