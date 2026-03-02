@@ -122,6 +122,7 @@ export class DockerManager {
       Tty: true,
       WorkingDir: '/app',
       User: `${process.getuid()}:${process.getgid()}`, // Match host user so bind-mounted files stay writable
+      Env: ['HOME=/tmp'], // Writable HOME for npm cache (default /root is not writable by non-root user)
       HostConfig: {
         Binds: [`${hostAppPath}:/app`],
         PortBindings: {
@@ -152,6 +153,7 @@ export class DockerManager {
           Tty: true,
           WorkingDir: '/app',
           User: `${process.getuid()}:${process.getgid()}`,
+          Env: ['HOME=/tmp'],
           HostConfig: {
             Binds: [`${hostAppPath}:/app`],
             PortBindings: { '4200/tcp': [{ HostIp: '0.0.0.0', HostPort: '0' }] },
