@@ -229,6 +229,56 @@ export class AdorableFileBrowserComponent implements OnChanges {
     input.value = '';
   }
 
+  uploadAdorableFolder(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const id = this.kitId();
+    if (!input.files || !id) return;
+
+    const filesToUpload: { path: string; content: string }[] = [];
+    const fileArray = Array.from(input.files);
+    // Filter to supported text files
+    const supportedExts = ['.md', '.txt', '.json', '.yaml', '.yml'];
+    const textFiles = fileArray.filter(f => supportedExts.some(ext => f.name.endsWith(ext)));
+
+    if (textFiles.length === 0) {
+      this.toastService.show('No supported files found (.md, .txt, .json, .yaml, .yml)', 'error');
+      input.value = '';
+      return;
+    }
+
+    let processed = 0;
+    for (const file of textFiles) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        // webkitRelativePath is "folderName/sub/file.md" — strip the root folder name
+        // and place under .adorable/
+        const relativePath = file.webkitRelativePath;
+        const parts = relativePath.split('/');
+        // Remove the top-level folder (the one the user selected)
+        const subPath = parts.slice(1).join('/');
+        filesToUpload.push({
+          path: `.adorable/${subPath}`,
+          content: reader.result as string,
+        });
+        processed++;
+        if (processed === textFiles.length) {
+          this.apiService.uploadKitFiles(id, filesToUpload).subscribe({
+            next: () => {
+              this.toastService.show(`${filesToUpload.length} file(s) uploaded from folder`, 'success');
+              this.loadAdorableFiles();
+            },
+            error: () => {
+              this.toastService.show('Failed to upload files', 'error');
+            }
+          });
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    input.value = '';
+  }
+
   regenerateDocs() {
     const id = this.kitId();
     if (!id) return;
