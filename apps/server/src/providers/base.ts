@@ -839,66 +839,6 @@ Only proceed with implementation after receiving the user's answers.`;
     return null;
   }
 
-  protected parseResponse(text: string): any {
-    const files: any = {};
-    let explanation = '';
-
-    const explanationMatch = text.match(/<explanation>([\s\S]*?)<\/explanation>/);
-    if (explanationMatch) {
-      explanation = explanationMatch[1].trim();
-    }
-
-    const fileRegex = /<file\s+path="([^"]+)"(?:\s+encoding="([^"]+)")?>([\s\S]*?)(?:<\/file>|$)/g;
-    let match;
-
-    while ((match = fileRegex.exec(text)) !== null) {
-      const filePath = match[1];
-      const encoding = match[2];
-      let fileContent = match[3];
-      fileContent = fileContent.trim();
-
-      if (encoding !== 'base64') {
-        const codeBlockMatch = fileContent.match(/^```[\w-]*\n([\s\S]*?)\n```$/);
-        if (codeBlockMatch) {
-          fileContent = codeBlockMatch[1];
-        } else {
-          fileContent = fileContent.replace(/^```[\w-]*\n/, '').replace(/\n```$/, '');
-        }
-      }
-
-      if (filePath && fileContent) {
-        this.addFileToStructure(files, filePath, fileContent, encoding);
-      }
-    }
-
-    return { files, explanation };
-  }
-
-  protected addFileToStructure(root: any, path: string, content: string, encoding?: string) {
-    const parts = path.split('/');
-    let current = root;
-
-    for (let i = 0; i < parts.length - 1; i++) {
-      const part = parts[i];
-      if (!current[part]) {
-        current[part] = { directory: {} };
-      }
-      if (!current[part].directory) {
-        current[part].directory = {};
-      }
-      current = current[part].directory;
-    }
-
-    const fileName = parts[parts.length - 1];
-    if (encoding === 'base64') {
-      const ext = fileName.split('.').pop()?.toLowerCase() || 'bin';
-      const mime = ext === 'png' ? 'image/png' : ext === 'jpg' ? 'image/jpeg' : 'application/octet-stream';
-      content = `data:${mime};base64,${content}`;
-    }
-
-    current[fileName] = { file: { contents: content } };
-  }
-
   protected flattenFiles(structure: any, prefix = ''): Record<string, string> {
     const map: Record<string, string> = {};
     for (const key in structure) {

@@ -414,7 +414,7 @@ export class FolderImportComponent {
   }
 
   private static readonly BINARY_EXTS = new Set([
-    '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.svg',
+    '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico',
     '.pdf', '.eot', '.ttf', '.woff', '.woff2',
     '.mp3', '.mp4', '.wav', '.ogg',
     '.zip', '.tar', '.gz', '.bz2',

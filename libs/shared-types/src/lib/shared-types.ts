@@ -327,7 +327,7 @@ export interface TeamInvite {
 
 /** Canonical list of binary file extensions (lowercase, with leading dot). */
 export const BINARY_EXTENSIONS = new Set([
-  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.svg',
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico',
   '.pdf', '.eot', '.ttf', '.woff', '.woff2',
   '.mp3', '.mp4', '.wav', '.ogg',
   '.zip', '.tar', '.gz', '.bz2',

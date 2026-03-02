@@ -639,6 +639,9 @@ export class ProjectService {
           // Convert data URI to base64 inline — mount() handles encoding: 'base64'
           const base64 = content.split(',')[1] || '';
           tree[key] = { file: { contents: base64, encoding: 'base64' } };
+        } else if (files[key].file.encoding === 'base64') {
+          // Preserve binary encoding (e.g. PNG read from disk as base64)
+          tree[key] = { file: { contents: content, encoding: 'base64' } };
         } else {
           if (key === 'index.html' && typeof content === 'string') {
             // Determine correct base href based on engine
