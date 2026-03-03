@@ -22,7 +22,17 @@ export class ApiService {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ prompt, previousFiles, ...options })
-      }).then(response => {
+      }).then(async response => {
+        if (!response.ok) {
+          try {
+            const body = await response.json();
+            observer.error({ status: response.status, code: body.code, error: body.error });
+          } catch {
+            observer.error({ status: response.status, error: response.statusText });
+          }
+          return;
+        }
+
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
         let buffer = '';

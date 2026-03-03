@@ -91,7 +91,7 @@ router.post('/register', registerRateLimit, async (req, res) => {
     const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     res.json({
       token,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, emailVerified: user.emailVerified },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, emailVerified: user.emailVerified, cloudEditorAllowed: user.cloudEditorAllowed },
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -126,7 +126,7 @@ router.post('/login', authRateLimit, async (req, res) => {
     const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     res.json({
       token,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, emailVerified: user.emailVerified },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, emailVerified: user.emailVerified, cloudEditorAllowed: user.cloudEditorAllowed },
     });
   } catch (error) {
     res.status(500).json({ error: 'Login failed' });

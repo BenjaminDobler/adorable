@@ -25,6 +25,7 @@ router.get('/users', async (req, res) => {
         role: true,
         isActive: true,
         emailVerified: true,
+        cloudEditorAllowed: true,
         createdAt: true,
         _count: { select: { projects: true } },
       },
@@ -42,7 +43,7 @@ router.get('/users', async (req, res) => {
 
 router.patch('/users/:id', async (req: any, res) => {
   const { id } = req.params;
-  const { isActive, role } = req.body;
+  const { isActive, role, cloudEditorAllowed } = req.body;
 
   // Cannot modify yourself
   if (id === req.user.id) {
@@ -53,9 +54,10 @@ router.patch('/users/:id', async (req: any, res) => {
     const data: any = {};
     if (isActive !== undefined) data.isActive = isActive;
     if (role !== undefined) data.role = role;
+    if (cloudEditorAllowed !== undefined) data.cloudEditorAllowed = cloudEditorAllowed;
 
     const user = await prisma.user.update({ where: { id }, data });
-    res.json({ id: user.id, email: user.email, role: user.role, isActive: user.isActive });
+    res.json({ id: user.id, email: user.email, role: user.role, isActive: user.isActive, cloudEditorAllowed: user.cloudEditorAllowed });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update user' });
   }

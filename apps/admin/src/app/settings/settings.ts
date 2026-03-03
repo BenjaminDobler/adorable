@@ -21,6 +21,17 @@ import { AdminApiService } from '../services/admin-api';
         </div>
 
         <div class="settings-section">
+          <h3>Cloud Editor Access</h3>
+          <div class="form-group">
+            <label class="toggle-label">
+              <input type="checkbox" [checked]="config['cloudEditor.accessMode'] === 'allowlist'" (change)="toggleCloudEditorAccess($event)" />
+              Restrict cloud editor to allowed users only
+            </label>
+            <p class="hint">When enabled, only users explicitly marked as "allowed" in the Users panel can use the cloud editor. Admins always have access. Other users will be prompted to download the desktop app.</p>
+          </div>
+        </div>
+
+        <div class="settings-section">
           <h3>Email Verification</h3>
           <div class="form-group">
             <label class="toggle-label">
@@ -120,6 +131,7 @@ import { AdminApiService } from '../services/admin-api';
       &:disabled { opacity: 0.5; cursor: not-allowed; }
     }
     .saved-msg { color: #22c55e; font-size: 0.85rem; }
+    .hint { font-size: 0.8rem; color: #666; margin: 0.5rem 0 0; line-height: 1.4; }
     .loading { color: #888; }
   `],
 })
@@ -137,6 +149,11 @@ export class SettingsComponent implements OnInit {
         this.loaded.set(true);
       },
     });
+  }
+
+  toggleCloudEditorAccess(event: Event) {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.config['cloudEditor.accessMode'] = checked ? 'allowlist' : 'open';
   }
 
   toggleEmailVerification(event: Event) {

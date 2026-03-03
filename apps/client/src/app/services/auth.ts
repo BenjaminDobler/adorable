@@ -10,6 +10,7 @@ export interface AuthUser {
   name: string | null;
   role?: string;
   emailVerified?: boolean;
+  cloudEditorAllowed?: boolean;
 }
 
 export interface AuthResponse {

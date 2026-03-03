@@ -21,6 +21,7 @@ model User {
   isActive  Boolean   @default(true)
   emailVerified          Boolean  @default(false)
   emailVerificationToken String?
+  cloudEditorAllowed     Boolean  @default(true)
   projects  Project[]
   teams     TeamMember[]
   kits      Kit[]

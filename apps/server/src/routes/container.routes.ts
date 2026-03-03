@@ -1,13 +1,14 @@
 import express from 'express';
 import { containerRegistry } from '../providers/container/container-registry';
 import { authenticate } from '../middleware/auth';
+import { requireCloudEditorAccess } from '../middleware/cloud-editor-access';
 import { mountService } from '../services/mount.service';
 
 const router = express.Router();
 
 router.use(authenticate);
 
-router.post('/start', async (req: any, res) => {
+router.post('/start', requireCloudEditorAccess, async (req: any, res) => {
   try {
     const { projectId } = req.body;
 

@@ -120,6 +120,7 @@ export class ProjectService {
     },
   ]);
   loading = signal(false);
+  cloudEditorBlocked = signal<'capacity' | 'access_denied' | null>(null);
   buildError = signal<string | null>(null);
   debugLogs = signal<any[]>([]);
   figmaImports = signal<FigmaImportPayload[]>([]);
@@ -568,8 +569,13 @@ export class ProjectService {
       if (exitCode === 0) {
         this.containerEngine.startDevServer();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      if (err?.code === 'CLOUD_EDITOR_ACCESS_DENIED') {
+        this.cloudEditorBlocked.set('access_denied');
+      } else if (err?.code === 'CONTAINER_CAPACITY_REACHED') {
+        this.cloudEditorBlocked.set('capacity');
+      }
     } finally {
       this.loading.set(false);
     }

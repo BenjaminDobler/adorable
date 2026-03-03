@@ -17,7 +17,7 @@ export class AdminApiService {
     return this.http.get<any[]>(`${this.baseUrl}/users`, { headers: this.headers() });
   }
 
-  updateUser(id: string, data: { isActive?: boolean; role?: string }) {
+  updateUser(id: string, data: { isActive?: boolean; role?: string; cloudEditorAllowed?: boolean }) {
     return this.http.patch<any>(`${this.baseUrl}/users/${id}`, data, { headers: this.headers() });
   }
 

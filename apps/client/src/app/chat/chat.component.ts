@@ -971,7 +971,15 @@ Analyze the attached design images carefully and create matching Angular compone
       error: (err) => {
         console.error('API error:', err);
         this.loading.set(false);
-        this.projectService.addSystemMessage('Failed to generate code. Please try again.');
+        if (err?.code === 'CLOUD_EDITOR_ACCESS_DENIED') {
+          this.projectService.cloudEditorBlocked.set('access_denied');
+          this.projectService.addSystemMessage('Cloud editor access is restricted. Please use the desktop app or contact an administrator.');
+        } else if (err?.code === 'CONTAINER_CAPACITY_REACHED') {
+          this.projectService.cloudEditorBlocked.set('capacity');
+          this.projectService.addSystemMessage('Server is at capacity. Please try again later or use the desktop app.');
+        } else {
+          this.projectService.addSystemMessage('Failed to generate code. Please try again.');
+        }
       },
       complete: () => {
         if (!hasResult) {

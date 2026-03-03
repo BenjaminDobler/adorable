@@ -2,6 +2,7 @@ import express from 'express';
 import { ProviderFactory } from '../providers/factory';
 import { decrypt } from '../utils/crypto';
 import { authenticate } from '../middleware/auth';
+import { requireCloudEditorAccess } from '../middleware/cloud-editor-access';
 import { containerRegistry } from '../providers/container/container-registry';
 import { nativeRegistry } from '../providers/container/native-registry';
 import { DiskFileSystem, ExecDelegate } from '../providers/filesystem/disk-filesystem';
@@ -163,7 +164,7 @@ router.get('/models/:provider', async (req: any, res) => {
   }
 });
 
-router.post('/generate-stream', async (req: any, res) => {
+router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) => {
     let { prompt, previousFiles, provider, model, apiKey, images, openFiles, forcedSkill, planMode, kitId, projectId, builtInTools, reasoningEffort, history, contextSummary } = req.body;
     const user = req.user;
 

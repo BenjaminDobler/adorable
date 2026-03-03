@@ -45,9 +45,13 @@ export class LocalContainerEngine extends ContainerEngine {
       await this.http.post(`${this.apiUrl}/start`, { projectId: this.currentProjectId }).toPromise();
       this.lastBootedProjectId = this.currentProjectId;
       this.status.set('Container Ready');
-    } catch (e) {
+    } catch (e: any) {
       this.status.set('Boot Failed');
       console.error(e);
+      const code = e?.error?.code;
+      if (code) {
+        throw { code, message: e.error.error || e.error.message || 'Boot failed' };
+      }
       throw e;
     }
   }
@@ -102,6 +106,10 @@ export class LocalContainerEngine extends ContainerEngine {
           exit: Promise.resolve(result!.exitCode)
         };
     } catch (e: any) {
+        const errorCode = e.error?.code || '';
+        if (errorCode === 'CLOUD_EDITOR_ACCESS_DENIED' || errorCode === 'CONTAINER_CAPACITY_REACHED') {
+            throw { code: errorCode, message: e.error?.error || 'Access denied' };
+        }
         const errorMsg = e.error?.error || '';
         if (errorMsg === 'Container not started' || errorMsg.includes('container state improper')) {
             console.log('Container connection lost or stopped, rebooting...');

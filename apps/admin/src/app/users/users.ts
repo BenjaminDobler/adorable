@@ -18,6 +18,9 @@ import { AdminApiService } from '../services/admin-api';
             <th>Role</th>
             <th>Status</th>
             <th>Verified</th>
+            @if (allowlistMode()) {
+              <th>Cloud Editor</th>
+            }
             <th>Projects</th>
             <th>Joined</th>
             <th>Actions</th>
@@ -36,6 +39,17 @@ import { AdminApiService } from '../services/admin-api';
                 {{ user.isActive ? 'Active' : 'Disabled' }}
               </td>
               <td>{{ user.emailVerified ? 'Yes' : 'No' }}</td>
+              @if (allowlistMode()) {
+                <td>
+                  @if (user.role === 'admin') {
+                    <span class="badge admin">Always</span>
+                  } @else {
+                    <button class="btn-small" [class.allowed]="user.cloudEditorAllowed" (click)="toggleCloudEditor(user)">
+                      {{ user.cloudEditorAllowed ? 'Allowed' : 'Blocked' }}
+                    </button>
+                  }
+                </td>
+              }
               <td>{{ user.projectCount }}</td>
               <td>{{ user.createdAt | date:'shortDate' }}</td>
               <td class="actions">
@@ -94,6 +108,7 @@ import { AdminApiService } from '../services/admin-api';
       font-size: 0.75rem;
     }
     .btn-small:hover { background: #3e3e4e; }
+    .btn-small.allowed { color: #22c55e; border-color: #22c55e33; }
     .btn-small.danger { color: #ef4444; }
     .btn-small.danger:hover { background: #3a1a1a; }
   `],
@@ -101,9 +116,13 @@ import { AdminApiService } from '../services/admin-api';
 export class UsersComponent implements OnInit {
   private api = inject(AdminApiService);
   users = signal<any[]>([]);
+  allowlistMode = signal(false);
 
   ngOnInit() {
     this.load();
+    this.api.getConfig().subscribe({
+      next: (config) => this.allowlistMode.set(config['cloudEditor.accessMode'] === 'allowlist'),
+    });
   }
 
   load() {
@@ -120,6 +139,13 @@ export class UsersComponent implements OnInit {
   toggleRole(user: any) {
     const newRole = user.role === 'admin' ? 'user' : 'admin';
     this.api.updateUser(user.id, { role: newRole }).subscribe({
+      next: () => this.load(),
+      error: (err) => alert(err.error?.error || 'Failed'),
+    });
+  }
+
+  toggleCloudEditor(user: any) {
+    this.api.updateUser(user.id, { cloudEditorAllowed: !user.cloudEditorAllowed }).subscribe({
       next: () => this.load(),
       error: (err) => alert(err.error?.error || 'Failed'),
     });
