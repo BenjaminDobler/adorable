@@ -1,4 +1,5 @@
-import { app, BrowserWindow, dialog, ipcMain, session } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, session } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import * as path from 'path';
 import * as os from 'os';
 import { fork, ChildProcess } from 'child_process';
@@ -138,6 +139,159 @@ function stopEmbeddedServer(): void {
   }
 }
 
+/**
+ * Sets up the auto-updater using electron-updater.
+ * Prompts the user via native dialogs before downloading or installing updates.
+ */
+function setupAutoUpdater(): void {
+  if (!app.isPackaged) {
+    console.log('[Desktop] Skipping auto-update in dev mode');
+    return;
+  }
+
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.logger = {
+    info: (msg: unknown) => console.log('[AutoUpdater]', msg),
+    warn: (msg: unknown) => console.warn('[AutoUpdater]', msg),
+    error: (msg: unknown) => console.error('[AutoUpdater]', msg),
+    debug: (msg: unknown) => console.log('[AutoUpdater][debug]', msg),
+  };
+
+  autoUpdater.on('update-available', (info) => {
+    dialog
+      .showMessageBox({
+        type: 'info',
+        title: 'Update Available',
+        message: `A new version (${info.version}) is available. Download now?`,
+        buttons: ['Download', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          autoUpdater.downloadUpdate();
+        }
+      });
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    if (mainWindow) {
+      mainWindow.setProgressBar(progress.percent / 100);
+    }
+  });
+
+  autoUpdater.on('update-downloaded', () => {
+    if (mainWindow) {
+      mainWindow.setProgressBar(-1); // Remove progress bar
+    }
+    dialog
+      .showMessageBox({
+        type: 'info',
+        title: 'Update Ready',
+        message: 'Update downloaded. Restart now to apply?',
+        buttons: ['Restart', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          autoUpdater.quitAndInstall();
+        }
+      });
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('[AutoUpdater] Error:', err.message);
+  });
+
+  // Check for updates 10 seconds after launch
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.error('[AutoUpdater] Check failed:', err.message);
+    });
+  }, 10_000);
+}
+
+/**
+ * Builds the native application menu.
+ * Includes a "Check for Updates..." item and standard Edit/View/Window menus.
+ */
+function setupApplicationMenu(): void {
+  const isMac = process.platform === 'darwin';
+
+  const template: Electron.MenuItemConstructorOptions[] = [
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: 'about' as const },
+              { type: 'separator' as const },
+              {
+                label: 'Check for Updates...',
+                click: () => {
+                  autoUpdater
+                    .checkForUpdates()
+                    .then((result) => {
+                      if (!result || !result.updateInfo || result.updateInfo.version === app.getVersion()) {
+                        dialog.showMessageBox({
+                          type: 'info',
+                          title: 'No Updates',
+                          message: "You're up to date!",
+                          detail: `Adorable ${app.getVersion()} is the latest version.`,
+                        });
+                      }
+                    })
+                    .catch(() => {
+                      dialog.showMessageBox({
+                        type: 'error',
+                        title: 'Update Check Failed',
+                        message: 'Could not check for updates. Please try again later.',
+                      });
+                    });
+                },
+              },
+              { type: 'separator' as const },
+              { role: 'quit' as const },
+            ],
+          } as Electron.MenuItemConstructorOptions,
+        ]
+      : []),
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        ...(!app.isPackaged
+          ? [{ role: 'toggleDevTools' as const }]
+          : []),
+      ],
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'close' },
+      ],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 app.on('ready', async () => {
   try {
     await ensureNode();
@@ -210,6 +364,8 @@ app.on('ready', async () => {
     await session.defaultSession.clearCache();
 
     createWindow();
+    setupApplicationMenu();
+    setupAutoUpdater();
   } catch (error) {
     console.error('Failed to start Adorable:', error);
     dialog.showErrorBox('Startup Error', `Failed to start Adorable: ${error}`);

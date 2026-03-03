@@ -45,5 +45,11 @@
     "target": ["AppImage"],
     "category": "Development",
     "icon": "apps/desktop/icons/icon.png"
+  },
+  "publish": {
+    "provider": "github",
+    "owner": "BenjaminDobler",
+    "repo": "adorable",
+    "releaseType": "draft"
   }
 }

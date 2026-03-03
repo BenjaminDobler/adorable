@@ -28,6 +28,9 @@ on:
         default: true
         type: boolean
 
+permissions:
+  contents: write
+
 jobs:
   build-mac:
     if: ${{ inputs.build_mac }}
@@ -45,6 +48,15 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+
+      - name: Set app version
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('apps/desktop/package.json', 'utf8'));
+            pkg.version = '${{ inputs.version }}';
+            fs.writeFileSync('apps/desktop/package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
 
       - name: Install the Apple certificate
         env:
@@ -66,20 +78,12 @@ jobs:
           security list-keychain -d user -s $KEYCHAIN_PATH
 
       - name: Build and package for macOS (signed & notarized)
-        run: npm run package:desktop:mac -- --publish never
+        run: npm run package:desktop:mac
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
-      - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: adorable-macos
-          path: |
-            dist/desktop-release/*.dmg
-            dist/desktop-release/*.zip
-          if-no-files-found: error
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Clean up keychain
         if: ${{ always() }}
@@ -101,17 +105,19 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build and package for Windows
-        run: npm run package:desktop:win -- --publish never
+      - name: Set app version
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('apps/desktop/package.json', 'utf8'));
+            pkg.version = '${{ inputs.version }}';
+            fs.writeFileSync('apps/desktop/package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
 
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: adorable-windows
-          path: |
-            dist/desktop-release/*.exe
-            dist/desktop-release/*.msi
-          if-no-files-found: warn
+      - name: Build and package for Windows
+        run: npm run package:desktop:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-linux:
     if: ${{ inputs.build_linux }}
@@ -129,18 +135,19 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build and package for Linux
-        run: npm run package:desktop:linux -- --publish never
+      - name: Set app version
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('apps/desktop/package.json', 'utf8'));
+            pkg.version = '${{ inputs.version }}';
+            fs.writeFileSync('apps/desktop/package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
 
-      - name: Upload Linux artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: adorable-linux
-          path: |
-            dist/desktop-release/*.AppImage
-            dist/desktop-release/*.deb
-            dist/desktop-release/*.rpm
-          if-no-files-found: warn
+      - name: Build and package for Linux
+        run: npm run package:desktop:linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release:
     needs: [build-mac, build-windows, build-linux]
@@ -153,8 +160,6 @@ jobs:
       (needs.build-linux.result == 'success' || needs.build-linux.result == 'skipped') &&
       !(needs.build-mac.result == 'skipped' && needs.build-windows.result == 'skipped' && needs.build-linux.result == 'skipped')
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -165,40 +170,30 @@ jobs:
           zip -r ../../../adorable-screenshot-extension.zip .
           cd ../../..
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
+      - name: Upload Chrome Extension to release
+        run: gh release upload "v${{ inputs.version }}" adorable-screenshot-extension.zip --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: List artifacts
-        run: find artifacts -type f | head -50
+      - name: Un-draft the release
+        run: |
+          gh release edit "v${{ inputs.version }}" \
+            --draft=false \
+            --title "Adorable v${{ inputs.version }}" \
+            --notes "## Installation
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ inputs.version }}
-          name: Adorable v${{ inputs.version }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-          body: |
-            ## Installation
+          ### macOS
+          Download the \`.dmg\`, open it, and drag Adorable to your Applications folder. The app is signed and notarized by Apple, so it should open without any warnings. Updates are delivered automatically.
 
-            ### macOS
-            Download the `.dmg`, open it, and drag Adorable to your Applications folder. The app is signed and notarized by Apple, so it should open without any warnings.
+          ### Windows
+          Run the \`.exe\` installer. If SmartScreen warns about an unrecognized app, click **\"More info\"** → **\"Run anyway\"**. Updates are delivered automatically.
 
-            ### Windows
-            Run the `.exe` installer. If SmartScreen warns about an unrecognized app, click **"More info"** → **"Run anyway"**.
+          ### Linux
+          Make the AppImage executable: \`chmod +x Adorable-*.AppImage\`, then run it.
 
-            ### Linux
-            Make the AppImage executable: `chmod +x Adorable-*.AppImage`, then run it.
+          ---
 
-            ---
-
-            ### Chrome Extension
-            Download `adorable-screenshot-extension.zip`, unzip it, then load it in `chrome://extensions` with **Developer mode** enabled → **Load unpacked**.
-          files: |
-            artifacts/adorable-macos/*
-            artifacts/adorable-windows/*
-            artifacts/adorable-linux/*
-            adorable-screenshot-extension.zip
+          ### Chrome Extension
+          Download \`adorable-screenshot-extension.zip\`, unzip it, then load it in \`chrome://extensions\` with **Developer mode** enabled → **Load unpacked**."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
