@@ -32,7 +32,8 @@ router.get('/auth', authenticate, (req: any, res) => {
   oauthStates.set(state, { userId: req.user.id, timestamp: Date.now() });
   console.log('[GitHub Auth] Created state:', state, 'for user:', req.user.id);
 
-  const authUrl = githubService.getAuthorizationUrl(state);
+  const requestOrigin = `${req.protocol}://${req.get('host')}`;
+  const authUrl = githubService.getAuthorizationUrl(state, requestOrigin);
   console.log('[GitHub Auth] Auth URL:', authUrl);
   res.json({ url: authUrl });
 });
@@ -81,11 +82,11 @@ router.get('/callback', async (req, res) => {
     });
 
     // Redirect back to client app with success
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
+    const clientUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
     res.redirect(`${clientUrl}/profile?github_connected=true`);
   } catch (error: any) {
     console.error('GitHub OAuth error:', error);
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:4200';
+    const clientUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
     res.redirect(`${clientUrl}/?github_error=${encodeURIComponent(error.message)}`);
   }
 });
@@ -241,7 +242,8 @@ router.post('/connect/:projectId', authenticate, async (req: any, res) => {
 
     // Create webhook for sync
     const webhookSecret = crypto.randomBytes(32).toString('hex');
-    const webhookUrl = `${process.env.APP_URL || 'http://localhost:3333'}/api/webhooks/github`;
+    const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const webhookUrl = `${appUrl}/api/webhooks/github`;
 
     let webhookId: number | null = null;
     try {
@@ -420,23 +422,12 @@ router.post('/sync/:projectId/push', authenticate, async (req: any, res) => {
       return res.status(400).json({ error: 'Project not connected to GitHub' });
     }
 
-    // Read project files from disk (fallback to DB for legacy)
-    let files;
-    const existsOnDisk = await projectFsService.projectExistsOnDisk(projectId);
-    if (existsOnDisk) {
-      files = await projectFsService.readProjectFiles(projectId);
-    } else if (project.files) {
-      files = JSON.parse(project.files);
-    } else {
-      return res.status(400).json({ error: 'No project files found' });
-    }
-
-    // Push to GitHub
+    // Push to GitHub using native git push
     const commitSha = await syncService.pushToGitHub(
       user.githubAccessToken,
       project.githubRepoFullName,
       project.githubBranch,
-      files,
+      projectId,
       message || `Update from Adorable - ${new Date().toISOString()}`
     );
 
@@ -541,26 +532,13 @@ router.post('/pages/:projectId', authenticate, async (req: any, res) => {
       return res.status(400).json({ error: 'Project not connected to GitHub' });
     }
 
-    // Read project files from disk (fallback to DB for legacy)
-    let files;
-    const existsOnDisk = await projectFsService.projectExistsOnDisk(projectId);
-    if (existsOnDisk) {
-      files = await projectFsService.readProjectFiles(projectId);
-    } else if (project.files) {
-      files = JSON.parse(project.files);
-    } else {
-      return res.status(400).json({ error: 'No project files found' });
-    }
-    const fileCount = Object.keys(files).length;
-    console.log(`[GitHub Pages] Project has ${fileCount} top-level files/directories`);
-
     // Add the GitHub Actions workflow and push
     console.log(`[GitHub Pages] Setting up workflow for ${project.githubRepoFullName} on branch ${project.githubBranch}`);
     const commitSha = await syncService.setupGitHubPagesWorkflow(
       user.githubAccessToken,
       project.githubRepoFullName,
       project.githubBranch,
-      files
+      projectId
     );
 
     // Enable GitHub Pages with Actions

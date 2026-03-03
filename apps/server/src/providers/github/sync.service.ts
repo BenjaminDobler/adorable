@@ -1,14 +1,10 @@
-import { FileTree, FileSystemNode } from '@adorable/shared-types';
+import { FileTree } from '@adorable/shared-types';
+import { gitService } from '../../services/git.service';
+import { projectFsService } from '../../services/project-fs.service';
+import * as path from 'path';
+import * as fs from 'fs/promises';
 
 const GITHUB_API = 'https://api.github.com';
-
-interface GitTreeEntry {
-  path: string;
-  mode: '100644' | '100755' | '040000' | '160000' | '120000';
-  type: 'blob' | 'tree' | 'commit';
-  sha?: string;
-  content?: string;
-}
 
 interface GitFile {
   path: string;
@@ -76,168 +72,45 @@ export class GitHubSyncService {
   }
 
   /**
-   * Push files to GitHub repository using the Git Data API
-   * This creates a new commit with all the files
+   * Push project to GitHub using native git push.
+   * Uses the project's local git repo which already has full AI-generation history.
    */
   async pushToGitHub(
     accessToken: string,
     fullName: string,
     branch: string,
-    files: FileTree,
+    projectId: string,
     commitMessage: string
   ): Promise<string> {
-    const headers = {
-      'Authorization': `Bearer ${accessToken}`,
-      'Accept': 'application/vnd.github.v3+json',
-      'Content-Type': 'application/json',
-      'X-GitHub-Api-Version': '2022-11-28',
-    };
+    const projectPath = projectFsService.getProjectPath(projectId);
+    const remoteName = 'github';
+    const remoteUrl = `https://x-access-token:${accessToken}@github.com/${fullName}.git`;
 
-    console.log(`[GitHub Sync] Starting push to ${fullName}/${branch}`);
-    console.log(`[GitHub Sync] Using token: ${accessToken.substring(0, 10)}...`);
+    console.log(`[GitHub Sync] Starting git push to ${fullName}/${branch}`);
 
-    // 1. Get the current commit SHA of the branch
-    const refResponse = await fetch(
-      `${GITHUB_API}/repos/${fullName}/git/refs/heads/${branch}`,
-      { headers }
-    );
-
-    let currentCommitSha: string | null = null;
-    let baseTreeSha: string | null = null;
-
-    if (refResponse.ok) {
-      const refData = await refResponse.json();
-      currentCommitSha = refData.object.sha;
-      console.log(`[GitHub Sync] Current commit SHA: ${currentCommitSha}`);
-
-      // 2. Get the tree SHA of the current commit
-      const commitResponse = await fetch(
-        `${GITHUB_API}/repos/${fullName}/git/commits/${currentCommitSha}`,
-        { headers }
-      );
-
-      if (commitResponse.ok) {
-        const commitData = await commitResponse.json();
-        baseTreeSha = commitData.tree.sha;
-        console.log(`[GitHub Sync] Base tree SHA: ${baseTreeSha}`);
-      }
-    } else if (refResponse.status === 404) {
-      // Repository is empty - no commits yet
-      console.log(`[GitHub Sync] Branch ${branch} not found - repo appears to be empty, will create initial commit`);
-    } else {
-      const errorText = await refResponse.text();
-      throw new Error(`Failed to get branch ref: ${refResponse.status} - ${errorText}`);
-    }
-
-    // 3. Use Contents API to update files (more reliable than Git Data API)
-    const flatFiles = this.flattenFiles(files);
-
-    console.log(`[GitHub Sync] Processing ${flatFiles.length} files for push using Contents API`);
-
-    // Get current files in repo to find their SHAs (needed for updates)
-    const existingFiles = new Map<string, string>();
     try {
-      const contentsResponse = await fetch(
-        `${GITHUB_API}/repos/${fullName}/git/trees/${branch}?recursive=1`,
-        { headers }
-      );
-      if (contentsResponse.ok) {
-        const contentsData = await contentsResponse.json();
-        for (const item of contentsData.tree) {
-          if (item.type === 'blob') {
-            existingFiles.set(item.path, item.sha);
-          }
-        }
-        console.log(`[GitHub Sync] Found ${existingFiles.size} existing files in repo`);
-      }
-    } catch (e) {
-      console.log(`[GitHub Sync] Could not fetch existing files, will create new`);
-    }
+      // Ensure local repo is initialized and commit any uncommitted changes
+      await gitService.commit(projectPath, commitMessage);
 
-    let successCount = 0;
-    let lastCommitSha = currentCommitSha;
-
-    for (const file of flatFiles) {
-      // Skip certain files
-      if (file.path === 'node_modules' || file.path.startsWith('node_modules/')) continue;
-      if (file.path === 'dist' || file.path.startsWith('dist/')) continue;
-      if (file.path === '.angular' || file.path.startsWith('.angular/')) continue;
-      if (file.path.endsWith('.DS_Store')) continue;
-
-      const contentBase64 = file.encoding === 'base64'
-        ? file.content
-        : Buffer.from(file.content).toString('base64');
-
-      const payload: any = {
-        message: successCount === 0 ? commitMessage : `Update ${file.path}`,
-        content: contentBase64,
-        branch,
-      };
-
-      // If file exists, we need to provide its SHA
-      const existingSha = existingFiles.get(file.path);
-      if (existingSha) {
-        payload.sha = existingSha;
+      // Verify we have at least one commit
+      const headSha = await gitService.getHeadSha(projectPath);
+      if (!headSha) {
+        throw new Error('No commits in local repository. Save the project first.');
       }
 
-      // URL-encode each path segment but preserve slashes
-      const encodedPath = file.path.split('/').map(segment => encodeURIComponent(segment)).join('/');
-      const url = `${GITHUB_API}/repos/${fullName}/contents/${encodedPath}`;
+      // Add temporary remote with embedded token
+      await gitService.ensureRemote(projectPath, remoteName, remoteUrl);
 
-      const response = await fetch(url, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(payload),
-      });
+      // Force push local history to remote branch
+      console.log(`[GitHub Sync] Pushing to ${remoteName} HEAD:${branch}`);
+      await gitService.pushToRemote(projectPath, remoteName, branch);
 
-      if (response.ok) {
-        const data = await response.json();
-        lastCommitSha = data.commit.sha;
-        successCount++;
-        // Update existing files map with new SHA for subsequent requests
-        existingFiles.set(file.path, data.content.sha);
-        if (successCount <= 3 || successCount % 5 === 0) {
-          console.log(`[GitHub Sync] Updated ${file.path} (${successCount}/${flatFiles.length})`);
-        }
-      } else {
-        const errorText = await response.text();
-        console.error(`[GitHub Sync] Failed to update ${file.path}: ${response.status} - ${errorText}`);
-        console.error(`[GitHub Sync] URL was: ${url}`);
-
-        // If 409 conflict, try to get the current SHA and retry
-        if (response.status === 409) {
-          console.log(`[GitHub Sync] Conflict detected, fetching current SHA...`);
-          try {
-            const getResponse = await fetch(url, { headers });
-            if (getResponse.ok) {
-              const getData = await getResponse.json();
-              payload.sha = getData.sha;
-              const retryResponse = await fetch(url, {
-                method: 'PUT',
-                headers,
-                body: JSON.stringify(payload),
-              });
-              if (retryResponse.ok) {
-                const retryData = await retryResponse.json();
-                lastCommitSha = retryData.commit.sha;
-                successCount++;
-                console.log(`[GitHub Sync] Retry succeeded for ${file.path}`);
-              }
-            }
-          } catch (e) {
-            console.error(`[GitHub Sync] Retry failed for ${file.path}`);
-          }
-        }
-      }
+      console.log(`[GitHub Sync] Push complete, HEAD: ${headSha}`);
+      return headSha;
+    } finally {
+      // Always remove the remote to avoid leaving the token on disk
+      await gitService.removeRemote(projectPath, remoteName);
     }
-
-    console.log(`[GitHub Sync] Successfully updated ${successCount} files`);
-
-    if (successCount === 0) {
-      throw new Error('Failed to update any files');
-    }
-
-    return lastCommitSha || currentCommitSha || '';
   }
 
   /**
@@ -356,9 +229,10 @@ export class GitHubSyncService {
   }
 
   /**
-   * Generate GitHub Actions workflow for deploying to GitHub Pages
+   * Generate GitHub Actions workflow for deploying to GitHub Pages.
+   * Reads angular.json to determine the correct output path.
    */
-  generatePagesWorkflow(repoName: string): string {
+  generatePagesWorkflow(repoName: string, outputPath: string): string {
     return `# Workflow to build and deploy Angular app to GitHub Pages
 name: Deploy to GitHub Pages
 
@@ -392,7 +266,7 @@ jobs:
         run: npm install
 
       - name: Build
-        run: npm run build -- --base-href=/${repoName}/
+        run: npx ng build --base-href=/${repoName}/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -400,7 +274,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist/app/browser'
+          path: '${outputPath}'
 
   deploy:
     environment:
@@ -416,38 +290,62 @@ jobs:
   }
 
   /**
-   * Add GitHub Pages workflow to a repository
-   * This pushes a workflow file that will automatically build and deploy on push
+   * Read angular.json from the project to determine the build output path.
+   */
+  private async getAngularOutputPath(projectPath: string): Promise<string> {
+    try {
+      const angularJsonPath = path.join(projectPath, 'angular.json');
+      const content = await fs.readFile(angularJsonPath, 'utf-8');
+      const angularJson = JSON.parse(content);
+
+      // Find the first project with a build target
+      for (const [, projectConfig] of Object.entries<any>(angularJson.projects || {})) {
+        const outputPath = projectConfig?.architect?.build?.options?.outputPath;
+        if (outputPath) {
+          // Angular 17+ uses outputPath as object or string
+          if (typeof outputPath === 'string') {
+            return `./${outputPath}/browser`;
+          }
+          if (typeof outputPath === 'object' && outputPath.base) {
+            return `./${outputPath.base}/browser`;
+          }
+        }
+      }
+    } catch {
+      // angular.json not found or not parseable
+    }
+    return './dist/app/browser';
+  }
+
+  /**
+   * Add GitHub Pages workflow to a repository.
+   * Writes the workflow file to the project on disk, then uses git push.
    */
   async setupGitHubPagesWorkflow(
     accessToken: string,
     fullName: string,
     branch: string,
-    files: FileTree
+    projectId: string
   ): Promise<string> {
     const repoName = fullName.split('/')[1];
+    const projectPath = projectFsService.getProjectPath(projectId);
 
-    // Create the workflow file content
-    const workflowContent = this.generatePagesWorkflow(repoName);
+    // Determine the correct output path from angular.json
+    const outputPath = await this.getAngularOutputPath(projectPath);
+    console.log(`[GitHub Pages] Detected output path: ${outputPath}`);
 
-    // Add the workflow file to the project files
-    const filesWithWorkflow = { ...files };
-    if (!filesWithWorkflow['.github']) {
-      filesWithWorkflow['.github'] = { directory: {} };
-    }
-    if (!filesWithWorkflow['.github'].directory!['workflows']) {
-      filesWithWorkflow['.github'].directory!['workflows'] = { directory: {} };
-    }
-    filesWithWorkflow['.github'].directory!['workflows'].directory!['deploy-pages.yml'] = {
-      file: { contents: workflowContent }
-    };
+    // Generate and write the workflow file to disk
+    const workflowContent = this.generatePagesWorkflow(repoName, outputPath);
+    const workflowDir = path.join(projectPath, '.github', 'workflows');
+    await fs.mkdir(workflowDir, { recursive: true });
+    await fs.writeFile(path.join(workflowDir, 'deploy-pages.yml'), workflowContent);
 
-    // Push the updated files
+    // Push using git (commit + push happens inside pushToGitHub)
     const commitSha = await this.pushToGitHub(
       accessToken,
       fullName,
       branch,
-      filesWithWorkflow,
+      projectId,
       'Add GitHub Pages deployment workflow'
     );
 

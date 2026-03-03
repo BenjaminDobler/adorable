@@ -123,6 +123,39 @@ export class GitService {
       return null;
     }
   }
+
+  /**
+   * Add or update a named remote.
+   */
+  async ensureRemote(projectPath: string, remoteName: string, url: string): Promise<void> {
+    const git = simpleGit(projectPath);
+    const remotes = await git.getRemotes();
+    if (remotes.find(r => r.name === remoteName)) {
+      await git.remote(['set-url', remoteName, url]);
+    } else {
+      await git.addRemote(remoteName, url);
+    }
+  }
+
+  /**
+   * Force push HEAD to a remote branch.
+   */
+  async pushToRemote(projectPath: string, remoteName: string, branch: string): Promise<void> {
+    const git = simpleGit(projectPath);
+    await git.push(remoteName, `HEAD:${branch}`, ['--force']);
+  }
+
+  /**
+   * Remove a named remote (cleans token from git config).
+   */
+  async removeRemote(projectPath: string, remoteName: string): Promise<void> {
+    const git = simpleGit(projectPath);
+    try {
+      await git.removeRemote(remoteName);
+    } catch {
+      // Ignore if remote doesn't exist
+    }
+  }
 }
 
 export const gitService = new GitService();

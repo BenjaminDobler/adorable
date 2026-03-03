@@ -17,10 +17,16 @@ export class GitHubService {
     return process.env.GITHUB_CALLBACK_URL || 'http://localhost:3333/api/github/callback';
   }
 
-  getAuthorizationUrl(state: string): string {
+  getAuthorizationUrl(state: string, requestOrigin?: string): string {
+    const redirectUri = this.callbackUrl !== 'http://localhost:3333/api/github/callback'
+      ? this.callbackUrl
+      : requestOrigin
+        ? `${requestOrigin}/api/github/callback`
+        : this.callbackUrl;
+
     const params = new URLSearchParams({
       client_id: this.clientId,
-      redirect_uri: this.callbackUrl,
+      redirect_uri: redirectUri,
       scope: 'repo workflow user:email',
       state,
     });
