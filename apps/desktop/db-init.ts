@@ -15,6 +15,111 @@ export interface DatabaseInitResult {
   localUser: LocalUserInfo;
 }
 
+// ── Schema Version ──────────────────────────────────────────────────
+// Bump LATEST_VERSION and add a new entry to `migrations` whenever the
+// Prisma schema changes.  Each migration is idempotent (uses addColumn /
+// tryExec helpers) so it's safe to re-run on any database state.
+const LATEST_VERSION = 8;
+
+type MigrationFn = (db: Database.Database) => void;
+
+interface Migration {
+  version: number;
+  name: string;
+  up: MigrationFn;
+}
+
+// ── Migrations ──────────────────────────────────────────────────────
+// Grouped by feature.  The order here matches the historical order in
+// which columns were added to the Prisma schema.
+
+const migrations: Migration[] = [
+  {
+    version: 1,
+    name: 'Core user fields',
+    up(db) {
+      addColumn(db, 'User', 'role', "TEXT NOT NULL DEFAULT 'user'");
+      addColumn(db, 'User', 'isActive', 'BOOLEAN NOT NULL DEFAULT 1');
+      addColumn(db, 'User', 'emailVerified', 'BOOLEAN NOT NULL DEFAULT 0');
+      addColumn(db, 'User', 'emailVerificationToken', 'TEXT');
+    },
+  },
+  {
+    version: 2,
+    name: 'GitHub integration',
+    up(db) {
+      addColumn(db, 'User', 'githubId', 'TEXT');
+      addColumn(db, 'User', 'githubUsername', 'TEXT');
+      addColumn(db, 'User', 'githubAccessToken', 'TEXT');
+      addColumn(db, 'User', 'githubAvatarUrl', 'TEXT');
+      addColumn(db, 'Project', 'githubRepoId', 'TEXT');
+      addColumn(db, 'Project', 'githubRepoFullName', 'TEXT');
+      addColumn(db, 'Project', 'githubBranch', 'TEXT');
+      addColumn(db, 'Project', 'githubLastSyncAt', 'DATETIME');
+      addColumn(db, 'Project', 'githubLastCommitSha', 'TEXT');
+      addColumn(db, 'Project', 'githubSyncEnabled', 'BOOLEAN NOT NULL DEFAULT 0');
+      addColumn(db, 'Project', 'githubPagesUrl', 'TEXT');
+      tryExec(db, 'CREATE UNIQUE INDEX IF NOT EXISTS "User_githubId_key" ON "User"("githubId")');
+    },
+  },
+  {
+    version: 3,
+    name: 'Kit selection + chat enhancements',
+    up(db) {
+      addColumn(db, 'Project', 'selectedKitId', 'TEXT');
+      addColumn(db, 'ChatMessage', 'commitSha', 'TEXT');
+      addColumn(db, 'ChatMessage', 'model', 'TEXT');
+    },
+  },
+  {
+    version: 4,
+    name: 'Cloud sync',
+    up(db) {
+      addColumn(db, 'Project', 'cloudProjectId', 'TEXT');
+      addColumn(db, 'Project', 'cloudCommitSha', 'TEXT');
+      addColumn(db, 'Project', 'cloudLastSyncAt', 'DATETIME');
+    },
+  },
+  {
+    version: 5,
+    name: 'Teams + access control',
+    up(db) {
+      addColumn(db, 'Project', 'teamId', 'TEXT');
+      addColumn(db, 'User', 'cloudEditorAllowed', 'BOOLEAN NOT NULL DEFAULT 1');
+    },
+  },
+  {
+    version: 6,
+    name: 'Publishing',
+    up(db) {
+      addColumn(db, 'Project', 'isPublished', 'BOOLEAN NOT NULL DEFAULT 0');
+      addColumn(db, 'Project', 'publishSlug', 'TEXT');
+      addColumn(db, 'Project', 'publishVisibility', "TEXT NOT NULL DEFAULT 'public'");
+      addColumn(db, 'Project', 'publishedAt', 'DATETIME');
+    },
+  },
+  {
+    version: 7,
+    name: 'Password reset',
+    up(db) {
+      addColumn(db, 'User', 'passwordResetToken', 'TEXT');
+      addColumn(db, 'User', 'passwordResetTokenExpiresAt', 'DATETIME');
+    },
+  },
+  {
+    version: 8,
+    name: 'Social login (GitHub + Google OAuth)',
+    up(db) {
+      addColumn(db, 'User', 'authProvider', 'TEXT');
+      addColumn(db, 'User', 'googleId', 'TEXT');
+      addColumn(db, 'User', 'googleAvatarUrl', 'TEXT');
+      tryExec(db, 'CREATE UNIQUE INDEX IF NOT EXISTS "User_googleId_key" ON "User"("googleId")');
+    },
+  },
+];
+
+// ── Public API ──────────────────────────────────────────────────────
+
 /**
  * Initializes the SQLite database for the desktop app.
  * Creates the database schema directly using SQL statements.
@@ -36,20 +141,21 @@ export async function initializeDatabase(): Promise<DatabaseInitResult> {
     fs.mkdirSync(userDataPath, { recursive: true });
   }
 
-  const dbExists = fs.existsSync(dbPath);
+  const isNewDb = !fs.existsSync(dbPath);
   let localUser: LocalUserInfo;
 
   try {
     const db = new Database(dbPath);
 
-    if (!dbExists) {
-      console.log('[Desktop] Fresh install - creating database schema...');
+    if (isNewDb) {
+      console.log('[Desktop] Fresh install - creating database...');
+      createFreshSchema(db);
+      setSchemaVersion(db, LATEST_VERSION);
+      console.log(`[Desktop] Schema created at version ${LATEST_VERSION}`);
     } else {
-      console.log('[Desktop] Existing database - checking schema...');
+      console.log('[Desktop] Existing database - checking for migrations...');
+      runMigrations(db);
     }
-    // Always run ensureSchema — createSchema (called inside) uses IF NOT EXISTS,
-    // and ALTER TABLE migrations use try/catch, so it's safe for both fresh and existing DBs.
-    ensureSchema(db);
 
     // Ensure local user exists for auto-login
     localUser = ensureLocalUser(db);
@@ -65,10 +171,13 @@ export async function initializeDatabase(): Promise<DatabaseInitResult> {
   return { databaseUrl, localUser };
 }
 
+// ── Schema creation (fresh installs) ────────────────────────────────
+
 /**
- * Creates the full database schema matching the Prisma schema.
+ * Creates the full database schema for a fresh install.
+ * This always reflects the latest Prisma schema.
  */
-function createSchema(db: Database.Database): void {
+function createFreshSchema(db: Database.Database): void {
   db.exec(`
     -- User table
     CREATE TABLE IF NOT EXISTS "User" (
@@ -217,7 +326,7 @@ function createSchema(db: Database.Database): void {
       FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE CASCADE
     );
 
-    -- Create indexes
+    -- Indexes
     CREATE INDEX IF NOT EXISTS "Project_userId_idx" ON "Project"("userId");
     CREATE INDEX IF NOT EXISTS "ChatMessage_projectId_idx" ON "ChatMessage"("projectId");
     CREATE UNIQUE INDEX IF NOT EXISTS "User_githubId_key" ON "User"("githubId");
@@ -229,58 +338,88 @@ function createSchema(db: Database.Database): void {
   `);
 }
 
+// ── Versioned migrations (existing installs) ────────────────────────
+
 /**
- * Ensures all required tables exist (for database upgrades).
+ * Runs pending migrations on an existing database.
+ * Handles the transition from the old un-versioned schema too:
+ * old databases get version 0, and all migrations are idempotent
+ * so they're safe to re-run even if the columns already exist.
+ *
+ * NOTE: Do NOT call createFreshSchema() here — it includes indexes on
+ * columns that may not exist until migrations add them.  If a future
+ * migration needs to create a new table, include the CREATE TABLE
+ * statement inside that migration's `up` function.
  */
-function ensureSchema(db: Database.Database): void {
-  // Ensure all tables exist
-  createSchema(db); // Uses IF NOT EXISTS, safe to re-run
+function runMigrations(db: Database.Database): void {
+  // Ensure ServerConfig exists (needed to read/write schema version)
+  tryExec(db, `
+    CREATE TABLE IF NOT EXISTS "ServerConfig" (
+      "key" TEXT PRIMARY KEY NOT NULL,
+      "value" TEXT NOT NULL,
+      "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-  // Add missing columns (ALTER TABLE is idempotent via try/catch)
-  const migrations: { table: string; column: string; type: string }[] = [
-    { table: 'User', column: 'role', type: "TEXT NOT NULL DEFAULT 'user'" },
-    { table: 'User', column: 'isActive', type: 'BOOLEAN NOT NULL DEFAULT 1' },
-    { table: 'User', column: 'emailVerified', type: 'BOOLEAN NOT NULL DEFAULT 0' },
-    { table: 'User', column: 'emailVerificationToken', type: 'TEXT' },
-    { table: 'User', column: 'githubId', type: 'TEXT UNIQUE' },
-    { table: 'User', column: 'githubUsername', type: 'TEXT' },
-    { table: 'User', column: 'githubAccessToken', type: 'TEXT' },
-    { table: 'User', column: 'githubAvatarUrl', type: 'TEXT' },
-    { table: 'Project', column: 'githubRepoId', type: 'TEXT' },
-    { table: 'Project', column: 'githubRepoFullName', type: 'TEXT' },
-    { table: 'Project', column: 'githubBranch', type: 'TEXT' },
-    { table: 'Project', column: 'githubLastSyncAt', type: 'DATETIME' },
-    { table: 'Project', column: 'githubLastCommitSha', type: 'TEXT' },
-    { table: 'Project', column: 'githubSyncEnabled', type: 'BOOLEAN NOT NULL DEFAULT 0' },
-    { table: 'Project', column: 'githubPagesUrl', type: 'TEXT' },
-    { table: 'Project', column: 'selectedKitId', type: 'TEXT' },
-    { table: 'ChatMessage', column: 'commitSha', type: 'TEXT' },
-    { table: 'ChatMessage', column: 'model', type: 'TEXT' },
-    { table: 'Project', column: 'cloudProjectId', type: 'TEXT' },
-    { table: 'Project', column: 'cloudCommitSha', type: 'TEXT' },
-    { table: 'Project', column: 'cloudLastSyncAt', type: 'DATETIME' },
-    { table: 'Project', column: 'teamId', type: 'TEXT' },
-    { table: 'User', column: 'cloudEditorAllowed', type: 'BOOLEAN NOT NULL DEFAULT 1' },
-    { table: 'Project', column: 'isPublished', type: 'BOOLEAN NOT NULL DEFAULT 0' },
-    { table: 'Project', column: 'publishSlug', type: 'TEXT' },
-    { table: 'Project', column: 'publishVisibility', type: "TEXT NOT NULL DEFAULT 'public'" },
-    { table: 'Project', column: 'publishedAt', type: 'DATETIME' },
-    { table: 'User', column: 'passwordResetToken', type: 'TEXT' },
-    { table: 'User', column: 'passwordResetTokenExpiresAt', type: 'DATETIME' },
-    { table: 'User', column: 'authProvider', type: 'TEXT' },
-    { table: 'User', column: 'googleId', type: 'TEXT UNIQUE' },
-    { table: 'User', column: 'googleAvatarUrl', type: 'TEXT' },
-  ];
+  const currentVersion = getSchemaVersion(db);
+  if (currentVersion >= LATEST_VERSION) {
+    console.log(`[Desktop] Schema is up to date (version ${currentVersion})`);
+    return;
+  }
 
-  for (const { table, column, type } of migrations) {
-    try {
-      db.exec(`ALTER TABLE "${table}" ADD COLUMN "${column}" ${type}`);
-      console.log(`[Desktop] Added column ${table}.${column}`);
-    } catch {
-      // Column already exists, ignore
+  console.log(`[Desktop] Migrating from version ${currentVersion} to ${LATEST_VERSION}...`);
+
+  for (const migration of migrations) {
+    if (migration.version > currentVersion) {
+      console.log(`[Desktop] Running migration v${migration.version}: ${migration.name}`);
+      migration.up(db);
+      setSchemaVersion(db, migration.version);
     }
   }
+
+  console.log(`[Desktop] Migrations complete (now at version ${LATEST_VERSION})`);
 }
+
+// ── Version helpers ─────────────────────────────────────────────────
+
+function getSchemaVersion(db: Database.Database): number {
+  try {
+    const row = db.prepare(
+      'SELECT "value" FROM "ServerConfig" WHERE "key" = ?'
+    ).get('schema_version') as { value: string } | undefined;
+    return row ? parseInt(row.value, 10) || 0 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setSchemaVersion(db: Database.Database, version: number): void {
+  db.prepare(`
+    INSERT INTO "ServerConfig" ("key", "value", "updatedAt")
+    VALUES ('schema_version', ?, CURRENT_TIMESTAMP)
+    ON CONFLICT ("key") DO UPDATE SET "value" = excluded."value", "updatedAt" = CURRENT_TIMESTAMP
+  `).run(String(version));
+}
+
+// ── Migration helpers ───────────────────────────────────────────────
+
+function addColumn(db: Database.Database, table: string, column: string, type: string): void {
+  try {
+    db.exec(`ALTER TABLE "${table}" ADD COLUMN "${column}" ${type}`);
+  } catch {
+    // Column already exists — ignore
+  }
+}
+
+function tryExec(db: Database.Database, sql: string): void {
+  try {
+    db.exec(sql);
+  } catch {
+    // Statement failed (e.g. index on missing column) — ignore
+  }
+}
+
+// ── Local user ──────────────────────────────────────────────────────
 
 /**
  * Ensures a local user exists for desktop auto-login.

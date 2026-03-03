@@ -94,6 +94,11 @@ Prisma with SQLite. Key models: `User` (with role/isActive/emailVerified), `Proj
 
 Schema is at `prisma/schema.prisma`. After modifying, run `npx prisma migrate dev` then `npx prisma generate`.
 
+**IMPORTANT — Desktop DB sync:** The desktop app uses its own SQLite schema in `apps/desktop/db-init.ts` (not Prisma migrations). Whenever you modify `prisma/schema.prisma`, you **must** also update `db-init.ts`:
+1. Update `createFreshSchema()` with the new columns/tables
+2. Add a new migration entry to the `migrations` array with the next version number
+3. Bump `LATEST_VERSION` to match
+
 ### Streaming Protocol
 
 AI generation uses Server-Sent Events (SSE). The client POSTs to `/api/generate-stream` and receives streamed events with types: `file_written`, `stream`, `tool_call`, `tool_result`, `status`.

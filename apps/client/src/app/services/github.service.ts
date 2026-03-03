@@ -20,14 +20,31 @@ export class GitHubService {
   loading = signal(false);
   repositories = signal<GitHubRepository[]>([]);
 
+  // Device flow state (desktop only)
+  deviceFlowUserCode = signal<string | null>(null);
+  deviceFlowVerificationUri = signal<string | null>(null);
+
+  private pollInterval: ReturnType<typeof setInterval> | null = null;
+
   /**
-   * Initiate GitHub OAuth flow
+   * Initiate GitHub OAuth flow.
+   * Desktop: uses GitHub Device Flow (no redirect_uri needed).
+   * Web: uses standard redirect-based OAuth.
    */
   connect(): void {
+    const electronAPI = (window as any).electronAPI;
+
+    if (electronAPI?.isDesktop) {
+      this.connectViaDeviceFlow();
+    } else {
+      this.connectViaRedirect();
+    }
+  }
+
+  private connectViaRedirect(): void {
     this.loading.set(true);
     this.http.get<{ url: string }>(`${this.apiUrl}/auth`).subscribe({
       next: (res) => {
-        // Redirect to GitHub OAuth
         window.location.href = res.url;
       },
       error: (err) => {
@@ -35,6 +52,88 @@ export class GitHubService {
         this.loading.set(false);
       },
     });
+  }
+
+  private connectViaDeviceFlow(): void {
+    this.loading.set(true);
+    this.deviceFlowUserCode.set(null);
+    this.deviceFlowVerificationUri.set(null);
+
+    this.http.post<{
+      userCode: string;
+      verificationUri: string;
+      deviceCode: string;
+      expiresIn: number;
+      interval: number;
+    }>(`${this.apiUrl}/device-code`, {}).subscribe({
+      next: (res) => {
+        this.deviceFlowUserCode.set(res.userCode);
+        this.deviceFlowVerificationUri.set(res.verificationUri);
+
+        // Open the verification page in the system browser
+        const electronAPI = (window as any).electronAPI;
+        electronAPI?.openExternal(res.verificationUri);
+
+        // Poll for authorization
+        this.pollDeviceFlow(res.deviceCode, res.interval, res.expiresIn);
+      },
+      error: (err) => {
+        console.error('Failed to initiate device flow:', err);
+        this.loading.set(false);
+      },
+    });
+  }
+
+  private pollDeviceFlow(deviceCode: string, interval: number, expiresIn: number): void {
+    this.stopPolling();
+    const start = Date.now();
+    let currentInterval = interval * 1000;
+
+    this.pollInterval = setInterval(() => {
+      if (Date.now() - start > expiresIn * 1000) {
+        this.stopPolling();
+        this.loading.set(false);
+        this.deviceFlowUserCode.set(null);
+        this.deviceFlowVerificationUri.set(null);
+        return;
+      }
+
+      this.http.post<{ status: string; interval?: number; error?: string }>(
+        `${this.apiUrl}/device-poll`, { deviceCode }
+      ).subscribe({
+        next: (res) => {
+          if (res.status === 'success') {
+            this.stopPolling();
+            this.loading.set(false);
+            this.deviceFlowUserCode.set(null);
+            this.deviceFlowVerificationUri.set(null);
+            this.getConnection().subscribe();
+          } else if (res.status === 'error') {
+            this.stopPolling();
+            this.loading.set(false);
+            this.deviceFlowUserCode.set(null);
+            this.deviceFlowVerificationUri.set(null);
+            console.error('Device flow error:', res.error);
+          } else if (res.interval) {
+            // slow_down: increase interval
+            currentInterval = res.interval * 1000;
+            this.stopPolling();
+            this.pollDeviceFlow(deviceCode, res.interval, expiresIn - (Date.now() - start) / 1000);
+          }
+          // 'pending' — keep polling
+        },
+        error: () => {
+          // Network error, keep polling
+        },
+      });
+    }, currentInterval);
+  }
+
+  private stopPolling(): void {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
   }
 
   /**
@@ -51,6 +150,7 @@ export class GitHubService {
    * Disconnect GitHub account
    */
   disconnect(): Observable<{ success: boolean }> {
+    this.stopPolling();
     return this.http.post<{ success: boolean }>(`${this.apiUrl}/disconnect`, {}).pipe(
       tap(() => this.connection.set({ connected: false }))
     );

@@ -558,6 +558,60 @@ select {
   }
 }
 
+.device-flow-box {
+  text-align: center;
+  padding: 1.5rem;
+
+  p {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    margin: 0 0 0.75rem;
+  }
+}
+
+.device-code {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--accent-color);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1.5rem;
+  display: inline-block;
+  margin-bottom: 0.75rem;
+  user-select: all;
+}
+
+.device-flow-hint {
+  color: var(--text-muted) !important;
+  font-size: 0.8rem !important;
+}
+
+.device-flow-waiting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-top: 1rem;
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--panel-border);
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Actions */
 .actions {
   display: flex;

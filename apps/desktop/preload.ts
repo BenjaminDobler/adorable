@@ -17,4 +17,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Fast screenshot capture via Electron's native capturePage
   capturePage: (rect?: { x: number; y: number; width: number; height: number }) =>
     ipcRenderer.invoke('capture-page', rect),
+  // Open a URL in the system default browser
+  openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
+  // Cloud OAuth login: opens browser, returns JWT token
+  cloudOAuthLogin: (cloudUrl: string, provider: string) =>
+    ipcRenderer.invoke('cloud-oauth-login', cloudUrl, provider),
 });

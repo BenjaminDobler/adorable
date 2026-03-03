@@ -11,7 +11,7 @@ const prisma = new PrismaClient();
 const router = Router();
 
 // OAuth state storage (in production, use Redis or database)
-const oauthStates = new Map<string, { userId: string; timestamp: number }>();
+const oauthStates = new Map<string, { userId: string; timestamp: number; desktop?: boolean }>();
 
 // Clean up old states periodically
 setInterval(() => {
@@ -24,13 +24,121 @@ setInterval(() => {
 }, 60 * 1000);
 
 /**
+ * POST /api/github/device-code
+ * Initiates GitHub Device Flow (for desktop apps where redirect_uri doesn't work).
+ * Returns a user_code for the user to enter at github.com/login/device.
+ */
+router.post('/device-code', authenticate, async (req: any, res) => {
+  const clientId = process.env.GITHUB_CLIENT_ID;
+  if (!clientId) {
+    return res.status(400).json({ error: 'GitHub is not configured' });
+  }
+
+  try {
+    const response = await fetch('https://github.com/login/device/code', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        scope: 'repo user:email',
+      }),
+    });
+
+    const data = await response.json();
+    if (data.error) {
+      return res.status(400).json({ error: data.error_description || data.error });
+    }
+
+    res.json({
+      userCode: data.user_code,
+      verificationUri: data.verification_uri,
+      deviceCode: data.device_code,
+      expiresIn: data.expires_in,
+      interval: data.interval,
+    });
+  } catch (error: any) {
+    console.error('[GitHub Device Flow] Error requesting device code:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/github/device-poll
+ * Polls GitHub for the access token during Device Flow.
+ * When the user authorizes, stores the token and returns success.
+ */
+router.post('/device-poll', authenticate, async (req: any, res) => {
+  const clientId = process.env.GITHUB_CLIENT_ID;
+  if (!clientId) {
+    return res.status(400).json({ error: 'GitHub is not configured' });
+  }
+
+  const { deviceCode } = req.body;
+  if (!deviceCode) {
+    return res.status(400).json({ error: 'deviceCode is required' });
+  }
+
+  try {
+    const response = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        device_code: deviceCode,
+        grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.access_token) {
+      // Success — store the token
+      const githubUser = await githubService.getUser(data.access_token);
+
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: {
+          githubId: String(githubUser.id),
+          githubUsername: githubUser.login,
+          githubAccessToken: data.access_token,
+          githubAvatarUrl: githubUser.avatar_url,
+        },
+      });
+
+      return res.json({ status: 'success' });
+    }
+
+    if (data.error === 'authorization_pending') {
+      return res.json({ status: 'pending' });
+    }
+
+    if (data.error === 'slow_down') {
+      return res.json({ status: 'pending', interval: (data.interval || 10) });
+    }
+
+    // expired_token, access_denied, etc.
+    return res.json({ status: 'error', error: data.error_description || data.error });
+  } catch (error: any) {
+    console.error('[GitHub Device Flow] Poll error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/github/auth
  * Initiates GitHub OAuth flow
  */
 router.get('/auth', authenticate, (req: any, res) => {
+  const desktop = req.query.desktop === 'true';
   const state = crypto.randomBytes(16).toString('hex');
-  oauthStates.set(state, { userId: req.user.id, timestamp: Date.now() });
-  console.log('[GitHub Auth] Created state:', state, 'for user:', req.user.id);
+  oauthStates.set(state, { userId: req.user.id, timestamp: Date.now(), desktop });
+  console.log('[GitHub Auth] Created state:', state, 'for user:', req.user.id, 'desktop:', desktop);
 
   const requestOrigin = `${req.protocol}://${req.get('host')}`;
   const authUrl = githubService.getAuthorizationUrl(state, requestOrigin);
@@ -81,11 +189,21 @@ router.get('/callback', async (req, res) => {
       },
     });
 
+    // Desktop mode: serve a static HTML page instead of redirecting to the SPA
+    if (stateData.desktop) {
+      return res.send('<html><body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#111;color:#fff"><h2>GitHub Connected! You can close this tab.</h2></body></html>');
+    }
+
     // Redirect back to client app with success
     const clientUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
     res.redirect(`${clientUrl}/profile?github_connected=true`);
   } catch (error: any) {
     console.error('GitHub OAuth error:', error);
+
+    if (stateData.desktop) {
+      return res.send('<html><body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#111;color:#fff"><h2>GitHub connection failed. You can close this tab.</h2></body></html>');
+    }
+
     const clientUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
     res.redirect(`${clientUrl}/?github_error=${encodeURIComponent(error.message)}`);
   }

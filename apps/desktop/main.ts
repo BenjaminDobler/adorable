@@ -1,8 +1,9 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, session } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import * as path from 'path';
 import * as os from 'os';
 import { fork, ChildProcess } from 'child_process';
+import * as http from 'http';
 import * as jwt from 'jsonwebtoken';
 import { ensureNode } from './node-bootstrap';
 import { startLocalAgent } from './local-agent';
@@ -340,6 +341,70 @@ app.on('ready', async () => {
         console.error('[Desktop] capture-page failed:', err);
         return null;
       }
+    });
+
+    // Open a URL in the system default browser (validated to http/https only)
+    ipcMain.handle('open-external', async (_event, url: string) => {
+      if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+        throw new Error('Only http and https URLs are allowed');
+      }
+      await shell.openExternal(url);
+    });
+
+    // Cloud OAuth login: creates a temp localhost server, opens OAuth in system browser,
+    // waits for the callback with a JWT token, then returns it to the renderer.
+    ipcMain.handle('cloud-oauth-login', async (_event, cloudUrl: string, provider: string) => {
+      return new Promise<string>((resolve, reject) => {
+        const server = http.createServer((req, res) => {
+          const reqUrl = new URL(req.url || '/', `http://127.0.0.1`);
+          if (reqUrl.pathname === '/callback') {
+            const token = reqUrl.searchParams.get('token');
+            const error = reqUrl.searchParams.get('error');
+
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            if (token) {
+              res.end('<html><body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#111;color:#fff"><h2>Connected! You can close this tab.</h2></body></html>');
+            } else {
+              res.end('<html><body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#111;color:#fff"><h2>Authentication failed. You can close this tab.</h2></body></html>');
+            }
+
+            cleanup();
+
+            if (token) {
+              resolve(token);
+            } else {
+              reject(new Error(error || 'OAuth failed'));
+            }
+          } else {
+            res.writeHead(404);
+            res.end();
+          }
+        });
+
+        // Bind to 127.0.0.1 only (not 0.0.0.0)
+        server.listen(0, '127.0.0.1', () => {
+          const addr = server.address();
+          if (!addr || typeof addr === 'string') {
+            cleanup();
+            return reject(new Error('Failed to start temp server'));
+          }
+          const port = addr.port;
+          const desktopRedirect = `http://127.0.0.1:${port}/callback`;
+          const authUrl = `${cloudUrl}/api/auth/social/${provider}/auth?redirect=true&desktop_redirect=${encodeURIComponent(desktopRedirect)}`;
+          shell.openExternal(authUrl);
+        });
+
+        // 5-minute timeout
+        const timeout = setTimeout(() => {
+          cleanup();
+          reject(new Error('OAuth timed out'));
+        }, 5 * 60 * 1000);
+
+        function cleanup() {
+          clearTimeout(timeout);
+          try { server.close(); } catch {}
+        }
+      });
     });
 
     // Set ADORABLE_PROJECTS_DIR in the main process env so the local agent

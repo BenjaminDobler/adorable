@@ -10,7 +10,7 @@ import { githubService } from '../providers/github/github.service';
 const router = Router();
 
 // OAuth state storage (in-memory, same pattern as github.routes.ts)
-const oauthStates = new Map<string, { provider: string; timestamp: number }>();
+const oauthStates = new Map<string, { provider: string; timestamp: number; desktopRedirect?: string }>();
 
 // Clean up old states periodically (10 min TTL)
 setInterval(() => {
@@ -23,6 +23,10 @@ setInterval(() => {
 }, 60 * 1000);
 
 // --- Helpers ---
+
+// Social login reuses the same GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET as repo-linking.
+// The GitHub OAuth app callback URL should be set to the origin (e.g. https://adorable.run)
+// so both /api/github/callback and /api/auth/social/github/callback are allowed as redirect_uri.
 
 function getGoogleClientId(): string {
   return process.env.GOOGLE_CLIENT_ID || '';
@@ -157,15 +161,21 @@ function issueJwt(user: { id: string; role: string }): string {
 router.get('/:provider/auth', authRateLimit, (req, res) => {
   const { provider } = req.params;
   const requestOrigin = `${req.protocol}://${req.get('host')}`;
+  const shouldRedirect = req.query.redirect === 'true';
+  const desktopRedirect = req.query.desktop_redirect as string | undefined;
+
+  // Validate desktop_redirect: must be http://127.0.0.1:<port>/...
+  if (desktopRedirect && !/^http:\/\/127\.0\.0\.1:\d+\//.test(desktopRedirect)) {
+    return res.status(400).json({ error: 'Invalid desktop_redirect URL' });
+  }
 
   if (provider === 'github') {
     if (!process.env.GITHUB_CLIENT_ID) {
       return res.status(400).json({ error: 'GitHub login is not configured' });
     }
     const state = crypto.randomBytes(16).toString('hex');
-    oauthStates.set(state, { provider: 'github', timestamp: Date.now() });
+    oauthStates.set(state, { provider: 'github', timestamp: Date.now(), desktopRedirect });
 
-    // Build a login-specific GitHub auth URL with minimal scope
     const params = new URLSearchParams({
       client_id: process.env.GITHUB_CLIENT_ID,
       redirect_uri: `${requestOrigin}/api/auth/social/github/callback`,
@@ -173,7 +183,7 @@ router.get('/:provider/auth', authRateLimit, (req, res) => {
       state,
     });
     const url = `https://github.com/login/oauth/authorize?${params.toString()}`;
-    return res.json({ url });
+    return shouldRedirect ? res.redirect(url) : res.json({ url });
   }
 
   if (provider === 'google') {
@@ -181,10 +191,10 @@ router.get('/:provider/auth', authRateLimit, (req, res) => {
       return res.status(400).json({ error: 'Google login is not configured' });
     }
     const state = crypto.randomBytes(16).toString('hex');
-    oauthStates.set(state, { provider: 'google', timestamp: Date.now() });
+    oauthStates.set(state, { provider: 'google', timestamp: Date.now(), desktopRedirect });
 
     const url = buildGoogleAuthUrl(state, requestOrigin);
-    return res.json({ url });
+    return shouldRedirect ? res.redirect(url) : res.json({ url });
   }
 
   res.status(400).json({ error: 'Unsupported provider' });
@@ -210,16 +220,31 @@ router.get('/:provider/callback', async (req, res) => {
   }
   oauthStates.delete(state as string);
 
+  // Helper to redirect to desktop app or web client
+  const redirectWithToken = (token: string) => {
+    if (stateData.desktopRedirect) {
+      return res.redirect(`${stateData.desktopRedirect}?token=${token}`);
+    }
+    return res.redirect(`${clientUrl}/login?social=success&token=${token}`);
+  };
+  const redirectWithError = (error: string) => {
+    if (stateData.desktopRedirect) {
+      return res.redirect(`${stateData.desktopRedirect}?error=${encodeURIComponent(error)}`);
+    }
+    return res.redirect(`${clientUrl}/login?social_error=${encodeURIComponent(error)}`);
+  };
+
   try {
     let profile: { providerId: string; email: string; name: string; avatarUrl: string };
+    let githubAccessToken: string | null = null;
 
     if (provider === 'github') {
-      const accessToken = await githubService.exchangeCodeForToken(code as string);
-      const githubUser = await githubService.getUser(accessToken);
-      const email = githubUser.email || await githubService.getUserPrimaryEmail(accessToken);
+      githubAccessToken = await githubService.exchangeCodeForToken(code as string);
+      const githubUser = await githubService.getUser(githubAccessToken);
+      const email = githubUser.email || await githubService.getUserPrimaryEmail(githubAccessToken);
 
       if (!email) {
-        return res.redirect(`${clientUrl}/login?social_error=no_email`);
+        return redirectWithError('no_email');
       }
 
       profile = {
@@ -228,17 +253,6 @@ router.get('/:provider/callback', async (req, res) => {
         name: githubUser.name || githubUser.login,
         avatarUrl: githubUser.avatar_url,
       };
-
-      // Also store the access token for repo-linking functionality
-      const existingUser = await prisma.user.findFirst({
-        where: { githubId: String(githubUser.id) },
-      });
-      if (existingUser) {
-        await prisma.user.update({
-          where: { id: existingUser.id },
-          data: { githubAccessToken: accessToken, githubUsername: githubUser.login },
-        });
-      }
     } else if (provider === 'google') {
       const accessToken = await exchangeGoogleCode(code as string, requestOrigin);
       const googleUser = await getGoogleUser(accessToken);
@@ -250,31 +264,28 @@ router.get('/:provider/callback', async (req, res) => {
         avatarUrl: googleUser.picture,
       };
     } else {
-      return res.redirect(`${clientUrl}/login?social_error=unsupported_provider`);
+      return redirectWithError('unsupported_provider');
     }
 
     const user = await findOrCreateSocialUser(provider as 'github' | 'google', profile);
 
     if (!user.isActive) {
-      return res.redirect(`${clientUrl}/login?social_error=account_disabled`);
+      return redirectWithError('account_disabled');
     }
 
-    // For newly created GitHub users, store the access token
-    if (provider === 'github' && !user.githubAccessToken) {
-      const accessToken = await githubService.exchangeCodeForToken(code as string).catch(() => null);
-      if (accessToken) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { githubAccessToken: accessToken },
-        });
-      }
+    // Store GitHub access token so repo-linking works without a separate OAuth flow
+    if (githubAccessToken) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { githubAccessToken, githubUsername: profile.name },
+      });
     }
 
     const token = issueJwt(user);
-    res.redirect(`${clientUrl}/login?social=success&token=${token}`);
+    return redirectWithToken(token);
   } catch (error: any) {
     console.error(`[Social Auth] ${provider} callback error:`, error);
-    res.redirect(`${clientUrl}/login?social_error=${encodeURIComponent(error.message)}`);
+    return redirectWithError(error.message);
   }
 });
 

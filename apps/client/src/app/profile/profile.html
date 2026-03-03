@@ -395,6 +395,16 @@
                   <span class="icon">✓</span>
                   <span>You can now sync projects with GitHub repositories.</span>
                 </div>
+              } @else if (githubService.deviceFlowUserCode()) {
+                <div class="device-flow-box">
+                  <p>Enter this code on GitHub:</p>
+                  <div class="device-code">{{ githubService.deviceFlowUserCode() }}</div>
+                  <p class="device-flow-hint">A browser window has been opened. Enter the code above and authorize the app.</p>
+                  <div class="device-flow-waiting">
+                    <span class="spinner"></span>
+                    Waiting for authorization...
+                  </div>
+                </div>
               } @else {
                 <div class="integration-cta">
                   <div class="cta-icon">🔗</div>

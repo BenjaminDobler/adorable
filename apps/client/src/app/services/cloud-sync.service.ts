@@ -88,6 +88,62 @@ export class CloudSyncService {
     }
   }
 
+  /**
+   * Fetch the auth config from a cloud server to discover which social login providers are enabled.
+   */
+  async fetchCloudConfig(url: string): Promise<{ githubLoginEnabled: boolean; googleLoginEnabled: boolean }> {
+    const normalizedUrl = url.replace(/\/+$/, '');
+    const response = await fetch(`${normalizedUrl}/api/auth/config`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch cloud config');
+    }
+    const data = await response.json();
+    return {
+      githubLoginEnabled: !!data.githubLoginEnabled,
+      googleLoginEnabled: !!data.googleLoginEnabled,
+    };
+  }
+
+  /**
+   * Login to a cloud server using OAuth (GitHub/Google) via Electron's system browser.
+   */
+  async loginWithOAuth(url: string, provider: 'github' | 'google'): Promise<void> {
+    const electronAPI = (window as any).electronAPI;
+    if (!electronAPI?.cloudOAuthLogin) {
+      throw new Error('OAuth login is only available in the desktop app');
+    }
+
+    this.loading.set(true);
+    this.error.set(null);
+
+    const normalizedUrl = url.replace(/\/+$/, '');
+
+    try {
+      const token = await electronAPI.cloudOAuthLogin(normalizedUrl, provider);
+      if (!token) {
+        throw new Error('No token received');
+      }
+
+      // Store credentials
+      this.cloudUrl.set(normalizedUrl);
+      this.cloudToken.set(token);
+      localStorage.setItem('adorable_cloud_url', normalizedUrl);
+      localStorage.setItem('adorable_cloud_token', token);
+
+      // Fetch user profile from cloud
+      const profileResponse = await this.cloudFetch('/api/profile');
+      if (profileResponse.ok) {
+        const data = await profileResponse.json();
+        this.cloudUser.set({ email: data.email, name: data.name });
+      }
+    } catch (e: any) {
+      this.error.set(e.message || 'OAuth login failed');
+      throw e;
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
   disconnect(): void {
     this.clearReconnectTimer();
     this.reconnecting.set(false);
