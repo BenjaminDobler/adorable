@@ -164,6 +164,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Ensure release exists
+        run: |
+          gh release view "v${{ inputs.version }}" >/dev/null 2>&1 || \
+          gh release create "v${{ inputs.version }}" --draft --title "Adorable v${{ inputs.version }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Package Chrome Extension
         run: |
           cd apps/extensions/adorable-screenshot
