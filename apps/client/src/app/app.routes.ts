@@ -57,6 +57,16 @@ export const routes: Routes = [
     loadComponent: () => import('./auth/register/register').then(m => m.RegisterComponent)
   },
   {
+    path: 'forgot-password',
+    canActivate: [desktopRedirectGuard],
+    loadComponent: () => import('./auth/forgot-password/forgot-password').then(m => m.ForgotPasswordComponent)
+  },
+  {
+    path: 'reset-password',
+    canActivate: [desktopRedirectGuard],
+    loadComponent: () => import('./auth/reset-password/reset-password').then(m => m.ResetPasswordComponent)
+  },
+  {
     path: 'dashboard',
     canActivate: [authGuard],
     loadComponent: () => import('./dashboard/dashboard').then(m => m.DashboardComponent)

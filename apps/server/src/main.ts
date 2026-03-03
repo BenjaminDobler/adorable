@@ -61,6 +61,8 @@ app.use(async (req: any, res, next) => {
       req.path.startsWith('/chat/') ||
       req.path === '/login' ||
       req.path === '/register' ||
+      req.path === '/forgot-password' ||
+      req.path === '/reset-password' ||
       req.path === '/') {
     return next();
   }

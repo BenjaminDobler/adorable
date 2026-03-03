@@ -81,6 +81,8 @@ function createSchema(db: Database.Database): void {
       "isActive" BOOLEAN NOT NULL DEFAULT 1,
       "emailVerified" BOOLEAN NOT NULL DEFAULT 0,
       "emailVerificationToken" TEXT,
+      "passwordResetToken" TEXT,
+      "passwordResetTokenExpiresAt" DATETIME,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "cloudEditorAllowed" BOOLEAN NOT NULL DEFAULT 1,
@@ -259,6 +261,8 @@ function ensureSchema(db: Database.Database): void {
     { table: 'Project', column: 'publishSlug', type: 'TEXT' },
     { table: 'Project', column: 'publishVisibility', type: "TEXT NOT NULL DEFAULT 'public'" },
     { table: 'Project', column: 'publishedAt', type: 'DATETIME' },
+    { table: 'User', column: 'passwordResetToken', type: 'TEXT' },
+    { table: 'User', column: 'passwordResetTokenExpiresAt', type: 'DATETIME' },
   ];
 
   for (const { table, column, type } of migrations) {

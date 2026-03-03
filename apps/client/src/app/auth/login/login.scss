@@ -132,6 +132,14 @@ button {
   color: var(--text-muted);
 }
 
+.forgot-link {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+  text-align: right;
+  &:hover { color: var(--accent-color); }
+}
+
 .footer {
   margin-top: 2rem;
   text-align: center;

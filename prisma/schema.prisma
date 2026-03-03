@@ -21,6 +21,8 @@ model User {
   isActive  Boolean   @default(true)
   emailVerified          Boolean  @default(false)
   emailVerificationToken String?
+  passwordResetToken           String?
+  passwordResetTokenExpiresAt  DateTime?
   cloudEditorAllowed     Boolean  @default(true)
   projects  Project[]
   teams     TeamMember[]

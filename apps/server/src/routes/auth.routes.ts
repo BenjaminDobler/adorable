@@ -185,4 +185,74 @@ router.post('/resend-verification', authenticate, async (req: any, res) => {
   res.status(503).json({ error: 'Email service is not configured' });
 });
 
+// Forgot password — request a password reset link
+router.post('/forgot-password', authRateLimit, async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    if (user) {
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordResetToken: token,
+          passwordResetTokenExpiresAt: expiresAt,
+        },
+      });
+
+      if (emailService.isConfigured()) {
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        await emailService.sendPasswordResetEmail(email, token, baseUrl);
+      }
+    }
+
+    // Always return success to avoid leaking whether email exists
+    res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Failed to process password reset request' });
+  }
+});
+
+// Reset password — set a new password using the reset token
+router.post('/reset-password', authRateLimit, async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) return res.status(400).json({ error: 'Token and password are required' });
+
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+
+  try {
+    const user = await prisma.user.findFirst({
+      where: { passwordResetToken: token },
+    });
+
+    if (!user || !user.passwordResetTokenExpiresAt || user.passwordResetTokenExpiresAt < new Date()) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        passwordResetToken: null,
+        passwordResetTokenExpiresAt: null,
+      },
+    });
+
+    res.json({ message: 'Password has been reset successfully' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
 export const authRouter = router;

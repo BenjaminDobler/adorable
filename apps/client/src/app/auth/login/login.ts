@@ -27,6 +27,10 @@ export class LoginComponent implements OnInit {
     if (verified === 'true') {
       this.successMessage = 'Email verified successfully! You can now log in.';
     }
+    const reset = this.route.snapshot.queryParamMap.get('reset');
+    if (reset === 'true') {
+      this.successMessage = 'Password reset successfully! You can now log in with your new password.';
+    }
   }
 
   login() {

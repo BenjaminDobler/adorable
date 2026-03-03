@@ -108,6 +108,14 @@ export class AuthService {
     return this.http.get<RegistrationConfig>(`${this.apiUrl}/config`);
   }
 
+  forgotPassword(email: string) {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/forgot-password`, { email });
+  }
+
+  resetPassword(token: string, password: string) {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/reset-password`, { token, password });
+  }
+
   register(data: any) {
     return this.http.post<AuthResponse>(`${this.apiUrl}/register`, data).pipe(
       tap(res => {

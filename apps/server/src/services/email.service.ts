@@ -44,6 +44,30 @@ class EmailService {
       `,
     });
   }
+
+  async sendPasswordResetEmail(email: string, token: string, baseUrl: string) {
+    if (!this.isConfigured()) {
+      console.warn('[Email] SMTP not configured, skipping password reset email');
+      return;
+    }
+
+    const from = serverConfigService.get('smtp.from');
+    const resetUrl = `${baseUrl}/reset-password?token=${token}`;
+
+    const transporter = this.getTransporter();
+    await transporter.sendMail({
+      from,
+      to: email,
+      subject: 'Reset your Adorable password',
+      html: `
+        <h2>Password Reset</h2>
+        <p>You requested a password reset. Click the link below to set a new password:</p>
+        <p><a href="${resetUrl}">Reset Password</a></p>
+        <p>This link will expire in 1 hour.</p>
+        <p>If you didn't request a password reset, you can safely ignore this email.</p>
+      `,
+    });
+  }
 }
 
 export const emailService = new EmailService();
