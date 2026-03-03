@@ -78,7 +78,7 @@ jobs:
           security list-keychain -d user -s $KEYCHAIN_PATH
 
       - name: Build and package for macOS (signed & notarized)
-        run: npm run package:desktop:mac
+        run: npm run package:desktop:mac -- --publish always
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -115,7 +115,7 @@ jobs:
           "
 
       - name: Build and package for Windows
-        run: npm run package:desktop:win
+        run: npm run package:desktop:win -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -145,7 +145,7 @@ jobs:
           "
 
       - name: Build and package for Linux
-        run: npm run package:desktop:linux
+        run: npm run package:desktop:linux -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
