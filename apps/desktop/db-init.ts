@@ -83,6 +83,7 @@ function createSchema(db: Database.Database): void {
       "emailVerificationToken" TEXT,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "cloudEditorAllowed" BOOLEAN NOT NULL DEFAULT 1,
       "githubId" TEXT UNIQUE,
       "githubUsername" TEXT,
       "githubAccessToken" TEXT,
@@ -98,6 +99,7 @@ function createSchema(db: Database.Database): void {
       "figmaImports" TEXT,
       "selectedKitId" TEXT,
       "userId" TEXT NOT NULL,
+      "teamId" TEXT,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "githubRepoId" TEXT,
@@ -110,6 +112,10 @@ function createSchema(db: Database.Database): void {
       "cloudProjectId" TEXT,
       "cloudCommitSha" TEXT,
       "cloudLastSyncAt" DATETIME,
+      "isPublished" BOOLEAN NOT NULL DEFAULT 0,
+      "publishSlug" TEXT UNIQUE,
+      "publishVisibility" TEXT NOT NULL DEFAULT 'public',
+      "publishedAt" DATETIME,
       FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE
     );
 
@@ -248,6 +254,11 @@ function ensureSchema(db: Database.Database): void {
     { table: 'Project', column: 'cloudCommitSha', type: 'TEXT' },
     { table: 'Project', column: 'cloudLastSyncAt', type: 'DATETIME' },
     { table: 'Project', column: 'teamId', type: 'TEXT' },
+    { table: 'User', column: 'cloudEditorAllowed', type: 'BOOLEAN NOT NULL DEFAULT 1' },
+    { table: 'Project', column: 'isPublished', type: 'BOOLEAN NOT NULL DEFAULT 0' },
+    { table: 'Project', column: 'publishSlug', type: 'TEXT' },
+    { table: 'Project', column: 'publishVisibility', type: "TEXT NOT NULL DEFAULT 'public'" },
+    { table: 'Project', column: 'publishedAt', type: 'DATETIME' },
   ];
 
   for (const { table, column, type } of migrations) {

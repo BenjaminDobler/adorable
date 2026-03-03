@@ -462,16 +462,16 @@ body.light-mode .dashboard-container::before {
   .project-card-body {
     padding: 1.25rem 1.5rem;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    gap: 0.35rem;
     background: var(--bg-surface-1);
     position: relative;
   }
 
-  .project-main-info {
+  .project-meta-row {
     display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   h3 {
@@ -490,16 +490,25 @@ body.light-mode .dashboard-container::before {
   }
 
   .project-actions {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
     display: flex;
+    align-items: center;
     gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    justify-content: flex-end;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.65) 0%, transparent 100%);
     opacity: 0;
     transition: opacity 0.25s var(--ease-out-expo);
   }
 
   .btn-action {
-    background: var(--bg-surface-2);
-    border: 1px solid var(--panel-border);
-    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.85);
     cursor: pointer;
     padding: 0.5rem;
     border-radius: var(--radius-md);
@@ -507,6 +516,7 @@ body.light-mode .dashboard-container::before {
     align-items: center;
     justify-content: center;
     transition: all 0.25s var(--ease-out-expo);
+    backdrop-filter: blur(4px);
 
     svg {
       width: 16px;
@@ -515,15 +525,15 @@ body.light-mode .dashboard-container::before {
 
     &:hover {
       color: var(--accent-color);
-      background: rgba(52, 211, 153, 0.1);
-      border-color: rgba(52, 211, 153, 0.25);
+      background: rgba(52, 211, 153, 0.2);
+      border-color: rgba(52, 211, 153, 0.4);
       transform: scale(1.1);
     }
 
     &.btn-delete:hover {
       color: var(--error-color);
-      background: rgba(248, 113, 113, 0.1);
-      border-color: rgba(248, 113, 113, 0.25);
+      background: rgba(248, 113, 113, 0.2);
+      border-color: rgba(248, 113, 113, 0.4);
     }
   }
 }
