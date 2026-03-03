@@ -71,7 +71,7 @@ export class ThemeService {
 
   private loadThemeType(): ThemeType {
     const saved = localStorage.getItem('theme_type');
-    if (saved === 'pro') return 'pro';
+    if (saved === 'standard' || saved === 'pro') return saved;
 
     // Migration: check old theme_mode for pro themes
     const oldMode = localStorage.getItem('theme_mode');

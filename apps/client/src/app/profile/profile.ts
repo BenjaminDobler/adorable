@@ -126,7 +126,7 @@ export class ProfileComponent implements OnInit {
     ],
     activeProfileId: 'anthropic',
     theme: 'dark',
-    themeSettings: { type: 'standard', mode: 'dark' }
+    themeSettings: this.themeService.getSettings()
   });
 
   loading = signal(false);
@@ -217,30 +217,10 @@ export class ProfileComponent implements OnInit {
         const mcpServers = parsed.mcpServers || [];
         this.mcpServers.set(mcpServers);
 
-        // Get current theme settings from ThemeService (which loads from localStorage)
-        // Only override if server has explicit themeSettings saved
-        let themeSettings: ThemeSettings;
-        if (parsed.themeSettings) {
-          // Server has new format - use it
-          themeSettings = parsed.themeSettings;
-          this.themeService.loadSettings(themeSettings);
-        } else if (parsed.theme && parsed.theme !== 'dark') {
-          // Server has old format with non-default value - migrate it
-          const oldTheme = parsed.theme as ThemeCombined;
-          if (oldTheme === 'pro-dark') {
-            themeSettings = { type: 'pro', mode: 'dark' };
-          } else if (oldTheme === 'pro-light') {
-            themeSettings = { type: 'pro', mode: 'light' };
-          } else if (oldTheme === 'light') {
-            themeSettings = { type: 'standard', mode: 'light' };
-          } else {
-            themeSettings = { type: 'standard', mode: 'dark' };
-          }
-          this.themeService.loadSettings(themeSettings);
-        } else {
-          // No server settings or just default - use current ThemeService state (from localStorage)
-          themeSettings = this.themeService.getSettings();
-        }
+        // Always use current ThemeService state (backed by localStorage) as the source of truth.
+        // Theme changes are applied immediately via ThemeService and shouldn't be overridden
+        // by potentially stale server data when loading the profile page.
+        const themeSettings = this.themeService.getSettings();
 
         const newSettings: AppSettings = {
           profiles: mergedProfiles,
