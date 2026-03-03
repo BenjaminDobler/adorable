@@ -335,6 +335,43 @@ export class CloudSyncService {
     );
   }
 
+  /**
+   * Publish a site to the cloud server.
+   * If the project is not yet linked to the cloud, publishes it first.
+   * Returns the cloud publish URL.
+   */
+  async publishSiteToCloud(localProjectId: string, files: any, visibility?: string): Promise<{ url: string; slug: string; visibility: string }> {
+    // Load local project to check cloud link
+    const localData: any = await firstValueFrom(this.apiService.loadProject(localProjectId));
+
+    let cloudProjectId = localData.cloudProjectId;
+
+    // If not linked to cloud, publish the project first
+    if (!cloudProjectId) {
+      await this.publishProject(localProjectId);
+      // Re-load to get the cloudProjectId
+      const updated: any = await firstValueFrom(this.apiService.loadProject(localProjectId));
+      cloudProjectId = updated.cloudProjectId;
+    }
+
+    if (!cloudProjectId) {
+      throw new Error('Failed to link project to cloud');
+    }
+
+    // Call cloud server's publish endpoint
+    const response = await this.cloudFetch(`/api/projects/publish/${cloudProjectId}`, {
+      method: 'POST',
+      body: JSON.stringify({ files, visibility }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to publish site to cloud');
+    }
+
+    return response.json();
+  }
+
   getSyncStatus(localProject: any, cloudProject: SyncStatusProject): CloudSyncStatus {
     if (!localProject.cloudProjectId) {
       return 'unlinked';

@@ -12,6 +12,7 @@ import { FileSystemStore } from './file-system.store';
 import {
   FileTree,
   FigmaImportPayload,
+  PublishVisibility,
   mergeFiles as sharedMergeFiles,
 } from '@adorable/shared-types';
 import { ScreenshotService } from './screenshot';
@@ -313,7 +314,7 @@ export class ProjectService {
     }
   }
 
-  async publish() {
+  async publish(visibility?: PublishVisibility) {
     const id = this.projectId();
     if (!id || !this.isSaved()) {
       this.toastService.show('Please save the project first', 'info');
@@ -341,12 +342,37 @@ export class ProjectService {
 
       const files = await this.getFilesRecursively(distPath);
 
-      this.apiService.publish(id, files).subscribe({
-        next: (res) => {
+      this.apiService.publish(id, files, visibility).subscribe({
+        next: async (res) => {
           this.addAssistantMessage(
             `Success! Your app is published at: ${res.url}`,
           );
-          window.open(res.url, '_blank');
+
+          // For private sites, exchange token so the cookie is set before opening
+          if (res.visibility === 'private') {
+            try {
+              const token = localStorage.getItem('adorable_token');
+              await fetch(`${getServerUrl()}/api/sites/auth/token-exchange`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                credentials: 'include',
+              });
+            } catch (e) {
+              console.warn('[Publish] Token exchange failed:', e);
+            }
+          }
+
+          // Open the published URL
+          const electronAPI = (window as any).electronAPI;
+          if (electronAPI?.openExternal) {
+            electronAPI.openExternal(res.url);
+          } else {
+            window.open(res.url, '_blank');
+          }
+
           this.toastService.show('Site published successfully!', 'success');
           this.loading.set(false);
         },

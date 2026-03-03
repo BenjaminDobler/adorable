@@ -14,7 +14,8 @@ import { CloudSyncService } from '../services/cloud-sync.service';
 import { ToastService } from '../services/toast';
 import { ConfirmService } from '../services/confirm';
 import { CloudConnectComponent } from '../cloud-connect/cloud-connect.component';
-import { GitHubRepository, GitHubProjectSync } from '@adorable/shared-types';
+import { GitHubRepository, GitHubProjectSync, PublishVisibility } from '@adorable/shared-types';
+import { ApiService } from '../services/api';
 
 interface ContainerInfo {
   containerId: string;
@@ -66,6 +67,12 @@ export class NavbarComponent {
   githubCreateMode = signal(false);
   githubPagesUrl = signal<string | null>(null);
   githubPagesDeploying = signal(false);
+
+  // Publish panel
+  publishPanelOpen = signal(false);
+  publishVisibility = signal<PublishVisibility>('public');
+  publishTarget = signal<'local' | 'cloud'>('cloud');
+  private apiService = inject(ApiService);
 
   // Agent Mode - available in Docker and Native modes
   isDockerMode = computed(() => this.containerEngine.mode() === 'local');
@@ -349,5 +356,160 @@ export class NavbarComponent {
       return mode === 'dark' ? '🎨' : '⚡';
     }
     return mode === 'dark' ? '🌙' : '☀️';
+  }
+
+  // Publish Panel
+  togglePublishPanel() {
+    this.publishPanelOpen.set(!this.publishPanelOpen());
+    if (this.publishPanelOpen()) {
+      this.loadPublishStatus();
+    }
+  }
+
+  currentPublishStatus = signal<{
+    isPublished: boolean;
+    publishSlug: string | null;
+    publishVisibility: string;
+    publishedAt: string | null;
+  } | null>(null);
+
+  currentPublishUrl = computed(() => {
+    const status = this.currentPublishStatus();
+    if (!status?.isPublished || !status.publishSlug) return '';
+    return `${window.location.origin}/sites/${status.publishSlug}/index.html`;
+  });
+
+  loadPublishStatus() {
+    const projectId = this.projectService.projectId();
+    if (!projectId || !this.projectService.isSaved()) return;
+
+    this.apiService.loadProject(projectId).subscribe({
+      next: (project) => {
+        this.currentPublishStatus.set({
+          isPublished: project.isPublished,
+          publishSlug: project.publishSlug,
+          publishVisibility: project.publishVisibility || 'public',
+          publishedAt: project.publishedAt,
+        });
+        if (project.publishVisibility) {
+          this.publishVisibility.set(project.publishVisibility);
+        }
+      },
+      error: () => {},
+    });
+  }
+
+  async doPublish() {
+    const useCloud = this.isDesktop && this.cloudSyncService.isConnected() && this.publishTarget() === 'cloud';
+
+    if (useCloud) {
+      await this.doCloudPublish();
+    } else {
+      await this.projectService.publish(this.publishVisibility());
+      this.publishPanelOpen.set(false);
+    }
+  }
+
+  private async doCloudPublish() {
+    const id = this.projectService.projectId();
+    if (!id || !this.projectService.isSaved()) {
+      this.toastService.show('Please save the project first', 'info');
+      return;
+    }
+
+    this.projectService.loading.set(true);
+    try {
+      // Build locally
+      const exitCode = await this.containerEngine.runBuild(['--base-href', './']);
+      if (exitCode !== 0) throw new Error('Build failed');
+
+      // Read dist files (same logic as ProjectService)
+      const engine = this.containerEngine as any;
+      let distPath = 'dist';
+      try {
+        const entries = await engine.readdir('dist', { withFileTypes: true });
+        if (entries.some((e: any) => e.name === 'index.html')) {
+          distPath = 'dist';
+        } else {
+          distPath = 'dist/app/browser';
+        }
+      } catch {
+        distPath = 'dist/app/browser';
+      }
+
+      // Simple file read (text only for cloud publish)
+      const readFiles = async (dir: string): Promise<any> => {
+        const result = await engine.readdir(dir, { withFileTypes: true });
+        const files: any = {};
+        for (const entry of result) {
+          const fullPath = `${dir}/${entry.name}`;
+          if (entry.isDirectory()) {
+            files[entry.name] = { directory: await readFiles(fullPath) };
+          } else {
+            const contents = await engine.readFile(fullPath);
+            files[entry.name] = { file: { contents } };
+          }
+        }
+        return files;
+      };
+
+      const files = await readFiles(distPath);
+
+      const result = await this.cloudSyncService.publishSiteToCloud(id, files, this.publishVisibility());
+      this.toastService.show('Published to cloud!', 'success');
+      window.open(result.url, '_blank');
+      this.publishPanelOpen.set(false);
+    } catch (err: any) {
+      console.error('[CloudPublish] Error:', err);
+      this.toastService.show(err.message || 'Cloud publish failed', 'error');
+    } finally {
+      this.projectService.loading.set(false);
+    }
+  }
+
+  async doUnpublish() {
+    const projectId = this.projectService.projectId();
+    if (!projectId) return;
+
+    this.apiService.unpublish(projectId).subscribe({
+      next: () => {
+        this.toastService.show('Site unpublished', 'success');
+        this.currentPublishStatus.set(null);
+        this.publishPanelOpen.set(false);
+      },
+      error: (err) => {
+        console.error('[Unpublish] Error:', err);
+        this.toastService.show('Failed to unpublish', 'error');
+      },
+    });
+  }
+
+  changeVisibility(visibility: PublishVisibility) {
+    this.publishVisibility.set(visibility);
+    const projectId = this.projectService.projectId();
+    if (!projectId) return;
+
+    // Only update on server if already published
+    const status = this.currentPublishStatus();
+    if (status?.isPublished) {
+      this.apiService.updatePublishVisibility(projectId, visibility).subscribe({
+        next: () => {
+          this.currentPublishStatus.set({ ...status!, publishVisibility: visibility });
+          this.toastService.show(`Visibility changed to ${visibility}`, 'success');
+        },
+        error: (err) => {
+          console.error('[Visibility] Error:', err);
+          this.toastService.show('Failed to update visibility', 'error');
+        },
+      });
+    }
+  }
+
+  copyPublishUrl() {
+    const url = this.currentPublishUrl();
+    if (url) {
+      navigator.clipboard.writeText(url);
+      this.toastService.show('URL copied!', 'success');
+    }
   }
 }

@@ -7,6 +7,7 @@ import { projectService } from '../services/project.service';
 import { projectFsService } from '../services/project-fs.service';
 import { SITES_DIR, PORT } from '../config';
 import { containerRegistry } from '../providers/container/container-registry';
+import { generateSlug } from '../utils/slug';
 
 const router = express.Router();
 
@@ -29,7 +30,7 @@ router.get('/', async (req: any, res) => {
           ...(teamIds.length > 0 ? [{ teamId: { in: teamIds } }] : []),
         ],
       },
-      select: { name: true, id: true, updatedAt: true, thumbnail: true, teamId: true, cloudProjectId: true, cloudCommitSha: true, cloudLastSyncAt: true },
+      select: { name: true, id: true, updatedAt: true, thumbnail: true, teamId: true, cloudProjectId: true, cloudCommitSha: true, cloudLastSyncAt: true, isPublished: true, publishSlug: true, publishVisibility: true, publishedAt: true },
       orderBy: { updatedAt: 'desc' }
     });
     res.json(projects);
@@ -450,11 +451,24 @@ router.get('/:id', async (req: any, res) => {
 router.delete('/:id', async (req: any, res) => {
     const user = req.user;
     try {
+      // Look up project to get publishSlug before deleting
+      const project = await prisma.project.findFirst({
+        where: { id: req.params.id, userId: user.id },
+        select: { publishSlug: true },
+      });
+
       await prisma.project.delete({
         where: { id: req.params.id, userId: user.id }
       });
       // Also delete files from disk
       await projectFsService.deleteProjectFiles(req.params.id);
+
+      // Clean up published site directory
+      if (project?.publishSlug) {
+        const sitePath = path.join(SITES_DIR, project.publishSlug);
+        await fs.rm(sitePath, { recursive: true, force: true }).catch(() => {});
+      }
+
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed to delete project' });
@@ -583,20 +597,35 @@ router.post('/:id/restore', async (req: any, res) => {
 
 router.post('/publish/:id', async (req: any, res) => {
   const { id } = req.params;
-  const { files } = req.body;
+  const { files, visibility } = req.body;
   const user = req.user;
 
   try {
+    // Look up project first, then check authorization
     const project = await prisma.project.findFirst({
-      where: { id, userId: user.id }
+      where: { id },
+      include: { team: { include: { members: { where: { userId: user.id } } } } },
     });
     if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    // Authorize: owner, or team admin/owner
+    const isOwner = project.userId === user.id;
+    const teamMembership = project.team?.members?.[0];
+    const isTeamAdmin = teamMembership && ['owner', 'admin'].includes(teamMembership.role);
+    if (!isOwner && !isTeamAdmin) {
+      return res.status(403).json({ error: 'Not authorized to publish this project' });
+    }
+
+    const publishVisibility = visibility || project.publishVisibility || 'public';
+
+    // Generate slug or reuse existing
+    const slug = project.publishSlug || generateSlug();
 
     // Check if user has an active Docker container
     const manager = containerRegistry.getManager(user.id);
     const isDockerMode = manager.isRunning();
 
-    const sitePath = path.join(SITES_DIR, id);
+    const sitePath = path.join(SITES_DIR, slug);
     await fs.rm(sitePath, { recursive: true, force: true });
     await fs.mkdir(sitePath, { recursive: true });
 
@@ -646,14 +675,108 @@ router.post('/publish/:id', async (req: any, res) => {
       }
     }
 
+    // Persist publish state
+    await prisma.project.update({
+      where: { id },
+      data: {
+        isPublished: true,
+        publishSlug: slug,
+        publishVisibility: publishVisibility,
+        publishedAt: new Date(),
+      },
+    });
+
     const protocol = req.get('x-forwarded-proto') || req.protocol;
     const host = req.get('host');
-    const publicUrl = `${protocol}://${host}/sites/${id}/index.html`;
+    const publicUrl = `${protocol}://${host}/sites/${slug}/index.html`;
     console.log(`[Publish] Published at: ${publicUrl}`);
-    res.json({ url: publicUrl });
+    res.json({ url: publicUrl, slug, visibility: publishVisibility });
   } catch (error: any) {
     console.error('Publish error:', error);
     res.status(500).json({ error: error.message || 'Failed to publish site' });
+  }
+});
+
+/**
+ * POST /api/projects/unpublish/:id
+ * Removes published files and marks the project as unpublished.
+ * Keeps the slug for URL stability on re-publish.
+ */
+router.post('/unpublish/:id', async (req: any, res) => {
+  const { id } = req.params;
+  const user = req.user;
+
+  try {
+    const project = await prisma.project.findFirst({
+      where: { id },
+      include: { team: { include: { members: { where: { userId: user.id } } } } },
+    });
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const isOwner = project.userId === user.id;
+    const teamMembership = project.team?.members?.[0];
+    const isTeamAdmin = teamMembership && ['owner', 'admin'].includes(teamMembership.role);
+    if (!isOwner && !isTeamAdmin) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Remove published files
+    if (project.publishSlug) {
+      const sitePath = path.join(SITES_DIR, project.publishSlug);
+      await fs.rm(sitePath, { recursive: true, force: true });
+    }
+
+    await prisma.project.update({
+      where: { id },
+      data: {
+        isPublished: false,
+        publishedAt: null,
+      },
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('[Unpublish] Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to unpublish' });
+  }
+});
+
+/**
+ * PATCH /api/projects/publish/:id/visibility
+ * Updates publish visibility without re-building.
+ */
+router.patch('/publish/:id/visibility', async (req: any, res) => {
+  const { id } = req.params;
+  const { visibility } = req.body;
+  const user = req.user;
+
+  if (!visibility || !['public', 'private', 'unlisted'].includes(visibility)) {
+    return res.status(400).json({ error: 'visibility must be one of: public, private, unlisted' });
+  }
+
+  try {
+    const project = await prisma.project.findFirst({
+      where: { id },
+      include: { team: { include: { members: { where: { userId: user.id } } } } },
+    });
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const isOwner = project.userId === user.id;
+    const teamMembership = project.team?.members?.[0];
+    const isTeamAdmin = teamMembership && ['owner', 'admin'].includes(teamMembership.role);
+    if (!isOwner && !isTeamAdmin) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    await prisma.project.update({
+      where: { id },
+      data: { publishVisibility: visibility },
+    });
+
+    res.json({ success: true, visibility });
+  } catch (error: any) {
+    console.error('[UpdateVisibility] Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to update visibility' });
   }
 });
 

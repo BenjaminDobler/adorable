@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { SessionLogEntry, SessionSuggestion, AnalysisStreamEvent } from '@adorable/shared-types';
+import { SessionLogEntry, SessionSuggestion, AnalysisStreamEvent, PublishVisibility } from '@adorable/shared-types';
 import { getServerUrl } from './server-url';
 
 @Injectable({
@@ -116,8 +116,16 @@ export class ApiService {
     });
   }
 
-  publish(projectId: string, files: any) {
-    return this.http.post<any>(`${this.apiUrl}/projects/publish/${projectId}`, { files });
+  publish(projectId: string, files: any, visibility?: PublishVisibility) {
+    return this.http.post<any>(`${this.apiUrl}/projects/publish/${projectId}`, { files, visibility });
+  }
+
+  unpublish(projectId: string) {
+    return this.http.post<any>(`${this.apiUrl}/projects/unpublish/${projectId}`, {});
+  }
+
+  updatePublishVisibility(projectId: string, visibility: PublishVisibility) {
+    return this.http.patch<any>(`${this.apiUrl}/projects/publish/${projectId}/visibility`, { visibility });
   }
 
   testProviderConnection(config: {

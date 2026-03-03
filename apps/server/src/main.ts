@@ -26,6 +26,8 @@ import { serverConfigService } from './services/server-config.service';
 import { adminRouter } from './routes/admin.routes';
 import { sessionAnalyzerRouter } from './routes/session-analyzer.routes';
 import { teamRouter } from './routes/team.routes';
+import { sitesAuthRouter } from './routes/sites-auth.routes';
+import { sitesAccessControl } from './middleware/sites-auth';
 // Native routes are handled by the desktop local agent, not the cloud server
 // import { nativeRouter } from './routes/native.routes';
 
@@ -47,6 +49,7 @@ app.use(async (req: any, res, next) => {
   if (req.path.startsWith('/api/auth') ||
       (req.path.startsWith('/api') && !req.path.startsWith('/api/proxy')) ||
       req.path.startsWith('/sites') ||
+      req.path.startsWith('/api/sites') ||
       req.path.startsWith('/assets') ||
       // Skip browser noise that shouldn't go to container
       req.path.startsWith('/.well-known') ||
@@ -98,7 +101,10 @@ fs.mkdir(SITES_DIR, { recursive: true }).catch(console.error);
 
 // Static assets
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
-app.use('/sites', express.static(SITES_DIR));
+
+// Sites auth routes must be before the static middleware
+app.use('/api/sites/auth', sitesAuthRouter);
+app.use('/sites', sitesAccessControl, express.static(SITES_DIR));
 
 
 // Logging middleware

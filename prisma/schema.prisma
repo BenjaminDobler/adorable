@@ -82,6 +82,12 @@ model Project {
   cloudProjectId      String?   // On desktop: the cloud project's ID
   cloudCommitSha      String?   // Last synced cloud commit SHA
   cloudLastSyncAt     DateTime? // When the last sync happened
+
+  // Publish / Sites
+  isPublished         Boolean   @default(false)
+  publishSlug         String?   @unique
+  publishVisibility   String    @default("public")  // "public" | "private" | "unlisted"
+  publishedAt         DateTime?
 }
 
 model GitHubWebhook {

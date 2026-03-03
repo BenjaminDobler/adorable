@@ -1,3 +1,5 @@
+export type PublishVisibility = 'public' | 'private' | 'unlisted';
+
 export interface FileSystemNode {
   file?: {
     contents: string;
