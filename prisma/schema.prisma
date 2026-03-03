@@ -30,11 +30,18 @@ model User {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  // Social Login
+  authProvider      String?   // "github" | "google" | null (password)
+
   // GitHub Integration
   githubId          String?   @unique
   githubUsername    String?
   githubAccessToken String?   // Encrypted OAuth access token
   githubAvatarUrl   String?
+
+  // Google Integration
+  googleId          String?   @unique
+  googleAvatarUrl   String?
 }
 
 model InviteCode {

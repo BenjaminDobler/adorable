@@ -69,6 +69,25 @@ export class GitHubService {
     return response.json();
   }
 
+  /**
+   * Get the user's primary verified email from GitHub.
+   * Needed because /user may not return an email if it's set to private.
+   */
+  async getUserPrimaryEmail(accessToken: string): Promise<string | null> {
+    const response = await fetch(`${GITHUB_API}/user/emails`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+      },
+    });
+
+    if (!response.ok) return null;
+
+    const emails: { email: string; primary: boolean; verified: boolean }[] = await response.json();
+    const primary = emails.find(e => e.primary && e.verified);
+    return primary?.email || emails.find(e => e.verified)?.email || null;
+  }
+
   async listRepositories(accessToken: string): Promise<GitHubRepository[]> {
     const repos: GitHubRepository[] = [];
     let page = 1;

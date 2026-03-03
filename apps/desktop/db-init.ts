@@ -86,10 +86,13 @@ function createSchema(db: Database.Database): void {
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "cloudEditorAllowed" BOOLEAN NOT NULL DEFAULT 1,
+      "authProvider" TEXT,
       "githubId" TEXT UNIQUE,
       "githubUsername" TEXT,
       "githubAccessToken" TEXT,
-      "githubAvatarUrl" TEXT
+      "githubAvatarUrl" TEXT,
+      "googleId" TEXT UNIQUE,
+      "googleAvatarUrl" TEXT
     );
 
     -- Project table
@@ -218,6 +221,7 @@ function createSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS "Project_userId_idx" ON "Project"("userId");
     CREATE INDEX IF NOT EXISTS "ChatMessage_projectId_idx" ON "ChatMessage"("projectId");
     CREATE UNIQUE INDEX IF NOT EXISTS "User_githubId_key" ON "User"("githubId");
+    CREATE UNIQUE INDEX IF NOT EXISTS "User_googleId_key" ON "User"("googleId");
     CREATE UNIQUE INDEX IF NOT EXISTS "GitHubWebhook_projectId_key" ON "GitHubWebhook"("projectId");
     CREATE UNIQUE INDEX IF NOT EXISTS "Team_slug_key" ON "Team"("slug");
     CREATE UNIQUE INDEX IF NOT EXISTS "TeamMember_teamId_userId_key" ON "TeamMember"("teamId", "userId");
@@ -263,6 +267,9 @@ function ensureSchema(db: Database.Database): void {
     { table: 'Project', column: 'publishedAt', type: 'DATETIME' },
     { table: 'User', column: 'passwordResetToken', type: 'TEXT' },
     { table: 'User', column: 'passwordResetTokenExpiresAt', type: 'DATETIME' },
+    { table: 'User', column: 'authProvider', type: 'TEXT' },
+    { table: 'User', column: 'googleId', type: 'TEXT UNIQUE' },
+    { table: 'User', column: 'googleAvatarUrl', type: 'TEXT' },
   ];
 
   for (const { table, column, type } of migrations) {

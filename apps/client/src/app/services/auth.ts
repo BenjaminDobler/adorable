@@ -21,6 +21,8 @@ export interface AuthResponse {
 export interface RegistrationConfig {
   registrationMode: string;
   emailVerification: boolean;
+  githubLoginEnabled: boolean;
+  googleLoginEnabled: boolean;
 }
 
 @Injectable({
@@ -106,6 +108,26 @@ export class AuthService {
 
   getRegistrationConfig() {
     return this.http.get<RegistrationConfig>(`${this.apiUrl}/config`);
+  }
+
+  getSocialAuthUrl(provider: 'github' | 'google') {
+    return this.http.get<{ url: string }>(`${this.apiUrl}/social/${provider}/auth`);
+  }
+
+  /**
+   * Handle social login callback — store token from URL and fetch profile.
+   */
+  async handleSocialCallback(token: string): Promise<boolean> {
+    localStorage.setItem('adorable_token', token);
+    this.token.set(token);
+
+    const user = await this.fetchProfile(token);
+    if (user) {
+      localStorage.setItem('adorable_user', JSON.stringify(user));
+      this.currentUser.set(user);
+      return true;
+    }
+    return false;
   }
 
   forgotPassword(email: string) {

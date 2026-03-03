@@ -24,13 +24,28 @@ export class RegisterComponent implements OnInit {
   successMessage = '';
   loading = false;
   requireInviteCode = signal(false);
+  githubLoginEnabled = signal(false);
+  googleLoginEnabled = signal(false);
 
   ngOnInit() {
     this.authService.getRegistrationConfig().subscribe({
       next: (config) => {
         this.requireInviteCode.set(config.registrationMode === 'invite-only');
+        this.githubLoginEnabled.set(config.githubLoginEnabled);
+        this.googleLoginEnabled.set(config.googleLoginEnabled);
       },
       error: () => {} // Fail silently — default to open registration
+    });
+  }
+
+  socialLogin(provider: 'github' | 'google') {
+    this.authService.getSocialAuthUrl(provider).subscribe({
+      next: (res) => {
+        window.location.href = res.url;
+      },
+      error: () => {
+        this.error = 'Failed to start social login. Please try again.';
+      },
     });
   }
 

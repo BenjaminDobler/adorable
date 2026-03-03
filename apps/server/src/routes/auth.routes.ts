@@ -11,11 +11,13 @@ import { emailService } from '../services/email.service';
 
 const router = express.Router();
 
-// Public config endpoint — returns registration mode and email verification status
+// Public config endpoint — returns registration mode, email verification, and social login status
 router.get('/config', (req, res) => {
   res.json({
     registrationMode: serverConfigService.get('registration.mode'),
     emailVerification: serverConfigService.get('registration.emailVerification') === 'true',
+    githubLoginEnabled: !!process.env.GITHUB_CLIENT_ID,
+    googleLoginEnabled: !!process.env.GOOGLE_CLIENT_ID,
   });
 });
 

@@ -28,6 +28,7 @@ import { sessionAnalyzerRouter } from './routes/session-analyzer.routes';
 import { teamRouter } from './routes/team.routes';
 import { sitesAuthRouter } from './routes/sites-auth.routes';
 import { sitesAccessControl } from './middleware/sites-auth';
+import { socialAuthRouter } from './routes/social-auth.routes';
 // Native routes are handled by the desktop local agent, not the cloud server
 // import { nativeRouter } from './routes/native.routes';
 
@@ -123,6 +124,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api/auth', authRouter);
+app.use('/api/auth/social', socialAuthRouter);
 app.use('/api/projects', projectRouter);
 app.use('/api/github', githubRouter);  // Must be before aiRouter (which has global auth)
 app.use('/api/webhooks', webhooksRouter);  // Webhooks also don't need auth
