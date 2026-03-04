@@ -284,9 +284,7 @@ function setupApplicationMenu(): void {
       label: 'View',
       submenu: [
         { role: 'reload' },
-        ...(!app.isPackaged
-          ? [{ role: 'toggleDevTools' as const }]
-          : []),
+        { role: 'toggleDevTools' },
       ],
     },
     {
