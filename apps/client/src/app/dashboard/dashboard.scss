@@ -16,14 +16,22 @@
     transform: translateX(-50%);
     width: 600px;
     height: 400px;
-    background: radial-gradient(ellipse, rgba(52, 211, 153, 0.06) 0%, transparent 70%);
+    background: radial-gradient(
+      ellipse,
+      rgba(52, 211, 153, 0.06) 0%,
+      transparent 70%
+    );
     pointer-events: none;
     z-index: 0;
   }
 }
 
 body.light-mode .dashboard-container::before {
-  background: radial-gradient(ellipse, rgba(5, 150, 105, 0.05) 0%, transparent 70%);
+  background: radial-gradient(
+    ellipse,
+    rgba(5, 150, 105, 0.05) 0%,
+    transparent 70%
+  );
 }
 
 .content {
@@ -97,7 +105,9 @@ body.light-mode .dashboard-container::before {
     border-color: var(--panel-border-hover);
     color: var(--text-primary);
 
-    svg { opacity: 0.8; }
+    svg {
+      opacity: 0.8;
+    }
   }
 
   &.active {
@@ -106,7 +116,9 @@ body.light-mode .dashboard-container::before {
     color: #000;
     box-shadow: 0 0 12px var(--accent-glow);
 
-    svg { opacity: 1; }
+    svg {
+      opacity: 1;
+    }
 
     .pill-count {
       background: rgba(0, 0, 0, 0.15);
@@ -124,20 +136,25 @@ body.light-mode .dashboard-container::before {
     }
   }
 
-  &.add-pill, &.join-pill {
+  &.add-pill,
+  &.join-pill {
     padding: 0.5rem 0.625rem;
     background: transparent;
     border-style: dashed;
     color: var(--text-muted);
 
-    svg { opacity: 0.5; }
+    svg {
+      opacity: 0.5;
+    }
 
     &:hover {
       border-color: var(--accent-color);
       color: var(--accent-color);
       background: rgba(52, 211, 153, 0.05);
 
-      svg { opacity: 1; }
+      svg {
+        opacity: 1;
+      }
     }
   }
 }
@@ -305,7 +322,9 @@ body.light-mode .dashboard-container::before {
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  box-shadow: 0 0 20px var(--accent-glow), var(--shadow-md);
+  box-shadow:
+    0 0 20px var(--accent-glow),
+    var(--shadow-md);
   transition: all 0.3s var(--ease-out-expo);
   position: relative;
   overflow: hidden;
@@ -318,7 +337,7 @@ body.light-mode .dashboard-container::before {
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(255,255,255,0.2) 50%,
+      rgba(255, 255, 255, 0.2) 50%,
       transparent 100%
     );
     transform: translateX(-100%);
@@ -333,7 +352,9 @@ body.light-mode .dashboard-container::before {
   &:hover {
     background: var(--accent-hover);
     transform: translateY(-2px);
-    box-shadow: 0 0 35px var(--accent-glow-intense), var(--shadow-lg);
+    box-shadow:
+      0 0 35px var(--accent-glow-intense),
+      var(--shadow-lg);
 
     &::before {
       transform: translateX(100%);
@@ -376,7 +397,9 @@ body.light-mode .dashboard-container::before {
       rgba(52, 211, 153, 0.3) 50%,
       transparent 100%
     );
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
     opacity: 0;
@@ -402,13 +425,17 @@ body.light-mode .dashboard-container::before {
     }
 
     .project-actions {
-      opacity: 1;
+      transform: translateY(0);
     }
   }
 
   .project-preview {
     height: 200px;
-    background: linear-gradient(135deg, var(--bg-surface-2) 0%, var(--bg-color) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--bg-surface-2) 0%,
+      var(--bg-color) 100%
+    );
     display: flex;
     align-items: center;
     justify-content: center;
@@ -447,7 +474,11 @@ body.light-mode .dashboard-container::before {
 
       .placeholder-icon {
         padding: 0.5rem 1rem;
-        background: linear-gradient(135deg, rgba(52, 211, 153, 0.1) 0%, rgba(52, 211, 153, 0.05) 100%);
+        background: linear-gradient(
+          135deg,
+          rgba(52, 211, 153, 0.1) 0%,
+          rgba(52, 211, 153, 0.05) 100%
+        );
         color: var(--accent-color);
         border: 1px solid var(--panel-border-glow);
         border-radius: var(--radius-sm);
@@ -491,7 +522,7 @@ body.light-mode .dashboard-container::before {
 
   .project-actions {
     position: absolute;
-    bottom: 0;
+    bottom: -1px;
     left: 0;
     right: 0;
     z-index: 2;
@@ -500,9 +531,9 @@ body.light-mode .dashboard-container::before {
     gap: 0.5rem;
     padding: 0.75rem 1rem;
     justify-content: flex-end;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.65) 0%, transparent 100%);
-    opacity: 0;
-    transition: opacity 0.25s var(--ease-out-expo);
+    transform: translateY(100%);
+    background: var(--bg-surface-1);
+    transition: transform 0.25s var(--ease-out-expo);
   }
 
   .btn-action {
@@ -543,7 +574,11 @@ body.light-mode .dashboard-container::before {
   grid-column: 1 / -1;
   text-align: center;
   padding: 6rem 2rem;
-  background: linear-gradient(180deg, var(--bg-surface-1) 0%, var(--bg-color) 100%);
+  background: linear-gradient(
+    180deg,
+    var(--bg-surface-1) 0%,
+    var(--bg-color) 100%
+  );
   border: 1px dashed var(--panel-border);
   border-radius: var(--radius-2xl);
   position: relative;
@@ -558,7 +593,11 @@ body.light-mode .dashboard-container::before {
     transform: translateX(-50%);
     width: 300px;
     height: 200px;
-    background: radial-gradient(ellipse, rgba(52, 211, 153, 0.08) 0%, transparent 70%);
+    background: radial-gradient(
+      ellipse,
+      rgba(52, 211, 153, 0.08) 0%,
+      transparent 70%
+    );
     pointer-events: none;
   }
 
@@ -617,7 +656,9 @@ body.light-mode .dashboard-container::before {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes dialogScaleIn {
@@ -634,7 +675,12 @@ body.light-mode .dashboard-container::before {
 /* Divider */
 .divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent 0%, var(--panel-border) 50%, transparent 100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--panel-border) 50%,
+    transparent 100%
+  );
   margin: 4rem 0;
 }
 
@@ -683,7 +729,11 @@ body.light-mode .dashboard-container::before {
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(52, 211, 153, 0.02) 0%, transparent 60%);
+    background: linear-gradient(
+      135deg,
+      rgba(52, 211, 153, 0.02) 0%,
+      transparent 60%
+    );
     opacity: 0;
     transition: opacity 0.3s var(--ease-out-expo);
   }
@@ -705,7 +755,11 @@ body.light-mode .dashboard-container::before {
 
   .skill-icon {
     font-size: 1.25rem;
-    background: linear-gradient(135deg, var(--bg-surface-3) 0%, var(--bg-surface-2) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--bg-surface-3) 0%,
+      var(--bg-surface-2) 100%
+    );
     width: 48px;
     height: 48px;
     display: flex;
@@ -757,7 +811,11 @@ body.light-mode .dashboard-container::before {
     letter-spacing: 0.05em;
 
     &.system {
-      background: linear-gradient(135deg, rgba(52, 211, 153, 0.15) 0%, rgba(52, 211, 153, 0.08) 100%);
+      background: linear-gradient(
+        135deg,
+        rgba(52, 211, 153, 0.15) 0%,
+        rgba(52, 211, 153, 0.08) 100%
+      );
       color: var(--accent-color);
       border-color: rgba(52, 211, 153, 0.25);
     }
@@ -928,7 +986,7 @@ body.light-mode .dashboard-container::before {
       color: var(--text-secondary);
     }
 
-    input[type="text"] {
+    input[type='text'] {
       width: 100%;
       padding: 0.75rem 1rem;
       background: var(--bg-surface-2);
@@ -963,7 +1021,7 @@ body.light-mode .dashboard-container::before {
     gap: 0.75rem;
     cursor: pointer;
 
-    input[type="checkbox"] {
+    input[type='checkbox'] {
       width: 18px;
       height: 18px;
       margin-top: 2px;
@@ -1084,7 +1142,11 @@ body.light-mode .dashboard-container::before {
 
   .kit-preview {
     height: 120px;
-    background: linear-gradient(135deg, var(--bg-surface-2) 0%, var(--bg-color) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--bg-surface-2) 0%,
+      var(--bg-color) 100%
+    );
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1155,7 +1217,11 @@ body.light-mode .dashboard-container::before {
     letter-spacing: 0.03em;
 
     &.built-in {
-      background: linear-gradient(135deg, rgba(52, 211, 153, 0.15) 0%, rgba(52, 211, 153, 0.08) 100%);
+      background: linear-gradient(
+        135deg,
+        rgba(52, 211, 153, 0.15) 0%,
+        rgba(52, 211, 153, 0.08) 100%
+      );
       color: var(--accent-color);
       border-color: rgba(52, 211, 153, 0.25);
     }
@@ -1392,7 +1458,11 @@ body.light-mode .dashboard-container::before {
   }
 
   &.extension-banner {
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(139, 92, 246, 0.03) 100%);
+    background: linear-gradient(
+      135deg,
+      rgba(139, 92, 246, 0.08) 0%,
+      rgba(139, 92, 246, 0.03) 100%
+    );
     border: 1px solid rgba(139, 92, 246, 0.2);
     border-left: 3px solid rgba(139, 92, 246, 0.6);
 
@@ -1413,7 +1483,6 @@ body.light-mode .dashboard-container::before {
       }
     }
   }
-
 }
 
 /* Install / Download Dialog */
@@ -1713,7 +1782,6 @@ body.light-mode .dashboard-container::before {
   flex-shrink: 0;
 }
 
-
 /* Sync badges */
 .sync-badge {
   font-size: 0.6875rem;
@@ -1870,7 +1938,7 @@ body.light-mode .dashboard-container::before {
       color: var(--text-secondary);
     }
 
-    input[type="text"] {
+    input[type='text'] {
       width: 100%;
       padding: 0.75rem 1rem;
       background: var(--bg-surface-2);
@@ -2002,7 +2070,8 @@ body.light-mode .dashboard-container::before {
     background: rgba(52, 211, 153, 0.05);
     transform: translateX(4px);
 
-    svg { color: var(--accent-color); }
+    svg {
+      color: var(--accent-color);
+    }
   }
 }
-
