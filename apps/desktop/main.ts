@@ -172,6 +172,7 @@ function setupAutoUpdater(): void {
       })
       .then(({ response }) => {
         if (response === 0) {
+          mainWindow?.webContents.send('update-download-started');
           autoUpdater.downloadUpdate();
         }
       });
@@ -180,12 +181,19 @@ function setupAutoUpdater(): void {
   autoUpdater.on('download-progress', (progress) => {
     if (mainWindow) {
       mainWindow.setProgressBar(progress.percent / 100);
+      mainWindow.webContents.send('update-download-progress', {
+        percent: progress.percent,
+        bytesPerSecond: progress.bytesPerSecond,
+        transferred: progress.transferred,
+        total: progress.total,
+      });
     }
   });
 
   autoUpdater.on('update-downloaded', () => {
     if (mainWindow) {
       mainWindow.setProgressBar(-1); // Remove progress bar
+      mainWindow.webContents.send('update-downloaded');
     }
     dialog
       .showMessageBox({

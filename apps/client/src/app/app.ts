@@ -1,4 +1,4 @@
-import { Component, inject, computed } from '@angular/core';
+import { Component, inject, computed, signal, OnInit, OnDestroy, NgZone } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { NavbarComponent } from './navbar/navbar';
 import { LayoutService } from './services/layout';
@@ -7,11 +7,12 @@ import { ProjectService } from './services/project';
 import { ToastComponent } from './ui/toast/toast.component';
 import { ConfirmDialogComponent } from './ui/confirm-dialog/confirm-dialog.component';
 import { isDesktopApp } from './services/smart-container.engine';
+import { DecimalPipe } from '@angular/common';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterModule, NavbarComponent, ToastComponent, ConfirmDialogComponent],
+  imports: [RouterModule, NavbarComponent, ToastComponent, ConfirmDialogComponent, DecimalPipe],
   template: `
     @if (!layoutService.isFullscreen()) {
       <app-navbar></app-navbar>
@@ -19,6 +20,20 @@ import { isDesktopApp } from './services/smart-container.engine';
     <router-outlet></router-outlet>
     <app-toast></app-toast>
     <app-confirm-dialog></app-confirm-dialog>
+
+    @if (updateDownloading()) {
+      <div class="update-progress-banner">
+        <div class="update-progress-info">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-4H7l5-7v4h4l-5 7z"/>
+          </svg>
+          <span>Downloading update... {{ updatePercent() | number:'1.0-0' }}%</span>
+        </div>
+        <div class="update-progress-track">
+          <div class="update-progress-bar" [style.width.%]="updatePercent()"></div>
+        </div>
+      </div>
+    }
 
     @if (showBlockedOverlay()) {
       <div class="blocked-overlay-backdrop" (click)="dismissOverlay()"></div>
@@ -135,19 +150,100 @@ import { isDesktopApp } from './services/smart-container.engine';
     }
     .overlay-footer a { color: #3b82f6; text-decoration: none; }
     .overlay-footer a:hover { text-decoration: underline; }
+    .update-progress-banner {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      background: var(--panel-bg, #1e1e2e);
+      border: 1px solid var(--panel-border, #2e2e3e);
+      border-radius: 8px;
+      padding: 10px 16px;
+      z-index: 10000;
+      min-width: 260px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      animation: slideUp 0.3s cubic-bezier(0.2, 0, 0, 1);
+    }
+    .update-progress-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-primary, #e0e0e0);
+      font-size: 0.8rem;
+      margin-bottom: 8px;
+    }
+    .update-progress-info svg {
+      color: var(--accent-color, #3b82f6);
+      flex-shrink: 0;
+    }
+    .update-progress-track {
+      height: 4px;
+      background: var(--panel-border, #2e2e3e);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .update-progress-bar {
+      height: 100%;
+      background: var(--accent-color, #3b82f6);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
   `],
 })
-export class AppComponent {
+export class AppComponent implements OnInit, OnDestroy {
   public layoutService = inject(LayoutService);
   public themeService = inject(ThemeService); // Triggers constructor effect
   public projectService = inject(ProjectService);
+  private ngZone = inject(NgZone);
 
   githubReleasesUrl = 'https://github.com/BenjaminDobler/adorable/releases/latest';
   private isDesktop = isDesktopApp();
 
+  updateDownloading = signal(false);
+  updatePercent = signal(0);
+
+  private cleanupFns: (() => void)[] = [];
+
   showBlockedOverlay = computed(() => {
     return this.projectService.cloudEditorBlocked() !== null && !this.isDesktop;
   });
+
+  ngOnInit() {
+    if (this.isDesktop) {
+      this.listenForUpdateEvents();
+    }
+  }
+
+  ngOnDestroy() {
+    this.cleanupFns.forEach((fn) => fn());
+  }
+
+  private listenForUpdateEvents() {
+    const api = (window as any).electronAPI;
+    if (!api?.onUpdateDownloadProgress) return;
+
+    this.cleanupFns.push(
+      api.onUpdateDownloadStarted(() => {
+        this.ngZone.run(() => {
+          this.updateDownloading.set(true);
+          this.updatePercent.set(0);
+        });
+      }),
+      api.onUpdateDownloadProgress((progress: { percent: number }) => {
+        this.ngZone.run(() => {
+          this.updatePercent.set(progress.percent);
+        });
+      }),
+      api.onUpdateDownloaded(() => {
+        this.ngZone.run(() => {
+          this.updateDownloading.set(false);
+        });
+      })
+    );
+  }
 
   dismissOverlay() {
     this.projectService.cloudEditorBlocked.set(null);

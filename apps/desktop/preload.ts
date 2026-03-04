@@ -22,4 +22,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Cloud OAuth login: opens browser, returns JWT token
   cloudOAuthLogin: (cloudUrl: string, provider: string) =>
     ipcRenderer.invoke('cloud-oauth-login', cloudUrl, provider),
+  // Auto-update progress events
+  onUpdateDownloadStarted: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('update-download-started', listener);
+    return () => ipcRenderer.removeListener('update-download-started', listener);
+  },
+  onUpdateDownloadProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => {
+    const listener = (_event: unknown, progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => callback(progress);
+    ipcRenderer.on('update-download-progress', listener);
+    return () => ipcRenderer.removeListener('update-download-progress', listener);
+  },
+  onUpdateDownloaded: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('update-downloaded', listener);
+    return () => ipcRenderer.removeListener('update-downloaded', listener);
+  },
 });
