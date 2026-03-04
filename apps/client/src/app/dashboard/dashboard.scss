@@ -376,7 +376,7 @@ body.light-mode .dashboard-container::before {
 .project-card {
   background: var(--bg-surface-1);
   border: 1px solid var(--panel-border);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;
   display: flex;
@@ -430,7 +430,7 @@ body.light-mode .dashboard-container::before {
   }
 
   .project-preview {
-    height: 200px;
+    height: 190px;
     background: linear-gradient(
       135deg,
       var(--bg-surface-2) 0%,
