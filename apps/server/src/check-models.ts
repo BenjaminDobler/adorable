@@ -2,9 +2,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import 'dotenv/config';
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// Pass API key via ANTHROPIC_API_KEY env var when running this script
+const anthropic = new Anthropic();
 
 async function listModels() {
   try {

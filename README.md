@@ -101,7 +101,6 @@ cp .env.template .env
 Key variables:
 | Variable | Description |
 |----------|-------------|
-| `ANTHROPIC_API_KEY` | For server-side AI calls |
 | `PORT` | Backend port (default 3333) |
 | `JWT_SECRET` | JWT signing secret |
 | `ENCRYPTION_KEY` | AES-256 key for API key encryption |
