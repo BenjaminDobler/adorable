@@ -64,33 +64,35 @@ The client uses Angular standalone components with signals-based state managemen
   - `LocalContainerEngine` — Docker containers
   - `NativeContainerEngine` — Electron IPC
 
-Routing is in `app.routes.ts` with auth guards. The main editor UI lives in `app.ts` (AppComponent).
+Routing is in `app.routes.ts` with auth guards (`authGuard`, `cloudEditorGuard`). The main editor UI lives in `app.ts` (AppComponent). **Important:** The app uses `provideZonelessChangeDetection()` — all reactive state in components must use signals, not plain properties, for change detection to work.
 
 ### Server Architecture
 
 **AI Provider System** — The core pattern is a provider abstraction with an agentic loop:
 
-1. `ProviderFactory` / `SmartRouter` selects a provider (Anthropic or Gemini)
+1. `ProviderFactory` selects a provider (Anthropic or Gemini)
 2. `BaseLLMProvider` (`providers/base.ts`) implements the shared agentic loop: builds context, streams responses, executes tool calls (read_files, write_files, run_command), and iterates until success or max turns
 3. `AnthropicProvider` and `GeminiProvider` extend `BaseLLMProvider` with model-specific API calls
 4. Tool definitions live in `providers/tools.ts`; kit-specific tools in `providers/kit-tools.ts`
 5. Skill instructions in `providers/skills/` inject conditional system prompt additions
 
 **Routes** — All mounted under `/api/` in `main.ts`:
-- `/api/auth` — JWT login/register, email verification, registration config
+- `/api/auth` — JWT login/register, social OAuth (GitHub/Google), email verification, password reset, cloud-access check
 - `/api/admin` — Admin panel API (users, invites, config, stats) — requires admin role
-- `/api/projects` — CRUD
+- `/api/projects` — CRUD, publishing (public/private live URLs)
 - `/api/generate-stream` — SSE streaming AI generation (the main endpoint)
 - `/api/kits` — Component kit discovery
+- `/api/teams` — Team workspaces (create, join, members, roles, resource transfer)
+- `/api/analytics` — Token usage and cost tracking by model/project/time range
 - `/api/github`, `/api/figma`, `/api/mcp` — Integrations
 
 **File System Abstraction** — `DiskFileSystem` (disk-backed), `MemoryFileSystem` (in-memory fallback), and `ContainerFileSystem` (Docker/Native) implement a shared `FileSystemInterface`.
 
-**Auth** — JWT tokens validated by `middleware/auth.ts`; user API keys stored AES-256 encrypted in the database. Rate limiting via `express-rate-limit` on login/register. Role-based access (`admin`/`user`) enforced by `middleware/admin.ts`. Registration supports open or invite-only modes, optional email verification via nodemailer. Server-wide settings stored in `ServerConfig` model and cached in `server-config.service.ts`.
+**Auth** — JWT tokens validated by `middleware/auth.ts`; user API keys stored AES-256 encrypted in the database. Rate limiting via `express-rate-limit` on login/register. Role-based access (`admin`/`user`) enforced by `middleware/admin.ts`. Registration supports open or invite-only modes, optional email verification via nodemailer. Social login via GitHub and Google OAuth in `routes/social-auth.routes.ts`. Password reset via email token flow. Cloud editor access controlled by `middleware/cloud-editor-access.ts` (allowlist mode restricts which users can use the cloud editor). Server-wide settings stored in `ServerConfig` model and cached in `server-config.service.ts`.
 
 ### Database
 
-Prisma with SQLite. Key models: `User` (with role/isActive/emailVerified), `Project` (stores files as JSON string), `ChatMessage` (stores file snapshots per message for time-travel), `GitHubWebhook`, `InviteCode`, `ServerConfig`.
+Prisma with SQLite. Key models: `User` (with role/isActive/emailVerified/cloudEditorAllowed), `Project` (stores files as JSON string), `ChatMessage` (stores file snapshots per message for time-travel), `Team`, `TeamMember`, `TeamInvite`, `KitLesson` (AI-discovered component patterns), `GitHubWebhook`, `InviteCode`, `ServerConfig`.
 
 Schema is at `prisma/schema.prisma`. After modifying, run `npx prisma migrate dev` then `npx prisma generate`.
 
@@ -106,9 +108,12 @@ AI generation uses Server-Sent Events (SSE). The client POSTs to `/api/generate-
 ## Environment
 
 Copy `.env.template` to `.env`. Key variables:
-- `ANTHROPIC_API_KEY` — For server-side AI calls
 - `PORT` — Backend port (default 3333)
 - `DOCKER_SOCKET_PATH` — Docker socket for local container mode
 - `DATABASE_URL` — Prisma SQLite path (default `file:./dev.db`)
 - `JWT_SECRET`, `ENCRYPTION_KEY` — Auth and API key encryption
+- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` — Optional, for GitHub OAuth login
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — Optional, for Google OAuth login
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` — Optional, for email verification
+
+Users bring their own AI API keys (configured in Profile), so no server-side AI key env vars are needed.
