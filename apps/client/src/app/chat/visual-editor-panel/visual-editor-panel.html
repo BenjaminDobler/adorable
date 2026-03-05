@@ -24,7 +24,16 @@
 
   <!-- Selected Element Info -->
   <div class="target-card">
-    <div class="section-label">Selected Element</div>
+    <div class="target-card-header">
+      <div class="section-label">Selected Element</div>
+      <button class="btn-go-to-code" (click)="goToSource()" title="Go to source code">
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 18 22 12 16 6"></polyline>
+          <polyline points="8 6 2 12 8 18"></polyline>
+        </svg>
+        <span>Go to Code</span>
+      </button>
+    </div>
     <div class="element-info">
       <span class="tag-name">&lt;{{ visualEditorData().tagName }}&gt;</span>
       @if (visualEditorData().componentName) {

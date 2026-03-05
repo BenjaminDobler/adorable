@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, signal, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { TemplateService } from '../../services/template';
+import { TemplateService, ElementFingerprint } from '../../services/template';
 import { ProjectService } from '../../services/project';
 import { ContainerEngine } from '../../services/container-engine';
 import { ToastService } from '../../services/toast';
@@ -23,6 +23,7 @@ export class VisualEditorPanelComponent {
 
   @Output() closeEditor = new EventEmitter<void>();
   @Output() aiChangeRequested = new EventEmitter<string>();
+  @Output() goToCode = new EventEmitter<ElementFingerprint>();
 
   // Visual Edit State
   editText = '';
@@ -119,6 +120,25 @@ export class VisualEditorPanelComponent {
 
     this.aiChangeRequested.emit(fullPrompt);
     this.closeEditor.emit();
+  }
+
+  goToSource() {
+    const data = this.visualEditorData();
+    if (!data) return;
+
+    const fingerprint: ElementFingerprint = {
+      componentName: data.componentName,
+      hostTag: data.hostTag,
+      tagName: data.tagName,
+      text: data.text,
+      classes: data.classes,
+      id: data.attributes?.id,
+      elementId: data.elementId,
+      childIndex: data.childIndex,
+      parentTag: data.parentTag
+    };
+
+    this.goToCode.emit(fingerprint);
   }
 
   selectFromBreadcrumb(item: any, index: number) {

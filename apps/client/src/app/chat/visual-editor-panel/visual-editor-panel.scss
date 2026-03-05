@@ -91,13 +91,44 @@
     border-radius: var(--radius-md);
     padding: 12px;
 
+    .target-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
     .section-label {
       font-size: 0.65rem;
       font-weight: 700;
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      margin-bottom: 6px;
+    }
+
+    .btn-go-to-code {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: transparent;
+      border: 1px solid var(--panel-border);
+      color: var(--text-secondary);
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.15s;
+
+      &:hover {
+        background: var(--accent-color);
+        border-color: var(--accent-color);
+        color: #000;
+      }
+
+      svg {
+        flex-shrink: 0;
+      }
     }
 
     .element-info {

@@ -118,7 +118,8 @@
         <app-visual-editor-panel
           [visualEditorData]="visualEditorData"
           (closeEditor)="visualEditorData.set(null)"
-          (aiChangeRequested)="onVisualEditAiChange($event)">
+          (aiChangeRequested)="onVisualEditAiChange($event)"
+          (goToCode)="onGoToCode($event)">
         </app-visual-editor-panel>
       </div>
     }

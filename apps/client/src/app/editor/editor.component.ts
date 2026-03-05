@@ -20,6 +20,11 @@ declare const monaco: any;
       height: 100%;
       overflow: hidden;
     }
+    :host ::ng-deep .go-to-code-highlight {
+      background-color: rgba(62, 207, 142, 0.25);
+      border: 1px solid rgba(62, 207, 142, 0.5);
+      border-radius: 2px;
+    }
   `]
 })
 export class EditorComponent implements AfterViewInit, OnDestroy {
@@ -188,6 +193,44 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
       case 'md': return 'markdown';
       default: return 'plaintext';
     }
+  }
+
+  private highlightDecorations: string[] = [];
+
+  revealLocation(line: number, col: number, endLine: number, endCol: number): void {
+    if (!this.editorInstance) return;
+
+    this.editorInstance.revealLineInCenter(line);
+    this.editorInstance.setPosition({ lineNumber: line, column: col });
+
+    // Highlight the element's range
+    this.highlightDecorations = this.editorInstance.deltaDecorations(
+      this.highlightDecorations,
+      [{
+        range: {
+          startLineNumber: line,
+          startColumn: col,
+          endLineNumber: endLine,
+          endColumn: endCol
+        },
+        options: {
+          className: 'go-to-code-highlight',
+          isWholeLine: false
+        }
+      }]
+    );
+
+    // Clear the highlight after 2 seconds
+    setTimeout(() => {
+      if (this.editorInstance) {
+        this.highlightDecorations = this.editorInstance.deltaDecorations(
+          this.highlightDecorations,
+          []
+        );
+      }
+    }, 2000);
+
+    this.editorInstance.focus();
   }
 
   private configureTypeScript() {

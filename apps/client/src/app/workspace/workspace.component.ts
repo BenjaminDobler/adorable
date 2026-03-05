@@ -27,7 +27,7 @@ import { TerminalComponent } from '../terminal/terminal.component';
 import { ScreenshotService } from '../services/screenshot';
 import { FigmaPanelComponent } from '../figma/figma-panel.component';
 import { FigmaImportPayload } from '@adorable/shared-types';
-import { TemplateService } from '../services/template';
+import { TemplateService, ElementFingerprint } from '../services/template';
 import {
   AnnotationOverlayComponent,
   AnnotationResult,
@@ -86,6 +86,7 @@ export class WorkspaceComponent implements AfterViewChecked {
   }
 
   @ViewChild(ChatComponent) chatComponent!: ChatComponent;
+  @ViewChild(EditorComponent) editorComponent?: EditorComponent;
 
   activeTab = signal<'chat' | 'terminal' | 'files' | 'figma' | 'versions' | 'insights'>(
     'chat',
@@ -314,6 +315,41 @@ export class WorkspaceComponent implements AfterViewChecked {
     if (newState && this.isInspectionActive()) {
       this.toggleInspection();
     }
+  }
+
+  onGoToCode(fingerprint: ElementFingerprint) {
+    const location = this.templateService.findElementLocation(fingerprint);
+    if (!location) {
+      this.toastService.show('Could not locate element in source code', 'error');
+      return;
+    }
+
+    // Switch to Files tab
+    this.activeTab.set('files');
+
+    // Open the file in the editor
+    const content = this.projectService.fileStore.getFileContent(location.path);
+    if (content === null || content === undefined) {
+      this.toastService.show(`File not found: ${location.path}`, 'error');
+      return;
+    }
+
+    const fileName = location.path.split('/').pop() || location.path;
+    this.selectedFileName.set(fileName);
+    this.selectedFilePath.set(location.path);
+    this.selectedFileContent.set(content);
+
+    // Wait for the editor to initialize/render, then reveal the location
+    setTimeout(() => {
+      if (this.editorComponent) {
+        this.editorComponent.revealLocation(
+          location.startLine,
+          location.startColumn,
+          location.endLine,
+          location.endColumn
+        );
+      }
+    }, 100);
   }
 
   onVisualEditAiChange(prompt: string) {

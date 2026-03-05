@@ -25,6 +25,14 @@ export interface ModificationResult {
   isInsideLoop?: boolean;
 }
 
+export interface ElementLocation {
+  path: string;
+  startLine: number;
+  startColumn: number;
+  endLine: number;
+  endColumn: number;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -139,6 +147,96 @@ export class TemplateService {
     }
 
     return { content: finalFileContent, path: isInline ? componentFile.path : templatePath, success: true, isInsideLoop };
+  }
+
+  findElementLocation(fingerprint: ElementFingerprint): ElementLocation | null {
+    const files = this.projectService.files();
+    if (!files) return null;
+
+    // 1. Try finding the component file (same chain as findAndModify)
+    let componentFile: { path: string; content: string } | null = null;
+
+    if (fingerprint.componentName) {
+      componentFile = this.findComponentFile(files, fingerprint.componentName);
+    }
+    if (!componentFile && fingerprint.hostTag) {
+      componentFile = this.findComponentFileBySelector(files, fingerprint.hostTag);
+    }
+    if (!componentFile && (fingerprint.hostTag === 'app-root' || fingerprint.componentName === 'AppComponent')) {
+      componentFile = this.findComponentFile(files, 'AppComponent');
+    }
+
+    // 2. If found via component, resolve its template and find the node
+    if (componentFile) {
+      const templateInfo = this.resolveTemplate(componentFile.path, componentFile.content, files);
+      if (!templateInfo) return null;
+
+      const { path: templatePath, content: templateContent, isInline, offset: templateOffset } = templateInfo;
+
+      try {
+        const parsed = parse(templateContent);
+        const matchResult = this.findNodeWithContext(parsed.rootNodes, fingerprint);
+        if (!matchResult || !matchResult.node) return null;
+
+        return this.extractLocation(matchResult.node, templatePath, isInline, templateOffset, componentFile.path);
+      } catch {
+        return null;
+      }
+    }
+
+    // 3. Fallback: search all templates
+    const templates = this.collectAllTemplates(files);
+    for (const template of templates) {
+      try {
+        const parsed = parse(template.content);
+        const matchResult = this.findNodeWithContext(parsed.rootNodes, fingerprint);
+        if (matchResult && matchResult.node) {
+          const filePath = template.isInline && template.tsPath ? template.tsPath : template.path;
+          return this.extractLocation(matchResult.node, template.path, template.isInline, template.offset, template.tsPath);
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return null;
+  }
+
+  private extractLocation(node: any, templatePath: string, isInline: boolean, templateOffset: number | undefined, tsPath: string | undefined): ElementLocation {
+    const span = node.sourceSpan;
+    let startLine = span.start.line + 1; // convert 0-based to 1-based
+    let startCol = span.start.col + 1;
+    let endLine = span.end.line + 1;
+    let endCol = span.end.col + 1;
+
+    if (isInline && templateOffset !== undefined && tsPath) {
+      // For inline templates, adjust lines by counting newlines before the template offset
+      const tsContent = this.projectService.files() ? this.getFileContentFromStore(tsPath) : null;
+      if (tsContent) {
+        const beforeTemplate = tsContent.substring(0, templateOffset);
+        const lineOffset = (beforeTemplate.match(/\n/g) || []).length;
+        const lastNewline = beforeTemplate.lastIndexOf('\n');
+        const colOffset = lastNewline === -1 ? templateOffset : templateOffset - lastNewline - 1;
+
+        if (span.start.line === 0) {
+          startCol += colOffset;
+        }
+        if (span.end.line === 0) {
+          endCol += colOffset;
+        }
+        startLine += lineOffset;
+        endLine += lineOffset;
+      }
+      return { path: tsPath, startLine, startColumn: startCol, endLine, endColumn: endCol };
+    }
+
+    return { path: templatePath, startLine, startColumn: startCol, endLine, endColumn: endCol };
+  }
+
+  private getFileContentFromStore(path: string): string | null {
+    const files = this.projectService.files();
+    if (!files) return null;
+    return this.getFileContent(files, path);
   }
 
   private findNodeWithContext(nodes: any[], fingerprint: ElementFingerprint, depth = 0, parent: any = null, insideLoop = false): { node: any, isInsideLoop: boolean } | null {
