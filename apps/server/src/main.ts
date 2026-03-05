@@ -8,6 +8,8 @@ import cookieParser from 'cookie-parser';
 import { JWT_SECRET, PORT, SITES_DIR } from './config';
 import { containerProxy, getUserId } from './middleware/proxy';
 import { containerRegistry } from './providers/container/container-registry';
+import { logger } from './logger';
+import { prisma } from './db/prisma';
 import { authRouter } from './routes/auth.routes';
 import { projectRouter } from './routes/project.routes';
 import { aiRouter } from './routes/ai.routes';
@@ -100,7 +102,9 @@ app.use(async (req: any, res, next) => {
 });
 
 // Ensure sites directory exists
-fs.mkdir(SITES_DIR, { recursive: true }).catch(console.error);
+fs.mkdir(SITES_DIR, { recursive: true }).catch(err =>
+  logger.error('Failed to create sites directory', { error: err.message })
+);
 
 // Static assets
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
@@ -113,13 +117,14 @@ app.use('/sites', sitesAccessControl, express.static(SITES_DIR));
 // Logging middleware
 app.use((req, res, next) => {
   if (!req.url.startsWith('/api/proxy')) {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
-  }
-  // Debug: log when github callback is hit
-  if (req.url.includes('/api/github/callback')) {
-    console.log('[DEBUG] GitHub callback request reaching logging middleware');
+    logger.info('request', { method: req.method, url: req.url });
   }
   next();
+});
+
+// Health check (no auth required)
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime() });
 });
 
 // Routes
@@ -156,22 +161,30 @@ app.get('*', (req, res, next) => {
   });
 });
 
+// Global Express error handler — must be last middleware (4-arg signature)
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  logger.error('Unhandled route error', { error: err.message, stack: err.stack });
+  if (!res.headersSent) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 const server = app.listen(PORT, async () => {
-  console.log(`Listening at http://localhost:${PORT}/api`);
+  logger.info(`Server listening`, { url: `http://localhost:${PORT}/api` });
 
   // Initialize server config (loads defaults, promotes first admin)
   await serverConfigService.initialize().catch(err =>
-    console.error('[ServerConfig] Failed to initialize:', err)
+    logger.error('ServerConfig failed to initialize', { error: err.message })
   );
 
   // Migrate existing kits to disk storage (reads from user.settings, must run first)
   kitFsService.migrateAllKits().then(() =>
     // Move kits from user.settings JSON → Kit table, then clean up settings
     kitService.migrateFromSettings().catch(err =>
-      console.error('[Kit DB Migration] Failed:', err)
+      logger.error('Kit DB migration failed', { error: err.message })
     )
   ).catch(err =>
-    console.error('[Kit FS Migration] Failed:', err)
+    logger.error('Kit FS migration failed', { error: err.message })
   );
 
   // Signal to Electron that server is ready (for desktop mode)
@@ -188,4 +201,60 @@ server.on('upgrade', (req, socket, head) => {
   }
 });
 
-server.on('error', console.error);
+server.on('error', (err) => {
+  logger.error('Server error', { error: err.message });
+});
+
+// --- Process-level error handlers ---
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught exception — exiting', { error: err.message, stack: err.stack });
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  const stack = reason instanceof Error ? reason.stack : undefined;
+  logger.error('Unhandled rejection', { error: message, stack });
+});
+
+// --- Graceful shutdown ---
+let shuttingDown = false;
+
+async function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info('Shutdown started', { signal });
+
+  // Force-exit after 15s if cleanup hangs
+  const forceTimer = setTimeout(() => {
+    logger.error('Shutdown timed out after 15s — forcing exit');
+    process.exit(1);
+  }, 15_000);
+  forceTimer.unref();
+
+  try {
+    // Stop accepting new connections
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve()))
+    );
+    logger.info('HTTP server closed');
+
+    // Stop all Docker containers
+    await containerRegistry.shutdownAll();
+    logger.info('All containers stopped');
+
+    // Disconnect Prisma
+    await prisma.$disconnect();
+    logger.info('Prisma disconnected');
+
+    logger.info('Shutdown complete');
+    process.exit(0);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error('Error during shutdown', { error: message });
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

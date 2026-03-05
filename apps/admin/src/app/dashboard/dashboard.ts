@@ -10,6 +10,21 @@ import { AdminApiService } from '../services/admin-api';
     <div class="dashboard">
       <h2>Dashboard</h2>
 
+      <div class="server-status-card">
+        <div class="server-status-header">
+          <span class="status-dot" [class.ok]="serverStatus() === 'ok'" [class.down]="serverStatus() === 'down'"></span>
+          <span class="server-status-title">Server</span>
+          <span class="server-status-badge" [class.ok]="serverStatus() === 'ok'" [class.down]="serverStatus() === 'down'">
+            {{ serverStatus() === 'ok' ? 'Healthy' : serverStatus() === 'down' ? 'Unreachable' : 'Checking...' }}
+          </span>
+        </div>
+        @if (serverStatus() === 'ok') {
+          <div class="server-status-detail">
+            <span>Process uptime: <strong>{{ formatUptime(serverUptime()) }}</strong></span>
+          </div>
+        }
+      </div>
+
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-value">{{ stats()?.users ?? '—' }}</div>
@@ -56,6 +71,50 @@ import { AdminApiService } from '../services/admin-api';
   styles: [`
     .dashboard { padding: 0; }
     h2 { margin: 0 0 1.5rem; font-weight: 700; }
+
+    .server-status-card {
+      background: #1e1e2e;
+      border: 1px solid #2e2e3e;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .server-status-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #555;
+      flex-shrink: 0;
+    }
+    .status-dot.ok { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+    .status-dot.down { background: #ef4444; box-shadow: 0 0 6px #ef444488; }
+    .server-status-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #e0e0e0;
+    }
+    .server-status-badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.15rem 0.55rem;
+      border-radius: 4px;
+      background: #2e2e3e;
+      color: #888;
+    }
+    .server-status-badge.ok { background: #22c55e22; color: #22c55e; }
+    .server-status-badge.down { background: #ef444422; color: #ef4444; }
+    .server-status-detail {
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      color: #888;
+    }
+    .server-status-detail strong { color: #ccc; }
+
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -76,6 +135,8 @@ import { AdminApiService } from '../services/admin-api';
 export class DashboardComponent implements OnInit, OnDestroy {
   private api = inject(AdminApiService);
   stats = signal<any>(null);
+  serverStatus = signal<'ok' | 'down' | 'checking'>('checking');
+  serverUptime = signal<number | undefined>(undefined);
   private interval: any;
 
   ngOnInit() {
@@ -91,6 +152,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.api.getStats().subscribe({
       next: (s) => this.stats.set(s),
       error: () => {},
+    });
+    this.api.getHealth().subscribe({
+      next: (h) => {
+        this.serverStatus.set(h.status === 'ok' ? 'ok' : 'down');
+        this.serverUptime.set(h.uptime);
+      },
+      error: () => {
+        this.serverStatus.set('down');
+        this.serverUptime.set(undefined);
+      },
     });
   }
 

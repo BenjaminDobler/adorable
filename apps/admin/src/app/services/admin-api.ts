@@ -85,4 +85,9 @@ export class AdminApiService {
   getStats() {
     return this.http.get<any>(`${this.baseUrl}/stats`, { headers: this.headers() });
   }
+
+  // Health (public endpoint, no auth required)
+  getHealth() {
+    return this.http.get<{ status: string; uptime: number }>('/api/health');
+  }
 }

@@ -88,6 +88,21 @@ export class ContainerRegistry {
     }
   }
 
+  async shutdownAll() {
+    const entries = [...this.managers.entries()];
+    await Promise.allSettled(
+      entries.map(async ([userId, manager]) => {
+        try {
+          await manager.stop();
+        } catch (err) {
+          console.error(`[Shutdown] Failed to stop container for user ${userId}:`, err);
+        }
+      })
+    );
+    this.managers.clear();
+    this.activities.clear();
+  }
+
   private async reap() {
     const now = Date.now();
     const IDLE_TIMEOUT = 15 * 60 * 1000; // 15 mins to pause
