@@ -1,7 +1,8 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
+import { finalize } from 'rxjs';
 import { AuthService } from '../../services/auth';
 
 @Component({
@@ -15,28 +16,28 @@ export class ForgotPasswordComponent {
   private authService = inject(AuthService);
 
   email = '';
-  error = '';
-  successMessage = '';
-  loading = false;
+  error = signal('');
+  successMessage = signal('');
+  loading = signal(false);
 
   submit() {
     if (!this.email) {
-      this.error = 'Please enter your email address';
+      this.error.set('Please enter your email address');
       return;
     }
 
-    this.loading = true;
-    this.error = '';
-    this.successMessage = '';
+    this.loading.set(true);
+    this.error.set('');
+    this.successMessage.set('');
 
-    this.authService.forgotPassword(this.email).subscribe({
+    this.authService.forgotPassword(this.email).pipe(
+      finalize(() => this.loading.set(false))
+    ).subscribe({
       next: (res) => {
-        this.successMessage = res.message;
-        this.loading = false;
+        this.successMessage.set(res.message);
       },
       error: (err) => {
-        this.error = err.error?.error || 'Failed to send reset email';
-        this.loading = false;
+        this.error.set(err.error?.error || err.message || 'Failed to send reset email');
       },
     });
   }

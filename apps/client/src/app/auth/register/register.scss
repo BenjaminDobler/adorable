@@ -1,1 +1,34 @@
 @use '../login/login.scss' as *;
+
+.verification-success {
+  text-align: center;
+  padding: 1rem 0;
+
+  .verification-icon {
+    margin-bottom: 1.25rem;
+  }
+
+  h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .verification-text {
+    color: #22c55e;
+    font-size: 0.9rem;
+    margin: 0 0 1rem;
+    line-height: 1.5;
+    background: rgba(34, 197, 94, 0.05);
+    padding: 0.75rem;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+  }
+
+  .verification-hint {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin: 0;
+  }
+}

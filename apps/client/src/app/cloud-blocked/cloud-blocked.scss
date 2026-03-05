@@ -1,0 +1,125 @@
+.blocked-container {
+  min-height: 100vh;
+  width: 100vw;
+  background: var(--bg-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--text-primary);
+}
+
+.blocked-card {
+  max-width: 560px;
+  width: 100%;
+  text-align: center;
+}
+
+.blocked-icon {
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+}
+
+h1 {
+  margin: 0 0 0.75rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.blocked-description {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0 0 2.5rem;
+}
+
+.desktop-section {
+  background: var(--bg-surface-1);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  margin-bottom: 2rem;
+
+  h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+
+  .desktop-hint {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin: 0 0 1.5rem;
+    line-height: 1.5;
+  }
+}
+
+.download-options {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
+.download-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 1rem 1.25rem;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: border-color 0.2s, color 0.2s;
+  min-width: 110px;
+
+  &:hover {
+    border-color: var(--accent-color);
+    color: var(--text-primary);
+  }
+
+  strong {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+  }
+
+  span {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+}
+
+.releases-link {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0;
+
+  a {
+    color: var(--accent-color);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.blocked-footer {
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: color 0.2s;
+
+    &:hover {
+      color: var(--accent-color);
+    }
+  }
+}

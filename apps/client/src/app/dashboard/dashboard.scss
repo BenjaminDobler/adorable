@@ -1385,6 +1385,22 @@ body.light-mode .dashboard-container::before {
 }
 
 /* Companion App Banners */
+.cloud-blocked-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 1rem;
+  border-radius: var(--radius-md);
+  margin-bottom: 1rem;
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+
+  svg { flex-shrink: 0; color: #ef4444; }
+  a { color: var(--accent-color); text-decoration: none; font-weight: 600; &:hover { text-decoration: underline; } }
+}
+
 .companion-banner {
   display: flex;
   align-items: center;

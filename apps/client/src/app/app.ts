@@ -39,13 +39,8 @@ import { DecimalPipe } from '@angular/common';
       <div class="blocked-overlay-backdrop" (click)="dismissOverlay()"></div>
       <div class="blocked-overlay">
         <button class="blocked-close" (click)="dismissOverlay()">&times;</button>
-        @if (projectService.cloudEditorBlocked() === 'capacity') {
-          <h2>Server at Capacity</h2>
-          <p>All cloud editor slots are currently in use. You can try again in a few minutes, or download the desktop app for unlimited local usage.</p>
-        } @else {
-          <h2>Cloud Editor Access Restricted</h2>
-          <p>Your account does not have cloud editor access. Contact an administrator, or download the desktop app to build locally.</p>
-        }
+        <h2>Server at Capacity</h2>
+        <p>All cloud editor slots are currently in use. You can try again in a few minutes, or download the desktop app for unlimited local usage.</p>
         <div class="download-options">
           <a class="download-card" [href]="githubReleasesUrl" target="_blank" rel="noopener">
             <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
@@ -208,7 +203,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private cleanupFns: (() => void)[] = [];
 
   showBlockedOverlay = computed(() => {
-    return this.projectService.cloudEditorBlocked() !== null && !this.isDesktop;
+    return this.projectService.cloudEditorBlocked() === 'capacity' && !this.isDesktop;
   });
 
   ngOnInit() {

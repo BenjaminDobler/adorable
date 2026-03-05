@@ -1,5 +1,6 @@
 import { Routes, CanActivateFn, Router } from '@angular/router';
 import { inject } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { AuthService } from './services/auth';
 
 /**
@@ -43,6 +44,28 @@ const authGuard: CanActivateFn = async () => {
   }
 
   return router.parseUrl('/login');
+};
+
+/**
+ * Guard that checks cloud editor access before allowing entry to the editor.
+ * Desktop users always pass. Cloud users are checked against the server allowlist.
+ */
+const cloudEditorGuard: CanActivateFn = async () => {
+  const electronAPI = (window as any).electronAPI;
+  if (electronAPI?.isDesktop) return true;
+
+  const authService = inject(AuthService);
+  const router = inject(Router);
+
+  try {
+    const result = await firstValueFrom(authService.checkCloudAccess());
+    if (result.allowed) return true;
+  } catch {
+    // If the check fails, allow through (fail open — the generate-stream endpoint has its own guard)
+    return true;
+  }
+
+  return router.parseUrl('/cloud-blocked');
 };
 
 export const routes: Routes = [
@@ -97,8 +120,13 @@ export const routes: Routes = [
     loadComponent: () => import('./analytics/analytics').then(m => m.AnalyticsComponent)
   },
   {
-    path: 'editor/:id',
+    path: 'cloud-blocked',
     canActivate: [authGuard],
+    loadComponent: () => import('./cloud-blocked/cloud-blocked').then(m => m.CloudBlockedComponent)
+  },
+  {
+    path: 'editor/:id',
+    canActivate: [authGuard, cloudEditorGuard],
     loadComponent: () => import('./workspace/workspace.component').then(m => m.WorkspaceComponent)
   },
   {

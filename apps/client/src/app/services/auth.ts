@@ -106,6 +106,10 @@ export class AuthService {
     return null;
   }
 
+  checkCloudAccess() {
+    return this.http.get<{ allowed: boolean; mode: string }>(`${this.apiUrl}/cloud-access`);
+  }
+
   getRegistrationConfig() {
     return this.http.get<RegistrationConfig>(`${this.apiUrl}/config`);
   }

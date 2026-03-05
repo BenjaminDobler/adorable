@@ -2,7 +2,9 @@ import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
+import { finalize } from 'rxjs';
 import { AuthService } from '../../services/auth';
+import { ToastService } from '../../services/toast';
 
 @Component({
   selector: 'app-register',
@@ -14,15 +16,16 @@ import { AuthService } from '../../services/auth';
 export class RegisterComponent implements OnInit {
   private authService = inject(AuthService);
   private router = inject(Router);
+  private toastService = inject(ToastService);
 
   name = '';
   email = '';
   password = '';
   confirmPassword = '';
   inviteCode = '';
-  error = '';
-  successMessage = '';
-  loading = false;
+  error = signal('');
+  successMessage = signal('');
+  loading = signal(false);
   requireInviteCode = signal(false);
   githubLoginEnabled = signal(false);
   googleLoginEnabled = signal(false);
@@ -44,24 +47,24 @@ export class RegisterComponent implements OnInit {
         window.location.href = res.url;
       },
       error: () => {
-        this.error = 'Failed to start social login. Please try again.';
+        this.error.set('Failed to start social login. Please try again.');
       },
     });
   }
 
   register() {
     if (this.password.length < 8) {
-      this.error = 'Password must be at least 8 characters';
+      this.error.set('Password must be at least 8 characters');
       return;
     }
     if (this.password !== this.confirmPassword) {
-      this.error = 'Passwords do not match';
+      this.error.set('Passwords do not match');
       return;
     }
 
-    this.loading = true;
-    this.error = '';
-    this.successMessage = '';
+    this.loading.set(true);
+    this.error.set('');
+    this.successMessage.set('');
 
     const payload: any = {
       name: this.name,
@@ -69,22 +72,23 @@ export class RegisterComponent implements OnInit {
       password: this.password,
       confirmPassword: this.confirmPassword,
     };
-    if (this.inviteCode) {
-      payload.inviteCode = this.inviteCode;
+    if (this.inviteCode.trim()) {
+      payload.inviteCode = this.inviteCode.trim();
     }
 
-    this.authService.register(payload).subscribe({
+    this.authService.register(payload).pipe(
+      finalize(() => this.loading.set(false))
+    ).subscribe({
       next: (res: any) => {
         if (res.requiresVerification) {
-          this.successMessage = res.message || 'Account created. Please check your email to verify your account.';
-          this.loading = false;
+          this.successMessage.set(res.message || 'Account created. Please check your email to verify your account.');
         } else {
+          this.toastService.show('Welcome! Your account has been created.', 'success');
           this.router.navigate(['/dashboard']);
         }
       },
       error: (err) => {
-        this.error = err.error?.error || 'Registration failed';
-        this.loading = false;
+        this.error.set(err.error?.error || err.message || 'Registration failed. Please try again.');
       }
     });
   }

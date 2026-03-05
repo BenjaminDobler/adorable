@@ -22,7 +22,8 @@ router.get('/config', (req, res) => {
 });
 
 router.post('/register', registerRateLimit, async (req, res) => {
-  const { email, password, confirmPassword, name, inviteCode } = req.body;
+  const { email, password, confirmPassword, name } = req.body;
+  const inviteCode = typeof req.body.inviteCode === 'string' ? req.body.inviteCode.trim() : req.body.inviteCode;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
   // Password validation
@@ -138,6 +139,13 @@ router.post('/login', authRateLimit, async (req, res) => {
 router.post('/logout', (req, res) => {
   res.clearCookie('adorable_container_user');
   res.json({ success: true });
+});
+
+// Check cloud editor access for current user
+router.get('/cloud-access', authenticate, (req: any, res) => {
+  const mode = serverConfigService.get('cloudEditor.accessMode');
+  const allowed = mode !== 'allowlist' || req.user.role === 'admin' || !!req.user.cloudEditorAllowed;
+  res.json({ allowed, mode });
 });
 
 // Email verification

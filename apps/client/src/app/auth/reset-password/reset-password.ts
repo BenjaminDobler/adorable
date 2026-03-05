@@ -1,7 +1,8 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule, ActivatedRoute } from '@angular/router';
+import { finalize } from 'rxjs';
 import { AuthService } from '../../services/auth';
 
 @Component({
@@ -19,36 +20,37 @@ export class ResetPasswordComponent implements OnInit {
   token = '';
   password = '';
   confirmPassword = '';
-  error = '';
-  loading = false;
+  error = signal('');
+  loading = signal(false);
 
   ngOnInit() {
     this.token = this.route.snapshot.queryParamMap.get('token') || '';
     if (!this.token) {
-      this.error = 'Invalid reset link. Please request a new password reset.';
+      this.error.set('Invalid reset link. Please request a new password reset.');
     }
   }
 
   submit() {
     if (this.password.length < 8) {
-      this.error = 'Password must be at least 8 characters';
+      this.error.set('Password must be at least 8 characters');
       return;
     }
     if (this.password !== this.confirmPassword) {
-      this.error = 'Passwords do not match';
+      this.error.set('Passwords do not match');
       return;
     }
 
-    this.loading = true;
-    this.error = '';
+    this.loading.set(true);
+    this.error.set('');
 
-    this.authService.resetPassword(this.token, this.password).subscribe({
+    this.authService.resetPassword(this.token, this.password).pipe(
+      finalize(() => this.loading.set(false))
+    ).subscribe({
       next: () => {
         this.router.navigate(['/login'], { queryParams: { reset: 'true' } });
       },
       error: (err) => {
-        this.error = err.error?.error || 'Failed to reset password';
-        this.loading = false;
+        this.error.set(err.error?.error || err.message || 'Failed to reset password');
       },
     });
   }

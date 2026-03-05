@@ -2,6 +2,7 @@ import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule, ActivatedRoute } from '@angular/router';
+import { finalize } from 'rxjs';
 import { AuthService } from '../../services/auth';
 
 @Component({
@@ -18,9 +19,9 @@ export class LoginComponent implements OnInit {
 
   email = '';
   password = '';
-  error = '';
-  successMessage = '';
-  loading = false;
+  error = signal('');
+  successMessage = signal('');
+  loading = signal(false);
 
   githubLoginEnabled = signal(false);
   googleLoginEnabled = signal(false);
@@ -29,13 +30,13 @@ export class LoginComponent implements OnInit {
     // Handle email verification redirect
     const verified = this.route.snapshot.queryParamMap.get('verified');
     if (verified === 'true') {
-      this.successMessage = 'Email verified successfully! You can now log in.';
+      this.successMessage.set('Email verified successfully! You can now log in.');
     }
 
     // Handle password reset redirect
     const reset = this.route.snapshot.queryParamMap.get('reset');
     if (reset === 'true') {
-      this.successMessage = 'Password reset successfully! You can now log in with your new password.';
+      this.successMessage.set('Password reset successfully! You can now log in with your new password.');
     }
 
     // Handle social login callback
@@ -50,11 +51,11 @@ export class LoginComponent implements OnInit {
     const socialError = this.route.snapshot.queryParamMap.get('social_error');
     if (socialError) {
       if (socialError === 'no_email') {
-        this.error = 'Could not retrieve email from your social account. Please ensure your email is public or verified.';
+        this.error.set('Could not retrieve email from your social account. Please ensure your email is public or verified.');
       } else if (socialError === 'account_disabled') {
-        this.error = 'Your account has been disabled. Contact an administrator.';
+        this.error.set('Your account has been disabled. Contact an administrator.');
       } else {
-        this.error = 'Social login failed. Please try again.';
+        this.error.set('Social login failed. Please try again.');
       }
     }
 
@@ -68,24 +69,25 @@ export class LoginComponent implements OnInit {
   }
 
   private async handleSocialCallback(token: string) {
-    this.loading = true;
+    this.loading.set(true);
     const success = await this.authService.handleSocialCallback(token);
     if (success) {
       this.router.navigate(['/dashboard']);
     } else {
-      this.error = 'Social login failed. Please try again.';
-      this.loading = false;
+      this.error.set('Social login failed. Please try again.');
+      this.loading.set(false);
     }
   }
 
   login() {
-    this.loading = true;
-    this.error = '';
-    this.authService.login({ email: this.email, password: this.password }).subscribe({
+    this.loading.set(true);
+    this.error.set('');
+    this.authService.login({ email: this.email, password: this.password }).pipe(
+      finalize(() => this.loading.set(false))
+    ).subscribe({
       next: () => this.router.navigate(['/dashboard']),
       error: (err) => {
-        this.error = err.error?.error || 'Login failed';
-        this.loading = false;
+        this.error.set(err.error?.error || err.message || 'Login failed. Please try again.');
       }
     });
   }
@@ -96,7 +98,7 @@ export class LoginComponent implements OnInit {
         window.location.href = res.url;
       },
       error: () => {
-        this.error = 'Failed to start social login. Please try again.';
+        this.error.set('Failed to start social login. Please try again.');
       },
     });
   }

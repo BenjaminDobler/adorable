@@ -105,6 +105,9 @@ export class DashboardComponent {
 
   githubReleasesUrl = 'https://github.com/BenjaminDobler/adorable/releases/latest';
 
+  // Cloud editor access state
+  cloudEditorBlocked = signal(false);
+
   // Kit-related state
   showKitSelection = signal(false);
 
@@ -192,6 +195,14 @@ export class DashboardComponent {
       this.loadCloudProjects();
     }
 
+    // Check cloud editor access (cloud only)
+    if (!isDesktopApp()) {
+      this.authService.checkCloudAccess().subscribe({
+        next: (res) => this.cloudEditorBlocked.set(!res.allowed),
+        error: () => {} // Fail open
+      });
+    }
+
     // Check for Chrome extension after a short delay (page.js needs to run first)
     if (!isDesktopApp()) {
       setTimeout(() => {
@@ -242,6 +253,10 @@ export class DashboardComponent {
   }
 
   createProject() {
+    if (this.cloudEditorBlocked()) {
+      this.router.navigate(['/cloud-blocked']);
+      return;
+    }
     // Show kit selection modal
     this.showKitSelection.set(true);
   }
