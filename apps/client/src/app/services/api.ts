@@ -335,6 +335,28 @@ export class ApiService {
     return this.http.post<any>(`${this.apiUrl}/kits/${kitId}/regenerate-docs`, { overwrite });
   }
 
+  // Kit Lessons
+  getKitLessons(kitId: string, scope?: string): Observable<{ success: boolean; lessons: any[] }> {
+    const params = scope ? `?scope=${scope}` : '';
+    return this.http.get<any>(`${this.apiUrl}/kits/${kitId}/lessons${params}`);
+  }
+
+  createKitLesson(kitId: string, data: { title: string; problem: string; solution: string; component?: string; codeSnippet?: string; tags?: string }): Observable<{ success: boolean; lesson: any }> {
+    return this.http.post<any>(`${this.apiUrl}/kits/${kitId}/lessons`, data);
+  }
+
+  updateKitLesson(kitId: string, lessonId: string, data: { title?: string; problem?: string; solution?: string; component?: string; codeSnippet?: string; tags?: string }): Observable<{ success: boolean; lesson: any }> {
+    return this.http.put<any>(`${this.apiUrl}/kits/${kitId}/lessons/${lessonId}`, data);
+  }
+
+  deleteKitLesson(kitId: string, lessonId: string): Observable<{ success: boolean }> {
+    return this.http.delete<any>(`${this.apiUrl}/kits/${kitId}/lessons/${lessonId}`);
+  }
+
+  promoteKitLesson(kitId: string, lessonId: string): Observable<{ success: boolean; lesson: any }> {
+    return this.http.post<any>(`${this.apiUrl}/kits/${kitId}/lessons/${lessonId}/promote`, {});
+  }
+
   // Conversation history summarization
   summarizeContext(messages: { role: string; text: string }[]): Observable<{ summary: string }> {
     return this.http.post<{ summary: string }>(`${this.apiUrl}/summarize-context`, { messages });

@@ -346,7 +346,8 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
           reasoningEffort,
           history,
           contextSummary,
-          sapAiCore
+          sapAiCore,
+          kitLessonsEnabled: userSettings.kitLessonsEnabled !== false,
       }, {
           onText: (text) => {
               res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);

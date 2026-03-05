@@ -64,6 +64,7 @@ export interface AppSettings {
   themeSettings?: ThemeSettings; // New: separate type and mode
   mcpServers?: MCPServerConfig[];
   angularMcpEnabled?: boolean;
+  kitLessonsEnabled?: boolean; // Enable AI lesson capture during kit sessions (default: true)
 }
 
 @Component({
@@ -229,6 +230,7 @@ export class ProfileComponent implements OnInit {
           themeSettings,
           mcpServers,
           angularMcpEnabled: parsed.angularMcpEnabled !== false,
+          kitLessonsEnabled: parsed.kitLessonsEnabled !== false,
         };
 
         this.settings.set(newSettings);
@@ -481,6 +483,11 @@ export class ProfileComponent implements OnInit {
 
   toggleAngularMcp(enabled: boolean) {
     this.settings.update(s => ({ ...s, angularMcpEnabled: enabled }));
+    this.save();
+  }
+
+  toggleKitLessons(enabled: boolean) {
+    this.settings.update(s => ({ ...s, kitLessonsEnabled: enabled }));
     this.save();
   }
 

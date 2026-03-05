@@ -1,6 +1,6 @@
 import { FileSystemInterface, StreamCallbacks, GenerateOptions, HistoryMessage } from './types';
 import { jsonrepair } from 'jsonrepair';
-import { TOOLS } from './tools';
+import { TOOLS, SAVE_LESSON_TOOL } from './tools';
 import { ANGULAR_KNOWLEDGE_BASE } from './knowledge-base';
 import { SkillRegistry } from './skills/skill-registry';
 import { DebugLogger } from './debug-logger';
@@ -11,6 +11,7 @@ import { MCPToolResult } from '../mcp/types';
 import { Kit } from './kits/types';
 import { generateComponentCatalog, generateComponentDocFiles } from './kits/doc-generator';
 import { kitFsService } from '../services/kit-fs.service';
+import { kitLessonService } from '../services/kit-lesson.service';
 import { sanitizeCommandOutput } from './sanitize-output';
 
 export const SYSTEM_PROMPT =
@@ -99,6 +100,9 @@ export interface AgentLoopContext {
   mcpManager?: MCPManager;
   failedBuildCount: number;
   activeKitName?: string;
+  activeKitId?: string;
+  userId?: string;
+  projectId?: string;
 }
 
 export abstract class BaseLLMProvider {
@@ -113,6 +117,9 @@ export abstract class BaseLLMProvider {
     maxTurns: number;
     mcpManager?: MCPManager;
     activeKitName?: string;
+    activeKitId?: string;
+    userId?: string;
+    projectId?: string;
     history?: HistoryMessage[];
     contextSummary?: string;
   }> {
@@ -193,6 +200,13 @@ Only proceed with implementation after receiving the user's answers.`;
       } catch (error) {
         logger.log('MCP_INIT_ERROR', { error: error instanceof Error ? error.message : 'Unknown error' });
       }
+    }
+
+    // Add save_lesson tool when a kit is active and lessons are enabled
+    // Lessons enabled when both the kit author hasn't disabled it AND the user hasn't disabled it
+    const lessonsEnabled = (options.activeKit?.lessonsEnabled !== false) && (options.kitLessonsEnabled !== false);
+    if (options.activeKit && lessonsEnabled) {
+      availableTools.push(SAVE_LESSON_TOOL);
     }
 
     // Inject component catalog + doc files if an active kit is provided
@@ -276,6 +290,30 @@ Only proceed with implementation after receiving the user's answers.`;
       if (activeKit.systemPrompt) {
         userMessage += `\n--- Kit Instructions ---\n${activeKit.systemPrompt}\n`;
       }
+
+      // Inject kit lessons (lessons learned) into context — only if enabled
+      if (lessonsEnabled && options.userId) {
+        try {
+          const lessonSummary = await kitLessonService.generateLessonSummary(activeKit.id, options.userId);
+          if (lessonSummary) {
+            const lessonCount = lessonSummary.split('\n').length;
+            userMessage += `\n--- Known Gotchas & Lessons for ${activeKit.name} (${lessonCount} lessons) ---\n`;
+            userMessage += lessonSummary;
+            userMessage += `\n\nRead full lesson details with read_files if you plan to use these components.\n`;
+            logger.log('KIT_LESSONS_INJECTED', { kitName: activeKit.name, lessonCount });
+          }
+        } catch (err) {
+          logger.log('KIT_LESSONS_ERROR', { error: err instanceof Error ? err.message : 'Unknown' });
+        }
+
+        // Instruct the LLM when to save lessons
+        userMessage += `\n**Lessons Learned — \`save_lesson\` tool:**\n`;
+        userMessage += `Call \`save_lesson\` when you discover something that would save time in future sessions. Specifically:\n`;
+        userMessage += `- **After fixing a build error** caused by a wrong import path, incorrect selector, missing config, or API misuse with a kit component\n`;
+        userMessage += `- **When a component requires a non-obvious workaround** (e.g., needs a wrapper element, specific parent context, or CSS override to work)\n`;
+        userMessage += `- **When the docs are misleading or incomplete** and you had to figure out the correct usage by trial and error\n`;
+        userMessage += `Do NOT save trivial things (typos, missing semicolons, standard Angular patterns). Only save kit-specific knowledge.\n`;
+      }
     }
 
     const maxTurns = fs.exec ? 200 : 25;
@@ -291,7 +329,7 @@ Only proceed with implementation after receiving the user's answers.`;
       );
     }
 
-    return { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName: activeKit?.name, history: options.history, contextSummary: options.contextSummary };
+    return { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName: activeKit?.name, activeKitId: activeKit?.id, userId: options.userId, projectId: options.projectId, history: options.history, contextSummary: options.contextSummary };
   }
 
   protected async addSkillTools(availableTools: any[], skillRegistry: SkillRegistry, fs: FileSystemInterface, userId?: string) {
@@ -627,8 +665,45 @@ Only proceed with implementation after receiving the user's answers.`;
                   ctx.logger.logText('BUILD_FAILURE_NUDGE', nudge, { failedBuildCount: ctx.failedBuildCount, activeKitName: ctx.activeKitName });
                 }
               } else {
-                ctx.failedBuildCount = 0; // Reset on success
+                // Build succeeded — nudge to save lessons if it followed failures
+                const priorFailures = ctx.failedBuildCount;
+                ctx.failedBuildCount = 0;
+                if (priorFailures >= 2 && ctx.activeKitName && ctx.activeKitId) {
+                  content += `\n\n✅ **Build succeeded after ${priorFailures} failures.** You just worked through a non-trivial issue with the ${ctx.activeKitName} library. If you discovered something that isn't obvious from the docs (wrong import path, required wrapper, missing config, etc.), call \`save_lesson\` now so future sessions don't hit the same wall.`;
+                }
               }
+            }
+          }
+          break;
+        case 'save_lesson':
+          {
+            validationError = this.validateToolArgs(toolName, toolArgs, ['title', 'problem', 'solution']);
+            if (validationError) {
+              content = validationError;
+              isError = true;
+              break;
+            }
+            if (!ctx.activeKitId || !ctx.userId) {
+              content = 'Error: save_lesson requires an active kit and authenticated user.';
+              isError = true;
+              break;
+            }
+            try {
+              const lesson = await kitLessonService.create({
+                kitId: ctx.activeKitId,
+                userId: ctx.userId,
+                title: toolArgs.title,
+                problem: toolArgs.problem,
+                solution: toolArgs.solution,
+                component: toolArgs.component || undefined,
+                codeSnippet: toolArgs.code_snippet || undefined,
+                tags: toolArgs.tags || undefined,
+                projectId: ctx.projectId || undefined,
+              });
+              content = `Lesson saved: "${lesson.title}". This will be available in future sessions with this kit.`;
+            } catch (err: any) {
+              content = `Failed to save lesson: ${err.message}`;
+              isError = true;
             }
           }
           break;

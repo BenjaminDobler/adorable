@@ -301,6 +301,139 @@
             [hasDiscoveredComponents]="discoveredComponents().length > 0"
           />
 
+          @if (kitId) {
+            <div class="form-section lessons-section">
+              <div class="lessons-header" (click)="showLessons.set(!showLessons())">
+                <h4>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" [class.expanded]="showLessons()">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                  Lessons Learned
+                  @if (lessons().length > 0) {
+                    <span class="lesson-count">{{ lessons().length }}</span>
+                  }
+                </h4>
+                <div class="lessons-header-actions" (click)="$event.stopPropagation()">
+                  <label class="lessons-toggle" title="Enable or disable AI lesson collection for this kit">
+                    <input
+                      type="checkbox"
+                      [checked]="kitLessonsEnabled()"
+                      (change)="kitLessonsEnabled.set(!kitLessonsEnabled())"
+                    >
+                    <span class="lessons-toggle-slider"></span>
+                  </label>
+                  <button class="btn-add-lesson" (click)="startAddLesson()" title="Add lesson manually">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              @if (showLessons()) {
+                @if (lessonsLoading()) {
+                  <div class="lessons-loading">Loading lessons...</div>
+                } @else if (lessons().length === 0 && !editingLesson()) {
+                  <div class="lessons-empty">
+                    <p>No lessons yet. Lessons are automatically created when the AI discovers non-obvious patterns while using this kit's components.</p>
+                  </div>
+                } @else {
+                  <div class="lessons-list">
+                    @for (lesson of lessons(); track lesson.id) {
+                      <div class="lesson-card" [class.expanded]="expandedLessonIds().has(lesson.id)">
+                        <div class="lesson-card-header" (click)="toggleLessonExpand(lesson.id)">
+                          <div class="lesson-title-row">
+                            <span class="lesson-title">{{ lesson.title }}</span>
+                            @if (lesson.component) {
+                              <span class="lesson-component-tag">{{ lesson.component }}</span>
+                            }
+                            <span class="lesson-scope-badge" [class.shared]="lesson.scope === 'kit'">
+                              {{ lesson.scope === 'kit' ? 'Shared' : 'Personal' }}
+                            </span>
+                          </div>
+                          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" class="expand-icon" [class.expanded]="expandedLessonIds().has(lesson.id)">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                          </svg>
+                        </div>
+
+                        @if (expandedLessonIds().has(lesson.id)) {
+                          <div class="lesson-card-body">
+                            <div class="lesson-field">
+                              <strong>Problem:</strong>
+                              <p>{{ lesson.problem }}</p>
+                            </div>
+                            <div class="lesson-field">
+                              <strong>Solution:</strong>
+                              <p>{{ lesson.solution }}</p>
+                            </div>
+                            @if (lesson.codeSnippet) {
+                              <div class="lesson-field">
+                                <strong>Example:</strong>
+                                <pre><code>{{ lesson.codeSnippet }}</code></pre>
+                              </div>
+                            }
+                            @if (lesson.tags) {
+                              <div class="lesson-tags">
+                                @for (tag of lesson.tags.split(','); track tag) {
+                                  <span class="lesson-tag">{{ tag.trim() }}</span>
+                                }
+                              </div>
+                            }
+                            <div class="lesson-actions">
+                              <button class="btn-lesson-action" (click)="startEditLesson(lesson)">Edit</button>
+                              @if (lesson.scope === 'user') {
+                                <button class="btn-lesson-action promote" (click)="promoteLesson(lesson)">Promote to Shared</button>
+                              }
+                              <button class="btn-lesson-action delete" (click)="deleteLesson(lesson)">Delete</button>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+
+                @if (editingLesson()) {
+                  <div class="lesson-editor">
+                    <h5>{{ editingLesson()!.id ? 'Edit Lesson' : 'Add Lesson' }}</h5>
+                    <div class="form-group">
+                      <label>Title <span class="required">*</span></label>
+                      <input type="text" [ngModel]="editingLesson()!.title" (ngModelChange)="updateEditingLesson('title', $event)" placeholder="e.g., ButtonGroup needs explicit width in flex containers" />
+                    </div>
+                    <div class="form-group">
+                      <label>Component</label>
+                      <input type="text" [ngModel]="editingLesson()!.component || ''" (ngModelChange)="updateEditingLesson('component', $event)" placeholder="e.g., ButtonGroup" />
+                    </div>
+                    <div class="form-group">
+                      <label>Problem <span class="required">*</span></label>
+                      <textarea [ngModel]="editingLesson()!.problem" (ngModelChange)="updateEditingLesson('problem', $event)" placeholder="What went wrong or was confusing" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                      <label>Solution <span class="required">*</span></label>
+                      <textarea [ngModel]="editingLesson()!.solution" (ngModelChange)="updateEditingLesson('solution', $event)" placeholder="The correct approach or workaround" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                      <label>Code Snippet</label>
+                      <textarea [ngModel]="editingLesson()!.codeSnippet || ''" (ngModelChange)="updateEditingLesson('codeSnippet', $event)" placeholder="Example code" rows="4" class="monospace-textarea"></textarea>
+                    </div>
+                    <div class="form-group">
+                      <label>Tags</label>
+                      <input type="text" [ngModel]="editingLesson()!.tags || ''" (ngModelChange)="updateEditingLesson('tags', $event)" placeholder="Comma-separated, e.g. layout, flex, sizing" />
+                    </div>
+                    <div class="lesson-editor-actions">
+                      <button class="btn-cancel" (click)="cancelEditLesson()">Cancel</button>
+                      <button class="btn-save" (click)="saveLesson()" [disabled]="!editingLesson()!.title || !editingLesson()!.problem || !editingLesson()!.solution">
+                        {{ editingLesson()!.id ? 'Save Changes' : 'Add Lesson' }}
+                      </button>
+                    </div>
+                  </div>
+                }
+              }
+            </div>
+          }
+
           <div class="form-section">
             <h4>System Prompt (Optional)</h4>
             <p class="section-hint">Custom instructions the AI will follow when generating code with this kit. Use this to encode usage rules, coding conventions, or architectural guidance.</p>

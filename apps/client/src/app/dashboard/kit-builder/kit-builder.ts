@@ -52,6 +52,9 @@ export class KitBuilderComponent {
   showBasePromptOverride = signal(false);
   defaultSystemPrompt = signal('');
 
+  // Lessons
+  kitLessonsEnabled = signal(true);
+
   // Multi-package support
   npmPackages = signal<NpmPackageConfig[]>([]);
   newPackageName = signal('');
@@ -92,6 +95,13 @@ export class KitBuilderComponent {
 
   // Component editing
   editingComponent = signal<StorybookComponent | null>(null);
+
+  // Lessons
+  showLessons = signal(false);
+  lessons = signal<any[]>([]);
+  lessonsLoading = signal(false);
+  expandedLessonIds = signal<Set<string>>(new Set());
+  editingLesson = signal<{ id?: string; title: string; problem: string; solution: string; component?: string; codeSnippet?: string; tags?: string } | null>(null);
 
   // Computed
   filteredComponents = computed(() => {
@@ -187,6 +197,7 @@ export class KitBuilderComponent {
     if (id && id !== 'new') {
       // Edit mode: load kit from API
       this.kitId = id;
+      this.loadLessons();
       this.apiService.getKit(id).subscribe({
         next: (response) => {
           this.kit = response.kit;
@@ -228,6 +239,9 @@ export class KitBuilderComponent {
         this.expandedTemplatePaths.set(this.getTopLevelDirPaths(kit.template.files));
       }
     }
+
+    // Lessons enabled
+    this.kitLessonsEnabled.set(kit.lessonsEnabled !== false);
 
     // Storybook resource
     const storybookResource = kit.resources.find(r => r.type === 'storybook') as StorybookResource | undefined;
@@ -742,6 +756,7 @@ export class KitBuilderComponent {
         mcpServerIds: this.selectedMcpServerIds(),
         systemPrompt: this.kitSystemPrompt() || undefined,
         baseSystemPrompt: this.showBasePromptOverride() && this.kitBaseSystemPrompt() ? this.kitBaseSystemPrompt() : undefined,
+        lessonsEnabled: this.kitLessonsEnabled(),
       };
 
       let result;
@@ -767,5 +782,121 @@ export class KitBuilderComponent {
     } finally {
       this.saving.set(false);
     }
+  }
+
+  // ── Lessons ────────────────────────────────────────────────────────
+
+  loadLessons() {
+    if (!this.kitId) return;
+    this.lessonsLoading.set(true);
+    this.apiService.getKitLessons(this.kitId).subscribe({
+      next: (res) => {
+        this.lessons.set(res.lessons || []);
+        this.lessonsLoading.set(false);
+      },
+      error: () => {
+        this.lessonsLoading.set(false);
+      }
+    });
+  }
+
+  toggleLessonExpand(lessonId: string) {
+    const current = new Set(this.expandedLessonIds());
+    if (current.has(lessonId)) {
+      current.delete(lessonId);
+    } else {
+      current.add(lessonId);
+    }
+    this.expandedLessonIds.set(current);
+  }
+
+  startAddLesson() {
+    this.showLessons.set(true);
+    this.editingLesson.set({
+      title: '',
+      problem: '',
+      solution: '',
+      component: '',
+      codeSnippet: '',
+      tags: '',
+    });
+  }
+
+  startEditLesson(lesson: any) {
+    this.editingLesson.set({
+      id: lesson.id,
+      title: lesson.title,
+      problem: lesson.problem,
+      solution: lesson.solution,
+      component: lesson.component || '',
+      codeSnippet: lesson.codeSnippet || '',
+      tags: lesson.tags || '',
+    });
+  }
+
+  cancelEditLesson() {
+    this.editingLesson.set(null);
+  }
+
+  updateEditingLesson(field: string, value: string) {
+    const current = this.editingLesson();
+    if (!current) return;
+    this.editingLesson.set({ ...current, [field]: value });
+  }
+
+  saveLesson() {
+    const lesson = this.editingLesson();
+    if (!lesson || !this.kitId) return;
+
+    const data = {
+      title: lesson.title,
+      problem: lesson.problem,
+      solution: lesson.solution,
+      component: lesson.component || undefined,
+      codeSnippet: lesson.codeSnippet || undefined,
+      tags: lesson.tags || undefined,
+    };
+
+    if (lesson.id) {
+      this.apiService.updateKitLesson(this.kitId, lesson.id, data).subscribe({
+        next: () => {
+          this.toastService.show('Lesson updated', 'success');
+          this.editingLesson.set(null);
+          this.loadLessons();
+        },
+        error: () => this.toastService.show('Failed to update lesson', 'error')
+      });
+    } else {
+      this.apiService.createKitLesson(this.kitId, data as any).subscribe({
+        next: () => {
+          this.toastService.show('Lesson created', 'success');
+          this.editingLesson.set(null);
+          this.loadLessons();
+        },
+        error: () => this.toastService.show('Failed to create lesson', 'error')
+      });
+    }
+  }
+
+  deleteLesson(lesson: any) {
+    if (!this.kitId) return;
+    this.apiService.deleteKitLesson(this.kitId, lesson.id).subscribe({
+      next: () => {
+        this.toastService.show('Lesson deleted', 'success');
+        this.loadLessons();
+      },
+      error: () => this.toastService.show('Failed to delete lesson', 'error')
+    });
+  }
+
+  promoteLesson(lesson: any) {
+    if (!this.kitId) return;
+    this.apiService.promoteKitLesson(this.kitId, lesson.id).subscribe({
+      next: () => {
+        this.toastService.show('Lesson promoted to shared', 'success');
+        this.loadLessons();
+      },
+      error: () => this.toastService.show('Failed to promote lesson', 'error')
+    });
   }
 }

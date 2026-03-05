@@ -1,3 +1,20 @@
+export const SAVE_LESSON_TOOL = {
+  name: 'save_lesson',
+  description: 'Save a lesson learned about a component library pattern, gotcha, or workaround. Call this AFTER you fix a build error caused by incorrect kit component usage (wrong import path, wrong selector, missing wrapper, etc.) or when you discover a non-obvious pattern through trial and error. The lesson is persisted and injected into future sessions so the same mistake is never repeated. Do NOT save trivial issues like typos.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'Short, specific summary (e.g., "Table sortable columns need [lxSortable] directive, not [sortable]")' },
+      component: { type: 'string', description: 'Primary component name involved' },
+      problem: { type: 'string', description: 'What went wrong — the error, incorrect assumption, or confusing behavior' },
+      solution: { type: 'string', description: 'The correct approach — what actually works and why' },
+      code_snippet: { type: 'string', description: 'Minimal example code showing the correct usage' },
+      tags: { type: 'string', description: 'Comma-separated tags (e.g., "import, selector, layout")' }
+    },
+    required: ['title', 'problem', 'solution']
+  }
+};
+
 export const TOOLS = [
   {
     name: 'write_file',

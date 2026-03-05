@@ -40,6 +40,7 @@ export interface GenerateOptions {
   history?: HistoryMessage[]; // Previous conversation turns (text only)
   contextSummary?: string; // Compacted summary of older conversation turns
   sapAiCore?: SapAiCoreConfig; // SAP AI Core connection config
+  kitLessonsEnabled?: boolean; // Enable save_lesson tool + lesson injection (default: true)
 }
 
 export interface TokenUsage {

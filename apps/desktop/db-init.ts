@@ -19,7 +19,7 @@ export interface DatabaseInitResult {
 // Bump LATEST_VERSION and add a new entry to `migrations` whenever the
 // Prisma schema changes.  Each migration is idempotent (uses addColumn /
 // tryExec helpers) so it's safe to re-run on any database state.
-const LATEST_VERSION = 8;
+const LATEST_VERSION = 9;
 
 type MigrationFn = (db: Database.Database) => void;
 
@@ -114,6 +114,33 @@ const migrations: Migration[] = [
       addColumn(db, 'User', 'googleId', 'TEXT');
       addColumn(db, 'User', 'googleAvatarUrl', 'TEXT');
       tryExec(db, 'CREATE UNIQUE INDEX IF NOT EXISTS "User_googleId_key" ON "User"("googleId")');
+    },
+  },
+  {
+    version: 9,
+    name: 'Kit lessons (lessons learned)',
+    up(db) {
+      tryExec(db, `
+        CREATE TABLE IF NOT EXISTS "KitLesson" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "kitId" TEXT NOT NULL,
+          "component" TEXT,
+          "title" TEXT NOT NULL,
+          "problem" TEXT NOT NULL,
+          "solution" TEXT NOT NULL,
+          "codeSnippet" TEXT,
+          "tags" TEXT,
+          "scope" TEXT NOT NULL DEFAULT 'user',
+          "userId" TEXT NOT NULL,
+          "projectId" TEXT,
+          "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY ("kitId") REFERENCES "Kit"("id") ON DELETE CASCADE,
+          FOREIGN KEY ("userId") REFERENCES "User"("id")
+        )
+      `);
+      tryExec(db, 'CREATE INDEX IF NOT EXISTS "KitLesson_kitId_idx" ON "KitLesson"("kitId")');
+      tryExec(db, 'CREATE INDEX IF NOT EXISTS "KitLesson_userId_idx" ON "KitLesson"("userId")');
     },
   },
 ];
@@ -326,6 +353,25 @@ function createFreshSchema(db: Database.Database): void {
       FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE CASCADE
     );
 
+    -- KitLesson table
+    CREATE TABLE IF NOT EXISTS "KitLesson" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "kitId" TEXT NOT NULL,
+      "component" TEXT,
+      "title" TEXT NOT NULL,
+      "problem" TEXT NOT NULL,
+      "solution" TEXT NOT NULL,
+      "codeSnippet" TEXT,
+      "tags" TEXT,
+      "scope" TEXT NOT NULL DEFAULT 'user',
+      "userId" TEXT NOT NULL,
+      "projectId" TEXT,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY ("kitId") REFERENCES "Kit"("id") ON DELETE CASCADE,
+      FOREIGN KEY ("userId") REFERENCES "User"("id")
+    );
+
     -- Indexes
     CREATE INDEX IF NOT EXISTS "Project_userId_idx" ON "Project"("userId");
     CREATE INDEX IF NOT EXISTS "ChatMessage_projectId_idx" ON "ChatMessage"("projectId");
@@ -335,6 +381,8 @@ function createFreshSchema(db: Database.Database): void {
     CREATE UNIQUE INDEX IF NOT EXISTS "Team_slug_key" ON "Team"("slug");
     CREATE UNIQUE INDEX IF NOT EXISTS "TeamMember_teamId_userId_key" ON "TeamMember"("teamId", "userId");
     CREATE UNIQUE INDEX IF NOT EXISTS "TeamInvite_code_key" ON "TeamInvite"("code");
+    CREATE INDEX IF NOT EXISTS "KitLesson_kitId_idx" ON "KitLesson"("kitId");
+    CREATE INDEX IF NOT EXISTS "KitLesson_userId_idx" ON "KitLesson"("userId");
   `);
 }
 

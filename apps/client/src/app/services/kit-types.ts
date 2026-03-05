@@ -136,6 +136,9 @@ export interface Kit {
   // MCP servers (optional)
   mcpServerIds: string[];
 
+  // Lessons learned (default: true)
+  lessonsEnabled?: boolean;
+
   isBuiltIn?: boolean;
   teamId?: string;
   createdAt: string;

@@ -48,6 +48,7 @@ function dbRowToKit(row: KitRow): Kit {
     systemPrompt: config.systemPrompt,
     baseSystemPrompt: config.baseSystemPrompt,
     mcpServerIds: config.mcpServerIds || [],
+    lessonsEnabled: config.lessonsEnabled,
     teamId: row.teamId || undefined,
   };
 }
@@ -66,6 +67,7 @@ function kitToDbData(kit: Kit, userId?: string, teamId?: string) {
     systemPrompt: kit.systemPrompt,
     baseSystemPrompt: kit.baseSystemPrompt,
     mcpServerIds: kit.mcpServerIds,
+    lessonsEnabled: kit.lessonsEnabled,
   };
   return {
     id: kit.id,

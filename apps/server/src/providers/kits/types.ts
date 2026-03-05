@@ -136,6 +136,9 @@ export interface Kit {
   // MCP servers (optional)
   mcpServerIds: string[];      // IDs of MCP servers to activate with this kit
 
+  // Lessons learned (default: true) — kit author opt-in/out
+  lessonsEnabled?: boolean;
+
   isBuiltIn?: boolean;         // System kits vs user-created
   teamId?: string;             // Team ownership (exclusive with userId)
   createdAt: string;           // ISO date

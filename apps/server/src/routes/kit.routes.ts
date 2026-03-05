@@ -15,6 +15,7 @@ import { kitService } from '../services/kit.service';
 import { analyzeNpmPackage, validateStorybookComponents, fetchComponentMetadata, fetchAllComponentMetadata, discoverComponentsFromNpm } from '../providers/kits/npm-analyzer';
 import { SYSTEM_PROMPT } from '../providers/base';
 import { kitFsService } from '../services/kit-fs.service';
+import { kitLessonService } from '../services/kit-lesson.service';
 
 const router = express.Router();
 
@@ -406,7 +407,7 @@ router.get('/:id', async (req: any, res) => {
  */
 router.post('/', async (req: any, res) => {
   const user = req.user;
-  const { name, description, template, npmPackage, importSuffix, npmPackages, storybookUrl, components, selectedComponentIds, mcpServerIds, systemPrompt, baseSystemPrompt } = req.body;
+  const { name, description, template, npmPackage, importSuffix, npmPackages, storybookUrl, components, selectedComponentIds, mcpServerIds, systemPrompt, baseSystemPrompt, lessonsEnabled } = req.body;
 
   if (!name) {
     return res.status(400).json({ error: 'Kit name is required' });
@@ -454,6 +455,7 @@ router.post('/', async (req: any, res) => {
       systemPrompt: systemPrompt || undefined,
       baseSystemPrompt: baseSystemPrompt || undefined,
       mcpServerIds: mcpServerIds || [],
+      lessonsEnabled: lessonsEnabled !== undefined ? lessonsEnabled : undefined,
       createdAt: now,
       updatedAt: now
     };
@@ -504,7 +506,7 @@ router.post('/', async (req: any, res) => {
 router.put('/:id', async (req: any, res) => {
   const user = req.user;
   const { id } = req.params;
-  const { name, description, template, npmPackage, importSuffix, npmPackages, storybookUrl, components, selectedComponentIds, mcpServerIds, systemPrompt, baseSystemPrompt } = req.body;
+  const { name, description, template, npmPackage, importSuffix, npmPackages, storybookUrl, components, selectedComponentIds, mcpServerIds, systemPrompt, baseSystemPrompt, lessonsEnabled } = req.body;
 
   try {
     const existingKit = await kitService.getById(id, user.id);
@@ -579,6 +581,7 @@ router.put('/:id', async (req: any, res) => {
       systemPrompt: systemPrompt !== undefined ? systemPrompt : existingKit.systemPrompt,
       baseSystemPrompt: baseSystemPrompt !== undefined ? baseSystemPrompt : existingKit.baseSystemPrompt,
       mcpServerIds: mcpServerIds || existingKit.mcpServerIds,
+      lessonsEnabled: lessonsEnabled !== undefined ? lessonsEnabled : existingKit.lessonsEnabled,
       updatedAt: now
     };
 
@@ -1188,6 +1191,148 @@ router.post('/import', async (req: any, res) => {
   } catch (error) {
     console.error('Import kit error:', error);
     res.status(500).json({ error: 'Failed to import kit' });
+  }
+});
+
+// ── Kit Lesson Routes ────────────────────────────────────────────────
+
+/**
+ * List lessons for a kit (kit-scoped + user's personal)
+ * GET /api/kits/:id/lessons
+ */
+router.get('/:id/lessons', async (req: any, res) => {
+  const user = req.user;
+  const { id } = req.params;
+  const { scope } = req.query;
+
+  try {
+    let lessons;
+    if (scope === 'kit') {
+      lessons = await kitLessonService.getByKit(id, { scope: 'kit' });
+    } else if (scope === 'user') {
+      lessons = await kitLessonService.getByKit(id, { scope: 'user', userId: user.id });
+    } else {
+      lessons = await kitLessonService.getVisibleLessons(id, user.id);
+    }
+    res.json({ success: true, lessons });
+  } catch (error) {
+    console.error('List lessons error:', error);
+    res.status(500).json({ error: 'Failed to list lessons' });
+  }
+});
+
+/**
+ * Create a lesson for a kit
+ * POST /api/kits/:id/lessons
+ */
+router.post('/:id/lessons', async (req: any, res) => {
+  const user = req.user;
+  const { id } = req.params;
+  const { title, problem, solution, component, codeSnippet, tags } = req.body;
+
+  if (!title || !problem || !solution) {
+    return res.status(400).json({ error: 'title, problem, and solution are required' });
+  }
+
+  try {
+    const lesson = await kitLessonService.create({
+      kitId: id,
+      userId: user.id,
+      title,
+      problem,
+      solution,
+      component,
+      codeSnippet,
+      tags,
+    });
+    res.json({ success: true, lesson });
+  } catch (error) {
+    console.error('Create lesson error:', error);
+    res.status(500).json({ error: 'Failed to create lesson' });
+  }
+});
+
+/**
+ * Update a lesson
+ * PUT /api/kits/:id/lessons/:lessonId
+ */
+router.put('/:id/lessons/:lessonId', async (req: any, res) => {
+  const user = req.user;
+  const { lessonId } = req.params;
+  const { title, problem, solution, component, codeSnippet, tags } = req.body;
+
+  try {
+    const existing = await kitLessonService.getById(lessonId);
+    if (!existing) {
+      return res.status(404).json({ error: 'Lesson not found' });
+    }
+    if (existing.userId !== user.id && user.role !== 'admin') {
+      return res.status(403).json({ error: 'Not authorized to edit this lesson' });
+    }
+
+    const lesson = await kitLessonService.update(lessonId, {
+      title, problem, solution, component, codeSnippet, tags,
+    });
+    res.json({ success: true, lesson });
+  } catch (error) {
+    console.error('Update lesson error:', error);
+    res.status(500).json({ error: 'Failed to update lesson' });
+  }
+});
+
+/**
+ * Delete a lesson
+ * DELETE /api/kits/:id/lessons/:lessonId
+ */
+router.delete('/:id/lessons/:lessonId', async (req: any, res) => {
+  const user = req.user;
+  const { lessonId } = req.params;
+
+  try {
+    const existing = await kitLessonService.getById(lessonId);
+    if (!existing) {
+      return res.status(404).json({ error: 'Lesson not found' });
+    }
+    if (existing.userId !== user.id && user.role !== 'admin') {
+      return res.status(403).json({ error: 'Not authorized to delete this lesson' });
+    }
+
+    await kitLessonService.delete(lessonId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete lesson error:', error);
+    res.status(500).json({ error: 'Failed to delete lesson' });
+  }
+});
+
+/**
+ * Promote a user lesson to kit-level (admin/kit-owner only)
+ * POST /api/kits/:id/lessons/:lessonId/promote
+ */
+router.post('/:id/lessons/:lessonId/promote', async (req: any, res) => {
+  const user = req.user;
+  const { id, lessonId } = req.params;
+
+  try {
+    // Check that the user owns the kit or is admin
+    const kit = await kitService.getById(id, user.id);
+    if (!kit && user.role !== 'admin') {
+      return res.status(403).json({ error: 'Not authorized to promote lessons for this kit' });
+    }
+
+    const existing = await kitLessonService.getById(lessonId);
+    if (!existing) {
+      return res.status(404).json({ error: 'Lesson not found' });
+    }
+    if (existing.scope === 'kit') {
+      return res.status(400).json({ error: 'Lesson is already kit-level' });
+    }
+
+    const lesson = await kitLessonService.promote(lessonId);
+    res.json({ success: true, lesson });
+  } catch (error) {
+    console.error('Promote lesson error:', error);
+    res.status(500).json({ error: 'Failed to promote lesson' });
   }
 });
 

@@ -28,7 +28,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     const anthropic = new Anthropic(anthropicOptions);
 
     // Prepare shared context
-    const { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName, history, contextSummary } = await this.prepareAgentContext(options, 'anthropic');
+    const { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName, activeKitId, userId, projectId, history, contextSummary } = await this.prepareAgentContext(options, 'anthropic');
     const skills = await this.addSkillTools(availableTools, skillRegistry, fs, options.userId);
     // Tools with no parameters (e.g. take_screenshot) legitimately receive empty input
     const noInputTools = new Set(availableTools.filter((t: any) => !t.input_schema?.required?.length && !Object.keys(t.input_schema?.properties || {}).length).map((t: any) => t.name));
@@ -127,7 +127,10 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       hasRunBuild: false, hasWrittenFiles: false, buildNudgeSent: false, fullExplanation: '',
       mcpManager,
       failedBuildCount: 0,
-      activeKitName
+      activeKitName,
+      activeKitId,
+      userId,
+      projectId,
     };
 
     let turnCount = 0;

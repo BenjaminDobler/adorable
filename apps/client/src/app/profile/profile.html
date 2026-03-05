@@ -494,6 +494,20 @@
                 <span class="slider round"></span>
               </label>
             </div>
+            <div class="header-with-toggle" style="margin-bottom: 16px;">
+              <div>
+                <label>Kit Lessons</label>
+                <small class="help-text">Allow the AI to save and recall lessons learned (non-obvious patterns, workarounds) when using component kits. Uses extra tokens.</small>
+              </div>
+              <label class="switch">
+                <input
+                  type="checkbox"
+                  [ngModel]="settings().kitLessonsEnabled !== false"
+                  (ngModelChange)="toggleKitLessons($event)"
+                >
+                <span class="slider round"></span>
+              </label>
+            </div>
             @if (mcpServers().length === 0) {
               <div class="mcp-empty">
                 <div class="mcp-empty-icon">🔌</div>

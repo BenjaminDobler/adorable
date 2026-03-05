@@ -328,6 +328,23 @@ export interface TeamInvite {
   createdAt: string;
 }
 
+// Kit Lesson Types
+export interface KitLesson {
+  id: string;
+  kitId: string;
+  component?: string;
+  title: string;
+  problem: string;
+  solution: string;
+  codeSnippet?: string;
+  tags?: string;
+  scope: 'user' | 'kit';
+  userId: string;
+  projectId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** Canonical list of binary file extensions (lowercase, with leading dot). */
 export const BINARY_EXTENSIONS = new Set([
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico',

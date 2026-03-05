@@ -27,6 +27,7 @@ model User {
   projects  Project[]
   teams     TeamMember[]
   kits      Kit[]
+  kitLessons KitLesson[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -174,6 +175,26 @@ model Kit {
   user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   team        Team?    @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
+  lessons     KitLesson[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model KitLesson {
+  id          String   @id @default(uuid())
+  kitId       String
+  kit         Kit      @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  component   String?          // primary component involved
+  title       String           // short summary
+  problem     String           // what went wrong
+  solution    String           // what works
+  codeSnippet String?          // example code
+  tags        String?          // comma-separated
+  scope       String   @default("user")  // "user" | "kit"
+  userId      String           // who created it
+  user        User     @relation(fields: [userId], references: [id])
+  projectId   String?          // which project triggered it
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
