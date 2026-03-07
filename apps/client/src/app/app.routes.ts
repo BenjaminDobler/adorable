@@ -130,6 +130,14 @@ export const routes: Routes = [
     loadComponent: () => import('./workspace/workspace.component').then(m => m.WorkspaceComponent)
   },
   {
+    path: 'impressum',
+    loadComponent: () => import('./legal/impressum/impressum').then(m => m.ImpressumComponent)
+  },
+  {
+    path: 'privacy',
+    loadComponent: () => import('./legal/privacy/privacy').then(m => m.PrivacyComponent)
+  },
+  {
     path: '',
     redirectTo: 'dashboard',
     pathMatch: 'full'

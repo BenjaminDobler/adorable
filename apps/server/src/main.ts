@@ -25,7 +25,7 @@ import { analyticsRouter } from './routes/analytics.routes';
 import { kitFsService } from './services/kit-fs.service';
 import { kitService } from './services/kit.service';
 import { serverConfigService } from './services/server-config.service';
-import { adminRouter } from './routes/admin.routes';
+import { adminRouter, adminPublicRouter } from './routes/admin.routes';
 import { sessionAnalyzerRouter } from './routes/session-analyzer.routes';
 import { teamRouter } from './routes/team.routes';
 import { sitesAuthRouter } from './routes/sites-auth.routes';
@@ -141,6 +141,7 @@ app.use('/api/figma', figmaRouter);
 app.use('/api/mcp', mcpRouter);
 app.use('/api/kits', kitRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/admin', adminPublicRouter); // Public export download (no auth, token-based)
 app.use('/api/admin', adminRouter);
 app.use('/api/sessions', sessionAnalyzerRouter);
 app.use('/api/teams', teamRouter);

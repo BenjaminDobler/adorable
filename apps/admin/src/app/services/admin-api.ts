@@ -81,6 +81,13 @@ export class AdminApiService {
     return this.http.post<any>(`${this.baseUrl}/containers/${userId}/restart`, {}, { headers: this.headers() });
   }
 
+  // GDPR Data Export
+  exportUserData(userId: string, sendEmail: boolean = true) {
+    return this.http.post<{ success: boolean; downloadUrl: string; emailSent: boolean; expiresIn: string }>(
+      `${this.baseUrl}/users/${userId}/export`, { sendEmail }, { headers: this.headers() }
+    );
+  }
+
   // Stats
   getStats() {
     return this.http.get<any>(`${this.baseUrl}/stats`, { headers: this.headers() });

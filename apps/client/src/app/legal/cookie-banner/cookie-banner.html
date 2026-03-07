@@ -1,0 +1,10 @@
+@if (visible()) {
+  <div class="cookie-banner">
+    <p>
+      Diese Website verwendet ausschliesslich technisch notwendige Cookies.
+      <span class="en">This website only uses essential cookies.</span>
+      <a routerLink="/privacy">Datenschutz / Privacy</a>
+    </p>
+    <button (click)="dismiss()">Verstanden / Got it</button>
+  </div>
+}

@@ -6,13 +6,14 @@ import { ThemeService } from './services/theme';
 import { ProjectService } from './services/project';
 import { ToastComponent } from './ui/toast/toast.component';
 import { ConfirmDialogComponent } from './ui/confirm-dialog/confirm-dialog.component';
+import { CookieBannerComponent } from './legal/cookie-banner/cookie-banner';
 import { isDesktopApp } from './services/smart-container.engine';
 import { DecimalPipe } from '@angular/common';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterModule, NavbarComponent, ToastComponent, ConfirmDialogComponent, DecimalPipe],
+  imports: [RouterModule, NavbarComponent, ToastComponent, ConfirmDialogComponent, CookieBannerComponent, DecimalPipe],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

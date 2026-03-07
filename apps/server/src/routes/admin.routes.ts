@@ -1,11 +1,17 @@
 import express from 'express';
 import crypto from 'crypto';
 import os from 'os';
+import * as path from 'path';
+import * as fs from 'fs/promises';
+import archiver from 'archiver';
 import { prisma } from '../db/prisma';
 import { authenticate } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
 import { serverConfigService } from '../services/server-config.service';
 import { containerRegistry } from '../providers/container/container-registry';
+import { projectFsService } from '../services/project-fs.service';
+import { emailService } from '../services/email.service';
+import { STORAGE_DIR } from '../config';
 
 const router = express.Router();
 
@@ -323,4 +329,239 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// --- GDPR Data Export ---
+
+// In-memory store for download tokens (token → { filePath, expiresAt })
+const exportTokens = new Map<string, { filePath: string; expiresAt: number }>();
+
+// Cleanup expired tokens every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, data] of exportTokens) {
+    if (now > data.expiresAt) {
+      fs.rm(data.filePath, { force: true }).catch(() => {});
+      exportTokens.delete(token);
+    }
+  }
+}, 10 * 60 * 1000);
+
+router.post('/users/:id/export', async (req: any, res) => {
+  const { id } = req.params;
+  const sendEmail = req.body.sendEmail !== false;
+
+  try {
+    // Fetch user with all related data
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        projects: {
+          include: {
+            messages: { orderBy: { timestamp: 'asc' } },
+          },
+        },
+        teams: {
+          include: { team: { select: { id: true, name: true, slug: true } } },
+        },
+        kits: true,
+        kitLessons: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Build export directory
+    const exportDir = path.join(STORAGE_DIR, 'exports');
+    await fs.mkdir(exportDir, { recursive: true });
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const zipFilename = `user-data-${user.email.replace(/[^a-zA-Z0-9]/g, '_')}-${timestamp}.zip`;
+    const zipPath = path.join(exportDir, zipFilename);
+
+    // Pre-check which projects have files on disk
+    const projectPaths = new Map<string, string>();
+    for (const project of user.projects) {
+      const pp = projectFsService.getProjectPath(project.id);
+      try {
+        await fs.stat(pp);
+        projectPaths.set(project.id, pp);
+      } catch {
+        // No files on disk
+      }
+    }
+
+    // Create ZIP archive
+    const output = require('fs').createWriteStream(zipPath);
+    const archive = archiver('zip', { zlib: { level: 5 } });
+
+    await new Promise<void>((resolve, reject) => {
+      output.on('close', resolve);
+      archive.on('error', reject);
+      archive.pipe(output);
+
+      // 1. User profile (strip sensitive fields)
+      archive.append(JSON.stringify({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        isActive: user.isActive,
+        emailVerified: user.emailVerified,
+        cloudEditorAllowed: user.cloudEditorAllowed,
+        authProvider: user.authProvider,
+        githubUsername: user.githubUsername,
+        githubAvatarUrl: user.githubAvatarUrl,
+        googleAvatarUrl: user.googleAvatarUrl,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      }, null, 2), { name: 'user.json' });
+
+      // 2. Projects
+      for (const project of user.projects) {
+        const prefix = `projects/${project.id}/`;
+        archive.append(JSON.stringify({
+          id: project.id,
+          name: project.name,
+          selectedKitId: project.selectedKitId,
+          isPublished: project.isPublished,
+          publishSlug: project.publishSlug,
+          publishVisibility: project.publishVisibility,
+          publishedAt: project.publishedAt,
+          githubRepoFullName: project.githubRepoFullName,
+          githubBranch: project.githubBranch,
+          createdAt: project.createdAt,
+          updatedAt: project.updatedAt,
+        }, null, 2), { name: prefix + 'project.json' });
+
+        // Chat messages
+        if (project.messages.length > 0) {
+          const messages = project.messages.map(m => ({
+            id: m.id,
+            role: m.role,
+            text: m.text,
+            model: m.model,
+            usage: m.usage ? JSON.parse(m.usage) : null,
+            timestamp: m.timestamp,
+          }));
+          archive.append(JSON.stringify(messages, null, 2), { name: prefix + 'messages.json' });
+        }
+
+        // Project files from disk
+        const diskPath = projectPaths.get(project.id);
+        if (diskPath) {
+          const excluded = new Set(['node_modules', '.git', '.angular', 'dist', '.cache', 'tmp', '.nx']);
+          archive.directory(diskPath, prefix + 'files', (entry) => {
+            if (entry.name.split('/').some(p => excluded.has(p))) return false;
+            return entry;
+          });
+        }
+      }
+
+      // 3. Teams
+      if (user.teams.length > 0) {
+        archive.append(JSON.stringify(user.teams.map(tm => ({
+          teamId: tm.team.id,
+          teamName: tm.team.name,
+          teamSlug: tm.team.slug,
+          role: tm.role,
+          joinedAt: tm.joinedAt,
+        })), null, 2), { name: 'teams.json' });
+      }
+
+      // 4. Kits
+      for (const kit of user.kits) {
+        archive.append(JSON.stringify({
+          id: kit.id,
+          name: kit.name,
+          description: kit.description,
+          config: kit.config ? JSON.parse(kit.config) : null,
+          createdAt: kit.createdAt,
+          updatedAt: kit.updatedAt,
+        }, null, 2), { name: `kits/${kit.id}/kit.json` });
+      }
+
+      // 5. Kit lessons
+      if (user.kitLessons.length > 0) {
+        archive.append(JSON.stringify(user.kitLessons.map(l => ({
+          id: l.id,
+          kitId: l.kitId,
+          component: l.component,
+          title: l.title,
+          problem: l.problem,
+          solution: l.solution,
+          codeSnippet: l.codeSnippet,
+          tags: l.tags,
+          scope: l.scope,
+          createdAt: l.createdAt,
+        })), null, 2), { name: 'kit-lessons.json' });
+      }
+
+      // 6. Export manifest
+      archive.append(JSON.stringify({
+        exportDate: new Date().toISOString(),
+        formatVersion: 1,
+        userId: user.id,
+        userEmail: user.email,
+        projectCount: user.projects.length,
+        messageCount: user.projects.reduce((sum, p) => sum + p.messages.length, 0),
+        kitCount: user.kits.length,
+        teamCount: user.teams.length,
+      }, null, 2), { name: 'export-manifest.json' });
+
+      archive.finalize();
+    });
+
+    // Generate a time-limited download token (valid 24h)
+    const downloadToken = crypto.randomBytes(32).toString('hex');
+    exportTokens.set(downloadToken, {
+      filePath: zipPath,
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+    });
+
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const downloadUrl = `${baseUrl}/api/admin/exports/download/${downloadToken}`;
+
+    // Send email if requested and SMTP is configured
+    let emailSent = false;
+    if (sendEmail && emailService.isConfigured()) {
+      try {
+        await emailService.sendDataExportEmail(user.email, downloadUrl);
+        emailSent = true;
+      } catch (err) {
+        console.error('[Admin] Failed to send export email:', err);
+      }
+    }
+
+    res.json({
+      success: true,
+      downloadUrl,
+      emailSent,
+      expiresIn: '24 hours',
+    });
+  } catch (error) {
+    console.error('[Admin] Export failed:', error);
+    res.status(500).json({ error: 'Failed to export user data' });
+  }
+});
+
+// Public download router (no auth — uses time-limited token)
+const publicRouter = express.Router();
+
+publicRouter.get('/exports/download/:token', (req, res) => {
+  const { token } = req.params;
+  const data = exportTokens.get(token);
+
+  if (!data || Date.now() > data.expiresAt) {
+    exportTokens.delete(token);
+    return res.status(410).json({ error: 'Download link has expired' });
+  }
+
+  res.download(data.filePath, path.basename(data.filePath), (err) => {
+    if (err && !res.headersSent) {
+      res.status(500).json({ error: 'Failed to download file' });
+    }
+  });
+});
+
 export const adminRouter = router;
+export const adminPublicRouter = publicRouter;

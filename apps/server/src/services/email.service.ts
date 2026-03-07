@@ -68,6 +68,29 @@ class EmailService {
       `,
     });
   }
+  async sendDataExportEmail(email: string, downloadUrl: string) {
+    if (!this.isConfigured()) {
+      console.warn('[Email] SMTP not configured, skipping data export email');
+      return;
+    }
+
+    const from = serverConfigService.get('smtp.from');
+    const transporter = this.getTransporter();
+    await transporter.sendMail({
+      from,
+      to: email,
+      subject: 'Your Adorable Data Export / Ihr Datenexport',
+      html: `
+        <h2>Datenexport / Data Export</h2>
+        <p>Ihr Datenexport aus Adorable ist bereit. Klicken Sie auf den folgenden Link, um die Datei herunterzuladen:</p>
+        <p>Your data export from Adorable is ready. Click the link below to download:</p>
+        <p><a href="${downloadUrl}">Download ZIP</a></p>
+        <p><strong>Dieser Link ist 24 Stunden gueltig. / This link expires in 24 hours.</strong></p>
+        <p>Falls Sie diesen Export nicht angefordert haben, koennen Sie diese E-Mail ignorieren.</p>
+        <p>If you did not request this export, you can safely ignore this email.</p>
+      `,
+    });
+  }
 }
 
 export const emailService = new EmailService();

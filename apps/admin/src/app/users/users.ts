@@ -59,6 +59,7 @@ import { AdminApiService } from '../services/admin-api';
                 <button class="btn-small" (click)="toggleRole(user)" [title]="user.role === 'admin' ? 'Demote' : 'Promote'">
                   {{ user.role === 'admin' ? 'Demote' : 'Promote' }}
                 </button>
+                <button class="btn-small export" (click)="exportData(user)" [disabled]="exporting()">Export</button>
                 <button class="btn-small danger" (click)="deleteUser(user)">Delete</button>
               </td>
             </tr>
@@ -111,12 +112,16 @@ import { AdminApiService } from '../services/admin-api';
     .btn-small.allowed { color: #22c55e; border-color: #22c55e33; }
     .btn-small.danger { color: #ef4444; }
     .btn-small.danger:hover { background: #3a1a1a; }
+    .btn-small.export { color: #60a5fa; }
+    .btn-small.export:hover { background: #1a2a3a; }
+    .btn-small:disabled { opacity: 0.4; cursor: not-allowed; }
   `],
 })
 export class UsersComponent implements OnInit {
   private api = inject(AdminApiService);
   users = signal<any[]>([]);
   allowlistMode = signal(false);
+  exporting = signal(false);
 
   ngOnInit() {
     this.load();
@@ -148,6 +153,25 @@ export class UsersComponent implements OnInit {
     this.api.updateUser(user.id, { cloudEditorAllowed: !user.cloudEditorAllowed }).subscribe({
       next: () => this.load(),
       error: (err) => alert(err.error?.error || 'Failed'),
+    });
+  }
+
+  exportData(user: any) {
+    const sendEmail = confirm(`Export all data for ${user.email}?\n\nClick OK to generate the export and send a download link via email.\nClick Cancel to just generate the download link (no email).`);
+    this.exporting.set(true);
+    this.api.exportUserData(user.id, sendEmail).subscribe({
+      next: (result) => {
+        this.exporting.set(false);
+        if (result.emailSent) {
+          alert(`Export ready. Download link sent to ${user.email}.\n\nAdmin download link (valid 24h):\n${result.downloadUrl}`);
+        } else {
+          alert(`Export ready (no email sent).\n\nDownload link (valid 24h):\n${result.downloadUrl}`);
+        }
+      },
+      error: (err) => {
+        this.exporting.set(false);
+        alert(err.error?.error || 'Export failed');
+      },
     });
   }
 

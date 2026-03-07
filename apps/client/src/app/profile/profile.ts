@@ -86,7 +86,9 @@ export class ProfileComponent implements OnInit {
 
   user = signal<any>(null);
   name = signal('');
-  activeTab = signal<'account' | 'providers' | 'integrations' | 'mcp' | 'cloud'>('account');
+  activeTab = signal<'account' | 'providers' | 'integrations' | 'mcp' | 'cloud' | 'about'>('account');
+
+  legalBaseUrl = 'https://adorable.run';
 
   // Detect if running in desktop mode (Electron)
   isDesktopMode = computed(() => isDesktopApp());

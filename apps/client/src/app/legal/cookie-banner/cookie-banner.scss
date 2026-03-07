@@ -1,0 +1,65 @@
+.cookie-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 1rem 2rem;
+  background: var(--bg-surface-2);
+  border-top: 1px solid var(--panel-border);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.3s var(--ease-out-expo);
+
+  p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+
+    .en {
+      color: var(--text-muted);
+    }
+
+    a {
+      color: var(--accent-color);
+      text-decoration: none;
+      margin-left: 0.5rem;
+      font-weight: 600;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+
+  button {
+    flex-shrink: 0;
+    background: var(--accent-color);
+    color: #000;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 0.5rem 1.25rem;
+    font-weight: 700;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+
+    &:hover {
+      background: var(--accent-hover);
+    }
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}

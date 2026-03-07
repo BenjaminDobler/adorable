@@ -214,10 +214,25 @@ button {
   font-size: 0.85rem;
   color: var(--text-secondary);
   font-weight: 500;
-  a { 
-    color: var(--text-primary); 
+  a {
+    color: var(--text-primary);
     font-weight: 700;
-    text-decoration: none; 
-    &:hover { color: var(--accent-color); } 
+    text-decoration: none;
+    &:hover { color: var(--accent-color); }
+  }
+}
+
+.legal-links {
+  margin-top: 1.5rem;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+
+  a {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    &:hover { color: var(--accent-color); }
   }
 }
