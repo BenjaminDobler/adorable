@@ -305,16 +305,30 @@ export class NavbarComponent {
 
   openInVSCodeFolder() {
     this.vscodePanelOpen.set(false);
-    this.http.get<ContainerInfo>(`${getServerUrl()}/api/container/info`).subscribe({
-      next: (info) => {
-        const uri = `vscode://file/${info.hostProjectPath}?windowId=_blank`;
-        window.open(uri, '_blank');
-        this.toastService.show('Opening project folder in VS Code...', 'success');
-      },
-      error: () => {
-        this.toastService.show('Container not running. Start the dev server first.', 'error');
-      }
-    });
+    if (this.isNativeMode()) {
+      const nativeUrl = ((window as any).electronAPI?.nativeAgentUrl || 'http://localhost:3334') + '/api/native/info';
+      this.http.get<{ projectPath: string }>(nativeUrl).subscribe({
+        next: (info) => {
+          const uri = `vscode://file/${info.projectPath}?windowId=_blank`;
+          window.open(uri, '_blank');
+          this.toastService.show('Opening project folder in VS Code...', 'success');
+        },
+        error: () => {
+          this.toastService.show('Project not running. Start the dev server first.', 'error');
+        }
+      });
+    } else {
+      this.http.get<ContainerInfo>(`${getServerUrl()}/api/container/info`).subscribe({
+        next: (info) => {
+          const uri = `vscode://file/${info.hostProjectPath}?windowId=_blank`;
+          window.open(uri, '_blank');
+          this.toastService.show('Opening project folder in VS Code...', 'success');
+        },
+        error: () => {
+          this.toastService.show('Container not running. Start the dev server first.', 'error');
+        }
+      });
+    }
   }
 
   openInVSCodeContainer() {

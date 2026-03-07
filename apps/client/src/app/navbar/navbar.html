@@ -209,20 +209,22 @@
                       </div>
                     </button>
 
-                    <button class="vscode-option" (click)="openInVSCodeContainer()">
-                      <div class="option-icon">
-                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none">
-                          <rect x="2" y="6" width="20" height="12" rx="2"></rect>
-                          <path d="M12 12h.01"></path>
-                          <path d="M17 12h.01"></path>
-                          <path d="M7 12h.01"></path>
-                        </svg>
-                      </div>
-                      <div class="option-info">
-                        <span class="option-title">Attach Container</span>
-                        <span class="option-desc">Full environment with terminal (needs Dev Containers ext)</span>
-                      </div>
-                    </button>
+                    @if (!isNativeMode()) {
+                      <button class="vscode-option" (click)="openInVSCodeContainer()">
+                        <div class="option-icon">
+                          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none">
+                            <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+                            <path d="M12 12h.01"></path>
+                            <path d="M17 12h.01"></path>
+                            <path d="M7 12h.01"></path>
+                          </svg>
+                        </div>
+                        <div class="option-info">
+                          <span class="option-title">Attach Container</span>
+                          <span class="option-desc">Full environment with terminal (needs Dev Containers ext)</span>
+                        </div>
+                      </button>
+                    }
                   </div>
                 </div>
               }
