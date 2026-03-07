@@ -1,0 +1,29 @@
+:host {
+  display: contents;
+}
+
+.popover-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 10px;
+  background: var(--bg-surface-1);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-xl);
+  padding: var(--popover-padding, 1.25rem);
+  min-width: var(--popover-min-width, 300px);
+  box-shadow: var(--shadow-xl);
+  z-index: 1000;
+  animation: slideDown 0.25s var(--ease-out-expo);
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}

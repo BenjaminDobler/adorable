@@ -14,6 +14,7 @@ import { CloudSyncService } from '../services/cloud-sync.service';
 import { ToastService } from '../services/toast';
 import { ConfirmService } from '../services/confirm';
 import { CloudConnectComponent } from '../cloud-connect/cloud-connect.component';
+import { PopoverComponent } from '../shared/popover/popover.component';
 import { GitHubRepository, GitHubProjectSync, PublishVisibility } from '@adorable/shared-types';
 import { ApiService } from '../services/api';
 
@@ -28,7 +29,7 @@ interface ContainerInfo {
 @Component({
   selector: 'app-navbar',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, CloudConnectComponent],
+  imports: [CommonModule, RouterModule, FormsModule, CloudConnectComponent, PopoverComponent],
   templateUrl: './navbar.html',
   styleUrl: './navbar.scss',
 })
