@@ -1,5 +1,6 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
+import { AuthService } from '../../services/auth';
 
 @Component({
   selector: 'app-privacy',
@@ -8,4 +9,7 @@ import { RouterModule } from '@angular/router';
   templateUrl: './privacy.html',
   styleUrl: './privacy.scss',
 })
-export class PrivacyComponent {}
+export class PrivacyComponent {
+  private authService = inject(AuthService);
+  backLink = this.authService.isAuthenticated() ? '/dashboard' : '/login';
+}
