@@ -105,7 +105,6 @@ Current template is incomplete. Should document all required variables:
 ```
 # Required
 DATABASE_URL=postgresql://user:pass@localhost:5432/adorable
-ANTHROPIC_API_KEY=sk-ant-...
 JWT_SECRET=<random-64-char-string>
 
 # Server

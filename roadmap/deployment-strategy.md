@@ -81,7 +81,7 @@ If existing local data must be preserved:
 2.  Create **Web Service** on Render connected to the repo.
 3.  **Build Command:** `npm install && npx nx build server`
 4.  **Start Command:** `node dist/apps/server/main.js`
-5.  **Environment Variables:** Add `DATABASE_URL`, `JWT_SECRET`, `ANTHROPIC_API_KEY`, etc.
+5.  **Environment Variables:** Add `DATABASE_URL`, `JWT_SECRET`, etc.
 
 ### Step 2: Deploy Client to GitHub Pages
 1.  **Build:** `npx nx build client --configuration=production`

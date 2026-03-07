@@ -1,0 +1,154 @@
+.blocked-overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 10000;
+}
+
+.blocked-overlay {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #1e1e2e;
+  border: 1px solid #2e2e3e;
+  border-radius: 12px;
+  padding: 2rem;
+  z-index: 10001;
+  max-width: 520px;
+  width: 90%;
+  text-align: center;
+
+  h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.25rem;
+    color: #e0e0e0;
+  }
+
+  p {
+    color: #999;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin: 0 0 1.25rem;
+  }
+}
+
+.blocked-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+
+  &:hover {
+    color: #ccc;
+  }
+}
+
+.download-options {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.download-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 1rem 1.25rem;
+  background: #16161e;
+  border: 1px solid #2e2e3e;
+  border-radius: 8px;
+  color: #ccc;
+  text-decoration: none;
+  transition: border-color 0.2s;
+  min-width: 100px;
+
+  &:hover {
+    border-color: #3b82f6;
+    color: #fff;
+  }
+
+  strong {
+    font-size: 0.9rem;
+  }
+
+  span {
+    font-size: 0.75rem;
+    color: #888;
+  }
+}
+
+.overlay-footer {
+  font-size: 0.8rem;
+  color: #666;
+  margin: 0;
+
+  a {
+    color: #3b82f6;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.update-progress-banner {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  background: var(--panel-bg, #1e1e2e);
+  border: 1px solid var(--panel-border, #2e2e3e);
+  border-radius: 8px;
+  padding: 10px 16px;
+  z-index: 10000;
+  min-width: 260px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.update-progress-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary, #e0e0e0);
+  font-size: 0.8rem;
+  margin-bottom: 8px;
+
+  svg {
+    color: var(--accent-color, #3b82f6);
+    flex-shrink: 0;
+  }
+}
+
+.update-progress-track {
+  height: 4px;
+  background: var(--panel-border, #2e2e3e);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.update-progress-bar {
+  height: 100%;
+  background: var(--accent-color, #3b82f6);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

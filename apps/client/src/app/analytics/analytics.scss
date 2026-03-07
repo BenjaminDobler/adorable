@@ -1,5 +1,5 @@
 .analytics-container {
-  height: calc(100vh - 64px);
+  height: calc(100vh - var(--navbar-height));
   width: 100vw;
   background: var(--bg-color);
   display: flex;
