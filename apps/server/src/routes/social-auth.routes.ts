@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../db/prisma';
 import { JWT_SECRET } from '../config';
 import { authRateLimit } from '../middleware/rate-limit';
+import { serverConfigService } from '../services/server-config.service';
 import { githubService } from '../providers/github/github.service';
 
 const router = Router();
@@ -132,6 +133,8 @@ async function findOrCreateSocialUser(
   const userCount = await prisma.user.count();
   const isFirstUser = userCount === 0;
 
+  const cloudEditorAllowed = isFirstUser || serverConfigService.get('cloudEditor.defaultAccess') !== 'false';
+
   user = await prisma.user.create({
     data: {
       email: profile.email,
@@ -140,6 +143,7 @@ async function findOrCreateSocialUser(
       role: isFirstUser ? 'admin' : 'user',
       emailVerified: true,
       authProvider: provider,
+      cloudEditorAllowed,
       ...(provider === 'github'
         ? { githubId: profile.providerId, githubUsername: profile.name, githubAvatarUrl: profile.avatarUrl }
         : { googleId: profile.providerId, googleAvatarUrl: profile.avatarUrl }),

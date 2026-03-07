@@ -1,5 +1,5 @@
-import { Component, Input, Output, EventEmitter, ViewChild, ElementRef, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, input, output, viewChild, ElementRef } from '@angular/core';
+import { DatePipe, DecimalPipe, UpperCasePipe } from '@angular/common';
 import { ChatMessage } from '../../services/project';
 import { MarkdownPipe } from '../../pipes/markdown.pipe';
 import { QuestionPanelComponent } from '../question-panel/question-panel.component';
@@ -7,45 +7,47 @@ import { QuestionPanelComponent } from '../question-panel/question-panel.compone
 @Component({
   selector: 'app-chat-message-list',
   standalone: true,
-  imports: [CommonModule, MarkdownPipe, QuestionPanelComponent],
+  imports: [DatePipe, DecimalPipe, UpperCasePipe, MarkdownPipe, QuestionPanelComponent],
   templateUrl: './chat-message-list.html',
   styleUrls: ['./chat-message-list.scss']
 })
 export class ChatMessageListComponent {
-  @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
+  private scrollContainer = viewChild<ElementRef>('scrollContainer');
 
-  @Input() messages: ChatMessage[] = [];
-  @Input() loading = false;
-  @Input() compactMode = true;
-  @Input() quickStarters: { label: string; description: string; prompt: string }[] = [];
-  @Input() buildError: string | null = null;
-  @Input() projectImageAssets: { path: string; name: string }[] = [];
+  messages = input<ChatMessage[]>([]);
+  loading = input(false);
+  compactMode = input(true);
+  quickStarters = input<{ label: string; description: string; prompt: string }[]>([]);
+  buildError = input<string | null>(null);
+  projectImageAssets = input<{ path: string; name: string }[]>([]);
 
-  @Output() restoreVersion = new EventEmitter<any>();
-  @Output() useQuickStarter = new EventEmitter<string>();
-  @Output() autoRepair = new EventEmitter<string>();
-  @Output() dismissError = new EventEmitter<void>();
+  restoreVersion = output<any>();
+  useQuickStarter = output<string>();
+  autoRepair = output<string>();
+  dismissError = output<void>();
 
   // Question panel pass-through events
-  @Output() questionSubmitted = new EventEmitter<ChatMessage>();
-  @Output() questionCancelled = new EventEmitter<ChatMessage>();
-  @Output() questionAnswerUpdated = new EventEmitter<{ msg: ChatMessage; questionId: string; value: any }>();
-  @Output() questionCheckboxToggled = new EventEmitter<{ msg: ChatMessage; questionId: string; optionValue: string }>();
-  @Output() questionDefaultsAccepted = new EventEmitter<ChatMessage>();
+  questionSubmitted = output<ChatMessage>();
+  questionCancelled = output<ChatMessage>();
+  questionAnswerUpdated = output<{ msg: ChatMessage; questionId: string; value: any }>();
+  questionCheckboxToggled = output<{ msg: ChatMessage; questionId: string; optionValue: string }>();
+  questionDefaultsAccepted = output<ChatMessage>();
 
   private isUserAtBottom = true;
 
   onScroll(): void {
-    if (!this.scrollContainer) return;
-    const el = this.scrollContainer.nativeElement;
+    const container = this.scrollContainer();
+    if (!container) return;
+    const el = container.nativeElement;
     const threshold = 100;
     this.isUserAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
   }
 
   scrollToBottom(): void {
     try {
-      if (this.scrollContainer) {
-        this.scrollContainer.nativeElement.scrollTop = this.scrollContainer.nativeElement.scrollHeight;
+      const container = this.scrollContainer();
+      if (container) {
+        container.nativeElement.scrollTop = container.nativeElement.scrollHeight;
       }
     } catch(err) { }
   }

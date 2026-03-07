@@ -1,381 +1,722 @@
-<nav class="navbar" *ngIf="authService.isAuthenticated()">
+@if(authService.isAuthenticated()) {
+
+<nav class="navbar" >
   <div class="navbar-inner">
     <div class="brand" (click)="goBack()">
       <img src="logo.png" alt="Adorable Logo" class="logo" />
-      <span style="margin-left: -7px;">dorable</span>
+      <span style="margin-left: -7px">dorable</span>
     </div>
 
     @if (isProjectView()) {
-      <div class="project-actions-center">
-        <div class="project-info">
-          <input
-            [(ngModel)]="projectService.projectName"
-            class="project-name-input"
-            placeholder="Project Name"
-          />
-          <div class="status-group">
-            @if (isDesktop) {
-              <select [value]="containerEngine.mode()" (change)="toggleEngine($event)" class="engine-select">
-                <option value="local">Docker</option>
-                <option value="native">Native</option>
-              </select>
-            } @else {
-              <select [value]="containerEngine.mode()" (change)="toggleEngine($event)" class="engine-select">
-                <option value="local">Docker</option>
-              </select>
-            }
-            <div
-              class="status-badge"
-              [class.active]="containerEngine.url()"
-              [class.error]="containerEngine.buildError()"
-            >
-              {{ containerEngine.status() }}
-            </div>
-          </div>
-        </div>
-
-        <div class="v-divider"></div>
-
-        <div class="action-group">
-          <button
-            (click)="projectService.saveProject()"
-            [disabled]="projectService.loading() || projectService.fileStore.isEmpty()"
-            class="icon-btn"
-            title="Save changes"
+    <div class="project-actions-center">
+      <div class="project-info">
+        <input
+          [(ngModel)]="projectService.projectName"
+          class="project-name-input"
+          placeholder="Project Name"
+        />
+        <div class="status-group">
+          @if (isDesktop) {
+          <select
+            [value]="containerEngine.mode()"
+            (change)="toggleEngine($event)"
+            class="engine-select"
           >
-            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-          </button>
-          <div class="publish-wrapper">
-            <button
-              (click)="togglePublishPanel()"
-              [disabled]="projectService.loading() || projectService.fileStore.isEmpty()"
-              class="icon-btn"
-              [class.active]="publishPanelOpen()"
-              title="Publish live site"
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-              @if (currentPublishStatus()?.isPublished) {
-                <span class="connected-dot"></span>
-              }
-            </button>
-
-            <app-popover [open]="publishPanelOpen()" (closed)="publishPanelOpen.set(false)">
-              <div class="publish-panel-content">
-                <div class="panel-header">
-                  <h4>
-                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                    Publish Site
-                  </h4>
-                  <button class="close-btn" (click)="publishPanelOpen.set(false)">&times;</button>
-                </div>
-
-                @if (currentPublishStatus()?.isPublished) {
-                  <!-- Already published -->
-                  <div class="publish-status">
-                    <div class="publish-url-row">
-                      <input class="publish-url-input" [value]="currentPublishUrl()" readonly (click)="$any($event.target).select()" />
-                      <button class="btn-copy" (click)="copyPublishUrl()" title="Copy URL">
-                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                      </button>
-                    </div>
-                    <div class="publish-meta">
-                      <span class="visibility-badge" [class]="currentPublishStatus()?.publishVisibility || 'public'">
-                        {{ currentPublishStatus()?.publishVisibility || 'public' }}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div class="publish-visibility-select">
-                    <label>Visibility</label>
-                    <select [ngModel]="publishVisibility()" (ngModelChange)="changeVisibility($event)">
-                      <option value="public">Public — Anyone with the link</option>
-                      <option value="unlisted">Unlisted — Hidden URL, no login</option>
-                      <option value="private">Private — Login required</option>
-                    </select>
-                  </div>
-
-                  @if (isDesktop && cloudSyncService.isConnected()) {
-                    <div class="publish-target-toggle">
-                      <label>Publish target</label>
-                      <div class="target-buttons">
-                        <button class="target-btn" [class.active]="publishTarget() === 'local'" (click)="publishTarget.set('local')">Local</button>
-                        <button class="target-btn" [class.active]="publishTarget() === 'cloud'" (click)="publishTarget.set('cloud')">Cloud</button>
-                      </div>
-                    </div>
-                  }
-
-                  <div class="publish-actions-row">
-                    <button class="btn-republish" (click)="doPublish()" [disabled]="projectService.loading()">
-                      @if (projectService.loading()) {
-                        <span class="spinner"></span>
-                      }
-                      Republish
-                    </button>
-                    <button class="btn-unpublish" (click)="doUnpublish()" [disabled]="projectService.loading()">
-                      Unpublish
-                    </button>
-                  </div>
-                } @else {
-                  <!-- Not yet published -->
-                  <div class="visibility-options">
-                    <button class="visibility-btn" [class.selected]="publishVisibility() === 'public'" (click)="publishVisibility.set('public')">
-                      <span class="vis-icon">
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                      </span>
-                      <span class="vis-label">Public</span>
-                      <span class="vis-desc">Anyone with the link</span>
-                    </button>
-                    <button class="visibility-btn" [class.selected]="publishVisibility() === 'unlisted'" (click)="publishVisibility.set('unlisted')">
-                      <span class="vis-icon">
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                      </span>
-                      <span class="vis-label">Unlisted</span>
-                      <span class="vis-desc">Hidden URL, no login</span>
-                    </button>
-                    <button class="visibility-btn" [class.selected]="publishVisibility() === 'private'" (click)="publishVisibility.set('private')">
-                      <span class="vis-icon">
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                      </span>
-                      <span class="vis-label">Private</span>
-                      <span class="vis-desc">Login required</span>
-                    </button>
-                  </div>
-
-                  @if (isDesktop && cloudSyncService.isConnected()) {
-                    <div class="publish-target-toggle">
-                      <label>Publish target</label>
-                      <div class="target-buttons">
-                        <button class="target-btn" [class.active]="publishTarget() === 'local'" (click)="publishTarget.set('local')">Local</button>
-                        <button class="target-btn" [class.active]="publishTarget() === 'cloud'" (click)="publishTarget.set('cloud')">Cloud</button>
-                      </div>
-                    </div>
-                  }
-
-                  <button class="btn-publish-action" (click)="doPublish()" [disabled]="projectService.loading()">
-                    @if (projectService.loading()) {
-                      <span class="spinner"></span>
-                    }
-                    Publish
-                  </button>
-                }
-              </div>
-            </app-popover>
-          </div>
-          <button
-            (click)="projectService.downloadZip()"
-            [disabled]="projectService.loading() || projectService.fileStore.isEmpty()"
-            class="icon-btn"
-            title="Download source"
+            <option value="local">Docker</option>
+            <option value="native">Native</option>
+          </select>
+          } @else {
+          <select
+            [value]="containerEngine.mode()"
+            (change)="toggleEngine($event)"
+            class="engine-select"
           >
-            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          </button>
-
-          <!-- VS Code (Docker/Native only) -->
-          @if (isDockerMode() || isNativeMode()) {
-            <div class="vscode-wrapper">
-              <button
-                (click)="toggleVSCodePanel()"
-                class="icon-btn"
-                [class.active]="vscodePanelOpen()"
-                title="Open in VS Code"
-              >
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                  <path d="M17.583 2.213L12.206 7.59l-5.378-3.808L3 5.716v12.568l3.828 1.934 5.378-3.808 5.377 5.377L24 18.852V5.148l-6.417-2.935zM5.14 16.14V7.86l3.428 4.14-3.428 4.14zm7.074-.848L8.373 12l3.841-3.292v6.584z"/>
-                </svg>
-              </button>
-
-              <app-popover [open]="vscodePanelOpen()" (closed)="vscodePanelOpen.set(false)">
-                <div class="vscode-panel-content">
-                  <div class="panel-header">
-                    <h4>
-                      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                        <path d="M17.583 2.213L12.206 7.59l-5.378-3.808L3 5.716v12.568l3.828 1.934 5.378-3.808 5.377 5.377L24 18.852V5.148l-6.417-2.935zM5.14 16.14V7.86l3.428 4.14-3.428 4.14zm7.074-.848L8.373 12l3.841-3.292v6.584z"/>
-                      </svg>
-                      Open in VS Code
-                    </h4>
-                    <button class="close-btn" (click)="vscodePanelOpen.set(false)">&times;</button>
-                  </div>
-
-                  <div class="vscode-options">
-                    <button class="vscode-option" (click)="openInVSCodeFolder()">
-                      <div class="option-icon">
-                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none">
-                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                        </svg>
-                      </div>
-                      <div class="option-info">
-                        <span class="option-title">Open Folder</span>
-                        <span class="option-desc">Edit files directly (no setup needed)</span>
-                      </div>
-                    </button>
-
-                    @if (!isNativeMode()) {
-                      <button class="vscode-option" (click)="openInVSCodeContainer()">
-                        <div class="option-icon">
-                          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none">
-                            <rect x="2" y="6" width="20" height="12" rx="2"></rect>
-                            <path d="M12 12h.01"></path>
-                            <path d="M17 12h.01"></path>
-                            <path d="M7 12h.01"></path>
-                          </svg>
-                        </div>
-                        <div class="option-info">
-                          <span class="option-title">Attach Container</span>
-                          <span class="option-desc">Full environment with terminal (needs Dev Containers ext)</span>
-                        </div>
-                      </button>
-                    }
-                  </div>
-                </div>
-              </app-popover>
-            </div>
+            <option value="local">Docker</option>
+          </select>
           }
-
-          <!-- GitHub Sync -->
-          <div class="github-sync-wrapper">
-            <button
-              (click)="toggleGitHubPanel()"
-              class="icon-btn"
-              [class.active]="githubPanelOpen()"
-              [class.connected]="githubSyncStatus()?.enabled"
-              [title]="githubSyncStatus()?.enabled ? 'GitHub: ' + githubSyncStatus()?.repoFullName : 'GitHub Sync'"
-              [disabled]="!hasProject"
-            >
-              <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-              </svg>
-              @if (githubSyncStatus()?.enabled) {
-                <span class="connected-dot"></span>
-              }
-            </button>
-
-            <app-popover [open]="githubPanelOpen()" (closed)="githubPanelOpen.set(false)">
-              <div class="github-panel-content">
-                <div class="panel-header">
-                  <h4>
-                    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-                    GitHub Sync
-                  </h4>
-                  <button class="close-btn" (click)="githubPanelOpen.set(false)">×</button>
-                </div>
-
-                @if (!isGitHubConnected) {
-                  <div class="not-connected">
-                    <p>Connect your GitHub account first</p>
-                    <a routerLink="/profile">Go to Profile Settings →</a>
-                  </div>
-                } @else if (githubSyncStatus()?.enabled) {
-                  <div class="connected-repo">
-                    <div class="repo-info">
-                      <span class="check">✓</span>
-                      <span class="repo-name">{{ githubSyncStatus()?.repoFullName }}</span>
-                    </div>
-                    <div class="repo-meta">
-                      Branch: {{ githubSyncStatus()?.branch || 'main' }}
-                    </div>
-                  </div>
-
-                  <div class="sync-actions">
-                    <button class="btn-push" (click)="pushToGitHub()" [disabled]="githubSyncing()">
-                      @if (githubSyncing()) {
-                        <span class="spinner"></span>
-                      } @else {
-                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
-                      }
-                      Push
-                    </button>
-                    <button class="btn-pull" (click)="pullFromGitHub()" [disabled]="githubSyncing()">
-                      @if (githubSyncing()) {
-                        <span class="spinner"></span>
-                      } @else {
-                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
-                      }
-                      Pull
-                    </button>
-                  </div>
-
-                  <!-- GitHub Pages -->
-                  <div class="pages-section">
-                    <div class="section-divider"></div>
-                    <div class="pages-header">
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                      <span>GitHub Pages</span>
-                    </div>
-                    @if (githubPagesUrl()) {
-                      <a class="pages-url" [href]="githubPagesUrl()" target="_blank">
-                        {{ githubPagesUrl() }}
-                        <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                      </a>
-                    }
-                    <button class="btn-deploy" (click)="deployToGitHubPages()" [disabled]="githubPagesDeploying() || githubSyncing()">
-                      @if (githubPagesDeploying()) {
-                        <span class="spinner"></span>
-                        Deploying...
-                      } @else {
-                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M22 2L11 13"></path><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                        {{ githubPagesUrl() ? 'Redeploy to Pages' : 'Deploy to Pages' }}
-                      }
-                    </button>
-                  </div>
-
-                  <button class="btn-disconnect" (click)="disconnectFromGitHub()" [disabled]="githubSyncing()">
-                    Disconnect
-                  </button>
-                } @else {
-                  @if (!githubCreateMode()) {
-                    <div class="repo-select">
-                      <label>Select Repository</label>
-                      <select [ngModel]="githubSelectedRepo()" (ngModelChange)="githubSelectedRepo.set($event)">
-                        <option value="">Choose a repository...</option>
-                        @for (repo of githubRepos(); track repo.id) {
-                          <option [value]="repo.full_name">{{ repo.full_name }}</option>
-                        }
-                      </select>
-                    </div>
-
-                    <button class="btn-connect" (click)="connectToGitHubRepo()" [disabled]="!githubSelectedRepo() || githubSyncing()">
-                      {{ githubSyncing() ? 'Connecting...' : 'Connect' }}
-                    </button>
-
-                    <button class="btn-create-new" (click)="githubCreateMode.set(true)">
-                      + Create New Repository
-                    </button>
-                  } @else {
-                    <div class="repo-create">
-                      <label>New Repository Name</label>
-                      <input
-                        type="text"
-                        [ngModel]="githubNewRepoName()"
-                        (ngModelChange)="githubNewRepoName.set($event)"
-                        placeholder="my-adorable-project"
-                      />
-                    </div>
-
-                    <div class="create-actions">
-                      <button class="btn-cancel" (click)="githubCreateMode.set(false)">Cancel</button>
-                      <button class="btn-create" (click)="createAndConnectRepo()" [disabled]="!githubNewRepoName() || githubSyncing()">
-                        {{ githubSyncing() ? 'Creating...' : 'Create & Connect' }}
-                      </button>
-                    </div>
-                  }
-                }
-              </div>
-            </app-popover>
+          <div
+            class="status-badge"
+            [class.active]="containerEngine.url()"
+            [class.error]="containerEngine.buildError()"
+          >
+            {{ containerEngine.status() }}
           </div>
         </div>
       </div>
+
+      <div class="v-divider"></div>
+
+      <div class="action-group">
+        <button
+          (click)="projectService.saveProject()"
+          [disabled]="projectService.loading() || projectService.fileStore.isEmpty()"
+          class="icon-btn"
+          title="Save changes"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            stroke="currentColor"
+            stroke-width="2"
+            fill="none"
+          >
+            <path
+              d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"
+            ></path>
+            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+            <polyline points="7 3 7 8 15 8"></polyline>
+          </svg>
+        </button>
+        <div class="publish-wrapper">
+          <button
+            (click)="togglePublishPanel()"
+            [disabled]="projectService.loading() || projectService.fileStore.isEmpty()"
+            class="icon-btn"
+            [class.active]="publishPanelOpen()"
+            title="Publish live site"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              stroke="currentColor"
+              stroke-width="2"
+              fill="none"
+            >
+              <path
+                d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+              ></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+            @if (currentPublishStatus()?.isPublished) {
+            <span class="connected-dot"></span>
+            }
+          </button>
+
+          <app-popover
+            [open]="publishPanelOpen()"
+            (closed)="publishPanelOpen.set(false)"
+          >
+            <div class="publish-panel-content">
+              <div class="panel-header">
+                <h4>
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="16"
+                    height="16"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    fill="none"
+                  >
+                    <path
+                      d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+                    ></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                  </svg>
+                  Publish Site
+                </h4>
+                <button class="close-btn" (click)="publishPanelOpen.set(false)">
+                  &times;
+                </button>
+              </div>
+
+              @if (currentPublishStatus()?.isPublished) {
+              <!-- Already published -->
+              <div class="publish-status">
+                <div class="publish-url-row">
+                  <input
+                    class="publish-url-input"
+                    [value]="currentPublishUrl()"
+                    readonly
+                    (click)="$any($event.target).select()"
+                  />
+                  <button
+                    class="btn-copy"
+                    (click)="copyPublishUrl()"
+                    title="Copy URL"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      fill="none"
+                    >
+                      <rect
+                        x="9"
+                        y="9"
+                        width="13"
+                        height="13"
+                        rx="2"
+                        ry="2"
+                      ></rect>
+                      <path
+                        d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                      ></path>
+                    </svg>
+                  </button>
+                </div>
+                <div class="publish-meta">
+                  <span
+                    class="visibility-badge"
+                    [class]="currentPublishStatus()?.publishVisibility || 'public'"
+                  >
+                    {{ currentPublishStatus()?.publishVisibility || 'public' }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="publish-visibility-select">
+                <label>Visibility</label>
+                <select
+                  [ngModel]="publishVisibility()"
+                  (ngModelChange)="changeVisibility($event)"
+                >
+                  <option value="public">Public — Anyone with the link</option>
+                  <option value="unlisted">
+                    Unlisted — Hidden URL, no login
+                  </option>
+                  <option value="private">Private — Login required</option>
+                </select>
+              </div>
+
+              @if (isDesktop && cloudSyncService.isConnected()) {
+              <div class="publish-target-toggle">
+                <label>Publish target</label>
+                <div class="target-buttons">
+                  <button
+                    class="target-btn"
+                    [class.active]="publishTarget() === 'local'"
+                    (click)="publishTarget.set('local')"
+                  >
+                    Local
+                  </button>
+                  <button
+                    class="target-btn"
+                    [class.active]="publishTarget() === 'cloud'"
+                    (click)="publishTarget.set('cloud')"
+                  >
+                    Cloud
+                  </button>
+                </div>
+              </div>
+              }
+
+              <div class="publish-actions-row">
+                <button
+                  class="btn-republish"
+                  (click)="doPublish()"
+                  [disabled]="projectService.loading()"
+                >
+                  @if (projectService.loading()) {
+                  <span class="spinner"></span>
+                  } Republish
+                </button>
+                <button
+                  class="btn-unpublish"
+                  (click)="doUnpublish()"
+                  [disabled]="projectService.loading()"
+                >
+                  Unpublish
+                </button>
+              </div>
+              } @else {
+              <!-- Not yet published -->
+              <div class="visibility-options">
+                <button
+                  class="visibility-btn"
+                  [class.selected]="publishVisibility() === 'public'"
+                  (click)="publishVisibility.set('public')"
+                >
+                  <span class="vis-icon">
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="18"
+                      height="18"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="2" y1="12" x2="22" y2="12"></line>
+                      <path
+                        d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+                      ></path>
+                    </svg>
+                  </span>
+                  <span class="vis-label">Public</span>
+                  <span class="vis-desc">Anyone with the link</span>
+                </button>
+                <button
+                  class="visibility-btn"
+                  [class.selected]="publishVisibility() === 'unlisted'"
+                  (click)="publishVisibility.set('unlisted')"
+                >
+                  <span class="vis-icon">
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="18"
+                      height="18"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path
+                        d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
+                      ></path>
+                      <path
+                        d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
+                      ></path>
+                    </svg>
+                  </span>
+                  <span class="vis-label">Unlisted</span>
+                  <span class="vis-desc">Hidden URL, no login</span>
+                </button>
+                <button
+                  class="visibility-btn"
+                  [class.selected]="publishVisibility() === 'private'"
+                  (click)="publishVisibility.set('private')"
+                >
+                  <span class="vis-icon">
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="18"
+                      height="18"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <rect
+                        x="3"
+                        y="11"
+                        width="18"
+                        height="11"
+                        rx="2"
+                        ry="2"
+                      ></rect>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                  </span>
+                  <span class="vis-label">Private</span>
+                  <span class="vis-desc">Login required</span>
+                </button>
+              </div>
+
+              @if (isDesktop && cloudSyncService.isConnected()) {
+              <div class="publish-target-toggle">
+                <label>Publish target</label>
+                <div class="target-buttons">
+                  <button
+                    class="target-btn"
+                    [class.active]="publishTarget() === 'local'"
+                    (click)="publishTarget.set('local')"
+                  >
+                    Local
+                  </button>
+                  <button
+                    class="target-btn"
+                    [class.active]="publishTarget() === 'cloud'"
+                    (click)="publishTarget.set('cloud')"
+                  >
+                    Cloud
+                  </button>
+                </div>
+              </div>
+              }
+
+              <button
+                class="btn-publish-action"
+                (click)="doPublish()"
+                [disabled]="projectService.loading()"
+              >
+                @if (projectService.loading()) {
+                <span class="spinner"></span>
+                } Publish
+              </button>
+              }
+            </div>
+          </app-popover>
+        </div>
+        <button
+          (click)="projectService.downloadZip()"
+          [disabled]="projectService.loading() || projectService.fileStore.isEmpty()"
+          class="icon-btn"
+          title="Download source"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            stroke="currentColor"
+            stroke-width="2"
+            fill="none"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </button>
+
+        <!-- VS Code (Docker/Native only) -->
+        @if (isDockerMode() || isNativeMode()) {
+        <div class="vscode-wrapper">
+          <button
+            (click)="toggleVSCodePanel()"
+            class="icon-btn"
+            [class.active]="vscodePanelOpen()"
+            title="Open in VS Code"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path
+                d="M17.583 2.213L12.206 7.59l-5.378-3.808L3 5.716v12.568l3.828 1.934 5.378-3.808 5.377 5.377L24 18.852V5.148l-6.417-2.935zM5.14 16.14V7.86l3.428 4.14-3.428 4.14zm7.074-.848L8.373 12l3.841-3.292v6.584z"
+              />
+            </svg>
+          </button>
+
+          <app-popover
+            [open]="vscodePanelOpen()"
+            (closed)="vscodePanelOpen.set(false)"
+          >
+            <div class="vscode-panel-content">
+              <div class="panel-header">
+                <h4>
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="16"
+                    height="16"
+                    fill="currentColor"
+                  >
+                    <path
+                      d="M17.583 2.213L12.206 7.59l-5.378-3.808L3 5.716v12.568l3.828 1.934 5.378-3.808 5.377 5.377L24 18.852V5.148l-6.417-2.935zM5.14 16.14V7.86l3.428 4.14-3.428 4.14zm7.074-.848L8.373 12l3.841-3.292v6.584z"
+                    />
+                  </svg>
+                  Open in VS Code
+                </h4>
+                <button class="close-btn" (click)="vscodePanelOpen.set(false)">
+                  &times;
+                </button>
+              </div>
+
+              <div class="vscode-options">
+                <button class="vscode-option" (click)="openInVSCodeFolder()">
+                  <div class="option-icon">
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="20"
+                      height="20"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      fill="none"
+                    >
+                      <path
+                        d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                      ></path>
+                    </svg>
+                  </div>
+                  <div class="option-info">
+                    <span class="option-title">Open Folder</span>
+                    <span class="option-desc"
+                      >Edit files directly (no setup needed)</span
+                    >
+                  </div>
+                </button>
+
+                @if (!isNativeMode()) {
+                <button class="vscode-option" (click)="openInVSCodeContainer()">
+                  <div class="option-icon">
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="20"
+                      height="20"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      fill="none"
+                    >
+                      <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+                      <path d="M12 12h.01"></path>
+                      <path d="M17 12h.01"></path>
+                      <path d="M7 12h.01"></path>
+                    </svg>
+                  </div>
+                  <div class="option-info">
+                    <span class="option-title">Attach Container</span>
+                    <span class="option-desc"
+                      >Full environment with terminal (needs Dev Containers
+                      ext)</span
+                    >
+                  </div>
+                </button>
+                }
+              </div>
+            </div>
+          </app-popover>
+        </div>
+        }
+
+        <!-- GitHub Sync -->
+        <div class="github-sync-wrapper">
+          <button
+            (click)="toggleGitHubPanel()"
+            class="icon-btn"
+            [class.active]="githubPanelOpen()"
+            [class.connected]="githubSyncStatus()?.enabled"
+            [title]="githubSyncStatus()?.enabled ? 'GitHub: ' + githubSyncStatus()?.repoFullName : 'GitHub Sync'"
+            [disabled]="!hasProject"
+          >
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+              />
+            </svg>
+            @if (githubSyncStatus()?.enabled) {
+            <span class="connected-dot"></span>
+            }
+          </button>
+
+          <app-popover
+            [open]="githubPanelOpen()"
+            (closed)="githubPanelOpen.set(false)"
+          >
+            <div class="github-panel-content">
+              <div class="panel-header">
+                <h4>
+                  <svg
+                    viewBox="0 0 16 16"
+                    width="16"
+                    height="16"
+                    fill="currentColor"
+                  >
+                    <path
+                      d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+                    />
+                  </svg>
+                  GitHub Sync
+                </h4>
+                <button class="close-btn" (click)="githubPanelOpen.set(false)">
+                  ×
+                </button>
+              </div>
+
+              @if (!isGitHubConnected) {
+              <div class="not-connected">
+                <p>Connect your GitHub account first</p>
+                <a routerLink="/profile">Go to Profile Settings →</a>
+              </div>
+              } @else if (githubSyncStatus()?.enabled) {
+              <div class="connected-repo">
+                <div class="repo-info">
+                  <span class="check">✓</span>
+                  <span class="repo-name"
+                    >{{ githubSyncStatus()?.repoFullName }}</span
+                  >
+                </div>
+                <div class="repo-meta">
+                  Branch: {{ githubSyncStatus()?.branch || 'main' }}
+                </div>
+              </div>
+
+              <div class="sync-actions">
+                <button
+                  class="btn-push"
+                  (click)="pushToGitHub()"
+                  [disabled]="githubSyncing()"
+                >
+                  @if (githubSyncing()) {
+                  <span class="spinner"></span>
+                  } @else {
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    fill="none"
+                  >
+                    <line x1="12" y1="19" x2="12" y2="5"></line>
+                    <polyline points="5 12 12 5 19 12"></polyline>
+                  </svg>
+                  } Push
+                </button>
+                <button
+                  class="btn-pull"
+                  (click)="pullFromGitHub()"
+                  [disabled]="githubSyncing()"
+                >
+                  @if (githubSyncing()) {
+                  <span class="spinner"></span>
+                  } @else {
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    fill="none"
+                  >
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <polyline points="19 12 12 19 5 12"></polyline>
+                  </svg>
+                  } Pull
+                </button>
+              </div>
+
+              <!-- GitHub Pages -->
+              <div class="pages-section">
+                <div class="section-divider"></div>
+                <div class="pages-header">
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="2" y1="12" x2="22" y2="12"></line>
+                    <path
+                      d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+                    ></path>
+                  </svg>
+                  <span>GitHub Pages</span>
+                </div>
+                @if (githubPagesUrl()) {
+                <a class="pages-url" [href]="githubPagesUrl()" target="_blank">
+                  {{ githubPagesUrl() }}
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="12"
+                    height="12"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    fill="none"
+                  >
+                    <path
+                      d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+                    ></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                  </svg>
+                </a>
+                }
+                <button
+                  class="btn-deploy"
+                  (click)="deployToGitHubPages()"
+                  [disabled]="githubPagesDeploying() || githubSyncing()"
+                >
+                  @if (githubPagesDeploying()) {
+                  <span class="spinner"></span>
+                  Deploying... } @else {
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    fill="none"
+                  >
+                    <path d="M22 2L11 13"></path>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                  </svg>
+                  {{ githubPagesUrl() ? 'Redeploy to Pages' : 'Deploy to Pages'
+                  }} }
+                </button>
+              </div>
+
+              <button
+                class="btn-disconnect"
+                (click)="disconnectFromGitHub()"
+                [disabled]="githubSyncing()"
+              >
+                Disconnect
+              </button>
+              } @else { @if (!githubCreateMode()) {
+              <div class="repo-select">
+                <label>Select Repository</label>
+                <select
+                  [ngModel]="githubSelectedRepo()"
+                  (ngModelChange)="githubSelectedRepo.set($event)"
+                >
+                  <option value="">Choose a repository...</option>
+                  @for (repo of githubRepos(); track repo.id) {
+                  <option [value]="repo.full_name">{{ repo.full_name }}</option>
+                  }
+                </select>
+              </div>
+
+              <button
+                class="btn-connect"
+                (click)="connectToGitHubRepo()"
+                [disabled]="!githubSelectedRepo() || githubSyncing()"
+              >
+                {{ githubSyncing() ? 'Connecting...' : 'Connect' }}
+              </button>
+
+              <button
+                class="btn-create-new"
+                (click)="githubCreateMode.set(true)"
+              >
+                + Create New Repository
+              </button>
+              } @else {
+              <div class="repo-create">
+                <label>New Repository Name</label>
+                <input
+                  type="text"
+                  [ngModel]="githubNewRepoName()"
+                  (ngModelChange)="githubNewRepoName.set($event)"
+                  placeholder="my-adorable-project"
+                />
+              </div>
+
+              <div class="create-actions">
+                <button
+                  class="btn-cancel"
+                  (click)="githubCreateMode.set(false)"
+                >
+                  Cancel
+                </button>
+                <button
+                  class="btn-create"
+                  (click)="createAndConnectRepo()"
+                  [disabled]="!githubNewRepoName() || githubSyncing()"
+                >
+                  {{ githubSyncing() ? 'Creating...' : 'Create & Connect' }}
+                </button>
+              </div>
+              } }
+            </div>
+          </app-popover>
+        </div>
+      </div>
+    </div>
     }
 
     <div class="user-menu">
       <!-- Desktop App Download (cloud only) -->
       @if (!isDesktop) {
-        <button class="settings-btn desktop-download-btn" (click)="desktopDownloadOpen.set(true)" title="Get Desktop App">
-          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="1.5" fill="none">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-            <line x1="8" y1="21" x2="16" y2="21"/>
-            <line x1="12" y1="17" x2="12" y2="21"/>
-          </svg>
-        </button>
+      <button
+        class="settings-btn desktop-download-btn"
+        (click)="desktopDownloadOpen.set(true)"
+        title="Get Desktop App"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          stroke="currentColor"
+          stroke-width="1.5"
+          fill="none"
+        >
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+          <line x1="8" y1="21" x2="16" y2="21" />
+          <line x1="12" y1="17" x2="12" y2="21" />
+        </svg>
+      </button>
       }
 
       <!-- Theme Switcher -->
@@ -387,17 +728,33 @@
           title="Switch theme"
         >
           <!-- Sun/Moon split icon -->
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="5"/>
-            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="5" />
+            <path
+              d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
+            />
           </svg>
         </button>
 
-        <app-popover [open]="themePanelOpen()" (closed)="themePanelOpen.set(false)">
+        <app-popover
+          [open]="themePanelOpen()"
+          (closed)="themePanelOpen.set(false)"
+        >
           <div class="theme-panel-content">
             <div class="panel-header">
               <h4>Appearance</h4>
-              <button class="close-btn" (click)="themePanelOpen.set(false)">&times;</button>
+              <button class="close-btn" (click)="themePanelOpen.set(false)">
+                &times;
+              </button>
             </div>
 
             <div class="theme-options">
@@ -449,9 +806,9 @@
               </div>
 
               @if (themeService.themeMode() === 'auto') {
-                <div class="auto-hint">
-                  Using {{ themeService.resolvedMode() }} based on system
-                </div>
+              <div class="auto-hint">
+                Using {{ themeService.resolvedMode() }} based on system
+              </div>
               }
             </div>
           </div>
@@ -459,107 +816,195 @@
       </div>
 
       @if (authService.isAdmin()) {
-        <a class="settings-btn" href="/admin/" title="Admin Panel">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          </svg>
-        </a>
+      <a class="settings-btn" href="/admin/" title="Admin Panel">
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+      </a>
       }
-      <a class="settings-btn" routerLink="/analytics" routerLinkActive="active" title="Usage Analytics">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <a
+        class="settings-btn"
+        routerLink="/analytics"
+        routerLinkActive="active"
+        title="Usage Analytics"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <line x1="18" y1="20" x2="18" y2="10"></line>
           <line x1="12" y1="20" x2="12" y2="4"></line>
           <line x1="6" y1="20" x2="6" y2="14"></line>
         </svg>
       </a>
-      <a class="settings-btn" routerLink="/profile" routerLinkActive="active" title="Settings">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      <a
+        class="settings-btn"
+        routerLink="/profile"
+        routerLinkActive="active"
+        title="Settings"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="3" />
+          <path
+            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+          />
         </svg>
       </a>
       @if (isDesktop) {
-        <div class="cloud-wrapper">
-          <button
-            class="btn-cloud-status"
-            [class.connected]="cloudSyncService.isConnected()"
-            [class.disconnected]="!cloudSyncService.isConnected()"
-            [class.reconnecting]="cloudSyncService.reconnecting()"
-            [class.active]="cloudPanelOpen()"
-            (click)="cloudPanelOpen.set(!cloudPanelOpen())"
-            title="Cloud sync"
+      <div class="cloud-wrapper">
+        <button
+          class="btn-cloud-status"
+          [class.connected]="cloudSyncService.isConnected()"
+          [class.disconnected]="!cloudSyncService.isConnected()"
+          [class.reconnecting]="cloudSyncService.reconnecting()"
+          [class.active]="cloudPanelOpen()"
+          (click)="cloudPanelOpen.set(!cloudPanelOpen())"
+          title="Cloud sync"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            stroke="currentColor"
+            stroke-width="2"
+            fill="none"
           >
-            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
-              <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
-            </svg>
-            @if (cloudSyncService.reconnecting()) {
-              Reconnecting...
-            } @else if (cloudSyncService.isConnected()) {
-              Connected
-            } @else {
-              Connect
-            }
-          </button>
+            <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+          </svg>
+          @if (cloudSyncService.reconnecting()) { Reconnecting... } @else if
+          (cloudSyncService.isConnected()) { Connected } @else { Connect }
+        </button>
 
-          <app-popover [open]="cloudPanelOpen()" (closed)="cloudPanelOpen.set(false)">
-            <div class="cloud-panel-content">
-              <div class="panel-header">
-                <h4>
-                  <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
-                    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
-                  </svg>
-                  Cloud Sync
-                </h4>
-                <button class="close-btn" (click)="cloudPanelOpen.set(false)">&times;</button>
-              </div>
-              <app-cloud-connect
-                (connected)="cloudPanelOpen.set(false)"
-                (disconnected)="cloudPanelOpen.set(false)"
-              ></app-cloud-connect>
+        <app-popover
+          [open]="cloudPanelOpen()"
+          (closed)="cloudPanelOpen.set(false)"
+        >
+          <div class="cloud-panel-content">
+            <div class="panel-header">
+              <h4>
+                <svg
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  fill="none"
+                >
+                  <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+                </svg>
+                Cloud Sync
+              </h4>
+              <button class="close-btn" (click)="cloudPanelOpen.set(false)">
+                &times;
+              </button>
             </div>
-          </app-popover>
-        </div>
+            <app-cloud-connect
+              (connected)="cloudPanelOpen.set(false)"
+              (disconnected)="cloudPanelOpen.set(false)"
+            ></app-cloud-connect>
+          </div>
+        </app-popover>
+      </div>
       } @else {
-        <button class="btn-logout" (click)="logout()">Sign out</button>
+      <button class="btn-logout" (click)="logout()">Sign out</button>
       }
     </div>
   </div>
 
   <!-- Desktop Download Dialog -->
   @if (desktopDownloadOpen()) {
-    <div class="desktop-download-backdrop" (click)="desktopDownloadOpen.set(false)"></div>
-    <div class="desktop-download-dialog">
-      <div class="dialog-header">
-        <h3>Download Adorable Desktop</h3>
-        <button class="close-btn" (click)="desktopDownloadOpen.set(false)">&times;</button>
-      </div>
-      <div class="dialog-body">
-        <p>Build Angular apps offline with full local AI processing, Docker integration, and cloud sync.</p>
-        <div class="download-options">
-          <a class="download-card" [href]="githubReleasesUrl" target="_blank" rel="noopener">
-            <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
-              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-            </svg>
-            <strong>macOS</strong>
-            <span>.dmg installer</span>
-          </a>
-          <a class="download-card" [href]="githubReleasesUrl" target="_blank" rel="noopener">
-            <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
-              <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>
-            </svg>
-            <strong>Windows</strong>
-            <span>.exe installer</span>
-          </a>
-          <a class="download-card" [href]="githubReleasesUrl" target="_blank" rel="noopener">
-            <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
-              <path d="M12.504 0c-.155 0-.311.015-.466.046-3.125.635-3.361 4.594-1.962 7.278 1.116 2.143.793 4.203-.313 5.521-1.054 1.255-2.834 1.774-4.463 1.225-1.629-.549-3.009-1.915-3.36-3.636-.272-1.336.186-2.757.99-3.819.803-1.062 1.898-1.853 2.997-2.465a.5.5 0 0 0-.51-.865c-1.26.698-2.516 1.612-3.468 2.873-.952 1.261-1.52 2.93-1.187 4.548C1.138 12.69 2.88 14.4 4.93 15.09c2.049.69 4.302.027 5.666-1.599 1.364-1.626 1.718-4.149.397-6.683-1.167-2.239-1.034-5.415 1.51-5.931.154-.031.312-.048.471-.048 2.135 0 3.531 2.127 3.531 4.215 0 .766-.063 1.562-.252 2.273-.376 1.418-1.188 2.585-2.15 3.547-.964.963-2.098 1.741-3.201 2.404a.5.5 0 0 0 .51.865c1.142-.688 2.358-1.539 3.438-2.617 1.08-1.078 2.019-2.404 2.473-4.12.228-.858.302-1.754.302-2.618C17.625 2.547 15.564 0 12.504 0z"/>
-            </svg>
-            <strong>Linux</strong>
-            <span>AppImage</span>
-          </a>
-        </div>
-        <p class="dialog-footer-note">All downloads available on the <a [href]="githubReleasesUrl" target="_blank" rel="noopener">GitHub Releases page</a></p>
-      </div>
+  <div
+    class="desktop-download-backdrop"
+    (click)="desktopDownloadOpen.set(false)"
+  ></div>
+  <div class="desktop-download-dialog">
+    <div class="dialog-header">
+      <h3>Download Adorable Desktop</h3>
+      <button class="close-btn" (click)="desktopDownloadOpen.set(false)">
+        &times;
+      </button>
     </div>
+    <div class="dialog-body">
+      <p>
+        Build Angular apps offline with full local AI processing, Docker
+        integration, and cloud sync.
+      </p>
+      <div class="download-options">
+        <a
+          class="download-card"
+          [href]="githubReleasesUrl"
+          target="_blank"
+          rel="noopener"
+        >
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
+            <path
+              d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"
+            />
+          </svg>
+          <strong>macOS</strong>
+          <span>.dmg installer</span>
+        </a>
+        <a
+          class="download-card"
+          [href]="githubReleasesUrl"
+          target="_blank"
+          rel="noopener"
+        >
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
+            <path
+              d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"
+            />
+          </svg>
+          <strong>Windows</strong>
+          <span>.exe installer</span>
+        </a>
+        <a
+          class="download-card"
+          [href]="githubReleasesUrl"
+          target="_blank"
+          rel="noopener"
+        >
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
+            <path
+              d="M12.504 0c-.155 0-.311.015-.466.046-3.125.635-3.361 4.594-1.962 7.278 1.116 2.143.793 4.203-.313 5.521-1.054 1.255-2.834 1.774-4.463 1.225-1.629-.549-3.009-1.915-3.36-3.636-.272-1.336.186-2.757.99-3.819.803-1.062 1.898-1.853 2.997-2.465a.5.5 0 0 0-.51-.865c-1.26.698-2.516 1.612-3.468 2.873-.952 1.261-1.52 2.93-1.187 4.548C1.138 12.69 2.88 14.4 4.93 15.09c2.049.69 4.302.027 5.666-1.599 1.364-1.626 1.718-4.149.397-6.683-1.167-2.239-1.034-5.415 1.51-5.931.154-.031.312-.048.471-.048 2.135 0 3.531 2.127 3.531 4.215 0 .766-.063 1.562-.252 2.273-.376 1.418-1.188 2.585-2.15 3.547-.964.963-2.098 1.741-3.201 2.404a.5.5 0 0 0 .51.865c1.142-.688 2.358-1.539 3.438-2.617 1.08-1.078 2.019-2.404 2.473-4.12.228-.858.302-1.754.302-2.618C17.625 2.547 15.564 0 12.504 0z"
+            />
+          </svg>
+          <strong>Linux</strong>
+          <span>AppImage</span>
+        </a>
+      </div>
+      <p class="dialog-footer-note">
+        All downloads available on the
+        <a [href]="githubReleasesUrl" target="_blank" rel="noopener"
+          >GitHub Releases page</a
+        >
+      </p>
+    </div>
+  </div>
   }
 </nav>
+}

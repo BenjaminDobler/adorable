@@ -1,7 +1,7 @@
 <div class="dialog-overlay" (click)="cancel.emit()">
   <div class="dialog-content" (click)="$event.stopPropagation()">
     <header>
-      <h2>{{ skill ? 'Edit Skill' : 'Create New Skill' }}</h2>
+      <h2>{{ skill() ? 'Edit Skill' : 'Create New Skill' }}</h2>
       <button class="close-btn" (click)="cancel.emit()">×</button>
     </header>
     
@@ -9,7 +9,7 @@
       <div class="form-row">
         <div class="form-group">
           <label>Name (ID)</label>
-          <input [(ngModel)]="name" placeholder="e.g. tailwind-expert" [disabled]="!!skill">
+          <input [(ngModel)]="name" placeholder="e.g. tailwind-expert" [disabled]="!!skill()">
           <small>Unique identifier for the skill.</small>
         </div>
         
@@ -34,7 +34,7 @@
     <footer>
       <button class="btn-cancel" (click)="cancel.emit()">Cancel</button>
       <button class="btn-save" (click)="onSubmit()" [disabled]="!name || !instructions">
-        {{ skill ? 'Update Skill' : 'Create Skill' }}
+        {{ skill() ? 'Update Skill' : 'Create Skill' }}
       </button>
     </footer>
   </div>

@@ -62,6 +62,8 @@ router.post('/register', registerRateLimit, async (req, res) => {
       ? crypto.randomBytes(32).toString('hex')
       : null;
 
+    const cloudEditorAllowed = isFirstUser || serverConfigService.get('cloudEditor.defaultAccess') !== 'false';
+
     const user = await prisma.user.create({
       data: {
         email,
@@ -70,6 +72,7 @@ router.post('/register', registerRateLimit, async (req, res) => {
         role,
         emailVerified,
         emailVerificationToken,
+        cloudEditorAllowed,
       }
     });
 

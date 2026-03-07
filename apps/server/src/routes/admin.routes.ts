@@ -137,8 +137,9 @@ router.get('/config', (req, res) => {
 
 router.patch('/config', async (req, res) => {
   try {
-    const updates = req.body as Record<string, string>;
-    for (const [key, value] of Object.entries(updates)) {
+    const updates = req.body as Record<string, unknown>;
+    for (const [key, rawValue] of Object.entries(updates)) {
+      const value = String(rawValue);
       // Don't update masked password
       if (key === 'smtp.pass' && value === '••••••••') continue;
       await serverConfigService.set(key, value);

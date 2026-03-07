@@ -5,6 +5,7 @@ const DEFAULTS: Record<string, string> = {
   'registration.emailVerification': 'false',
   'containers.maxActive': '5',
   'cloudEditor.accessMode': 'open',
+  'cloudEditor.defaultAccess': 'true',
   'smtp.host': '',
   'smtp.port': '587',
   'smtp.user': '',

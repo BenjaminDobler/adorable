@@ -29,6 +29,13 @@ import { AdminApiService } from '../services/admin-api';
             </label>
             <p class="hint">When enabled, only users explicitly marked as "allowed" in the Users panel can use the cloud editor. Admins always have access. Other users will be prompted to download the desktop app.</p>
           </div>
+          <div class="form-group">
+            <label class="toggle-label">
+              <input type="checkbox" [checked]="config['cloudEditor.defaultAccess'] !== 'false'" (change)="toggleDefaultAccess($event)" />
+              Grant cloud editor access to new users by default
+            </label>
+            <p class="hint">When disabled, new users will not have cloud editor access until an admin explicitly allows them in the Users panel.</p>
+          </div>
         </div>
 
         <div class="settings-section">
@@ -154,6 +161,11 @@ export class SettingsComponent implements OnInit {
   toggleCloudEditorAccess(event: Event) {
     const checked = (event.target as HTMLInputElement).checked;
     this.config['cloudEditor.accessMode'] = checked ? 'allowlist' : 'open';
+  }
+
+  toggleDefaultAccess(event: Event) {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.config['cloudEditor.defaultAccess'] = checked ? 'true' : 'false';
   }
 
   toggleEmailVerification(event: Event) {

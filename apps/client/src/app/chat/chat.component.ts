@@ -1,6 +1,6 @@
-import { Component, inject, signal, ElementRef, ViewChild, Output, EventEmitter, Input, effect, computed, ChangeDetectorRef, OnDestroy } from '@angular/core';
-import { Subscription, takeUntil, Subject } from 'rxjs';
-import { CommonModule } from '@angular/common';
+import { Component, inject, signal, computed, viewChild, output, input, effect, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subscription } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { ProjectService, ChatMessage, Question } from '../services/project';
 import { ContainerEngine } from '../services/container-engine';
@@ -27,7 +27,6 @@ import { McpToolsPanelComponent } from './mcp-tools-panel/mcp-tools-panel.compon
   selector: 'app-chat',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     SafeUrlPipe,
 
@@ -39,9 +38,9 @@ import { McpToolsPanelComponent } from './mcp-tools-panel/mcp-tools-panel.compon
   templateUrl: './chat.html',
   styleUrls: ['./chat.scss']
 })
-export class ChatComponent implements OnDestroy {
+export class ChatComponent {
   private activeSubscription: Subscription | null = null;
-  private destroy$ = new Subject<void>();
+  private destroyRef = inject(DestroyRef);
   private apiService = inject(ApiService);
   public containerEngine = inject(ContainerEngine);
   public projectService = inject(ProjectService);
@@ -51,46 +50,31 @@ export class ChatComponent implements OnDestroy {
   private hmrTrigger = inject(HMRTriggerService);
   private progressiveStore = inject(ProgressiveEditorStore);
   private screenshotService = inject(ScreenshotService);
-  private cdr = inject(ChangeDetectorRef);
 
-  @ViewChild('messageList') private messageList!: ChatMessageListComponent;
-  @ViewChild('chatInput') private chatInput!: ChatInputComponent;
+  private messageList = viewChild<ChatMessageListComponent>('messageList');
+  private chatInput = viewChild<ChatInputComponent>('chatInput');
 
-  // App settings (retrieved from profile)
-  private _appSettings: any = null;
-  @Input() set appSettings(value: any) {
-    this._appSettings = value;
-    if (value) {
-      this.loadAvailableModels();
-    }
-  }
-  get appSettings() { return this._appSettings; }
+  // Inputs from parent
+  appSettings = input<any>(null);
+  visualEditorData = input<any>(signal(null));
+  pendingFigmaImport = input<FigmaImportPayload | null>(null);
 
-  @Input() visualEditorData = signal<any>(null);
-
-  // Pending Figma import from the Figma panel
-  @Input() set pendingFigmaImport(payload: FigmaImportPayload | null) {
-    if (payload) {
-      this.handleFigmaImport(payload);
-      this.figmaImportProcessed.emit();
-    }
-  }
-
-  @Output() fileUploaded = new EventEmitter<{name: string, content: string}>();
-  @Output() figmaImportProcessed = new EventEmitter<void>();
-  @Output() popoverToggled = new EventEmitter<boolean>();
+  // Outputs
+  fileUploaded = output<{name: string, content: string}>();
+  figmaImportProcessed = output<void>();
+  popoverToggled = output<boolean>();
 
   messages = this.projectService.messages;
   loading = this.projectService.loading;
 
-  prompt = '';
+  prompt = signal('');
 
   // UI State
   compactMode = signal(true);
   shouldAddToAssets = signal(true);
-  attachedFile: File | null = null;
-  attachedFileContent: string | null = null;
-  annotationContext: string | null = null;
+  attachedFile = signal<File | null>(null);
+  attachedFileContent = signal<string | null>(null);
+  annotationContext = signal<string | null>(null);
   previewImageUrl = signal<string | null>(null);
 
   availableModels = signal<any[]>([]);
@@ -126,19 +110,14 @@ export class ChatComponent implements OnDestroy {
   private contextSummary = signal<string | null>(null);
   private contextCleared = signal(false);
 
-  get isAttachedImage(): boolean {
-    if (this.attachedFile?.type.startsWith('image/')) return true;
-    if (this.attachedFileContent?.startsWith('data:image/')) return true;
+  isAttachedImage = computed(() => {
+    if (this.attachedFile()?.type.startsWith('image/')) return true;
+    if (this.attachedFileContent()?.startsWith('data:image/')) return true;
     return false;
-  }
+  });
 
-  get hasFigmaAttachment(): boolean {
-    return this.figmaImages().length > 0;
-  }
-
-  get figmaFrameCount(): number {
-    return this.figmaImages().length;
-  }
+  hasFigmaAttachment = computed(() => this.figmaImages().length > 0);
+  figmaFrameCount = computed(() => this.figmaImages().length);
 
   quickStarters = [
     {
@@ -169,7 +148,7 @@ export class ChatComponent implements OnDestroy {
 
     // Cancel any active generation when the project is being switched
     this.projectService.projectSwitching$.pipe(
-      takeUntil(this.destroy$)
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe(() => {
       if (this.activeSubscription) {
         console.log('[ChatComponent] Cancelling active generation due to project switch');
@@ -180,14 +159,30 @@ export class ChatComponent implements OnDestroy {
       }
     });
 
+    // Auto-scroll when messages change
     effect(() => {
-        // Auto-scroll when messages change, but only if user is at bottom
         this.messages();
         setTimeout(() => {
-          this.messageList?.checkAutoScroll();
+          this.messageList()?.checkAutoScroll();
         }, 0);
     });
 
+    // Load models when appSettings changes
+    effect(() => {
+      const settings = this.appSettings();
+      if (settings) {
+        this.loadAvailableModels();
+      }
+    });
+
+    // Process Figma imports
+    effect(() => {
+      const payload = this.pendingFigmaImport();
+      if (payload) {
+        this.handleFigmaImport(payload);
+        this.figmaImportProcessed.emit();
+      }
+    });
   }
 
   // ===== AI Settings =====
@@ -252,18 +247,19 @@ export class ChatComponent implements OnDestroy {
   }
 
   loadAvailableModels() {
-    if (!this.appSettings) return;
+    const settings = this.appSettings();
+    if (!settings) return;
 
-    let profiles = this.appSettings.profiles;
+    let profiles = settings.profiles;
 
     // Handle Legacy
-    if (!profiles && this.appSettings.provider) {
+    if (!profiles && settings.provider) {
         profiles = [{
             id: 'legacy',
-            name: this.appSettings.provider,
-            provider: this.appSettings.provider,
-            apiKey: this.appSettings.apiKey,
-            model: this.appSettings.model
+            name: settings.provider,
+            provider: settings.provider,
+            apiKey: settings.apiKey,
+            model: settings.model
         }];
     }
 
@@ -290,7 +286,7 @@ export class ChatComponent implements OnDestroy {
                    return [...current, ...toAdd];
                 });
                 if (!this.selectedModel() && this.availableModels().length > 0) {
-                   const activeProfile = this.appSettings?.profiles?.find((p: any) => p.id === this.appSettings.activeProfileId);
+                   const activeProfile = settings?.profiles?.find((p: any) => p.id === settings.activeProfileId);
                    const preferred = activeProfile ? this.availableModels().find((m: any) => m.id === activeProfile.model) : null;
                    this.selectedModel.set(preferred || this.availableModels()[0]);
                 }
@@ -304,13 +300,12 @@ export class ChatComponent implements OnDestroy {
   // ===== Public API (called by parent via ViewChild) =====
 
   setImage(image: string) {
-    this.attachedFileContent = image;
-    this.annotationContext = null;
-    this.cdr.markForCheck();
+    this.attachedFileContent.set(image);
+    this.annotationContext.set(null);
   }
 
   setAnnotatedImage(image: string, annotations: { texts: string[]; hasArrows: boolean; hasRectangles: boolean; hasFreehand: boolean }) {
-    this.attachedFileContent = image;
+    this.attachedFileContent.set(image);
 
     const parts: string[] = [];
     const markTypes: string[] = [];
@@ -325,21 +320,20 @@ export class ChatComponent implements OnDestroy {
       parts.push(`Text labels on the screenshot: ${annotations.texts.map(t => `"${t}"`).join(', ')}.`);
     }
 
-    this.annotationContext = parts.length > 0 ? parts.join(' ') : null;
-    this.cdr.markForCheck();
+    this.annotationContext.set(parts.length > 0 ? parts.join(' ') : null);
   }
 
   // ===== Quick Starters =====
 
   useQuickStarter(prompt: string) {
-    this.prompt = prompt;
-    this.chatInput?.focusAndResize();
+    this.prompt.set(prompt);
+    this.chatInput()?.focusAndResize();
   }
 
   // ===== Visual Editor =====
 
   onAiChangeRequested(prompt: string) {
-    this.prompt = prompt;
+    this.prompt.set(prompt);
     this.generate();
   }
 
@@ -353,18 +347,18 @@ export class ChatComponent implements OnDestroy {
   }
 
   private processFile(file: File) {
-    this.attachedFile = file;
+    this.attachedFile.set(file);
     const reader = new FileReader();
     reader.onload = (e: any) => {
-      this.attachedFileContent = e.target.result;
+      this.attachedFileContent.set(e.target.result);
     };
     reader.readAsDataURL(file);
   }
 
   removeAttachment() {
-    this.attachedFileContent = null;
-    this.attachedFile = null;
-    this.annotationContext = null;
+    this.attachedFileContent.set(null);
+    this.attachedFile.set(null);
+    this.annotationContext.set(null);
   }
 
   removeFigmaAttachment() {
@@ -382,7 +376,7 @@ export class ChatComponent implements OnDestroy {
     Errors:
     ${error}`;
 
-    this.prompt = repairPrompt;
+    this.prompt.set(repairPrompt);
     this.generate();
   }
 
@@ -616,15 +610,15 @@ export class ChatComponent implements OnDestroy {
 
     const frameList = payload.selection.map(s => `- ${s.nodeName} (${s.nodeType})`).join('\n');
 
-    this.prompt = `Create Angular components from this Figma design:
+    this.prompt.set(`Create Angular components from this Figma design:
 
 File: ${payload.fileName}
 Selected Frames:
 ${frameList}
 
-Please analyze the design images and structure, then create the corresponding Angular components with accurate styling.`;
+Please analyze the design images and structure, then create the corresponding Angular components with accurate styling.`);
 
-    this.chatInput?.focusAndResize();
+    this.chatInput()?.focusAndResize();
   }
 
   // ===== Context Files for Visual Edit =====
@@ -661,33 +655,33 @@ Please analyze the design images and structure, then create the corresponding An
   // ===== Generation =====
 
   async generate() {
-    if (!this.prompt) return;
+    if (!this.prompt()) return;
 
     this.messages.update(msgs => [...msgs, {
       role: 'user',
-      text: this.prompt,
+      text: this.prompt(),
       timestamp: new Date(),
       files: this.projectService.files()
     }]);
 
-    let currentPrompt = this.prompt;
-    this.prompt = '';
-    this.chatInput?.resetTextareaHeight();
+    let currentPrompt = this.prompt();
+    this.prompt.set('');
+    this.chatInput()?.resetTextareaHeight();
     this.loading.set(true);
     const generationStartTime = Date.now();
 
-    if (this.attachedFileContent && this.attachedFile) {
-      this.fileUploaded.emit({name: this.attachedFile.name, content: this.attachedFileContent});
+    if (this.attachedFileContent() && this.attachedFile()) {
+      this.fileUploaded.emit({name: this.attachedFile()!.name, content: this.attachedFileContent()!});
 
-      if (this.shouldAddToAssets() && this.isAttachedImage) {
-        const targetPath = `public/assets/${this.attachedFile.name}`;
+      if (this.shouldAddToAssets() && this.isAttachedImage()) {
+        const targetPath = `public/assets/${this.attachedFile()!.name}`;
         currentPrompt += `
 
-[System Note: I have automatically uploaded the attached image to "${targetPath}". You can use it in your code like <img src="assets/${this.attachedFile.name}">]`;
+[System Note: I have automatically uploaded the attached image to "${targetPath}". You can use it in your code like <img src="assets/${this.attachedFile()!.name}">]`;
       } else {
          currentPrompt += `
 
-[System Note: The user has attached a file named "${this.attachedFile.name}". It is available in the input context.]`;
+[System Note: The user has attached a file named "${this.attachedFile()!.name}". It is available in the input context.]`;
       }
     }
 
@@ -703,11 +697,11 @@ ${simplifiedContext}
 Analyze the attached design images carefully and create matching Angular components. The summary above provides structural hints.`;
     }
 
-    if (this.annotationContext) {
+    if (this.annotationContext()) {
       currentPrompt += `
 
-[Annotated Screenshot: The attached image is a screenshot of the user's live app with visual annotations drawn on top. The colored marks (arrows, rectangles, freehand strokes, text labels) are the user's annotations — NOT part of the actual app UI. ${this.annotationContext} Interpret these annotations as instructions for what the user wants changed in the code.]`;
-      this.annotationContext = null;
+[Annotated Screenshot: The attached image is a screenshot of the user's live app with visual annotations drawn on top. The colored marks (arrows, rectangles, freehand strokes, text labels) are the user's annotations — NOT part of the actual app UI. ${this.annotationContext()} Interpret these annotations as instructions for what the user wants changed in the code.]`;
+      this.annotationContext.set(null);
     }
 
     const assistantMsgIndex = this.messages().length;
@@ -730,9 +724,10 @@ Analyze the attached design images carefully and create matching Angular compone
     let model = '';
     let builtInTools: { webSearch?: boolean, urlContext?: boolean } | undefined;
 
-    if (this.appSettings) {
-      if (this.appSettings.profiles && this.appSettings.activeProfileId) {
-         const active = this.appSettings.profiles.find((p: any) => p.id === this.appSettings.activeProfileId);
+    const settings = this.appSettings();
+    if (settings) {
+      if (settings.profiles && settings.activeProfileId) {
+         const active = settings.profiles.find((p: any) => p.id === settings.activeProfileId);
          if (active) {
             provider = active.provider;
             apiKey = active.apiKey;
@@ -740,9 +735,9 @@ Analyze the attached design images carefully and create matching Angular compone
             builtInTools = active.builtInTools;
          }
       } else {
-         provider = this.appSettings.provider || provider;
-         apiKey = this.appSettings.apiKey || apiKey;
-         model = this.appSettings.model || model;
+         provider = settings.provider || provider;
+         apiKey = settings.apiKey || apiKey;
+         model = settings.model || model;
       }
     }
 
@@ -750,8 +745,8 @@ Analyze the attached design images carefully and create matching Angular compone
     if (currentSelection && currentSelection.id) {
         provider = currentSelection.provider;
         model = currentSelection.id;
-        if (this.appSettings?.profiles) {
-           const profileForProvider = this.appSettings.profiles.find((p: any) => p.provider === provider);
+        if (settings?.profiles) {
+           const profileForProvider = settings.profiles.find((p: any) => p.provider === provider);
            if (profileForProvider) {
                apiKey = profileForProvider.apiKey;
                builtInTools = profileForProvider.builtInTools;
@@ -760,8 +755,8 @@ Analyze the attached design images carefully and create matching Angular compone
     }
 
     const allImages: string[] = [];
-    if (this.attachedFileContent) {
-      allImages.push(this.attachedFileContent);
+    if (this.attachedFileContent()) {
+      allImages.push(this.attachedFileContent()!);
     }
     if (this.figmaImages().length > 0) {
       allImages.push(...this.figmaImages());
@@ -923,9 +918,9 @@ Analyze the attached design images carefully and create matching Angular compone
         } else if (event.type === 'result') {
           hasResult = true;
           try {
-            this.attachedFileContent = null;
-            this.attachedFile = null;
-            this.annotationContext = null;
+            this.attachedFileContent.set(null);
+            this.attachedFile.set(null);
+            this.annotationContext.set(null);
             this.figmaContext.set(null);
             this.figmaImages.set([]);
 
@@ -977,6 +972,8 @@ Analyze the attached design images carefully and create matching Angular compone
         } else if (err?.code === 'CONTAINER_CAPACITY_REACHED') {
           this.projectService.cloudEditorBlocked.set('capacity');
           this.projectService.addSystemMessage('Server is at capacity. Please try again later or use the desktop app.');
+        } else if (err?.status === 400 && err?.error?.includes('No API Key')) {
+          this.projectService.addSystemMessage('No API key configured for this provider. Go to Profile → API Keys to add one.');
         } else {
           this.projectService.addSystemMessage('Failed to generate code. Please try again.');
         }
@@ -1063,11 +1060,5 @@ Analyze the attached design images carefully and create matching Angular compone
         // Ignore
       }
     }
-  }
-
-  ngOnDestroy() {
-    this.activeSubscription?.unsubscribe();
-    this.destroy$.next();
-    this.destroy$.complete();
   }
 }

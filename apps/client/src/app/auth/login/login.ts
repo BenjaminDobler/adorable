@@ -1,5 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule, ActivatedRoute } from '@angular/router';
 import { finalize } from 'rxjs';
@@ -8,11 +7,11 @@ import { AuthService } from '../../services/auth';
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [FormsModule, RouterModule],
   templateUrl: './login.html',
   styleUrl: './login.scss',
 })
-export class LoginComponent implements OnInit {
+export class LoginComponent {
   private authService = inject(AuthService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
@@ -26,7 +25,7 @@ export class LoginComponent implements OnInit {
   githubLoginEnabled = signal(false);
   googleLoginEnabled = signal(false);
 
-  ngOnInit() {
+  constructor() {
     // Handle email verification redirect
     const verified = this.route.snapshot.queryParamMap.get('verified');
     if (verified === 'true') {

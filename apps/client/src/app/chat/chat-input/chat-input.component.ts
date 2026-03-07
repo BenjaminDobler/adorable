@@ -1,48 +1,48 @@
-import { Component, Input, Output, EventEmitter, ViewChild, ElementRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, input, output, signal, viewChild, ElementRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SafeUrlPipe } from '../../pipes/safe-url.pipe';
 
 @Component({
   selector: 'app-chat-input',
   standalone: true,
-  imports: [CommonModule, FormsModule, SafeUrlPipe],
+  imports: [FormsModule, SafeUrlPipe],
   templateUrl: './chat-input.html',
   styleUrls: ['./chat-input.scss']
 })
 export class ChatInputComponent {
-  @ViewChild('promptTextarea') private promptTextarea!: ElementRef;
-  @ViewChild('fileInput') fileInput!: ElementRef;
+  private promptTextarea = viewChild<ElementRef>('promptTextarea');
+  fileInput = viewChild<ElementRef>('fileInput');
 
-  @Input() loading = false;
-  @Input() prompt = '';
-  @Input() attachedFileContent: string | null = null;
-  @Input() attachedFile: File | null = null;
-  @Input() isAttachedImage = false;
-  @Input() shouldAddToAssets = true;
-  @Input() hasFigmaAttachment = false;
-  @Input() figmaFrameCount = 0;
-  @Input() figmaImages: string[] = [];
-  @Input() planMode = false;
-  @Input() compactMode = true;
-  @Input() aiSettingsOpen = false;
-  @Input() mcpToolsVisible = false;
-  @Input() mcpToolsCount = 0;
-  @Output() generateRequested = new EventEmitter<void>();
-  @Output() cancelGeneration = new EventEmitter<void>();
-  @Output() promptChange = new EventEmitter<string>();
-  @Output() fileSelected = new EventEmitter<Event>();
-  @Output() removeAttachment = new EventEmitter<void>();
-  @Output() removeFigmaAttachment = new EventEmitter<void>();
-  @Output() toggleAiSettings = new EventEmitter<MouseEvent>();
-  @Output() togglePlanMode = new EventEmitter<void>();
-  @Output() toggleCompactMode = new EventEmitter<void>();
-  @Output() toggleMcpTools = new EventEmitter<void>();
-  @Output() clearContext = new EventEmitter<void>();
-  @Output() previewImage = new EventEmitter<string>();
-  @Output() shouldAddToAssetsChange = new EventEmitter<boolean>();
+  loading = input(false);
+  prompt = input('');
+  attachedFileContent = input<string | null>(null);
+  attachedFile = input<File | null>(null);
+  isAttachedImage = input(false);
+  shouldAddToAssets = input(true);
+  hasFigmaAttachment = input(false);
+  figmaFrameCount = input(0);
+  figmaImages = input<string[]>([]);
+  planMode = input(false);
+  compactMode = input(true);
+  aiSettingsOpen = input(false);
+  mcpToolsVisible = input(false);
+  mcpToolsCount = input(0);
 
-  isDragging = false;
+  generateRequested = output<void>();
+  cancelGeneration = output<void>();
+  promptChange = output<string>();
+  fileSelected = output<Event>();
+  removeAttachment = output<void>();
+  removeFigmaAttachment = output<void>();
+  toggleAiSettings = output<MouseEvent>();
+  togglePlanMode = output<void>();
+  toggleCompactMode = output<void>();
+  toggleMcpTools = output<void>();
+  clearContext = output<void>();
+  previewImage = output<string>();
+  shouldAddToAssetsChange = output<boolean>();
+
+  isDragging = signal(false);
 
   onTextareaKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -52,7 +52,7 @@ export class ChatInputComponent {
   }
 
   autoResize(): void {
-    const textarea = this.promptTextarea?.nativeElement;
+    const textarea = this.promptTextarea()?.nativeElement;
     if (!textarea) return;
     textarea.style.transition = 'none';
     textarea.style.height = '0px';
@@ -62,7 +62,7 @@ export class ChatInputComponent {
   }
 
   resetTextareaHeight(): void {
-    const textarea = this.promptTextarea?.nativeElement;
+    const textarea = this.promptTextarea()?.nativeElement;
     if (!textarea) return;
     textarea.style.transition = 'none';
     textarea.style.height = '60px';
@@ -71,7 +71,7 @@ export class ChatInputComponent {
 
   focusAndResize(): void {
     setTimeout(() => {
-      const textarea = this.promptTextarea?.nativeElement;
+      const textarea = this.promptTextarea()?.nativeElement;
       if (textarea) {
         textarea.focus();
         this.autoResize();
@@ -81,10 +81,9 @@ export class ChatInputComponent {
 
   onDrop(event: DragEvent) {
     event.preventDefault();
-    this.isDragging = false;
+    this.isDragging.set(false);
     const file = event.dataTransfer?.files[0];
     if (file) {
-      // Create a synthetic event to pass the file
       const dt = new DataTransfer();
       dt.items.add(file);
       const syntheticEvent = { target: { files: dt.files } };
@@ -94,12 +93,12 @@ export class ChatInputComponent {
 
   onDragOver(event: DragEvent) {
     event.preventDefault();
-    this.isDragging = true;
+    this.isDragging.set(true);
   }
 
   onDragLeave(event: DragEvent) {
     event.preventDefault();
-    this.isDragging = false;
+    this.isDragging.set(false);
   }
 
   onPromptInput(value: string) {

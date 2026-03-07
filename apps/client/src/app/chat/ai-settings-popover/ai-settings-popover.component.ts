@@ -1,26 +1,25 @@
-import { Component, Input, Output, EventEmitter, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, input, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Skill } from '../../services/skills';
 
 @Component({
   selector: 'app-ai-settings-popover',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   templateUrl: './ai-settings-popover.html',
   styleUrls: ['./ai-settings-popover.scss']
 })
 export class AiSettingsPopoverComponent {
-  @Input() isOpen = false;
-  @Input() position = { bottom: 0, left: 0 };
-  @Input() availableModels: any[] = [];
-  @Input() selectedModel: any = null;
-  @Input() availableSkills: Skill[] = [];
-  @Input() selectedSkill: Skill | null = null;
-  @Input() reasoningEffort: 'low' | 'medium' | 'high' = 'high';
+  isOpen = input(false);
+  position = input({ bottom: 0, left: 0 });
+  availableModels = input<any[]>([]);
+  selectedModel = input<any>(null);
+  availableSkills = input<Skill[]>([]);
+  selectedSkill = input<Skill | null>(null);
+  reasoningEffort = input<'low' | 'medium' | 'high'>('high');
 
-  @Output() closed = new EventEmitter<void>();
-  @Output() modelChanged = new EventEmitter<any>();
-  @Output() skillChanged = new EventEmitter<Skill | null>();
-  @Output() reasoningEffortChanged = new EventEmitter<'low' | 'medium' | 'high'>();
+  closed = output<void>();
+  modelChanged = output<any>();
+  skillChanged = output<Skill | null>();
+  reasoningEffortChanged = output<'low' | 'medium' | 'high'>();
 }

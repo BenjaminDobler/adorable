@@ -8,7 +8,7 @@
   }
 
   <!-- Setup View - Not Configured -->
-  @if (view === 'setup') {
+  @if (view() === 'setup') {
     <div class="setup-view">
       <div class="figma-logo">
         <svg viewBox="0 0 38 57" width="48" height="72" fill="none">
@@ -67,7 +67,7 @@
   }
 
   <!-- Input View - Enter Figma URL -->
-  @if (view === 'input') {
+  @if (view() === 'input') {
     <div class="input-view">
       <div class="user-info">
         @if (figmaService.status().user; as user) {
@@ -178,7 +178,7 @@
   }
 
   <!-- Imports Detail View - Show layers with thumbnails -->
-  @if (view === 'imports') {
+  @if (view() === 'imports') {
     <div class="imports-view">
       <div class="tree-header">
         <button class="btn-back" (click)="closeImportsView()">
@@ -187,11 +187,11 @@
           </svg>
           Back
         </button>
-        <div class="file-name">{{ selectedImport?.fileName }}</div>
+        <div class="file-name">{{ selectedImport()?.fileName }}</div>
       </div>
 
       <div class="import-detail-content">
-        @for (node of getImportNodes(selectedImport!); track node.id) {
+        @for (node of getImportNodes(selectedImport()!); track node.id) {
           <div class="import-node">
             <div class="import-node-header" (click)="toggleImportNodeExpand(node.id)">
               <span class="expand-icon" [class.expanded]="isImportNodeExpanded(node.id)">
@@ -201,18 +201,18 @@
               </span>
               <span class="node-icon">{{ getNodeIcon(node.type) }}</span>
               <span class="node-name">{{ node.name }}</span>
-              <button class="btn-use-layer btn-use-frame" title="Use this frame in chat" (click)="useLayerInChat(node.document, selectedImport!, $event)">
+              <button class="btn-use-layer btn-use-frame" title="Use this frame in chat" (click)="useLayerInChat(node.document, selectedImport()!, $event)">
                 Use
               </button>
             </div>
 
             <!-- Node thumbnail with highlight overlay -->
-            @if (getNodeThumbnail(node.id, selectedImport!)) {
+            @if (getNodeThumbnail(node.id, selectedImport()!)) {
               <div class="import-node-preview">
-                <img #previewImg [src]="getNodeThumbnail(node.id, selectedImport!)" alt="{{ node.name }}" />
+                <img #previewImg [src]="getNodeThumbnail(node.id, selectedImport()!)" alt="{{ node.name }}" />
                 <div
                   class="layer-highlight"
-                  [ngStyle]="getHighlightStyle(selectedImport!, previewImg)"
+                  [ngStyle]="getHighlightStyle(selectedImport()!, previewImg)"
                 ></div>
               </div>
             }
@@ -220,7 +220,7 @@
             <!-- Node children (layers) -->
             @if (isImportNodeExpanded(node.id) && node.children?.length) {
               <div class="import-node-children">
-                <ng-container *ngTemplateOutlet="importNodeTree; context: { nodes: node.children, depth: 1, payload: selectedImport }"></ng-container>
+                <ng-container *ngTemplateOutlet="importNodeTree; context: { nodes: node.children, depth: 1, payload: selectedImport() }"></ng-container>
               </div>
             }
           </div>
@@ -236,7 +236,7 @@
   }
 
   <!-- Tree View - Select Frames -->
-  @if (view === 'tree') {
+  @if (view() === 'tree') {
     <div class="tree-view">
       <div class="tree-header">
         <button class="btn-back" (click)="goBack()">
@@ -249,7 +249,7 @@
       </div>
 
       <div class="selection-bar">
-        <span>{{ selectedCount }} selected</span>
+        <span>{{ selectedCount() }} selected</span>
         <button class="btn-link" (click)="clearSelection()">Clear all</button>
       </div>
 
@@ -285,13 +285,13 @@
       <div class="import-bar">
         <button
           class="btn-import"
-          [disabled]="selectedCount === 0 || importing()"
+          [disabled]="selectedCount() === 0 || importing()"
           (click)="importSelected()"
         >
           @if (importing()) {
             Importing...
           } @else {
-            Import {{ selectedCount }} frame{{ selectedCount !== 1 ? 's' : '' }} to Chat
+            Import {{ selectedCount() }} frame{{ selectedCount() !== 1 ? 's' : '' }} to Chat
           }
         </button>
       </div>

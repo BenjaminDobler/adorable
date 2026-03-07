@@ -1,5 +1,5 @@
 <div class="chat-messages" #scrollContainer (scroll)="onScroll()">
-  @for (msg of messages; track msg) {
+  @for (msg of messages(); track msg) {
     <div class="message" [class.user]="msg.role === 'user'" [class.assistant]="msg.role === 'assistant'" [class.system]="msg.role === 'system'">
       @if (msg.role === 'assistant') {
         <div class="assistant-header" style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; padding-left: 4px;">
@@ -46,12 +46,12 @@
                      class="tool-toggle-btn"
                      style="width: 100%; background: var(--bg-surface-2); border: 1px solid var(--panel-border); padding: 8px 12px; border-radius: var(--radius-md); cursor: pointer; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; transition: background 0.2s;">
                 <div style="display: flex; align-items: center; gap: 8px;">
-                   <svg [style.transform]="(msg.areToolsExpanded || !compactMode) ? 'rotate(180deg)' : 'rotate(0)'" style="transition: transform 0.2s;" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                   <svg [style.transform]="(msg.areToolsExpanded || !compactMode()) ? 'rotate(180deg)' : 'rotate(0)'" style="transition: transform 0.2s;" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg>
                    <span style="font-weight: 700; font-size: 0.75rem; color: var(--text-secondary);">
                      {{ msg.toolResults.length }} System Actions
                    </span>
                 </div>
-                @if (!msg.areToolsExpanded && compactMode) {
+                @if (!msg.areToolsExpanded && compactMode()) {
                    <span style="font-size: 0.7rem; color: var(--text-muted); max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'JetBrains Mono', monospace;">
                       Latest: {{ msg.toolResults[msg.toolResults.length - 1].tool }}
                    </span>
@@ -92,7 +92,7 @@
       @if (msg.pendingQuestion) {
         <app-question-panel
           [message]="msg"
-          [projectImageAssets]="projectImageAssets"
+          [projectImageAssets]="projectImageAssets()"
           (submitted)="questionSubmitted.emit($event)"
           (cancelled)="questionCancelled.emit($event)"
           (answerUpdated)="questionAnswerUpdated.emit($event)"
@@ -138,9 +138,9 @@
     </div>
   }
 
-  @if (messages.length <= 1 && !loading) {
+  @if (messages().length <= 1 && !loading()) {
     <div class="quick-starters" style="padding: 0 1.25rem 1.25rem 1.25rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-      @for (starter of quickStarters; track starter.label) {
+      @for (starter of quickStarters(); track starter.label) {
         <button (click)="useQuickStarter.emit(starter.prompt)" class="starter-card" style="background: var(--bg-surface-2); border: 1px solid var(--panel-border); padding: 16px; border-radius: var(--radius-lg); text-align: left; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); color: var(--text-primary); display: flex; flex-direction: column; gap: 6px; box-shadow: var(--shadow-sm);">
           <div style="font-weight: 700; font-size: 0.9rem; color: var(--accent-color); letter-spacing: -0.01em;">{{ starter.label }}</div>
           <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.5; font-weight: 500;">{{ starter.description }}</div>
@@ -149,7 +149,7 @@
     </div>
   }
 
-  @if (buildError) {
+  @if (buildError()) {
     <div class="error-alert" style="margin: 1.25rem; padding: 1.25rem; background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: var(--radius-lg); box-shadow: var(--shadow-md);">
       <div style="display: flex; gap: 12px; align-items: start; margin-bottom: 1rem;">
         <svg viewBox="0 0 24 24" width="20" height="20" stroke="var(--error-color)" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
@@ -159,7 +159,7 @@
         </div>
       </div>
       <div style="display: flex; gap: 10px;">
-        <button (click)="autoRepair.emit(buildError!)" style="flex: 1; background: var(--error-color); color: white; border: none; padding: 8px 12px; border-radius: var(--radius-md); font-size: 0.85rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 10px rgba(239, 68, 68, 0.3);">
+        <button (click)="autoRepair.emit(buildError()!)" style="flex: 1; background: var(--error-color); color: white; border: none; padding: 8px 12px; border-radius: var(--radius-md); font-size: 0.85rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 10px rgba(239, 68, 68, 0.3);">
           ✨ Fix with AI
         </button>
         <button (click)="dismissError.emit()" style="background: var(--bg-surface-3); border: 1px solid var(--panel-border); color: var(--text-secondary); padding: 8px 12px; border-radius: var(--radius-md); font-size: 0.85rem; font-weight: 600; cursor: pointer;">
@@ -169,7 +169,7 @@
     </div>
   }
 
-  @if (loading) {
+  @if (loading()) {
     <div class="message assistant loading" style="background: transparent;">
       <div class="typing-indicator">
         <span></span><span></span><span></span>

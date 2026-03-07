@@ -1,5 +1,4 @@
-import { Component, EventEmitter, Output, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, output, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SkillsService } from '../../services/skills';
 import { ToastService } from '../../services/toast';
@@ -14,7 +13,7 @@ interface RemoteSkill {
 @Component({
   selector: 'app-github-skill-dialog',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   template: `
     <div class="dialog-overlay" (click)="close.emit()">
       <div class="dialog-content" (click)="$event.stopPropagation()">
@@ -342,8 +341,8 @@ interface RemoteSkill {
   `]
 })
 export class GitHubSkillDialogComponent {
-  @Output() close = new EventEmitter<void>();
-  @Output() installed = new EventEmitter<string[]>();
+  close = output<void>();
+  installed = output<string[]>();
 
   private skillsService = inject(SkillsService);
   private toastService = inject(ToastService);

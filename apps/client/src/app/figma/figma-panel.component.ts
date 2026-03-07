@@ -1,5 +1,5 @@
-import { Component, inject, signal, output, OnInit, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, inject, signal, output, input, effect, computed } from '@angular/core';
+import { DecimalPipe, NgStyle, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FigmaService, FigmaNodeInfo, FigmaPageInfo } from '../services/figma.service';
 import { FigmaImportPayload } from '@adorable/shared-types';
@@ -7,21 +7,28 @@ import { FigmaImportPayload } from '@adorable/shared-types';
 @Component({
   selector: 'app-figma-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [DecimalPipe, NgStyle, NgTemplateOutlet, FormsModule],
   templateUrl: './figma-panel.component.html',
   styleUrls: ['./figma-panel.component.scss']
 })
-export class FigmaPanelComponent implements OnInit {
+export class FigmaPanelComponent {
   figmaService = inject(FigmaService);
 
   importToChat = output<FigmaImportPayload>();
   importsChanged = output<FigmaImportPayload[]>();
 
   // Stored imports (persisted with project)
-  @Input() set storedImports(imports: FigmaImportPayload[] | null) {
-    if (imports && imports.length > 0) {
-      this.importedPayloads.set(imports);
-    }
+  storedImports = input<FigmaImportPayload[] | null>(null);
+
+  constructor() {
+    effect(() => {
+      const imports = this.storedImports();
+      if (imports && imports.length > 0) {
+        this.importedPayloads.set(imports);
+      }
+    });
+    // Check Figma status on init
+    this.figmaService.checkStatus().subscribe();
   }
 
   // Local state
@@ -38,12 +45,7 @@ export class FigmaPanelComponent implements OnInit {
   expandedImportNodes = signal<Set<string>>(new Set());
   hoveredNode = signal<any | null>(null);
 
-  ngOnInit() {
-    this.figmaService.checkStatus().subscribe();
-  }
-
-  get view(): 'setup' | 'input' | 'tree' | 'imports' {
-    // Show imports view if we have stored imports and no active file loaded
+  view = computed<'setup' | 'input' | 'tree' | 'imports'>(() => {
     if (this.selectedImportIndex() !== null) {
       return 'imports';
     }
@@ -54,7 +56,7 @@ export class FigmaPanelComponent implements OnInit {
       return 'input';
     }
     return 'tree';
-  }
+  });
 
   loadFile() {
     const url = this.figmaUrl();
@@ -110,9 +112,7 @@ export class FigmaPanelComponent implements OnInit {
     this.figmaService.clearSelection();
   }
 
-  get selectedCount(): number {
-    return this.figmaService.selectedNodes().size;
-  }
+  selectedCount = computed(() => this.figmaService.selectedNodes().size);
 
   async importSelected() {
     const file = this.figmaService.currentFile();
@@ -204,12 +204,11 @@ export class FigmaPanelComponent implements OnInit {
     return this.expandedImportNodes().has(nodeId);
   }
 
-  // Get the currently selected import
-  get selectedImport(): FigmaImportPayload | null {
+  selectedImport = computed(() => {
     const index = this.selectedImportIndex();
     if (index === null) return null;
     return this.importedPayloads()[index] || null;
-  }
+  });
 
   // Get nodes from jsonStructure for tree display
   getImportNodes(payload: FigmaImportPayload): any[] {
