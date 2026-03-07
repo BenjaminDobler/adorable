@@ -17,6 +17,22 @@ const desktopRedirectGuard: CanActivateFn = () => {
 };
 
 /**
+ * Guard for the landing page: redirects to dashboard if already authenticated,
+ * and to dashboard in desktop mode.
+ */
+const landingGuard: CanActivateFn = () => {
+  const electronAPI = (window as any).electronAPI;
+  if (electronAPI?.isDesktop) {
+    return inject(Router).createUrlTree(['/dashboard']);
+  }
+  const authService = inject(AuthService);
+  if (authService.isAuthenticated()) {
+    return inject(Router).createUrlTree(['/dashboard']);
+  }
+  return true;
+};
+
+/**
  * Guard that protects routes requiring authentication.
  * In desktop mode, waits for auto-login to complete before checking.
  */
@@ -139,7 +155,8 @@ export const routes: Routes = [
   },
   {
     path: '',
-    redirectTo: 'dashboard',
+    canActivate: [landingGuard],
+    loadComponent: () => import('./landing/landing').then(m => m.LandingComponent),
     pathMatch: 'full'
   }
 ];

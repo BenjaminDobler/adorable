@@ -1,0 +1,115 @@
+<div class="landing">
+  <!-- Hero -->
+  <header class="hero">
+    <div class="hero-brand">
+      <img src="logo.png" alt="A" class="hero-logo" /><span>dorable</span>
+    </div>
+    <div class="hero-badge">
+      <span class="badge-dot"></span>
+      Free &amp; Open Source &mdash; Bring Your Own AI
+    </div>
+    <h1>Build Angular apps<br><span class="accent">with AI.</span></h1>
+    <p class="hero-sub">
+      Describe what you want. Adorable generates production-ready Angular code,
+      previews it live, and lets you iterate in real time.
+      <strong>Free and open source</strong> — bring your own API key.
+    </p>
+    <div class="hero-actions">
+      <a routerLink="/register" class="btn-primary">Try it free</a>
+      <a [href]="desktopDownloadUrl" target="_blank" rel="noopener" class="btn-secondary">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download Desktop
+      </a>
+      <a [href]="githubUrl" target="_blank" rel="noopener" class="btn-ghost">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </header>
+
+  <!-- Screenshots -->
+  <section class="screenshot-section">
+    <div class="screenshot-frame">
+      <div class="screenshot-bar">
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+      </div>
+      <div class="screenshot-container">
+        @for (src of screenshots; track src; let i = $index) {
+          <img [src]="src" alt="Adorable editor screenshot" class="screenshot-img" [class.active]="activeIndex() === i" />
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features">
+    <h2>Everything you need to ship Angular.</h2>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <h3>Natural Language to App</h3>
+        <p>Describe your idea in plain words. Adorable generates components, services, routes, and styles — real Angular code, not templates.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+        </div>
+        <h3>Live Preview</h3>
+        <p>See your app running as it's being built. Hot reload updates the preview instantly — no waiting for builds or deployments.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"/>
+            <rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/>
+          </svg>
+        </div>
+        <h3>Component Kit System</h3>
+        <p>Teach the AI your design system. Import component kits so generated code follows your patterns, not generic ones.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+        </div>
+        <h3>Your Keys, Your Models</h3>
+        <p>Bring your own API key from Anthropic, Google, or others. No subscription, no usage fees from us. Run in the browser or download the desktop app — full control either way.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="landing-footer">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <img src="logo.png" alt="Adorable" class="footer-logo" />
+        <span class="footer-tagline">Made in Berlin</span>
+      </div>
+      <div class="footer-links">
+        <a [href]="githubUrl" target="_blank" rel="noopener">GitHub</a>
+        <a routerLink="/impressum">Impressum</a>
+        <a routerLink="/privacy">Privacy</a>
+      </div>
+    </div>
+  </footer>
+</div>
