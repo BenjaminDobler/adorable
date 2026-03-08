@@ -1,7 +1,7 @@
 import { Routes, CanActivateFn, Router } from '@angular/router';
 import { inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { AuthService } from './services/auth';
+import { AuthService } from './core/services/auth';
 
 /**
  * Guard that redirects away from login/register in desktop mode.
@@ -88,75 +88,75 @@ export const routes: Routes = [
   {
     path: 'login',
     canActivate: [desktopRedirectGuard],
-    loadComponent: () => import('./auth/login/login').then(m => m.LoginComponent)
+    loadComponent: () => import('./features/auth/login/login').then(m => m.LoginComponent)
   },
   {
     path: 'register',
     canActivate: [desktopRedirectGuard],
-    loadComponent: () => import('./auth/register/register').then(m => m.RegisterComponent)
+    loadComponent: () => import('./features/auth/register/register').then(m => m.RegisterComponent)
   },
   {
     path: 'forgot-password',
     canActivate: [desktopRedirectGuard],
-    loadComponent: () => import('./auth/forgot-password/forgot-password').then(m => m.ForgotPasswordComponent)
+    loadComponent: () => import('./features/auth/forgot-password/forgot-password').then(m => m.ForgotPasswordComponent)
   },
   {
     path: 'reset-password',
     canActivate: [desktopRedirectGuard],
-    loadComponent: () => import('./auth/reset-password/reset-password').then(m => m.ResetPasswordComponent)
+    loadComponent: () => import('./features/auth/reset-password/reset-password').then(m => m.ResetPasswordComponent)
   },
   {
     path: 'dashboard',
     canActivate: [authGuard],
-    loadComponent: () => import('./dashboard/dashboard').then(m => m.DashboardComponent)
+    loadComponent: () => import('./features/dashboard/dashboard').then(m => m.DashboardComponent)
   },
   {
     path: 'profile',
     canActivate: [authGuard],
-    loadComponent: () => import('./profile/profile').then(m => m.ProfileComponent)
+    loadComponent: () => import('./features/profile/profile').then(m => m.ProfileComponent)
   },
   {
     path: 'kit-builder/new',
     canActivate: [authGuard],
-    loadComponent: () => import('./dashboard/kit-builder/kit-builder').then(m => m.KitBuilderComponent)
+    loadComponent: () => import('./features/dashboard/kit-builder/kit-builder').then(m => m.KitBuilderComponent)
   },
   {
     path: 'kit-builder/:id',
     canActivate: [authGuard],
-    loadComponent: () => import('./dashboard/kit-builder/kit-builder').then(m => m.KitBuilderComponent)
+    loadComponent: () => import('./features/dashboard/kit-builder/kit-builder').then(m => m.KitBuilderComponent)
   },
   {
     path: 'teams/:teamId',
     canActivate: [authGuard],
-    loadComponent: () => import('./team-settings/team-settings').then(m => m.TeamSettingsComponent)
+    loadComponent: () => import('./features/teams/team-settings').then(m => m.TeamSettingsComponent)
   },
   {
     path: 'analytics',
     canActivate: [authGuard],
-    loadComponent: () => import('./analytics/analytics').then(m => m.AnalyticsComponent)
+    loadComponent: () => import('./features/analytics/analytics').then(m => m.AnalyticsComponent)
   },
   {
     path: 'cloud-blocked',
     canActivate: [authGuard],
-    loadComponent: () => import('./cloud-blocked/cloud-blocked').then(m => m.CloudBlockedComponent)
+    loadComponent: () => import('./pages/cloud-blocked/cloud-blocked').then(m => m.CloudBlockedComponent)
   },
   {
     path: 'editor/:id',
     canActivate: [authGuard, cloudEditorGuard],
-    loadComponent: () => import('./workspace/workspace.component').then(m => m.WorkspaceComponent)
+    loadComponent: () => import('./features/editor/workspace/workspace.component').then(m => m.WorkspaceComponent)
   },
   {
     path: 'impressum',
-    loadComponent: () => import('./legal/impressum/impressum').then(m => m.ImpressumComponent)
+    loadComponent: () => import('./pages/legal/impressum/impressum').then(m => m.ImpressumComponent)
   },
   {
     path: 'privacy',
-    loadComponent: () => import('./legal/privacy/privacy').then(m => m.PrivacyComponent)
+    loadComponent: () => import('./pages/legal/privacy/privacy').then(m => m.PrivacyComponent)
   },
   {
     path: '',
     canActivate: [landingGuard],
-    loadComponent: () => import('./landing/landing').then(m => m.LandingComponent),
+    loadComponent: () => import('./pages/landing/landing').then(m => m.LandingComponent),
     pathMatch: 'full'
   }
 ];

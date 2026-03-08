@@ -1,13 +1,13 @@
 import { Component, inject, computed, signal, OnInit, OnDestroy, NgZone } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import { NavbarComponent } from './navbar/navbar';
-import { LayoutService } from './services/layout';
-import { ThemeService } from './services/theme';
-import { ProjectService } from './services/project';
-import { ToastComponent } from './ui/toast/toast.component';
-import { ConfirmDialogComponent } from './ui/confirm-dialog/confirm-dialog.component';
-import { CookieBannerComponent } from './legal/cookie-banner/cookie-banner';
-import { isDesktopApp } from './services/smart-container.engine';
+import { NavbarComponent } from './core/layout/navbar/navbar';
+import { LayoutService } from './core/services/layout';
+import { ThemeService } from './core/services/theme';
+import { ProjectService } from './core/services/project';
+import { ToastComponent } from './shared/ui/toast/toast.component';
+import { ConfirmDialogComponent } from './shared/ui/confirm-dialog/confirm-dialog.component';
+import { CookieBannerComponent } from './pages/legal/cookie-banner/cookie-banner';
+import { isDesktopApp } from './core/services/smart-container.engine';
 import { DecimalPipe } from '@angular/common';
 
 @Component({
