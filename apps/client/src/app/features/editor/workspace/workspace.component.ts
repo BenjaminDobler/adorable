@@ -107,6 +107,7 @@ export class WorkspaceComponent implements AfterViewChecked {
   sidebarWidth = signal(400);
   sidebarPopoverOpen = signal(false);
   editorHeight = signal(50);
+  editorSplitDirection = signal<'horizontal' | 'vertical'>('horizontal');
   isResizingEditor = false;
   isResizingSidebar = false;
 
@@ -457,9 +458,15 @@ export class WorkspaceComponent implements AfterViewChecked {
       const container = document.querySelector('.preview-area');
       if (container) {
         const rect = container.getBoundingClientRect();
-        const relativeY = event.clientY - rect.top;
-        const percentage = (relativeY / rect.height) * 100;
-        this.editorHeight.set(Math.min(Math.max(percentage, 10), 90));
+        if (this.editorSplitDirection() === 'vertical') {
+          const relativeX = event.clientX - rect.left;
+          const percentage = (relativeX / rect.width) * 100;
+          this.editorHeight.set(Math.min(Math.max(percentage, 10), 90));
+        } else {
+          const relativeY = event.clientY - rect.top;
+          const percentage = (relativeY / rect.height) * 100;
+          this.editorHeight.set(Math.min(Math.max(percentage, 10), 90));
+        }
       }
       return;
     }

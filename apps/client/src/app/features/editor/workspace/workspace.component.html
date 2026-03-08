@@ -127,13 +127,27 @@
 
   <div class="resizer-sidebar" (mousedown)="startSidebarResizing($event)"></div>
 
-  <main class="preview-area">
+  <main class="preview-area" [class.split-vertical]="activeTab() === 'files' && editorSplitDirection() === 'vertical'">
     <div
       class="editor-frame-container"
       [style.display]="activeTab() === 'files' ? 'flex' : 'none'"
-      [style.height.%]="editorHeight()"
       [style.flex]="'0 0 ' + editorHeight() + '%'"
     >
+      <button
+        class="split-toggle-btn"
+        (click)="editorSplitDirection.set(editorSplitDirection() === 'horizontal' ? 'vertical' : 'horizontal')"
+        [title]="editorSplitDirection() === 'horizontal' ? 'Switch to vertical split' : 'Switch to horizontal split'"
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          @if (editorSplitDirection() === 'horizontal') {
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <line x1="12" y1="3" x2="12" y2="21"/>
+          } @else {
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+          }
+        </svg>
+      </button>
       @if (selectedFileName()) { @if (isImage(selectedFileName())) {
       <div
         style="
