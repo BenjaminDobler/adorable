@@ -80,30 +80,33 @@ import { AdminApiService } from '../services/admin-api';
     .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
     h2 { margin: 0; font-weight: 700; }
     .btn-refresh {
-      background: #2e2e3e;
-      border: 1px solid #3e3e4e;
-      color: #ccc;
+      background: var(--bg-surface-3);
+      border: 1px solid var(--panel-border-hover);
+      color: var(--text-secondary);
       padding: 6px 14px;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       font-size: 0.8rem;
+      transition: all 0.2s var(--ease-out-expo);
     }
-    .btn-refresh:hover { background: #3e3e4e; }
+    .btn-refresh:hover { background: var(--bg-surface-4); color: var(--text-primary); }
     .stats-row { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
     .stat-card {
-      background: #1e1e2e;
-      border: 1px solid #2e2e3e;
-      border-radius: 8px;
+      background: var(--bg-surface-1);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-lg);
       padding: 1rem 1.5rem;
       display: flex;
       flex-direction: column;
       min-width: 100px;
+      transition: all 0.25s var(--ease-out-expo);
     }
-    .stat-value { font-size: 1.5rem; font-weight: 700; }
-    .stat-value.running { color: #22c55e; }
-    .stat-value.paused { color: #eab308; }
-    .stat-value.stopped { color: #ef4444; }
-    .stat-label { font-size: 0.75rem; color: #888; margin-top: 2px; }
+    .stat-card:hover { border-color: var(--panel-border-hover); box-shadow: var(--shadow-md); }
+    .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); }
+    .stat-value.running { color: var(--success-color); }
+    .stat-value.paused { color: var(--warning-color); }
+    .stat-value.stopped { color: var(--error-color); }
+    .stat-label { font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px; }
     .data-table {
       width: 100%;
       border-collapse: collapse;
@@ -112,34 +115,35 @@ import { AdminApiService } from '../services/admin-api';
     .data-table th, .data-table td {
       padding: 0.75rem;
       text-align: left;
-      border-bottom: 1px solid #2e2e3e;
+      border-bottom: 1px solid var(--panel-border);
     }
-    .data-table th { color: #888; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
-    code { background: #2e2e3e; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; }
+    .data-table th { color: var(--text-secondary); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+    code { background: var(--bg-surface-3); padding: 2px 6px; border-radius: var(--radius-xs); font-size: 0.8rem; }
     .badge {
       padding: 2px 8px;
-      border-radius: 4px;
+      border-radius: var(--radius-xs);
       font-size: 0.75rem;
       font-weight: 600;
     }
-    .badge.running { background: #16432a; color: #22c55e; }
-    .badge.paused { background: #3d3213; color: #eab308; }
-    .badge.exited, .badge.stopped { background: #3a1a1a; color: #ef4444; }
-    .badge.unknown { background: #2e2e3e; color: #888; }
+    .badge.running { background: rgba(52, 211, 153, 0.12); color: var(--success-color); }
+    .badge.paused { background: rgba(251, 191, 36, 0.12); color: var(--warning-color); }
+    .badge.exited, .badge.stopped { background: rgba(248, 113, 113, 0.12); color: var(--error-color); }
+    .badge.unknown { background: var(--bg-surface-3); color: var(--text-secondary); }
     .actions { display: flex; gap: 0.5rem; }
     .btn-small {
-      background: #2e2e3e;
-      border: 1px solid #3e3e4e;
-      color: #ccc;
+      background: var(--bg-surface-3);
+      border: 1px solid var(--panel-border-hover);
+      color: var(--text-secondary);
       padding: 4px 10px;
-      border-radius: 4px;
+      border-radius: var(--radius-xs);
       cursor: pointer;
       font-size: 0.75rem;
+      transition: all 0.2s var(--ease-out-expo);
     }
-    .btn-small:hover { background: #3e3e4e; }
-    .btn-small.danger { color: #ef4444; }
-    .btn-small.danger:hover { background: #3a1a1a; }
-    .empty { color: #888; padding: 2rem; text-align: center; }
+    .btn-small:hover { background: var(--bg-surface-4); color: var(--text-primary); }
+    .btn-small.danger { color: var(--error-color); }
+    .btn-small.danger:hover { background: rgba(248, 113, 113, 0.1); }
+    .empty { color: var(--text-secondary); padding: 2rem; text-align: center; }
   `],
 })
 export class ContainersComponent implements OnInit, OnDestroy {

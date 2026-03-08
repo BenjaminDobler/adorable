@@ -93,25 +93,26 @@ import { AdminApiService } from '../services/admin-api';
     h2 { margin: 0; font-weight: 700; }
     h3 { margin: 2rem 0 1rem; font-weight: 600; font-size: 1rem; }
     .btn-back {
-      background: #2e2e3e;
-      border: 1px solid #3e3e4e;
-      color: #ccc;
+      background: var(--bg-surface-3);
+      border: 1px solid var(--panel-border-hover);
+      color: var(--text-secondary);
       padding: 6px 12px;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       font-size: 0.8rem;
+      transition: all 0.2s var(--ease-out-expo);
     }
-    .btn-back:hover { background: #3e3e4e; }
-    .slug code { background: #2e2e3e; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; }
-    .created { color: #888; font-size: 0.8rem; }
+    .btn-back:hover { background: var(--bg-surface-4); color: var(--text-primary); }
+    .slug code { background: var(--bg-surface-3); padding: 2px 6px; border-radius: var(--radius-xs); font-size: 0.8rem; }
+    .created { color: var(--text-secondary); font-size: 0.8rem; }
     .stats-row { display: flex; gap: 0.75rem; margin-bottom: 1rem; }
     .stat-badge {
-      background: #1e1e2e;
-      border: 1px solid #2e2e3e;
+      background: var(--bg-surface-1);
+      border: 1px solid var(--panel-border);
       padding: 6px 14px;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       font-size: 0.85rem;
-      color: #ccc;
+      color: var(--text-secondary);
     }
     .data-table {
       width: 100%;
@@ -121,41 +122,43 @@ import { AdminApiService } from '../services/admin-api';
     .data-table th, .data-table td {
       padding: 0.75rem;
       text-align: left;
-      border-bottom: 1px solid #2e2e3e;
+      border-bottom: 1px solid var(--panel-border);
     }
-    .data-table th { color: #888; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
-    code { background: #2e2e3e; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; }
+    .data-table th { color: var(--text-secondary); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+    code { background: var(--bg-surface-3); padding: 2px 6px; border-radius: var(--radius-xs); font-size: 0.8rem; }
     .badge {
-      background: #2e2e3e;
+      background: var(--bg-surface-3);
       padding: 2px 8px;
-      border-radius: 4px;
+      border-radius: var(--radius-xs);
       font-size: 0.75rem;
+      color: var(--text-secondary);
     }
-    .badge.owner { background: #3b82f6; color: #fff; }
-    .badge.admin { background: #8b5cf6; color: #fff; }
-    .badge.used { background: #2e2e3e; color: #888; }
-    .badge.expired { background: #3a1a1a; color: #ef4444; }
+    .badge.owner { background: var(--accent-color); color: #000; }
+    .badge.admin { background: var(--accent-purple); color: #000; }
+    .badge.used { background: var(--bg-surface-3); color: var(--text-secondary); }
+    .badge.expired { background: rgba(248, 113, 113, 0.12); color: var(--error-color); }
     .danger-zone {
       margin-top: 3rem;
       padding: 1.5rem;
-      border: 1px solid #3a1a1a;
-      border-radius: 8px;
-      background: #1a1a1a;
+      border: 1px solid rgba(248, 113, 113, 0.2);
+      border-radius: var(--radius-lg);
+      background: rgba(248, 113, 113, 0.05);
     }
-    .danger-zone h3 { margin: 0 0 0.5rem; color: #ef4444; }
-    .danger-zone p { color: #888; font-size: 0.85rem; margin: 0 0 1rem; }
+    .danger-zone h3 { margin: 0 0 0.5rem; color: var(--error-color); }
+    .danger-zone p { color: var(--text-secondary); font-size: 0.85rem; margin: 0 0 1rem; }
     .btn-danger {
-      background: #ef4444;
+      background: var(--error-color);
       border: none;
       color: #fff;
       padding: 8px 16px;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       font-size: 0.85rem;
       font-weight: 600;
+      transition: all 0.2s var(--ease-out-expo);
     }
-    .btn-danger:hover { background: #dc2626; }
-    .loading { color: #888; padding: 2rem; text-align: center; }
+    .btn-danger:hover { background: #ef4444; transform: translateY(-1px); box-shadow: 0 0 15px var(--error-glow); }
+    .loading { color: var(--text-secondary); padding: 2rem; text-align: center; }
   `],
 })
 export class TeamDetailComponent implements OnInit {

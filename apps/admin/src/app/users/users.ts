@@ -79,41 +79,43 @@ import { AdminApiService } from '../services/admin-api';
     .data-table th, .data-table td {
       padding: 0.75rem;
       text-align: left;
-      border-bottom: 1px solid #2e2e3e;
+      border-bottom: 1px solid var(--panel-border);
     }
-    .data-table th { color: #888; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table th { color: var(--text-secondary); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
     tr.disabled { opacity: 0.5; }
     .badge {
-      background: #2e2e3e;
+      background: var(--bg-surface-3);
       padding: 2px 8px;
-      border-radius: 4px;
+      border-radius: var(--radius-xs);
       font-size: 0.75rem;
+      color: var(--text-secondary);
     }
-    .badge.admin { background: #3b82f6; color: #fff; }
+    .badge.admin { background: var(--accent-color); color: #000; }
     .status-dot {
       display: inline-block;
       width: 8px; height: 8px;
       border-radius: 50%;
-      background: #ef4444;
+      background: var(--error-color);
       margin-right: 4px;
     }
-    .status-dot.active { background: #22c55e; }
+    .status-dot.active { background: var(--success-color); }
     .actions { display: flex; gap: 0.5rem; }
     .btn-small {
-      background: #2e2e3e;
-      border: 1px solid #3e3e4e;
-      color: #ccc;
+      background: var(--bg-surface-3);
+      border: 1px solid var(--panel-border-hover);
+      color: var(--text-secondary);
       padding: 4px 10px;
-      border-radius: 4px;
+      border-radius: var(--radius-xs);
       cursor: pointer;
       font-size: 0.75rem;
+      transition: all 0.2s var(--ease-out-expo);
     }
-    .btn-small:hover { background: #3e3e4e; }
-    .btn-small.allowed { color: #22c55e; border-color: #22c55e33; }
-    .btn-small.danger { color: #ef4444; }
-    .btn-small.danger:hover { background: #3a1a1a; }
-    .btn-small.export { color: #60a5fa; }
-    .btn-small.export:hover { background: #1a2a3a; }
+    .btn-small:hover { background: var(--bg-surface-4); color: var(--text-primary); }
+    .btn-small.allowed { color: var(--success-color); border-color: rgba(52, 211, 153, 0.2); }
+    .btn-small.danger { color: var(--error-color); }
+    .btn-small.danger:hover { background: rgba(248, 113, 113, 0.1); }
+    .btn-small.export { color: var(--accent-blue); }
+    .btn-small.export:hover { background: rgba(96, 165, 250, 0.1); }
     .btn-small:disabled { opacity: 0.4; cursor: not-allowed; }
   `],
 })
