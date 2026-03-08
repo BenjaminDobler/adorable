@@ -1,0 +1,79 @@
+@use '../profile-shared';
+
+.providers-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  @media (max-width: 700px) { grid-template-columns: 1fr; }
+}
+
+.provider-card {
+  background: var(--bg-surface-2);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: all 0.2s;
+  &:hover { border-color: var(--text-muted); }
+  &.active {
+    border-color: var(--accent-color);
+    background: var(--accent-glow);
+  }
+
+  .provider-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.02);
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .provider-name {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+  }
+
+  .provider-body { padding: 1rem; }
+
+  .radio-circle {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--panel-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-surface-1);
+    transition: all 0.2s;
+
+    .radio-inner {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-color);
+      box-shadow: 0 0 6px var(--accent-color);
+    }
+  }
+
+  &.active .radio-circle {
+    border-color: var(--accent-color);
+  }
+}
+
+.active-badge {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(62, 207, 142, 0.15);
+  color: var(--accent-color);
+  padding: 0.2rem 0.5rem;
+  border-radius: 99px;
+  font-weight: 700;
+}

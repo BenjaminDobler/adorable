@@ -1,0 +1,19 @@
+@use '../profile-shared';
+
+.theme-selectors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  @media (max-width: 500px) { grid-template-columns: 1fr; }
+}
+
+.theme-auto-hint {
+  margin-top: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  background: rgba(62, 207, 142, 0.08);
+  border: 1px solid rgba(62, 207, 142, 0.2);
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  &::before { content: '💡 '; }
+}

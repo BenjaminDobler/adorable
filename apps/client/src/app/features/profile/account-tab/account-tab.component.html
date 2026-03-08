@@ -1,0 +1,75 @@
+<section class="settings-card">
+  <div class="card-header">
+    <h3>User Information</h3>
+  </div>
+  <div class="card-body">
+    <div class="form-group">
+      <label>Email</label>
+      <div class="read-only">{{ user()?.email }}</div>
+    </div>
+
+    <div class="form-group">
+      <label>Display Name</label>
+      <input type="text" [ngModel]="name()" (ngModelChange)="nameChange.emit($event)" placeholder="Your name" />
+    </div>
+  </div>
+</section>
+
+<section class="settings-card">
+  <div class="card-header">
+    <h3>Appearance</h3>
+  </div>
+  <div class="card-body">
+    <div class="theme-selectors">
+      <div class="form-group">
+        <label>Theme</label>
+        <select
+          [ngModel]="settings().themeSettings?.type || 'standard'"
+          (ngModelChange)="themeTypeChange.emit($event)"
+        >
+          <option value="standard">Standard</option>
+          <option value="pro">Pro (Compact)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Mode</label>
+        <select
+          [ngModel]="settings().themeSettings?.mode || 'dark'"
+          (ngModelChange)="themeModeChange.emit($event)"
+        >
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+          <option value="auto">Auto (System)</option>
+        </select>
+      </div>
+    </div>
+    @if (settings().themeSettings?.mode === 'auto') {
+      <div class="theme-auto-hint">
+        Currently using {{ themeService.resolvedMode() }} mode based on system preference
+      </div>
+    }
+  </div>
+</section>
+
+<section class="settings-card">
+  <div class="card-header">
+    <h3>Developer</h3>
+    <p>Debug options for development and troubleshooting.</p>
+  </div>
+  <div class="card-body">
+    <div class="header-with-toggle">
+      <div>
+        <label>Show internal files</label>
+        <small class="help-text">Show the <code>.adorable/</code> folder in the file explorer to inspect generated component docs.</small>
+      </div>
+      <label class="switch">
+        <input
+          type="checkbox"
+          [ngModel]="fileExplorerState.showInternalFiles()"
+          (ngModelChange)="fileExplorerState.setShowInternalFiles($event)"
+        >
+        <span class="slider round"></span>
+      </label>
+    </div>
+  </div>
+</section>

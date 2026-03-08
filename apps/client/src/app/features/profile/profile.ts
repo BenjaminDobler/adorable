@@ -1,76 +1,35 @@
 import { Component, inject, signal, OnInit, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { ApiService } from '../../core/services/api';
 import { Router, ActivatedRoute } from '@angular/router';
-import { ThemeService, ThemeType, ThemeMode, ThemeSettings, ThemeCombined } from '../../core/services/theme';
+import { ThemeService, ThemeType, ThemeMode, ThemeSettings } from '../../core/services/theme';
 import { ToastService } from '../../core/services/toast';
 import { GitHubService } from '../../core/services/github.service';
 import { isDesktopApp } from '../../core/services/smart-container.engine';
-import { FileExplorerState } from '../editor/file-explorer/file-explorer';
 import { CloudSyncService } from '../../core/services/cloud-sync.service';
 import { CloudConnectComponent } from '../../shared/ui/cloud-connect/cloud-connect.component';
+import { AppSettings, AIProfile, BuiltInToolConfig, SapAiCoreConfig, MCPServerConfig } from './profile.types';
 
-export type ProviderType = 'anthropic' | 'gemini' | 'figma';
-export type MCPAuthType = 'none' | 'bearer';
-export type MCPTransport = 'http' | 'stdio';
-
-export interface BuiltInToolConfig {
-  webSearch?: boolean;
-  urlContext?: boolean;
-}
-
-export interface SapAiCoreConfig {
-  enabled: boolean;
-  authUrl: string;
-  clientId: string;
-  clientSecret: string;
-  resourceGroup: string;
-}
-
-export interface AIProfile {
-  id: string;
-  name: string;
-  provider: ProviderType;
-  apiKey: string;
-  model: string;
-  baseUrl?: string; // Optional custom API base URL (e.g., for company proxy)
-  builtInTools?: BuiltInToolConfig;
-  sapAiCore?: SapAiCoreConfig;
-}
-
-export interface MCPServerConfig {
-  id: string;
-  name: string;
-  transport: MCPTransport;
-  // HTTP transport
-  url?: string;
-  authType?: MCPAuthType;
-  apiKey?: string;
-  // stdio transport
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  // Common
-  enabled: boolean;
-  lastError?: string;
-}
-
-export interface AppSettings {
-  profiles: AIProfile[];
-  activeProfileId: string;
-  theme?: ThemeCombined; // Legacy: combined theme mode
-  themeSettings?: ThemeSettings; // New: separate type and mode
-  mcpServers?: MCPServerConfig[];
-  angularMcpEnabled?: boolean;
-  kitLessonsEnabled?: boolean; // Enable AI lesson capture during kit sessions (default: true)
-}
+import { AccountTabComponent } from './account-tab/account-tab.component';
+import { ProvidersTabComponent } from './providers-tab/providers-tab.component';
+import { IntegrationsTabComponent } from './integrations-tab/integrations-tab.component';
+import { McpTabComponent } from './mcp-tab/mcp-tab.component';
+import { AboutTabComponent } from './about-tab/about-tab.component';
 
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, CloudConnectComponent],
+  imports: [
+    FormsModule,
+    RouterModule,
+    CloudConnectComponent,
+    AccountTabComponent,
+    ProvidersTabComponent,
+    IntegrationsTabComponent,
+    McpTabComponent,
+    AboutTabComponent
+  ],
   templateUrl: './profile.html',
   styleUrl: './profile.scss',
 })
@@ -78,10 +37,9 @@ export class ProfileComponent implements OnInit {
   private apiService = inject(ApiService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
-  public themeService = inject(ThemeService);
+  private themeService = inject(ThemeService);
   private toastService = inject(ToastService);
-  public githubService = inject(GitHubService);
-  public fileExplorerState = inject(FileExplorerState);
+  private githubService = inject(GitHubService);
   public cloudSyncService = inject(CloudSyncService);
 
   user = signal<any>(null);
@@ -90,18 +48,9 @@ export class ProfileComponent implements OnInit {
 
   legalBaseUrl = 'https://adorable.run';
 
-  // Detect if running in desktop mode (Electron)
   isDesktopMode = computed(() => isDesktopApp());
 
-  // AI Provider connection test
-  testingProvider = signal<string | null>(null); // profile id being tested
-  providerTestResult = signal<Record<string, {success: boolean; message?: string; error?: string}>>({});
-
-  // MCP Server management
   mcpServers = signal<MCPServerConfig[]>([]);
-  editingMcpServer = signal<MCPServerConfig | null>(null);
-  testingConnection = signal(false);
-  connectionTestResult = signal<{success: boolean; error?: string; toolCount?: number} | null>(null);
 
   settings = signal<AppSettings>({
     profiles: [
@@ -133,26 +82,13 @@ export class ProfileComponent implements OnInit {
   });
 
   loading = signal(false);
-
   fetchedModels = signal<Record<string, string[]>>({});
-
-  anthropicModels = [
-    'claude-sonnet-4-5-20250929',
-    'claude-opus-4-6',
-    'claude-haiku-4-5-20251001'
-  ];
-
-  geminiModels = [
-    'gemini-2.5-flash',
-    'gemini-2.5-pro'
-  ];
 
   constructor() {
     this.loadData();
   }
 
   ngOnInit() {
-    // Check for GitHub OAuth callback result
     this.route.queryParams.subscribe(params => {
       if (params['github_connected'] === 'true') {
         this.toastService.show('GitHub account connected!', 'success');
@@ -163,66 +99,43 @@ export class ProfileComponent implements OnInit {
       }
     });
 
-    // Load GitHub connection status
     this.githubService.getConnection().subscribe();
-  }
-
-  connectGitHub() {
-    this.githubService.connect();
-  }
-
-  disconnectGitHub() {
-    this.githubService.disconnect().subscribe({
-      next: () => {
-        this.toastService.show('GitHub disconnected', 'success');
-      },
-      error: (err) => {
-        this.toastService.show('Failed to disconnect GitHub', 'error');
-      }
-    });
   }
 
   loadData() {
     this.apiService.getProfile().subscribe(user => {
       this.user.set(user);
       this.name.set(user.name || '');
-      
+
       if (user.settings) {
         let parsed = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
-        
+
         const defaultProfiles = this.settings().profiles;
         let profiles = parsed.profiles || [];
 
-        // Legacy migration
         if (!parsed.profiles && parsed.provider) {
-           // Normalize provider name 'google' -> 'gemini'
-           let pName = parsed.provider;
-           if (pName === 'google') pName = 'gemini';
+          let pName = parsed.provider;
+          if (pName === 'google') pName = 'gemini';
 
-           const legacyProfile = {
-             id: pName,
-             name: pName === 'anthropic' ? 'Anthropic (Claude)' : 'Google (Gemini)',
-             provider: pName,
-             apiKey: parsed.apiKey || '',
-             model: parsed.model || ''
-           };
-           profiles = [legacyProfile];
-           parsed.activeProfileId = pName;
+          const legacyProfile = {
+            id: pName,
+            name: pName === 'anthropic' ? 'Anthropic (Claude)' : 'Google (Gemini)',
+            provider: pName,
+            apiKey: parsed.apiKey || '',
+            model: parsed.model || ''
+          };
+          profiles = [legacyProfile];
+          parsed.activeProfileId = pName;
         }
 
-        // Merge
         const mergedProfiles = defaultProfiles.map(def => {
           const loaded = profiles.find((p: any) => p.id === def.id || p.provider === def.provider);
           return loaded ? { ...def, ...loaded, id: def.id } : def;
         });
 
-        // Load MCP servers
         const mcpServers = parsed.mcpServers || [];
         this.mcpServers.set(mcpServers);
 
-        // Always use current ThemeService state (backed by localStorage) as the source of truth.
-        // Theme changes are applied immediately via ThemeService and shouldn't be overridden
-        // by potentially stale server data when loading the profile page.
         const themeSettings = this.themeService.getSettings();
 
         const newSettings: AppSettings = {
@@ -237,7 +150,6 @@ export class ProfileComponent implements OnInit {
 
         this.settings.set(newSettings);
 
-        // Fetch models for AI profiles with keys (skip Figma)
         this.settings().profiles.forEach(p => {
           if (p.apiKey && p.provider !== 'figma') this.fetchModels(p);
         });
@@ -247,10 +159,9 @@ export class ProfileComponent implements OnInit {
 
   fetchModels(profile: AIProfile) {
     if (!profile.apiKey) return;
-    
-    // Map provider to backend expected string if needed
+
     let providerParam = profile.provider;
-    if (providerParam === 'gemini') providerParam = 'google' as any; // Backend expects 'google' for gemini
+    if (providerParam === 'gemini') providerParam = 'google' as any;
 
     this.apiService.getModels(providerParam, profile.apiKey).subscribe({
       next: (models) => {
@@ -258,11 +169,9 @@ export class ProfileComponent implements OnInit {
           ...current,
           [profile.id]: models
         }));
-        
-        // Auto-select first if current model is invalid/empty?
-        // Let's be careful not to overwrite user choice if valid.
+
         if (models.length > 0 && !profile.model) {
-           this.updateProfile(profile.id, { model: models[0] });
+          this.updateProfile(profile.id, { model: models[0] });
         }
       },
       error: (err) => {
@@ -271,7 +180,13 @@ export class ProfileComponent implements OnInit {
     });
   }
 
-  setActive(id: string) {
+  // --- Handlers called from sub-component outputs ---
+
+  onNameChange(newName: string) {
+    this.name.set(newName);
+  }
+
+  onSetActive(id: string) {
     this.settings.update(s => ({
       ...s,
       activeProfileId: id
@@ -286,58 +201,26 @@ export class ProfileComponent implements OnInit {
     }));
   }
 
-  toggleBuiltInTool(profileId: string, tool: keyof BuiltInToolConfig, enabled: boolean) {
-    const profile = this.settings().profiles.find(p => p.id === profileId);
+  onProfileUpdated(event: {id: string, updates: Partial<AIProfile>}) {
+    this.updateProfile(event.id, event.updates);
+  }
+
+  onBuiltInToolToggled(event: {profileId: string, tool: keyof BuiltInToolConfig, enabled: boolean}) {
+    const profile = this.settings().profiles.find(p => p.id === event.profileId);
     const current = profile?.builtInTools || {};
-    this.updateProfile(profileId, { builtInTools: { ...current, [tool]: enabled } });
+    this.updateProfile(event.profileId, { builtInTools: { ...current, [event.tool]: event.enabled } });
   }
 
-  toggleSapMode(profileId: string, enabled: boolean) {
-    const profile = this.settings().profiles.find(p => p.id === profileId);
+  onSapModeToggled(event: {profileId: string, enabled: boolean}) {
+    const profile = this.settings().profiles.find(p => p.id === event.profileId);
     const current = profile?.sapAiCore || { enabled: false, authUrl: '', clientId: '', clientSecret: '', resourceGroup: 'default' };
-    this.updateProfile(profileId, { sapAiCore: { ...current, enabled } });
+    this.updateProfile(event.profileId, { sapAiCore: { ...current, enabled: event.enabled } });
   }
 
-  updateSapConfig(profileId: string, updates: Partial<SapAiCoreConfig>) {
-    const profile = this.settings().profiles.find(p => p.id === profileId);
+  onSapConfigUpdated(event: {profileId: string, updates: Partial<SapAiCoreConfig>}) {
+    const profile = this.settings().profiles.find(p => p.id === event.profileId);
     const current = profile?.sapAiCore || { enabled: false, authUrl: '', clientId: '', clientSecret: '', resourceGroup: 'default' };
-    this.updateProfile(profileId, { sapAiCore: { ...current, ...updates } });
-  }
-
-  testProviderConnection(profile: AIProfile) {
-    this.testingProvider.set(profile.id);
-    this.providerTestResult.update(r => {
-      const copy = { ...r };
-      delete copy[profile.id];
-      return copy;
-    });
-
-    this.apiService.testProviderConnection({
-      provider: profile.provider,
-      apiKey: profile.apiKey,
-      baseUrl: profile.baseUrl,
-      sapAiCore: profile.sapAiCore,
-    }).subscribe({
-      next: (result) => {
-        this.providerTestResult.update(r => ({ ...r, [profile.id]: result }));
-        this.testingProvider.set(null);
-      },
-      error: (err) => {
-        this.providerTestResult.update(r => ({
-          ...r,
-          [profile.id]: { success: false, error: err.error?.error || err.message || 'Connection failed' }
-        }));
-        this.testingProvider.set(null);
-      }
-    });
-  }
-
-  getFigmaProfile(): AIProfile | undefined {
-    return this.settings().profiles.find(p => p.provider === 'figma');
-  }
-
-  getAIProfiles(): AIProfile[] {
-    return this.settings().profiles.filter(p => p.provider !== 'figma');
+    this.updateProfile(event.profileId, { sapAiCore: { ...current, ...event.updates } });
   }
 
   updateThemeType(type: ThemeType) {
@@ -358,13 +241,28 @@ export class ProfileComponent implements OnInit {
     this.themeService.setThemeMode(mode);
   }
 
+  onMcpServersChange(servers: MCPServerConfig[]) {
+    this.mcpServers.set(servers);
+    this.settings.update(s => ({ ...s, mcpServers: servers }));
+    this.save();
+  }
+
+  onAngularMcpToggle(enabled: boolean) {
+    this.settings.update(s => ({ ...s, angularMcpEnabled: enabled }));
+    this.save();
+  }
+
+  onKitLessonsToggle(enabled: boolean) {
+    this.settings.update(s => ({ ...s, kitLessonsEnabled: enabled }));
+    this.save();
+  }
+
   save() {
     this.loading.set(true);
-    
-    // Validate active profile
+
     const current = this.settings();
     if (!current.profiles.find(p => p.id === current.activeProfileId)) {
-       current.activeProfileId = current.profiles[0]?.id;
+      current.activeProfileId = current.profiles[0]?.id;
     }
 
     const data = {
@@ -388,157 +286,4 @@ export class ProfileComponent implements OnInit {
   goBack() {
     this.router.navigate(['/dashboard']);
   }
-
-  // MCP Server Management Methods
-  addMcpServer() {
-    const newServer: MCPServerConfig = {
-      id: crypto.randomUUID(),
-      name: 'New Server',
-      transport: 'http',
-      url: '',
-      authType: 'none',
-      enabled: true
-    };
-    this.editingMcpServer.set(newServer);
-    this.connectionTestResult.set(null);
-  }
-
-  editMcpServer(server: MCPServerConfig) {
-    this.editingMcpServer.set({ ...server });
-    this.connectionTestResult.set(null);
-  }
-
-  cancelMcpEdit() {
-    this.editingMcpServer.set(null);
-    this.connectionTestResult.set(null);
-  }
-
-  testMcpConnection() {
-    const server = this.editingMcpServer();
-    if (!server) return;
-
-    this.testingConnection.set(true);
-    this.connectionTestResult.set(null);
-
-    this.apiService.testMcpConnection({
-      transport: server.transport || 'http',
-      url: server.url,
-      authType: server.authType,
-      apiKey: server.apiKey,
-      name: server.name,
-      command: server.command,
-      args: server.args,
-      env: server.env
-    }).subscribe({
-      next: (result) => {
-        this.connectionTestResult.set(result);
-        this.testingConnection.set(false);
-      },
-      error: (err) => {
-        this.connectionTestResult.set({
-          success: false,
-          error: err.error?.error || err.message || 'Connection failed'
-        });
-        this.testingConnection.set(false);
-      }
-    });
-  }
-
-  saveMcpServer() {
-    const server = this.editingMcpServer();
-    if (!server) return;
-
-    const currentServers = this.mcpServers();
-    const existingIndex = currentServers.findIndex(s => s.id === server.id);
-
-    let updatedServers: MCPServerConfig[];
-    if (existingIndex >= 0) {
-      updatedServers = [...currentServers];
-      updatedServers[existingIndex] = server;
-    } else {
-      updatedServers = [...currentServers, server];
-    }
-
-    this.mcpServers.set(updatedServers);
-    this.settings.update(s => ({
-      ...s,
-      mcpServers: updatedServers
-    }));
-
-    this.editingMcpServer.set(null);
-    this.connectionTestResult.set(null);
-
-    // Auto-save to database
-    this.save();
-  }
-
-  deleteMcpServer(id: string) {
-    const updated = this.mcpServers().filter(s => s.id !== id);
-    this.mcpServers.set(updated);
-    this.settings.update(s => ({
-      ...s,
-      mcpServers: updated
-    }));
-    // Auto-save to database
-    this.save();
-  }
-
-  toggleAngularMcp(enabled: boolean) {
-    this.settings.update(s => ({ ...s, angularMcpEnabled: enabled }));
-    this.save();
-  }
-
-  toggleKitLessons(enabled: boolean) {
-    this.settings.update(s => ({ ...s, kitLessonsEnabled: enabled }));
-    this.save();
-  }
-
-  toggleMcpServer(id: string) {
-    const updated = this.mcpServers().map(s =>
-      s.id === id ? { ...s, enabled: !s.enabled } : s
-    );
-    this.mcpServers.set(updated);
-    this.settings.update(s => ({
-      ...s,
-      mcpServers: updated
-    }));
-    // Auto-save to database
-    this.save();
-  }
-
-  updateEditingMcpServer(updates: Partial<MCPServerConfig>) {
-    const current = this.editingMcpServer();
-    if (current) {
-      this.editingMcpServer.set({ ...current, ...updates });
-    }
-  }
-
-  // Helper methods for stdio transport
-  formatEnvVars(env?: Record<string, string>): string {
-    if (!env) return '';
-    return Object.entries(env).map(([k, v]) => `${k}=${v}`).join('\n');
-  }
-
-  parseEnvVars(text: string): Record<string, string> {
-    if (!text.trim()) return {};
-    const result: Record<string, string> = {};
-    for (const line of text.split('\n')) {
-      const idx = line.indexOf('=');
-      if (idx > 0) {
-        const key = line.substring(0, idx).trim();
-        const value = line.substring(idx + 1);
-        if (key) result[key] = value;
-      }
-    }
-    return result;
-  }
-
-  formatArgs(args?: string[]): string {
-    return args?.join(' ') || '';
-  }
-
-  parseArgs(text: string): string[] {
-    return text ? text.split(' ').filter(a => a.trim()) : [];
-  }
-
 }

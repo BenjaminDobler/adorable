@@ -1,0 +1,66 @@
+<section class="settings-card">
+  <div class="card-header">
+    <h3>About Adorable</h3>
+    <p>AI-powered IDE for Angular</p>
+  </div>
+  <div class="card-body">
+    <div class="about-info">
+      <div class="about-row">
+        <span class="about-label">Project</span>
+        <span>Adorable &mdash; Open Source, private hobby project</span>
+      </div>
+      <div class="about-row">
+        <span class="about-label">License</span>
+        <span>See repository for license details</span>
+      </div>
+      <div class="about-row">
+        <span class="about-label">Source Code</span>
+        <a href="https://github.com/BenjaminDobler/adorable" target="_blank" rel="noopener">github.com/BenjaminDobler/adorable</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="settings-card">
+  <div class="card-header">
+    <h3>Legal / Rechtliches</h3>
+  </div>
+  <div class="card-body">
+    <div class="about-links">
+      @if (isDesktopMode()) {
+        <a [href]="legalBaseUrl() + '/impressum'" target="_blank" rel="noopener" class="about-link-card">
+          <span class="about-link-title">Impressum</span>
+          <span class="about-link-desc">Legal notice (opens in browser)</span>
+        </a>
+        <a [href]="legalBaseUrl() + '/privacy'" target="_blank" rel="noopener" class="about-link-card">
+          <span class="about-link-title">Datenschutz / Privacy Policy</span>
+          <span class="about-link-desc">Data protection information (opens in browser)</span>
+        </a>
+      } @else {
+        <a routerLink="/impressum" class="about-link-card">
+          <span class="about-link-title">Impressum</span>
+          <span class="about-link-desc">Legal notice</span>
+        </a>
+        <a routerLink="/privacy" class="about-link-card">
+          <span class="about-link-title">Datenschutz / Privacy Policy</span>
+          <span class="about-link-desc">Data protection information</span>
+        </a>
+      }
+    </div>
+  </div>
+</section>
+
+@if (isDesktopMode()) {
+  <section class="settings-card">
+    <div class="card-header">
+      <h3>Desktop App Notice</h3>
+    </div>
+    <div class="card-body">
+      <div class="about-notice">
+        <p>This application runs locally on your device. Your data (projects, settings, API keys) is stored on your hard drive and is not transmitted to the operator.</p>
+        <p>The app has access to your file system and can execute shell commands as part of AI-assisted code generation. <strong>Always review AI-generated actions before execution.</strong></p>
+        <p>External connections are made to: your configured AI provider, npm registry (for dependencies), and GitHub (for auto-updates).</p>
+      </div>
+    </div>
+  </section>
+}

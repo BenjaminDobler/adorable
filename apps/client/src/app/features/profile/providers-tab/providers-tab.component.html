@@ -1,0 +1,215 @@
+<section class="settings-card">
+  <div class="card-header">
+    <h3>AI Provider Settings</h3>
+    <p>Configure your AI providers and select the active one.</p>
+  </div>
+  <div class="card-body">
+    <div class="providers-grid">
+      @for (profile of getAIProfiles(); track profile.id) {
+        <div class="provider-card" [class.active]="settings().activeProfileId === profile.id">
+          <div class="provider-header" (click)="setActive.emit(profile.id)">
+            <div class="header-left">
+              <div class="radio-circle">
+                @if (settings().activeProfileId === profile.id) {
+                  <div class="radio-inner"></div>
+                }
+              </div>
+              <span class="provider-name">{{ profile.name }}</span>
+            </div>
+            @if (settings().activeProfileId === profile.id) {
+              <span class="badge active-badge">Active</span>
+            }
+          </div>
+
+          <div class="provider-body">
+            @if (profile.provider === 'anthropic') {
+              <div class="form-group">
+                <label>Connection Mode</label>
+                <select
+                  [name]="'connectionMode-' + profile.id"
+                  [ngModel]="profile.sapAiCore?.enabled ? 'sap' : 'direct'"
+                  (ngModelChange)="sapModeToggled.emit({profileId: profile.id, enabled: $event === 'sap'})"
+                >
+                  <option value="direct">Direct (Anthropic API)</option>
+                  <option value="sap">SAP AI Core</option>
+                </select>
+              </div>
+            }
+
+            @if (profile.provider !== 'anthropic' || !profile.sapAiCore?.enabled) {
+              <div class="form-group">
+                <label>API Key</label>
+                <input
+                  type="password"
+                  [name]="'apiKey-' + profile.id"
+                  [ngModel]="profile.apiKey"
+                  (ngModelChange)="profileUpdated.emit({id: profile.id, updates: {apiKey: $event}})"
+                  placeholder="sk-..."
+                  autocomplete="new-password"
+                />
+              </div>
+            }
+
+            @if (profile.provider === 'anthropic' && profile.sapAiCore?.enabled) {
+              <div class="form-group">
+                <label>Auth URL</label>
+                <input
+                  type="url"
+                  [name]="'sapAuthUrl-' + profile.id"
+                  [ngModel]="profile.sapAiCore?.authUrl"
+                  (ngModelChange)="sapConfigUpdated.emit({profileId: profile.id, updates: {authUrl: $event}})"
+                  placeholder="https://mysubaccount.authentication.eu10.hana.ondemand.com"
+                />
+                <small class="help-text">OAuth token endpoint (XSUAA URL)</small>
+              </div>
+              <div class="form-group">
+                <label>Client ID</label>
+                <input
+                  type="text"
+                  [name]="'sapClientId-' + profile.id"
+                  [ngModel]="profile.sapAiCore?.clientId"
+                  (ngModelChange)="sapConfigUpdated.emit({profileId: profile.id, updates: {clientId: $event}})"
+                  placeholder="sb-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx!..."
+                />
+              </div>
+              <div class="form-group">
+                <label>Client Secret</label>
+                <input
+                  type="password"
+                  [name]="'sapClientSecret-' + profile.id"
+                  [ngModel]="profile.sapAiCore?.clientSecret"
+                  (ngModelChange)="sapConfigUpdated.emit({profileId: profile.id, updates: {clientSecret: $event}})"
+                  placeholder="Client secret"
+                  autocomplete="new-password"
+                />
+              </div>
+              <div class="form-group">
+                <label>Resource Group</label>
+                <input
+                  type="text"
+                  [name]="'sapResourceGroup-' + profile.id"
+                  [ngModel]="profile.sapAiCore?.resourceGroup"
+                  (ngModelChange)="sapConfigUpdated.emit({profileId: profile.id, updates: {resourceGroup: $event}})"
+                  placeholder="default"
+                />
+              </div>
+              <div class="form-group">
+                <label>Base URL</label>
+                <input
+                  type="url"
+                  [name]="'sapBaseUrl-' + profile.id"
+                  [ngModel]="profile.baseUrl"
+                  (ngModelChange)="profileUpdated.emit({id: profile.id, updates: {baseUrl: $event}})"
+                  placeholder="https://api.ai.prod.eu-central-1.aws.ml.hana.ondemand.com"
+                />
+                <small class="help-text">SAP AI Core API base URL</small>
+              </div>
+            }
+
+            <div class="form-group">
+              <div class="label-row">
+                <label>Model</label>
+                <button class="btn-link" (click)="fetchModelsRequested.emit(profile)">&#8635; Refresh</button>
+              </div>
+              <select
+                [name]="'model-' + profile.id"
+                [ngModel]="profile.model"
+                (ngModelChange)="profileUpdated.emit({id: profile.id, updates: {model: $event}})"
+              >
+                @if (fetchedModels()[profile.id]) {
+                  @for (model of fetchedModels()[profile.id]; track model) {
+                    <option [value]="model">{{ model }}</option>
+                  }
+                } @else {
+                  @if (profile.provider === 'anthropic') {
+                    @for (model of anthropicModels; track model) {
+                      <option [value]="model">{{ model }}</option>
+                    }
+                  } @else {
+                    @for (model of geminiModels; track model) {
+                      <option [value]="model">{{ model }}</option>
+                    }
+                  }
+                }
+              </select>
+            </div>
+
+            @if (profile.provider === 'anthropic' && !profile.sapAiCore?.enabled) {
+              <div class="form-group">
+                <label>Base URL <span class="optional-hint">(optional)</span></label>
+                <input
+                  type="url"
+                  [name]="'baseUrl-' + profile.id"
+                  [ngModel]="profile.baseUrl"
+                  (ngModelChange)="profileUpdated.emit({id: profile.id, updates: {baseUrl: $event}})"
+                  placeholder="https://api.anthropic.com"
+                />
+                <small class="help-text">Custom API endpoint for company proxy</small>
+              </div>
+            }
+
+            <div class="form-group">
+              <label>Built-in Tools</label>
+              <div class="header-with-toggle">
+                <div>
+                  <label>Web Search</label>
+                  <small class="help-text">
+                    @if (profile.provider === 'anthropic') {
+                      Allow Claude to search the web during generation
+                    } @else {
+                      Enable Google Search grounding for responses
+                    }
+                  </small>
+                </div>
+                <label class="switch">
+                  <input
+                    type="checkbox"
+                    [ngModel]="profile.builtInTools?.webSearch || false"
+                    (ngModelChange)="builtInToolToggled.emit({profileId: profile.id, tool: 'webSearch', enabled: $event})"
+                  >
+                  <span class="slider round"></span>
+                </label>
+              </div>
+              @if (profile.provider === 'gemini') {
+                <div class="header-with-toggle" style="margin-top: 12px;">
+                  <div>
+                    <label>URL Context</label>
+                    <small class="help-text">Allow Gemini to fetch and read web page content (docs, references)</small>
+                  </div>
+                  <label class="switch">
+                    <input
+                      type="checkbox"
+                      [ngModel]="profile.builtInTools?.urlContext || false"
+                      (ngModelChange)="builtInToolToggled.emit({profileId: profile.id, tool: 'urlContext', enabled: $event})"
+                    >
+                    <span class="slider round"></span>
+                  </label>
+                </div>
+              }
+            </div>
+
+            <div class="test-connection" style="margin-top: 16px;">
+              <button
+                class="btn-test"
+                (click)="testProviderConnection(profile)"
+                [disabled]="testingProvider() === profile.id"
+              >
+                {{ testingProvider() === profile.id ? 'Testing...' : 'Test Connection' }}
+              </button>
+
+              @if (providerTestResult()[profile.id]; as result) {
+                <div class="test-result" [class.success]="result.success" [class.error]="!result.success">
+                  @if (result.success) {
+                    <span>{{ result.message }}</span>
+                  } @else {
+                    <span>{{ result.error }}</span>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</section>
