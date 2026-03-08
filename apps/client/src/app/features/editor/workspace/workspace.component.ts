@@ -6,6 +6,7 @@ import {
   ViewChild,
   ElementRef,
   AfterViewChecked,
+  HostListener,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -87,6 +88,7 @@ export class WorkspaceComponent implements AfterViewChecked {
 
   @ViewChild(ChatComponent) chatComponent!: ChatComponent;
   @ViewChild(EditorComponent) editorComponent?: EditorComponent;
+  @ViewChild(FigmaPanelComponent) figmaPanel?: FigmaPanelComponent;
 
   activeTab = signal<'chat' | 'terminal' | 'files' | 'figma' | 'versions' | 'insights'>(
     'chat',
@@ -659,6 +661,41 @@ export class WorkspaceComponent implements AfterViewChecked {
 
   goBack() {
     this.router.navigate(['/dashboard']);
+  }
+
+  @HostListener('document:paste', ['$event'])
+  onPaste(event: ClipboardEvent) {
+    // Don't intercept paste in editable elements (inputs, textareas, contenteditable)
+    const target = event.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+      return;
+    }
+
+    const text = event.clipboardData?.getData('text/plain');
+    if (!text) return;
+
+    try {
+      const data = JSON.parse(text);
+      if (data.__adorable_figma_export && data.selection && data.imageDataUris && data.jsonStructure) {
+        event.preventDefault();
+        const { __adorable_figma_export, ...payload } = data as { __adorable_figma_export: boolean } & FigmaImportPayload;
+
+        // Switch to figma tab so the panel renders, then store the payload
+        this.activeTab.set('figma');
+
+        // Use setTimeout to let the figma panel render before storing
+        setTimeout(() => {
+          if (this.figmaPanel) {
+            this.figmaPanel.storePayload(payload as FigmaImportPayload);
+            this.projectService.figmaImports.set(this.figmaPanel.importedPayloads());
+          }
+        });
+
+        this.toastService.show(`Imported ${payload.selection.length} Figma design(s) from clipboard`, 'success');
+      }
+    } catch {
+      // Not JSON or not a Figma payload — ignore
+    }
   }
 
   onFigmaImport(payload: FigmaImportPayload) {

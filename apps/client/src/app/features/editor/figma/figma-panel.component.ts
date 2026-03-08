@@ -141,7 +141,7 @@ export class FigmaPanelComponent {
   }
 
   // Store payload and navigate to import preview (no emit to chat)
-  private storePayload(payload: FigmaImportPayload) {
+  storePayload(payload: FigmaImportPayload) {
     // Add to stored imports (avoid duplicates by fileKey + selection)
     const existing = this.importedPayloads();
     const duplicateIndex = existing.findIndex(
