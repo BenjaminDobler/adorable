@@ -1,0 +1,7 @@
+<div class="toast-container">
+  @for (toast of toastService.toasts(); track toast.id) {
+    <div class="toast" [class]="toast.type" (click)="toastService.remove(toast.id)">
+      {{ toast.message }}
+    </div>
+  }
+</div>

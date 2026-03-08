@@ -1,0 +1,50 @@
+<div class="versions-panel">
+  <div class="versions-header">
+    <h3>Version History</h3>
+    <button class="btn-refresh" (click)="loadHistory()" [disabled]="loading()" title="Refresh">
+      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <polyline points="1 20 1 14 7 14"></polyline>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+      </svg>
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="versions-loading">
+      <div class="spinner"></div>
+      <span>Loading history...</span>
+    </div>
+  } @else if (error()) {
+    <div class="versions-empty">
+      <p>{{ error() }}</p>
+    </div>
+  } @else if (commits().length === 0) {
+    <div class="versions-empty">
+      <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <polyline points="12 6 12 12 16 14"></polyline>
+      </svg>
+      <p>No versions yet</p>
+      <span>Versions are created when you save or when the AI generates code.</span>
+    </div>
+  } @else {
+    <div class="versions-list">
+      @for (commit of commits(); track commit.sha) {
+        <div class="version-item">
+          <div class="version-info">
+            <span class="version-message">{{ commit.message }}</span>
+            <span class="version-date">{{ formatDate(commit.date) }}</span>
+          </div>
+          <button class="btn-restore" (click)="restore(commit.sha)" [disabled]="restoring()" title="Restore to this version">
+            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="1 4 1 10 7 10"></polyline>
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+            </svg>
+            Restore
+          </button>
+        </div>
+      }
+    </div>
+  }
+</div>

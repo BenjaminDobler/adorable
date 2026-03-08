@@ -1,0 +1,146 @@
+<div class="insights-panel">
+  @if (!selectedSession()) {
+    <!-- Session List View -->
+    <div class="insights-header">
+      <h3>Insights</h3>
+      <button class="btn-refresh" (click)="loadSessions()" [disabled]="loadingSessions()" title="Refresh">
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <polyline points="1 20 1 14 7 14"></polyline>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </svg>
+      </button>
+    </div>
+
+    @if (loadingSessions()) {
+      <div class="insights-loading">
+        <div class="spinner"></div>
+        <span>Loading sessions...</span>
+      </div>
+    } @else if (sessions().length === 0) {
+      <div class="insights-empty">
+        <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+        </svg>
+        <p>No sessions found</p>
+        <span>AI generation sessions will appear here after you generate code.</span>
+      </div>
+    } @else {
+      <div class="session-list">
+        @for (session of sessions(); track session.filename) {
+          <div class="session-item" (click)="startAnalysis(session)">
+            <div class="session-info">
+              <span class="session-prompt">{{ session.overview.promptSummary || 'No prompt' }}</span>
+              <div class="session-meta">
+                <span class="meta-tag">{{ session.overview.provider }}/{{ session.overview.model }}</span>
+                <span class="meta-sep">·</span>
+                <span>{{ session.overview.turns }} turns</span>
+                <span class="meta-sep">·</span>
+                <span>{{ session.overview.toolCallCount }} tools</span>
+              </div>
+              <span class="session-date">{{ formatDate(session.timestamp) }}</span>
+            </div>
+            <button class="btn-analyze" title="Analyze this session">
+              <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              Analyze
+            </button>
+          </div>
+        }
+      </div>
+    }
+  } @else {
+    <!-- Analysis View -->
+    <div class="insights-header">
+      <button class="btn-back" (click)="goBack()" title="Back to sessions">
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+      </button>
+      <h3>Analysis</h3>
+    </div>
+
+    <div class="analysis-content">
+      @if (currentOverview()) {
+        <div class="overview-card">
+          <div class="overview-row">
+            <div class="overview-stat">
+              <span class="stat-value">{{ currentOverview()!.turns }}</span>
+              <span class="stat-label">Turns</span>
+            </div>
+            <div class="overview-stat">
+              <span class="stat-value">{{ currentOverview()!.toolCallCount }}</span>
+              <span class="stat-label">Tool Calls</span>
+            </div>
+            <div class="overview-stat">
+              <span class="stat-value success">{{ currentOverview()!.buildSuccesses }}</span>
+              <span class="stat-label">Builds OK</span>
+            </div>
+            <div class="overview-stat">
+              <span class="stat-value" [class.error]="currentOverview()!.buildFailures > 0">{{ currentOverview()!.buildFailures }}</span>
+              <span class="stat-label">Build Fail</span>
+            </div>
+            <div class="overview-stat">
+              <span class="stat-value" [class.error]="currentOverview()!.errorCount > 0">{{ currentOverview()!.errorCount }}</span>
+              <span class="stat-label">Errors</span>
+            </div>
+          </div>
+        </div>
+      }
+
+      @if (analyzing()) {
+        <div class="insights-loading">
+          <div class="spinner"></div>
+          <span>{{ analysisProgress() }}</span>
+        </div>
+      }
+
+      @if (suggestions().length > 0) {
+        <div class="filter-bar">
+          <button class="filter-chip" [class.active]="activeFilter() === 'all'" (click)="activeFilter.set('all')">All</button>
+          <button class="filter-chip" [class.active]="activeFilter() === 'kit_doc_improvement'" (click)="activeFilter.set('kit_doc_improvement')">Kit Docs</button>
+          <button class="filter-chip" [class.active]="activeFilter() === 'system_prompt_improvement'" (click)="activeFilter.set('system_prompt_improvement')">Prompts</button>
+          <button class="filter-chip" [class.active]="activeFilter() === 'workflow_recommendation'" (click)="activeFilter.set('workflow_recommendation')">Workflow</button>
+          <button class="filter-chip" [class.active]="activeFilter() === 'project_structure'" (click)="activeFilter.set('project_structure')">Project</button>
+        </div>
+
+        <div class="suggestions-list">
+          @for (sug of filteredSuggestions(); track sug.id) {
+            <div class="suggestion-card" [class.applied]="sug.applied">
+              <div class="suggestion-header">
+                <span class="severity-badge" [class]="'severity-' + sug.severity">{{ sug.severity }}</span>
+                <span class="type-label">{{ formatType(sug.type) }}</span>
+              </div>
+              <div class="suggestion-title">{{ sug.title }}</div>
+              <div class="suggestion-desc">{{ sug.description }}</div>
+              <div class="suggestion-actions">
+                @if (sug.applied) {
+                  <span class="applied-badge">
+                    <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Applied
+                  </span>
+                } @else if (sug.patch) {
+                  <button class="btn-apply" (click)="applySuggestion(sug)" [disabled]="applying()">Apply</button>
+                } @else {
+                  <span class="advice-label">Advice</span>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+
+      @if (!analyzing() && suggestions().length === 0 && currentOverview()) {
+        <div class="insights-empty" style="padding-top: 2rem;">
+          <p>No suggestions generated</p>
+          <span>The AI found no improvements to suggest for this session.</span>
+        </div>
+      }
+    </div>
+  }
+</div>

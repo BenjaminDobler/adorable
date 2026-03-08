@@ -8,24 +8,8 @@ declare const monaco: any;
   selector: 'app-editor',
   standalone: true,
   imports: [CommonModule],
-  template: `<div #editorContainer class="editor-container"></div>`,
-  styles: [`
-    :host {
-      display: block;
-      width: 100%;
-      height: 100%;
-    }
-    .editor-container {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-    }
-    :host ::ng-deep .go-to-code-highlight {
-      background-color: rgba(62, 207, 142, 0.25);
-      border: 1px solid rgba(62, 207, 142, 0.5);
-      border-radius: 2px;
-    }
-  `]
+  templateUrl: './editor.component.html',
+  styleUrl: './editor.component.scss'
 })
 export class EditorComponent implements AfterViewInit, OnDestroy {
   @ViewChild('editorContainer') editorContainer!: ElementRef;

@@ -1,0 +1,142 @@
+.file-tree {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.node-content {
+  display: flex;
+  align-items: center;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-right: 8px;
+  cursor: pointer;
+  gap: 6px;
+  border-radius: 4px;
+  transition: background 0.1s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &:hover {
+    background: var(--panel-bg);
+    color: var(--text-primary);
+  }
+
+  &.active {
+    background: rgba(62, 207, 142, 0.1);
+    color: var(--accent-color);
+  }
+
+  &.drop-target {
+    background: rgba(62, 207, 142, 0.2);
+    outline: 1px dashed var(--accent-color);
+    outline-offset: -1px;
+  }
+}
+
+.arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+
+  &.expanded {
+    transform: rotate(90deg);
+  }
+}
+
+.indent {
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+
+  &.folder { color: #eab308; }
+  &.file { color: #64748b; }
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.children {
+  display: flex;
+  flex-direction: column;
+}
+
+.inline-input {
+  background: var(--panel-bg);
+  border: 1px solid var(--accent-color);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  padding: 1px 4px;
+  border-radius: 3px;
+  outline: none;
+  min-width: 80px;
+  font-family: inherit;
+}
+
+.inline-new {
+  cursor: default;
+}
+
+.context-menu-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 999;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: #1e1e2e;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 160px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 12px;
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-align: left;
+
+    &:hover {
+      background: rgba(62, 207, 142, 0.1);
+      color: var(--text-primary);
+    }
+
+    &.danger:hover {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+    }
+  }
+}
+
+.menu-divider {
+  height: 1px;
+  background: #333;
+  margin: 4px 0;
+}

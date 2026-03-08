@@ -1,0 +1,74 @@
+<div class="dialog-overlay" (click)="close.emit()">
+  <div class="dialog-content" (click)="$event.stopPropagation()">
+    <header>
+      <h2>Install Skills from GitHub</h2>
+      <button class="close-btn" (click)="close.emit()">×</button>
+    </header>
+
+    <div class="form-body">
+      <div class="form-group">
+        <label>Repository</label>
+        <div class="input-row">
+          <input
+            [(ngModel)]="repoUrl"
+            placeholder="e.g. analogjs/angular-skills or vercel-labs/agent-skills"
+            [disabled]="loading()"
+          />
+          <button
+            class="btn-list"
+            (click)="listSkills()"
+            [disabled]="!repoUrl || loading()"
+          >
+            {{ loading() ? 'Loading...' : 'List Skills' }}
+          </button>
+        </div>
+        <small>Enter a GitHub repository in format owner/repo</small>
+      </div>
+
+      @if (availableSkills().length > 0) {
+        <div class="skills-list">
+          <label>Available Skills</label>
+          @for (skill of availableSkills(); track skill.name) {
+            <div class="skill-item" (click)="toggleSkill(skill)">
+              <input type="checkbox" [checked]="skill.selected" />
+              <div class="skill-details">
+                <strong>{{ skill.name }}</strong>
+                <span>{{ skill.description }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      }
+
+      @if (error()) {
+        <div class="error-message">{{ error() }}</div>
+      }
+
+      <div class="popular-repos">
+        <label>Popular Skill Repositories</label>
+        <div class="repo-chips">
+          <button class="repo-chip" (click)="selectRepo('analogjs/angular-skills')">
+            analogjs/angular-skills
+          </button>
+          <button class="repo-chip" (click)="selectRepo('vercel-labs/agent-skills')">
+            vercel-labs/agent-skills
+          </button>
+          <button class="repo-chip" (click)="selectRepo('anthropics/skills')">
+            anthropics/skills
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <button class="btn-cancel" (click)="close.emit()">Cancel</button>
+      <button
+        class="btn-save"
+        (click)="installSkills()"
+        [disabled]="!hasSelectedSkills() || installing()"
+      >
+        {{ installing() ? 'Installing...' : 'Install Selected' }}
+      </button>
+    </footer>
+  </div>
+</div>
