@@ -630,12 +630,21 @@ export class WorkspaceComponent implements AfterViewChecked {
     }
   }
 
+  private writeDebounceTimer: any = null;
+
   async onFileContentChange(newContent: string, explicitPath?: string) {
     const path = explicitPath || this.selectedFilePath();
-    if (path) {
-      // Update store
-      this.projectService.fileStore.updateFile(path, newContent);
+    if (!path) return;
 
+    // Update store immediately so the editor stays responsive
+    this.projectService.fileStore.updateFile(path, newContent);
+
+    // Debounce the container write to avoid preview churn while typing
+    if (this.writeDebounceTimer) {
+      clearTimeout(this.writeDebounceTimer);
+    }
+
+    this.writeDebounceTimer = setTimeout(async () => {
       try {
         let writeContent: string | Uint8Array = newContent;
         if (typeof newContent === 'string' && newContent.startsWith('data:')) {
@@ -645,7 +654,7 @@ export class WorkspaceComponent implements AfterViewChecked {
       } catch (err) {
         console.error('Failed to write file to container', err);
       }
-    }
+    }, 500);
   }
 
   goBack() {
