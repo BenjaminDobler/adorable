@@ -83,9 +83,15 @@
   cursor: pointer;
   transition: all 0.2s;
 
-  &:hover {
+  &:hover:not(.disabled) {
     background: var(--bg-surface-4);
     border-color: var(--accent-color);
+  }
+
+  &.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
   }
 }
 
@@ -410,4 +416,81 @@
       box-shadow: none;
     }
   }
+}
+
+/* Upload Preview Modal */
+.upload-preview-modal {
+  width: 90%;
+  max-width: 550px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface-1);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+.preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 1.25rem;
+  background: var(--bg-surface-2);
+  border-bottom: 1px solid var(--panel-border);
+  flex-wrap: wrap;
+  gap: 0.5rem;
+
+  .preview-count {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .preview-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+}
+
+.btn-select-action {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    background: var(--bg-surface-3);
+    color: var(--text-primary);
+    border-color: var(--text-muted);
+  }
+}
+
+.preview-file-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.preview-item {
+  cursor: pointer;
+
+  .entry-name {
+    cursor: pointer;
+
+    &:hover {
+      color: var(--accent-color);
+    }
+  }
+}
+
+.preview-checkbox {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  accent-color: var(--accent-color);
+  cursor: pointer;
 }

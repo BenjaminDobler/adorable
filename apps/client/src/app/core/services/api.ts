@@ -327,6 +327,10 @@ export class ApiService {
     return this.http.delete<any>(`${this.apiUrl}/kits/${kitId}/files/${filePath}`);
   }
 
+  deleteKitFolder(kitId: string, folderPath: string): Observable<{ success: boolean; deletedCount: number }> {
+    return this.http.delete<any>(`${this.apiUrl}/kits/${kitId}/folders/${folderPath}`);
+  }
+
   uploadKitFiles(kitId: string, files: { path: string; content: string }[]): Observable<{ success: boolean; count: number }> {
     return this.http.post<any>(`${this.apiUrl}/kits/${kitId}/upload-files`, { files });
   }

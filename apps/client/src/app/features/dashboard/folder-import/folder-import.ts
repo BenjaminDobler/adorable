@@ -175,6 +175,7 @@ export class FolderImportComponent {
       let currentPath = '';
       let currentNodes = root;
       let skipEntry = false;
+      let ancestorExcluded = false;
 
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i];
@@ -190,9 +191,20 @@ export class FolderImportComponent {
         let node = nodeMap.get(currentPath);
 
         if (!node) {
-          const { excluded, reason } = isLast
-            ? this.shouldExclude(currentPath, entry.size)
-            : this.shouldExcludeDir(currentPath);
+          let excluded: boolean;
+          let reason: string | undefined;
+
+          if (ancestorExcluded) {
+            // Inherit exclusion from parent directory
+            excluded = true;
+            reason = 'In excluded folder';
+          } else {
+            const result = isLast
+              ? this.shouldExclude(currentPath, entry.size)
+              : this.shouldExcludeDir(currentPath);
+            excluded = result.excluded;
+            reason = result.reason;
+          }
 
           node = {
             name: part,
@@ -209,6 +221,11 @@ export class FolderImportComponent {
           };
           nodeMap.set(currentPath, node);
           currentNodes.push(node);
+        }
+
+        // Track if we're inside an excluded directory
+        if (node.excluded && node.isDirectory) {
+          ancestorExcluded = true;
         }
 
         currentNodes = node.children;

@@ -992,6 +992,27 @@ router.put('/:id/files/*', async (req: any, res) => {
 });
 
 /**
+ * Delete an entire folder from a kit's directory recursively
+ * DELETE /api/kits/:id/folders/*
+ */
+router.delete('/:id/folders/*', async (req: any, res) => {
+  const { id } = req.params;
+  const folderPath = req.params[0];
+
+  if (!folderPath) {
+    return res.status(400).json({ error: 'Folder path is required' });
+  }
+
+  try {
+    const deletedCount = await kitFsService.deleteFolder(id, folderPath);
+    res.json({ success: true, deletedCount });
+  } catch (error) {
+    console.error('Delete kit folder error:', error);
+    res.status(500).json({ error: 'Failed to delete folder' });
+  }
+});
+
+/**
  * Delete a specific file from a kit's directory
  * DELETE /api/kits/:id/files/*
  */
@@ -1025,11 +1046,9 @@ router.post('/:id/upload-files', async (req: any, res) => {
   }
 
   try {
-    for (const file of files) {
-      if (!file.path || typeof file.content !== 'string') continue;
-      await kitFsService.writeFile(id, file.path, file.content);
-    }
-    res.json({ success: true, count: files.length });
+    const validFiles = files.filter((file: any) => file.path && typeof file.content === 'string');
+    await Promise.all(validFiles.map((file: any) => kitFsService.writeFile(id, file.path, file.content)));
+    res.json({ success: true, count: validFiles.length });
   } catch (error) {
     console.error('Upload kit files error:', error);
     res.status(500).json({ error: 'Failed to upload files' });

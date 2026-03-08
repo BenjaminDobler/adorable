@@ -8,24 +8,24 @@
         }
       </div>
       <div class="adorable-actions">
-        <label class="btn-upload-files">
+        <label class="btn-upload-files" [class.disabled]="uploadingFiles()">
           <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
             <polyline points="17 8 12 3 7 8"/>
             <line x1="12" y1="3" x2="12" y2="15"/>
           </svg>
           Upload Files
-          <input type="file" multiple (change)="uploadAdorableFiles($event)" style="display: none;" accept=".md,.txt,.json,.yaml,.yml"/>
+          <input type="file" multiple (change)="uploadAdorableFiles($event)" style="display: none;" accept=".md,.txt,.json,.yaml,.yml" [disabled]="uploadingFiles()"/>
         </label>
-        <label class="btn-upload-files">
+        <label class="btn-upload-files" [class.disabled]="uploadingFiles()">
           <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
           </svg>
           Upload Folder
-          <input type="file" webkitdirectory (change)="uploadAdorableFolder($event)" style="display: none;"/>
+          <input type="file" webkitdirectory (change)="uploadAdorableFolder($event)" style="display: none;" [disabled]="uploadingFiles()"/>
         </label>
         @if (hasDiscoveredComponents()) {
-          <button class="btn-regenerate" (click)="regenerateDocs()">
+          <button class="btn-regenerate" (click)="regenerateDocs()" [disabled]="uploadingFiles()">
             <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
               <polyline points="23 4 23 10 17 10"/>
               <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -36,6 +36,13 @@
       </div>
     </div>
     <p class="section-hint">Files in <code>.adorable/</code> are injected into the AI context when this kit is active. Edit component docs, add usage guides, or upload custom references.</p>
+
+    @if (uploadingFiles()) {
+      <div class="adorable-loading">
+        <div class="spinner-small"></div>
+        Uploading files...
+      </div>
+    }
 
     @if (loadingAdorableFiles()) {
       <div class="adorable-loading">
@@ -121,7 +128,7 @@
     <div class="modal-content adorable-file-editor" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <h3>{{ editingAdorableFile()!.path }}</h3>
-        <button class="btn-close" (click)="closeAdorableFileEditor()">×</button>
+        <button class="btn-close" (click)="closeAdorableFileEditor()">&times;</button>
       </div>
       <div class="modal-body">
         <textarea
@@ -135,6 +142,79 @@
         <button class="btn-cancel" (click)="closeAdorableFileEditor()">Cancel</button>
         <button class="btn-save" (click)="saveAdorableFile()" [disabled]="savingAdorableFile()">
           {{ savingAdorableFile() ? 'Saving...' : 'Save' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Upload Preview Modal -->
+@if (pendingUploadFiles().length > 0) {
+  <div class="modal-overlay" (click)="cancelUploadPreview()">
+    <div class="modal-content upload-preview-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Select files to upload</h3>
+        <button class="btn-close" (click)="cancelUploadPreview()">&times;</button>
+      </div>
+      <div class="preview-toolbar">
+        <span class="preview-count">
+          {{ selectedUploadCount() }} of {{ pendingUploadFiles().length }} files selected
+          ({{ formatFileSize(selectedUploadSize()) }})
+        </span>
+        <div class="preview-actions">
+          <button class="btn-select-action" (click)="selectAllUpload()">Select all</button>
+          <button class="btn-select-action" (click)="deselectAllUpload()">Deselect all</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="preview-file-list">
+          @for (entry of visiblePreviewEntries(); track entry.path) {
+            <div
+              class="template-file-item preview-item"
+              [class.is-directory]="entry.isDirectory"
+              [style.padding-left.px]="12 + entry.depth * 20"
+            >
+              @if (entry.isDirectory) {
+                <button class="btn-chevron" [class.expanded]="expandedPreviewPaths().has(entry.path)" (click)="togglePreviewFolder(entry.path)">
+                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </button>
+                <input
+                  type="checkbox"
+                  class="preview-checkbox"
+                  [checked]="isDirectorySelected(entry.fullPath) === true"
+                  [indeterminate]="isDirectorySelected(entry.fullPath) === null"
+                  (change)="toggleUploadSelection(entry)"
+                />
+                <svg class="entry-icon" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
+              } @else {
+                <span class="chevron-spacer"></span>
+                <input
+                  type="checkbox"
+                  class="preview-checkbox"
+                  [checked]="selectedUploadPaths().has(entry.fullPath)"
+                  (change)="toggleUploadSelection(entry)"
+                />
+                <svg class="entry-icon" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+              }
+              <span class="entry-name" (click)="toggleUploadSelection(entry)">{{ entry.name }}</span>
+              @if (!entry.isDirectory && entry.size > 0) {
+                <span class="entry-size">{{ formatFileSize(entry.size) }}</span>
+              }
+            </div>
+          }
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" (click)="cancelUploadPreview()">Cancel</button>
+        <button class="btn-save" (click)="confirmUpload()" [disabled]="selectedUploadCount() === 0">
+          Upload {{ selectedUploadCount() }} file(s)
         </button>
       </div>
     </div>

@@ -1,8 +1,25 @@
-import { Component, signal, computed, inject, input, OnInit, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, signal, computed, inject, input, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../../core/services/api';
 import { ToastService } from '../../../../core/services/toast';
+
+const MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB
+
+interface PendingFile {
+  path: string;
+  content: string;
+  size: number;
+}
+
+interface TreeEntry {
+  path: string;
+  name: string;
+  isDirectory: boolean;
+  depth: number;
+  size: number;
+  fullPath: string;
+}
 
 @Component({
   selector: 'app-adorable-file-browser',
@@ -14,20 +31,58 @@ import { ToastService } from '../../../../core/services/toast';
 export class AdorableFileBrowserComponent implements OnChanges {
   private apiService = inject(ApiService);
   private toastService = inject(ToastService);
-
   kitId = input<string | null>(null);
   hasDiscoveredComponents = input(false);
 
   adorableFiles = signal<{ path: string; size: number; modified: string }[]>([]);
   loadingAdorableFiles = signal(false);
+  uploadingFiles = signal(false);
   editingAdorableFile = signal<{ path: string; content: string } | null>(null);
   savingAdorableFile = signal(false);
   expandedAdorablePaths = signal<Set<string>>(new Set());
 
-  adorableFileTree = computed(() => {
-    const files = this.adorableFiles();
-    const adorable = files.filter(f => f.path.startsWith('.adorable/'));
+  // Upload preview state
+  pendingUploadFiles = signal<PendingFile[]>([]);
+  selectedUploadPaths = signal<Set<string>>(new Set());
+  expandedPreviewPaths = signal<Set<string>>(new Set());
 
+  adorableFileTree = computed(() => {
+    return this.buildTree(
+      this.adorableFiles().filter(f => f.path.startsWith('.adorable/')).map(f => ({ path: f.path, size: f.size }))
+    );
+  });
+
+  visibleAdorableEntries = computed(() => {
+    return this.getVisibleEntries(this.adorableFileTree(), this.expandedAdorablePaths());
+  });
+
+  // Preview tree from pending upload files
+  previewFileTree = computed(() => {
+    const files = this.pendingUploadFiles();
+    if (files.length === 0) return [];
+    return this.buildTree(files.map(f => ({ path: f.path, size: f.size })));
+  });
+
+  visiblePreviewEntries = computed(() => {
+    return this.getVisibleEntries(this.previewFileTree(), this.expandedPreviewPaths());
+  });
+
+  selectedUploadCount = computed(() => {
+    const selected = this.selectedUploadPaths();
+    return this.pendingUploadFiles().filter(f => selected.has(f.path)).length;
+  });
+
+  selectedUploadSize = computed(() => {
+    const selected = this.selectedUploadPaths();
+    return this.pendingUploadFiles()
+      .filter(f => selected.has(f.path))
+      .reduce((sum, f) => sum + f.size, 0);
+  });
+
+  adorableFileCount = computed(() => this.adorableFiles().filter(f => f.path.startsWith('.adorable/')).length);
+
+  // Shared tree-building logic
+  private buildTree(files: { path: string; size: number }[]): TreeEntry[] {
     const dirChildren = new Map<string, { dirs: Set<string>; files: { name: string; size: number; fullPath: string }[] }>();
 
     const ensureDir = (dirPath: string) => {
@@ -36,7 +91,7 @@ export class AdorableFileBrowserComponent implements OnChanges {
       }
     };
 
-    for (const file of adorable) {
+    for (const file of files) {
       const parts = file.path.split('/');
       for (let i = 1; i < parts.length; i++) {
         const dirPath = parts.slice(0, i).join('/');
@@ -56,8 +111,7 @@ export class AdorableFileBrowserComponent implements OnChanges {
       });
     }
 
-    type Entry = { path: string; name: string; isDirectory: boolean; depth: number; size: number; fullPath: string };
-    const entries: Entry[] = [];
+    const entries: TreeEntry[] = [];
 
     const walk = (dirPath: string, depth: number) => {
       const children = dirChildren.get(dirPath);
@@ -82,26 +136,22 @@ export class AdorableFileBrowserComponent implements OnChanges {
     }
 
     return entries;
-  });
+  }
 
-  visibleAdorableEntries = computed(() => {
-    const all = this.adorableFileTree();
-    const expanded = this.expandedAdorablePaths();
-    const visible: typeof all = [];
-    const collapsedPrefixes: string[] = [];
+  private getVisibleEntries(all: TreeEntry[], expanded: Set<string>): TreeEntry[] {
+    const visible: TreeEntry[] = [];
+    let skipUntilDepth = Infinity;
 
     for (const entry of all) {
-      const hidden = collapsedPrefixes.some(p => entry.path.startsWith(p + '/'));
-      if (hidden) continue;
+      if (entry.depth >= skipUntilDepth) continue;
+      skipUntilDepth = Infinity;
       visible.push(entry);
       if (entry.isDirectory && !expanded.has(entry.path)) {
-        collapsedPrefixes.push(entry.path);
+        skipUntilDepth = entry.depth + 1;
       }
     }
     return visible;
-  });
-
-  adorableFileCount = computed(() => this.adorableFiles().filter(f => f.path.startsWith('.adorable/')).length);
+  }
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['kitId'] && this.kitId()) {
@@ -197,75 +247,40 @@ export class AdorableFileBrowserComponent implements OnChanges {
   deleteAdorableFolder(folderPath: string) {
     const id = this.kitId();
     if (!id) return;
-    // Find all files under this folder
-    const filesToDelete = this.adorableFiles().filter(f => f.path.startsWith(folderPath + '/'));
-    if (filesToDelete.length === 0) return;
-
-    let completed = 0;
-    let errors = 0;
-    for (const file of filesToDelete) {
-      this.apiService.deleteKitFile(id, file.path).subscribe({
-        next: () => {
-          completed++;
-          if (completed + errors === filesToDelete.length) {
-            this.toastService.show(`Deleted ${completed} file(s)`, 'success');
-            this.loadAdorableFiles();
-          }
-        },
-        error: () => {
-          errors++;
-          if (completed + errors === filesToDelete.length) {
-            this.toastService.show(`Deleted ${completed} file(s), ${errors} failed`, 'error');
-            this.loadAdorableFiles();
-          }
-        }
-      });
-    }
+    this.apiService.deleteKitFolder(id, folderPath).subscribe({
+      next: (result) => {
+        this.toastService.show(`Deleted ${result.deletedCount} file(s)`, 'success');
+        this.loadAdorableFiles();
+      },
+      error: () => {
+        this.toastService.show('Failed to delete folder', 'error');
+      }
+    });
   }
+
+  // --- Upload preview flow ---
 
   uploadAdorableFiles(event: Event) {
     const input = event.target as HTMLInputElement;
-    const id = this.kitId();
-    if (!input.files || !id) return;
+    if (!input.files || !this.kitId()) return;
 
-    const filesToUpload: { path: string; content: string }[] = [];
     const fileArray = Array.from(input.files);
-    let processed = 0;
-
-    for (const file of fileArray) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        filesToUpload.push({
-          path: `.adorable/${file.name}`,
-          content: reader.result as string,
-        });
-        processed++;
-        if (processed === fileArray.length) {
-          this.apiService.uploadKitFiles(id, filesToUpload).subscribe({
-            next: () => {
-              this.toastService.show(`${filesToUpload.length} file(s) uploaded`, 'success');
-              this.loadAdorableFiles();
-            },
-            error: () => {
-              this.toastService.show('Failed to upload files', 'error');
-            }
-          });
-        }
-      };
-      reader.readAsText(file);
+    const totalSize = fileArray.reduce((sum, f) => sum + f.size, 0);
+    if (totalSize > MAX_UPLOAD_SIZE) {
+      this.toastService.show('Upload too large (max 10MB). Remove large files and try again.', 'error');
+      input.value = '';
+      return;
     }
 
+    this.readFilesForPreview(fileArray, (file) => `.adorable/${file.name}`);
     input.value = '';
   }
 
   uploadAdorableFolder(event: Event) {
     const input = event.target as HTMLInputElement;
-    const id = this.kitId();
-    if (!input.files || !id) return;
+    if (!input.files || !this.kitId()) return;
 
-    const filesToUpload: { path: string; content: string }[] = [];
     const fileArray = Array.from(input.files);
-    // Filter to supported text files
     const supportedExts = ['.md', '.txt', '.json', '.yaml', '.yml'];
     const textFiles = fileArray.filter(f => supportedExts.some(ext => f.name.endsWith(ext)));
 
@@ -275,37 +290,152 @@ export class AdorableFileBrowserComponent implements OnChanges {
       return;
     }
 
+    const totalSize = textFiles.reduce((sum, f) => sum + f.size, 0);
+    if (totalSize > MAX_UPLOAD_SIZE) {
+      this.toastService.show('Upload too large (max 10MB). Remove large files and try again.', 'error');
+      input.value = '';
+      return;
+    }
+
+    this.readFilesForPreview(textFiles, (file) => {
+      const parts = file.webkitRelativePath.split('/');
+      const subPath = parts.slice(1).join('/');
+      return `.adorable/${subPath}`;
+    });
+    input.value = '';
+  }
+
+  private readFilesForPreview(files: File[], pathMapper: (file: File) => string) {
+    const pending: PendingFile[] = [];
     let processed = 0;
-    for (const file of textFiles) {
+
+    for (const file of files) {
       const reader = new FileReader();
       reader.onload = () => {
-        // webkitRelativePath is "folderName/sub/file.md" — strip the root folder name
-        // and place under .adorable/
-        const relativePath = file.webkitRelativePath;
-        const parts = relativePath.split('/');
-        // Remove the top-level folder (the one the user selected)
-        const subPath = parts.slice(1).join('/');
-        filesToUpload.push({
-          path: `.adorable/${subPath}`,
+        pending.push({
+          path: pathMapper(file),
           content: reader.result as string,
+          size: file.size,
         });
         processed++;
-        if (processed === textFiles.length) {
-          this.apiService.uploadKitFiles(id, filesToUpload).subscribe({
-            next: () => {
-              this.toastService.show(`${filesToUpload.length} file(s) uploaded from folder`, 'success');
-              this.loadAdorableFiles();
-            },
-            error: () => {
-              this.toastService.show('Failed to upload files', 'error');
-            }
-          });
+        if (processed === files.length) {
+          this.showUploadPreview(pending);
         }
       };
       reader.readAsText(file);
     }
+  }
 
-    input.value = '';
+  private showUploadPreview(files: PendingFile[]) {
+    this.pendingUploadFiles.set(files);
+    // Select all by default
+    this.selectedUploadPaths.set(new Set(files.map(f => f.path)));
+    // Expand all directories in preview
+    const allDirs = new Set<string>();
+    for (const file of files) {
+      const parts = file.path.split('/');
+      for (let i = 1; i < parts.length; i++) {
+        allDirs.add(parts.slice(0, i).join('/'));
+      }
+    }
+    this.expandedPreviewPaths.set(allDirs);
+  }
+
+  cancelUploadPreview() {
+    this.pendingUploadFiles.set([]);
+    this.selectedUploadPaths.set(new Set());
+  }
+
+  togglePreviewFolder(path: string) {
+    const expanded = new Set(this.expandedPreviewPaths());
+    if (expanded.has(path)) {
+      expanded.delete(path);
+    } else {
+      expanded.add(path);
+    }
+    this.expandedPreviewPaths.set(expanded);
+  }
+
+  toggleUploadSelection(entry: TreeEntry) {
+    if (entry.isDirectory) {
+      this.toggleDirectorySelection(entry.fullPath);
+    } else {
+      this.toggleFileSelection(entry.fullPath);
+    }
+  }
+
+  private toggleFileSelection(filePath: string) {
+    const selected = new Set(this.selectedUploadPaths());
+    if (selected.has(filePath)) {
+      selected.delete(filePath);
+    } else {
+      selected.add(filePath);
+    }
+    this.selectedUploadPaths.set(selected);
+  }
+
+  private toggleDirectorySelection(dirPath: string) {
+    const selected = new Set(this.selectedUploadPaths());
+    const filesInDir = this.pendingUploadFiles().filter(f => f.path.startsWith(dirPath + '/'));
+    const allSelected = filesInDir.every(f => selected.has(f.path));
+
+    for (const file of filesInDir) {
+      if (allSelected) {
+        selected.delete(file.path);
+      } else {
+        selected.add(file.path);
+      }
+    }
+    this.selectedUploadPaths.set(selected);
+  }
+
+  isDirectorySelected(dirPath: string): boolean | null {
+    const selected = this.selectedUploadPaths();
+    const filesInDir = this.pendingUploadFiles().filter(f => f.path.startsWith(dirPath + '/'));
+    if (filesInDir.length === 0) return false;
+    const selectedCount = filesInDir.filter(f => selected.has(f.path)).length;
+    if (selectedCount === 0) return false;
+    if (selectedCount === filesInDir.length) return true;
+    return null; // indeterminate
+  }
+
+  selectAllUpload() {
+    this.selectedUploadPaths.set(new Set(this.pendingUploadFiles().map(f => f.path)));
+  }
+
+  deselectAllUpload() {
+    this.selectedUploadPaths.set(new Set());
+  }
+
+  confirmUpload() {
+    const id = this.kitId();
+    if (!id) return;
+
+    const selected = this.selectedUploadPaths();
+    const filesToUpload = this.pendingUploadFiles()
+      .filter(f => selected.has(f.path))
+      .map(f => ({ path: f.path, content: f.content }));
+
+    if (filesToUpload.length === 0) {
+      this.toastService.show('No files selected', 'error');
+      return;
+    }
+
+    this.uploadingFiles.set(true);
+    this.pendingUploadFiles.set([]);
+    this.selectedUploadPaths.set(new Set());
+
+    this.apiService.uploadKitFiles(id, filesToUpload).subscribe({
+      next: () => {
+        this.toastService.show(`${filesToUpload.length} file(s) uploaded`, 'success');
+        this.uploadingFiles.set(false);
+        this.loadAdorableFiles();
+      },
+      error: () => {
+        this.toastService.show('Failed to upload files', 'error');
+        this.uploadingFiles.set(false);
+      }
+    });
   }
 
   regenerateDocs() {

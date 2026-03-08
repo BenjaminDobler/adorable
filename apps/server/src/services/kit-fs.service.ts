@@ -149,11 +149,36 @@ export class KitFsService {
   }
 
   /**
+   * Validate that a resolved path stays within the kit directory (prevent path traversal).
+   */
+  private validatePath(kitId: string, relativePath: string): string {
+    const kitDir = path.join(KITS_DIR, kitId);
+    const resolved = path.resolve(kitDir, relativePath);
+    if (!resolved.startsWith(kitDir + path.sep) && resolved !== kitDir) {
+      throw new Error('Invalid path');
+    }
+    return resolved;
+  }
+
+  /**
    * Delete a single file from a kit directory.
    */
   async deleteFile(kitId: string, relativePath: string): Promise<void> {
-    const fullPath = path.join(KITS_DIR, kitId, relativePath);
+    const fullPath = this.validatePath(kitId, relativePath);
     await fs.unlink(fullPath);
+  }
+
+  /**
+   * Delete an entire folder from a kit directory recursively.
+   * Returns the number of files that were deleted.
+   */
+  async deleteFolder(kitId: string, relativePath: string): Promise<number> {
+    const fullPath = this.validatePath(kitId, relativePath);
+    const entries: KitFileEntry[] = [];
+    await this.listDirRecursive(fullPath, '', entries);
+    const count = entries.length;
+    await fs.rm(fullPath, { recursive: true, force: true });
+    return count;
   }
 
   /**
