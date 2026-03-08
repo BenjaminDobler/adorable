@@ -1,6 +1,7 @@
 import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, input, output, effect, untracked, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ProgressiveEditorStore } from '../services/progressive-editor.store';
+import { MonacoIntelliSenseService } from './monaco-intellisense.service';
 
 declare const monaco: any;
 
@@ -15,6 +16,7 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
   @ViewChild('editorContainer') editorContainer!: ElementRef;
 
   private progressiveStore = inject(ProgressiveEditorStore);
+  private intelliSenseService = inject(MonacoIntelliSenseService);
 
   content = input.required<string>();
   fileName = input.required<string>();
@@ -110,6 +112,7 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
   ngAfterViewInit() {
     this.loadMonaco().then(() => {
       this.initEditor();
+      this.intelliSenseService.init();
     });
   }
 
@@ -142,7 +145,7 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
       quickSuggestions: true,
       suggestOnTriggerCharacters: true,
       parameterHints: { enabled: true },
-      wordBasedSuggestions: 'currentDocument'
+      wordBasedSuggestions: 'allDocuments'
     });
 
     this.editorInstance.onDidChangeModelContent(() => {
@@ -229,6 +232,7 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
         target: monaco.languages.typescript.ScriptTarget.ESNext,
         module: monaco.languages.typescript.ModuleKind.ESNext,
         moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+        baseUrl: 'file:///',
         allowNonTsExtensions: true,
         allowJs: true,
         strict: false,

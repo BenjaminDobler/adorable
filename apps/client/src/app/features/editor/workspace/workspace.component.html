@@ -154,7 +154,7 @@
       } @else {
       <app-editor
         [content]="selectedFileContent()"
-        [fileName]="selectedFileName()"
+        [fileName]="selectedFilePath()"
         (contentChange)="onFileContentChange($event)"
       ></app-editor>
       } } @else {
