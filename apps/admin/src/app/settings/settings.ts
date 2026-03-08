@@ -88,31 +88,32 @@ import { AdminApiService } from '../services/admin-api';
   styles: [`
     .settings-page { padding: 0; max-width: 640px; }
     h2 { margin: 0 0 1.5rem; font-weight: 700; }
-    h3 { margin: 0 0 1rem; font-weight: 600; font-size: 1rem; color: #ccc; }
+    h3 { margin: 0 0 1rem; font-weight: 600; font-size: 1rem; color: var(--text-primary); }
     .settings-section {
-      background: #1e1e2e;
-      border: 1px solid #2e2e3e;
-      border-radius: 8px;
+      background: var(--bg-surface-1);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-lg);
       padding: 1.25rem;
       margin-bottom: 1.25rem;
     }
     .form-group {
       margin-bottom: 1rem;
       &:last-child { margin-bottom: 0; }
-      label { display: block; font-size: 0.8rem; color: #888; margin-bottom: 0.375rem; font-weight: 600; }
+      label { display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.375rem; font-weight: 600; }
       input[type="text"],
       input[type="number"],
       input[type="email"],
       input[type="password"] {
         width: 100%;
-        background: #16161e;
-        border: 1px solid #2e2e3e;
-        border-radius: 6px;
+        background: var(--bg-surface-2);
+        border: 1px solid var(--panel-border);
+        border-radius: var(--radius-sm);
         padding: 0.5rem 0.75rem;
-        color: #e0e0e0;
+        color: var(--text-primary);
         font-size: 0.875rem;
         box-sizing: border-box;
-        &:focus { outline: none; border-color: #3b82f6; }
+        transition: all 0.25s var(--ease-out-expo);
+        &:focus { outline: none; border-color: var(--accent-color); box-shadow: 0 0 0 3px var(--accent-glow); }
       }
     }
     .toggle-label {
@@ -121,25 +122,27 @@ import { AdminApiService } from '../services/admin-api';
       gap: 0.5rem;
       cursor: pointer;
       font-size: 0.875rem !important;
-      color: #ccc !important;
+      color: var(--text-primary) !important;
       input[type="checkbox"] { width: auto; }
     }
     .save-section { display: flex; align-items: center; gap: 1rem; }
     .btn-save {
-      background: #3b82f6;
-      color: #fff;
+      background: var(--accent-color);
+      color: #000;
       border: none;
       padding: 0.625rem 1.5rem;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       font-weight: 600;
       font-size: 0.875rem;
-      &:hover { background: #2563eb; }
+      box-shadow: 0 0 15px var(--accent-glow);
+      transition: all 0.25s var(--ease-out-expo);
+      &:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 0 20px var(--accent-glow-intense); }
       &:disabled { opacity: 0.5; cursor: not-allowed; }
     }
-    .saved-msg { color: #22c55e; font-size: 0.85rem; }
-    .hint { font-size: 0.8rem; color: #666; margin: 0.5rem 0 0; line-height: 1.4; }
-    .loading { color: #888; }
+    .saved-msg { color: var(--success-color); font-size: 0.85rem; }
+    .hint { font-size: 0.8rem; color: var(--text-muted); margin: 0.5rem 0 0; line-height: 1.4; }
+    .loading { color: var(--text-secondary); }
   `],
 })
 export class SettingsComponent implements OnInit {

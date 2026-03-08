@@ -73,9 +73,9 @@ import { AdminApiService } from '../services/admin-api';
     h2 { margin: 0 0 1.5rem; font-weight: 700; }
 
     .server-status-card {
-      background: #1e1e2e;
-      border: 1px solid #2e2e3e;
-      border-radius: 8px;
+      background: var(--bg-surface-1);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-lg);
       padding: 1rem 1.25rem;
       margin-bottom: 1.5rem;
     }
@@ -88,32 +88,32 @@ import { AdminApiService } from '../services/admin-api';
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      background: #555;
+      background: var(--text-muted);
       flex-shrink: 0;
     }
-    .status-dot.ok { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
-    .status-dot.down { background: #ef4444; box-shadow: 0 0 6px #ef444488; }
+    .status-dot.ok { background: var(--success-color); box-shadow: 0 0 8px rgba(52, 211, 153, 0.5); }
+    .status-dot.down { background: var(--error-color); box-shadow: 0 0 8px var(--error-glow); }
     .server-status-title {
       font-weight: 700;
       font-size: 0.95rem;
-      color: #e0e0e0;
+      color: var(--text-primary);
     }
     .server-status-badge {
       font-size: 0.75rem;
       font-weight: 600;
       padding: 0.15rem 0.55rem;
-      border-radius: 4px;
-      background: #2e2e3e;
-      color: #888;
+      border-radius: var(--radius-xs);
+      background: var(--bg-surface-3);
+      color: var(--text-secondary);
     }
-    .server-status-badge.ok { background: #22c55e22; color: #22c55e; }
-    .server-status-badge.down { background: #ef444422; color: #ef4444; }
+    .server-status-badge.ok { background: rgba(52, 211, 153, 0.12); color: var(--success-color); }
+    .server-status-badge.down { background: rgba(248, 113, 113, 0.12); color: var(--error-color); }
     .server-status-detail {
       margin-top: 0.5rem;
       font-size: 0.8rem;
-      color: #888;
+      color: var(--text-secondary);
     }
-    .server-status-detail strong { color: #ccc; }
+    .server-status-detail strong { color: var(--text-primary); }
 
     .stats-grid {
       display: grid;
@@ -122,13 +122,18 @@ import { AdminApiService } from '../services/admin-api';
       margin-bottom: 1.5rem;
     }
     .stat-card {
-      background: #1e1e2e;
-      border: 1px solid #2e2e3e;
-      border-radius: 8px;
+      background: var(--bg-surface-1);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-lg);
       padding: 1.25rem;
+      transition: all 0.25s var(--ease-out-expo);
     }
-    .stat-value { font-size: 1.75rem; font-weight: 800; color: #e0e0e0; }
-    .stat-label { font-size: 0.8rem; color: #888; margin-top: 0.25rem; }
+    .stat-card:hover {
+      border-color: var(--panel-border-hover);
+      box-shadow: var(--shadow-md);
+    }
+    .stat-value { font-size: 1.75rem; font-weight: 800; color: var(--text-primary); }
+    .stat-label { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem; }
     .secondary .stat-value { font-size: 1.25rem; }
   `],
 })

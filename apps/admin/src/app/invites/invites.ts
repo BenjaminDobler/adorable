@@ -72,49 +72,52 @@ import { AdminApiService } from '../services/admin-api';
     .invites-page { padding: 0; }
     h2 { margin: 0 0 1.5rem; font-weight: 700; }
     h3 { margin: 0; font-weight: 600; }
-    .section-label { font-size: 0.85rem; font-weight: 600; color: #888; margin-bottom: 0.5rem; display: block; }
+    .section-label { font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem; display: block; }
     .mode-section { margin-bottom: 2rem; }
     .mode-toggle {
       display: flex; gap: 0;
       button {
         padding: 0.5rem 1.25rem;
-        background: #1e1e2e;
-        border: 1px solid #2e2e3e;
-        color: #888;
+        background: var(--bg-surface-1);
+        border: 1px solid var(--panel-border);
+        color: var(--text-secondary);
         cursor: pointer;
         font-size: 0.85rem;
-        &:first-child { border-radius: 6px 0 0 6px; }
-        &:last-child { border-radius: 0 6px 6px 0; border-left: none; }
-        &.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+        transition: all 0.2s var(--ease-out-expo);
+        &:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+        &:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; border-left: none; }
+        &.active { background: var(--accent-color); color: #000; border-color: var(--accent-color); }
       }
     }
     .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
     .btn-primary {
-      background: #3b82f6;
-      color: #fff;
+      background: var(--accent-color);
+      color: #000;
       border: none;
       padding: 0.5rem 1rem;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       font-size: 0.85rem;
       font-weight: 600;
+      box-shadow: 0 0 15px var(--accent-glow);
+      transition: all 0.25s var(--ease-out-expo);
     }
-    .btn-primary:hover { background: #2563eb; }
+    .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 0 20px var(--accent-glow-intense); }
     .data-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-    .data-table th, .data-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #2e2e3e; }
-    .data-table th { color: #888; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
-    .invite-code { background: #2e2e3e; padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 0.9rem; }
+    .data-table th, .data-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--panel-border); }
+    .data-table th { color: var(--text-secondary); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+    .invite-code { background: var(--bg-surface-3); padding: 2px 8px; border-radius: var(--radius-xs); font-family: 'Space Mono', monospace; font-size: 0.9rem; }
     .btn-copy {
-      background: none; border: none; color: #3b82f6; cursor: pointer; font-size: 0.75rem; margin-left: 0.5rem;
+      background: none; border: none; color: var(--accent-color); cursor: pointer; font-size: 0.75rem; margin-left: 0.5rem;
     }
-    .badge { padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; }
-    .badge.available { background: #052e16; color: #22c55e; }
-    .badge.used { background: #1e1e2e; color: #888; }
-    .badge.expired { background: #3a1a1a; color: #ef4444; }
-    .btn-small { background: #2e2e3e; border: 1px solid #3e3e4e; color: #ccc; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
-    .btn-small.danger { color: #ef4444; }
-    .btn-small.danger:hover { background: #3a1a1a; }
-    .empty { color: #666; text-align: center; padding: 2rem !important; }
+    .badge { padding: 2px 8px; border-radius: var(--radius-xs); font-size: 0.75rem; }
+    .badge.available { background: rgba(52, 211, 153, 0.12); color: var(--success-color); }
+    .badge.used { background: var(--bg-surface-2); color: var(--text-secondary); }
+    .badge.expired { background: rgba(248, 113, 113, 0.12); color: var(--error-color); }
+    .btn-small { background: var(--bg-surface-3); border: 1px solid var(--panel-border-hover); color: var(--text-secondary); padding: 4px 10px; border-radius: var(--radius-xs); cursor: pointer; font-size: 0.75rem; transition: all 0.2s var(--ease-out-expo); }
+    .btn-small.danger { color: var(--error-color); }
+    .btn-small.danger:hover { background: rgba(248, 113, 113, 0.1); }
+    .empty { color: var(--text-muted); text-align: center; padding: 2rem !important; }
   `],
 })
 export class InvitesComponent implements OnInit {
