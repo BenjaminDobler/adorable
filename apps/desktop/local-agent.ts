@@ -227,6 +227,28 @@ class NativeManager {
     }
   }
 
+  async readdir(relativePath: string, withFileTypes = false): Promise<{ name: string; isDirectory: boolean }[]> {
+    if (!this.projectPath) throw new Error('Project not initialized');
+    const fullPath = path.resolve(this.projectPath, relativePath);
+    if (!fullPath.startsWith(this.projectPath)) throw new Error('Path traversal not allowed');
+    const entries = await fs.readdir(fullPath, { withFileTypes: true });
+    return entries.map(e => ({ name: e.name, isDirectory: e.isDirectory() }));
+  }
+
+  async readFile(relativePath: string): Promise<string> {
+    if (!this.projectPath) throw new Error('Project not initialized');
+    const fullPath = path.resolve(this.projectPath, relativePath);
+    if (!fullPath.startsWith(this.projectPath)) throw new Error('Path traversal not allowed');
+    return fs.readFile(fullPath, 'utf-8');
+  }
+
+  async readBinaryFile(relativePath: string): Promise<Buffer> {
+    if (!this.projectPath) throw new Error('Project not initialized');
+    const fullPath = path.resolve(this.projectPath, relativePath);
+    if (!fullPath.startsWith(this.projectPath)) throw new Error('Path traversal not allowed');
+    return fs.readFile(fullPath);
+  }
+
   async stop(): Promise<void> {
     this.stopWatcher();
 
@@ -389,6 +411,36 @@ app.get('/api/native/exec-stream', async (req, res) => {
       res.end();
     }
     console.log('[Agent] exec-stream error:', cmd, e.message);
+  }
+});
+
+app.post('/api/native/readdir', async (req, res) => {
+  try {
+    const { path: dirPath, withFileTypes } = req.body;
+    const entries = await manager.readdir(dirPath || '.', withFileTypes);
+    res.json({ entries });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/native/read-file', async (req, res) => {
+  try {
+    const { path: filePath } = req.body;
+    const content = await manager.readFile(filePath);
+    res.json({ content });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/native/read-binary-file', async (req, res) => {
+  try {
+    const { path: filePath } = req.body;
+    const content = await manager.readBinaryFile(filePath);
+    res.json({ content: content.toString('base64') });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
   }
 });
 

@@ -344,16 +344,65 @@ export class NativeContainerEngine extends ContainerEngine {
     await this.mount(tree);
   }
 
-  async readFile(path: string): Promise<string> { return ''; }
-  async readBinaryFile(path: string): Promise<Uint8Array> { return new Uint8Array(); }
+  async readFile(filePath: string): Promise<string> {
+    const res = await fetch(`${this.apiUrl}/read-file`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: filePath }),
+    });
+    if (!res.ok) throw new Error(`readFile failed: ${res.status}`);
+    const data = await res.json();
+    return data.content;
+  }
+
+  async readBinaryFile(filePath: string): Promise<Uint8Array> {
+    const res = await fetch(`${this.apiUrl}/read-binary-file`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: filePath }),
+    });
+    if (!res.ok) throw new Error(`readBinaryFile failed: ${res.status}`);
+    const data = await res.json();
+    const binary = atob(data.content);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+
   async deleteFile(path: string): Promise<void> {}
   async mkdir(path: string): Promise<void> {
     await this.exec('mkdir', ['-p', path]);
   }
   async startShell(): Promise<void> {}
   async writeToShell(data: string): Promise<void> {}
-  async runBuild(args?: string[]): Promise<number> { return 0; }
-  async readdir(path: string, options?: any): Promise<any> { return []; }
+
+  async runBuild(args?: string[]): Promise<number> {
+    const buildArgs = ['run', 'build'];
+    if (args && args.length) buildArgs.push('--', ...args);
+    const res = await this.exec('npm', buildArgs);
+    res.stream.subscribe(chunk => this.serverOutput.update(o => o + chunk));
+    return res.exit;
+  }
+
+  async readdir(dirPath: string, options?: any): Promise<any> {
+    const res = await fetch(`${this.apiUrl}/readdir`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: dirPath, withFileTypes: options?.withFileTypes }),
+    });
+    if (!res.ok) throw new Error(`readdir failed: ${res.status}`);
+    const data = await res.json();
+    if (options?.withFileTypes) {
+      return data.entries.map((e: any) => ({
+        name: e.name,
+        isDirectory: () => e.isDirectory,
+        isFile: () => !e.isDirectory,
+      }));
+    }
+    return data.entries.map((e: any) => e.name);
+  }
 
   onServerReadyCallback?: (port: number, url: string) => void;
   on(event: 'server-ready', callback: (port: number, url: string) => void): void {
