@@ -15,8 +15,15 @@ import { ToastService } from '../../services/toast';
 import { ConfirmService } from '../../services/confirm';
 import { CloudConnectComponent } from '../../../shared/ui/cloud-connect/cloud-connect.component';
 import { PopoverComponent } from '../../../shared/ui/popover/popover.component';
+import { ProvidersTabComponent } from '../../../features/profile/providers-tab/providers-tab.component';
+import { AccountTabComponent } from '../../../features/profile/account-tab/account-tab.component';
+import { IntegrationsTabComponent } from '../../../features/profile/integrations-tab/integrations-tab.component';
+import { McpTabComponent } from '../../../features/profile/mcp-tab/mcp-tab.component';
+import { AboutTabComponent } from '../../../features/profile/about-tab/about-tab.component';
 import { GitHubRepository, GitHubProjectSync, PublishVisibility } from '@adorable/shared-types';
 import { ApiService } from '../../services/api';
+import { AppSettings, AIProfile, BuiltInToolConfig, SapAiCoreConfig, MCPServerConfig } from '../../../features/profile/profile.types';
+import { ThemeSettings } from '../../services/theme';
 
 interface ContainerInfo {
   containerId: string;
@@ -29,7 +36,7 @@ interface ContainerInfo {
 @Component({
   selector: 'app-navbar',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, CloudConnectComponent, PopoverComponent],
+  imports: [CommonModule, RouterModule, FormsModule, CloudConnectComponent, PopoverComponent, ProvidersTabComponent, AccountTabComponent, IntegrationsTabComponent, McpTabComponent, AboutTabComponent],
   templateUrl: './navbar.html',
   styleUrl: './navbar.scss',
 })
@@ -526,5 +533,181 @@ export class NavbarComponent {
       navigator.clipboard.writeText(url);
       this.toastService.show('URL copied!', 'success');
     }
+  }
+
+  // --- Settings Dialog (full profile) ---
+  settingsDialogOpen = signal(false);
+  settingsLoading = signal(false);
+  settingsSaving = signal(false);
+  settingsFetchedModels = signal<Record<string, string[]>>({});
+  settingsTab = signal<'account' | 'providers' | 'integrations' | 'mcp' | 'about'>('providers');
+  settingsUser = signal<any>(null);
+  settingsName = signal('');
+  settingsMcpServers = signal<MCPServerConfig[]>([]);
+
+  private defaultSettings: AppSettings = {
+    profiles: [
+      { id: 'anthropic', name: 'Anthropic (Claude)', provider: 'anthropic', apiKey: '', model: 'claude-sonnet-4-5-20250929' },
+      { id: 'gemini', name: 'Google (Gemini)', provider: 'gemini', apiKey: '', model: 'gemini-2.5-flash' },
+      { id: 'figma', name: 'Figma', provider: 'figma', apiKey: '', model: '' }
+    ],
+    activeProfileId: 'anthropic',
+    themeSettings: this.themeService.getSettings()
+  };
+
+  settingsData = signal<AppSettings>(this.defaultSettings);
+
+  openSettingsDialog() {
+    this.settingsDialogOpen.set(true);
+    this.loadSettings();
+  }
+
+  closeSettingsDialog() {
+    this.settingsDialogOpen.set(false);
+  }
+
+  private loadSettings() {
+    this.settingsLoading.set(true);
+    this.apiService.getProfile().subscribe({
+      next: (user) => {
+        this.settingsUser.set(user);
+        this.settingsName.set(user.name || '');
+
+        if (user.settings) {
+          const parsed = typeof user.settings === 'string' ? JSON.parse(user.settings) : user.settings;
+          const defaultProfiles = this.defaultSettings.profiles;
+          let profiles = parsed.profiles || [];
+
+          if (!parsed.profiles && parsed.provider) {
+            let pName = parsed.provider;
+            if (pName === 'google') pName = 'gemini';
+            profiles = [{ id: pName, name: pName === 'anthropic' ? 'Anthropic (Claude)' : 'Google (Gemini)', provider: pName, apiKey: parsed.apiKey || '', model: parsed.model || '' }];
+            parsed.activeProfileId = pName;
+          }
+
+          const mergedProfiles = defaultProfiles.map(def => {
+            const loaded = profiles.find((p: any) => p.id === def.id || p.provider === def.provider);
+            return loaded ? { ...def, ...loaded, id: def.id } : def;
+          });
+
+          const mcpServers = parsed.mcpServers || [];
+          this.settingsMcpServers.set(mcpServers);
+
+          this.settingsData.set({
+            profiles: mergedProfiles,
+            activeProfileId: parsed.activeProfileId || 'anthropic',
+            theme: parsed.theme || 'dark',
+            themeSettings: this.themeService.getSettings(),
+            mcpServers,
+            angularMcpEnabled: parsed.angularMcpEnabled !== false,
+            kitLessonsEnabled: parsed.kitLessonsEnabled !== false
+          });
+
+          mergedProfiles.forEach(p => {
+            if (p.apiKey && p.provider !== 'figma') this.fetchSettingsModels(p);
+          });
+        }
+        this.settingsLoading.set(false);
+      },
+      error: () => {
+        this.settingsLoading.set(false);
+        this.toastService.show('Failed to load settings', 'error');
+      }
+    });
+  }
+
+  private fetchSettingsModels(profile: AIProfile) {
+    let providerParam = profile.provider;
+    if (providerParam === 'gemini') providerParam = 'google' as any;
+    this.apiService.getModels(providerParam, profile.apiKey).subscribe({
+      next: (models) => {
+        this.settingsFetchedModels.update(current => ({ ...current, [profile.id]: models }));
+      },
+      error: () => {}
+    });
+  }
+
+  // Account tab handlers
+  onSettingsNameChange(name: string) {
+    this.settingsName.set(name);
+  }
+
+  onSettingsThemeTypeChange(type: ThemeType) {
+    const newSettings: ThemeSettings = { ...this.settingsData().themeSettings!, type };
+    this.settingsData.update(s => ({ ...s, themeSettings: newSettings }));
+    this.themeService.setThemeType(type);
+  }
+
+  onSettingsThemeModeChange(mode: ThemeMode) {
+    const newSettings: ThemeSettings = { ...this.settingsData().themeSettings!, mode };
+    this.settingsData.update(s => ({ ...s, themeSettings: newSettings }));
+    this.themeService.setThemeMode(mode);
+  }
+
+  // Providers tab handlers
+  onSettingsSetActive(id: string) {
+    this.settingsData.update(s => ({ ...s, activeProfileId: id }));
+  }
+
+  onSettingsProfileUpdated(event: {id: string, updates: Partial<AIProfile>}) {
+    this.settingsData.update(s => ({
+      ...s,
+      profiles: s.profiles.map(p => p.id === event.id ? { ...p, ...event.updates } : p)
+    }));
+  }
+
+  onSettingsBuiltInToolToggled(event: {profileId: string, tool: keyof BuiltInToolConfig, enabled: boolean}) {
+    const profile = this.settingsData().profiles.find(p => p.id === event.profileId);
+    const current = profile?.builtInTools || {};
+    this.onSettingsProfileUpdated({ id: event.profileId, updates: { builtInTools: { ...current, [event.tool]: event.enabled } } });
+  }
+
+  onSettingsSapModeToggled(event: {profileId: string, enabled: boolean}) {
+    const profile = this.settingsData().profiles.find(p => p.id === event.profileId);
+    const current = profile?.sapAiCore || { enabled: false, authUrl: '', clientId: '', clientSecret: '', resourceGroup: 'default' };
+    this.onSettingsProfileUpdated({ id: event.profileId, updates: { sapAiCore: { ...current, enabled: event.enabled } } });
+  }
+
+  onSettingsSapConfigUpdated(event: {profileId: string, updates: Partial<SapAiCoreConfig>}) {
+    const profile = this.settingsData().profiles.find(p => p.id === event.profileId);
+    const current = profile?.sapAiCore || { enabled: false, authUrl: '', clientId: '', clientSecret: '', resourceGroup: 'default' };
+    this.onSettingsProfileUpdated({ id: event.profileId, updates: { sapAiCore: { ...current, ...event.updates } } });
+  }
+
+  onSettingsFetchModels(profile: AIProfile) {
+    this.fetchSettingsModels(profile);
+  }
+
+  // MCP tab handlers
+  onSettingsMcpServersChange(servers: MCPServerConfig[]) {
+    this.settingsMcpServers.set(servers);
+    this.settingsData.update(s => ({ ...s, mcpServers: servers }));
+  }
+
+  onSettingsAngularMcpToggle(enabled: boolean) {
+    this.settingsData.update(s => ({ ...s, angularMcpEnabled: enabled }));
+  }
+
+  onSettingsKitLessonsToggle(enabled: boolean) {
+    this.settingsData.update(s => ({ ...s, kitLessonsEnabled: enabled }));
+  }
+
+  saveAndCloseSettings() {
+    this.settingsSaving.set(true);
+    const current = this.settingsData();
+    if (!current.profiles.find(p => p.id === current.activeProfileId)) {
+      current.activeProfileId = current.profiles[0]?.id;
+    }
+    this.apiService.updateProfile({ name: this.settingsName(), settings: current }).subscribe({
+      next: () => {
+        this.toastService.show('Settings saved!', 'success');
+        this.settingsSaving.set(false);
+        this.settingsDialogOpen.set(false);
+      },
+      error: () => {
+        this.toastService.show('Failed to save settings', 'error');
+        this.settingsSaving.set(false);
+      }
+    });
   }
 }

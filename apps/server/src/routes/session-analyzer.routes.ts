@@ -4,6 +4,7 @@ import { decrypt } from '../utils/crypto';
 import { sessionAnalyzerService } from '../services/session-analyzer.service';
 import { kitFsService } from '../services/kit-fs.service';
 import { SessionSuggestion } from '@adorable/shared-types';
+import { SapAiCoreConfig } from '../providers/types';
 
 const router = express.Router();
 
@@ -37,20 +38,44 @@ router.post('/analyze', async (req: any, res) => {
     return res.status(400).json({ error: 'filename is required' });
   }
 
-  // Resolve API key
+  // Resolve API key and provider config
   const userSettings = user.settings ? JSON.parse(user.settings) : {};
-  const getApiKey = (provider: string) => {
-    const profiles = userSettings.profiles || [];
-    const profile = profiles.find((p: any) => p.provider === provider);
+  const profiles = userSettings.profiles || [];
+
+  const getApiKey = (providerName: string) => {
+    const profile = profiles.find((p: any) => p.provider === providerName);
     if (profile?.apiKey) {
       return decrypt(profile.apiKey);
     }
     return undefined;
   };
 
-  const apiKey = getApiKey('anthropic');
+  const getSapConfig = (): SapAiCoreConfig | undefined => {
+    const profile = profiles.find((p: any) => p.provider === 'anthropic');
+    if (!profile?.sapAiCore?.enabled) return undefined;
+    return {
+      authUrl: profile.sapAiCore.authUrl,
+      clientId: profile.sapAiCore.clientId,
+      clientSecret: decrypt(profile.sapAiCore.clientSecret),
+      resourceGroup: profile.sapAiCore.resourceGroup || 'default',
+      baseUrl: profile.baseUrl,
+    };
+  };
+
+  let apiKey = getApiKey('anthropic');
+  let provider = 'anthropic';
+  let sapAiCore = getSapConfig();
+
+  // SAP AI Core uses OAuth, not API keys
+  if (sapAiCore) {
+    apiKey = 'sap-managed';
+  } else if (!apiKey) {
+    apiKey = getApiKey('gemini');
+    provider = 'gemini';
+  }
+
   if (!apiKey) {
-    return res.status(400).json({ error: 'No Anthropic API key configured. Please add one in settings.' });
+    return res.status(400).json({ error: 'No API key configured. Please add an Anthropic or Gemini API key in settings.' });
   }
 
   // Set up SSE
@@ -106,7 +131,7 @@ router.post('/analyze', async (req: any, res) => {
     // Step 4: Build prompt and call AI
     send({ type: 'progress', message: 'Analyzing with AI...' });
     const prompt = sessionAnalyzerService.buildAnalysisPrompt(events, metrics, kitDocs);
-    const suggestions = await sessionAnalyzerService.analyzeWithAI(prompt, apiKey);
+    const suggestions = await sessionAnalyzerService.analyzeWithAI(prompt, apiKey, undefined, provider, sapAiCore);
 
     // Step 5: Stream suggestions
     for (const suggestion of suggestions) {

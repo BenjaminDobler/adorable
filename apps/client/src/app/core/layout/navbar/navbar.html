@@ -852,10 +852,9 @@
           <line x1="6" y1="20" x2="6" y2="14"></line>
         </svg>
       </a>
-      <a
+      <button
         class="settings-btn"
-        routerLink="/profile"
-        routerLinkActive="active"
+        (click)="openSettingsDialog()"
         title="Settings"
       >
         <svg
@@ -873,7 +872,7 @@
             d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
           />
         </svg>
-      </a>
+      </button>
       @if (isDesktop) {
       <div class="cloud-wrapper">
         <button
@@ -1007,4 +1006,120 @@
   </div>
   }
 </nav>
+
+<!-- Settings Dialog (outside nav to escape stacking context) -->
+@if (settingsDialogOpen()) {
+<div
+  class="settings-dialog-backdrop"
+  (click)="closeSettingsDialog()"
+></div>
+<div class="settings-dialog">
+  <div class="dialog-header">
+    <div class="settings-tabs">
+      <button class="settings-tab" [class.active]="settingsTab() === 'account'" (click)="settingsTab.set('account')">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+        Account
+      </button>
+      <button class="settings-tab" [class.active]="settingsTab() === 'providers'" (click)="settingsTab.set('providers')">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+        </svg>
+        AI Providers
+      </button>
+      <button class="settings-tab" [class.active]="settingsTab() === 'integrations'" (click)="settingsTab.set('integrations')">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+        Integrations
+      </button>
+      <button class="settings-tab" [class.active]="settingsTab() === 'mcp'" (click)="settingsTab.set('mcp')">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+        MCP
+      </button>
+      <button class="settings-tab" [class.active]="settingsTab() === 'about'" (click)="settingsTab.set('about')">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+        About
+      </button>
+    </div>
+    <button class="close-btn" (click)="closeSettingsDialog()">&times;</button>
+  </div>
+  <div class="dialog-body">
+    @if (settingsLoading()) {
+      <div class="settings-loading">
+        <div class="spinner-large"></div>
+        <p>Loading settings...</p>
+      </div>
+    } @else {
+      @if (settingsTab() === 'account') {
+        <app-account-tab
+          [user]="settingsUser()"
+          [name]="settingsName()"
+          [settings]="settingsData()"
+          (nameChange)="onSettingsNameChange($event)"
+          (themeTypeChange)="onSettingsThemeTypeChange($event)"
+          (themeModeChange)="onSettingsThemeModeChange($event)"
+        />
+      }
+      @if (settingsTab() === 'providers') {
+        <app-providers-tab
+          [settings]="settingsData()"
+          [fetchedModels]="settingsFetchedModels()"
+          (setActive)="onSettingsSetActive($event)"
+          (profileUpdated)="onSettingsProfileUpdated($event)"
+          (builtInToolToggled)="onSettingsBuiltInToolToggled($event)"
+          (sapModeToggled)="onSettingsSapModeToggled($event)"
+          (sapConfigUpdated)="onSettingsSapConfigUpdated($event)"
+          (fetchModelsRequested)="onSettingsFetchModels($event)"
+        />
+      }
+      @if (settingsTab() === 'integrations') {
+        <app-integrations-tab
+          [settings]="settingsData()"
+          (profileUpdated)="onSettingsProfileUpdated($event)"
+        />
+      }
+      @if (settingsTab() === 'mcp') {
+        <app-mcp-tab
+          [mcpServers]="settingsMcpServers()"
+          [angularMcpEnabled]="settingsData().angularMcpEnabled !== false"
+          [kitLessonsEnabled]="settingsData().kitLessonsEnabled !== false"
+          [isDesktopMode]="isDesktop"
+          (serversChange)="onSettingsMcpServersChange($event)"
+          (angularMcpToggle)="onSettingsAngularMcpToggle($event)"
+          (kitLessonsToggle)="onSettingsKitLessonsToggle($event)"
+        />
+      }
+      @if (settingsTab() === 'about') {
+        <app-about-tab
+          [isDesktopMode]="isDesktop"
+          [legalBaseUrl]="'https://adorable.run'"
+        />
+      }
+    }
+  </div>
+  <div class="dialog-footer">
+    <div></div>
+    <div class="footer-actions">
+      <button class="btn-cancel" (click)="closeSettingsDialog()">Cancel</button>
+      <button
+        class="btn-save"
+        (click)="saveAndCloseSettings()"
+        [disabled]="settingsSaving() || settingsLoading()"
+      >
+        @if (settingsSaving()) {
+          <span class="spinner"></span>
+        }
+        Save
+      </button>
+    </div>
+  </div>
+</div>
+}
 }

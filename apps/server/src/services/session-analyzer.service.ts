@@ -3,6 +3,7 @@ import * as fsSync from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { SessionOverview, SessionLogEntry, SessionSuggestion } from '@adorable/shared-types';
+import { SapAiCoreConfig } from '../providers/types';
 
 interface LogEvent {
   timestamp: string;
@@ -446,18 +447,47 @@ class SessionAnalyzerService {
   async analyzeWithAI(
     prompt: string,
     apiKey: string,
-    model?: string
+    model?: string,
+    provider?: string,
+    sapAiCore?: SapAiCoreConfig
   ): Promise<SessionSuggestion[]> {
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const anthropic = new Anthropic({ apiKey });
+    let text = '';
 
-    const response = await anthropic.messages.create({
-      model: model || 'claude-haiku-4-5-20251001',
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }],
-    });
+    if (provider === 'gemini') {
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: model || 'gemini-2.5-flash',
+        contents: prompt,
+      });
+      text = response.text || '';
+    } else {
+      const Anthropic = (await import('@anthropic-ai/sdk')).default;
+      const modelToUse = model || 'claude-haiku-4-5-20251001';
 
-    const text = response.content[0]?.type === 'text' ? response.content[0].text : '';
+      let anthropicOptions: ConstructorParameters<typeof Anthropic>[0];
+      if (sapAiCore) {
+        const { createSapFetch } = await import('../providers/sap-ai-core');
+        const sapFetch = createSapFetch(sapAiCore, modelToUse);
+        anthropicOptions = {
+          apiKey: 'sap-managed',
+          fetch: sapFetch,
+          baseURL: sapAiCore.baseUrl,
+        };
+      } else {
+        anthropicOptions = { apiKey };
+      }
+
+      const anthropic = new Anthropic(anthropicOptions);
+
+      const response = await anthropic.messages.create({
+        model: modelToUse,
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: prompt }],
+      });
+
+      text = response.content[0]?.type === 'text' ? response.content[0].text : '';
+    }
 
     // Extract JSON array from response
     const jsonMatch = text.match(/\[[\s\S]*\]/);
