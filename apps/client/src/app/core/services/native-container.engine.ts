@@ -381,7 +381,7 @@ export class NativeContainerEngine extends ContainerEngine {
   async runBuild(args?: string[]): Promise<number> {
     const buildArgs = ['run', 'build'];
     if (args && args.length) buildArgs.push('--', ...args);
-    const res = await this.exec('npm', buildArgs);
+    const res = await this.exec('npm', buildArgs, { stream: true });
     res.stream.subscribe(chunk => this.serverOutput.update(o => o + chunk));
     return res.exit;
   }

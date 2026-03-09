@@ -479,7 +479,12 @@ export class NavbarComponent {
 
       const result = await this.cloudSyncService.publishSiteToCloud(id, files, this.publishVisibility());
       this.toastService.show('Published to cloud!', 'success');
-      window.open(result.url, '_blank');
+      const electronAPI = (window as any).electronAPI;
+      if (electronAPI?.openExternal) {
+        electronAPI.openExternal(result.url);
+      } else {
+        window.open(result.url, '_blank');
+      }
       this.publishPanelOpen.set(false);
     } catch (err: any) {
       console.error('[CloudPublish] Error:', err);
