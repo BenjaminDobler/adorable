@@ -259,12 +259,14 @@ export class KitFsService {
 
   /**
    * Check if a kit has template files on disk.
+   * Returns true only if the template directory exists AND contains at least one file.
    */
   async hasTemplateFiles(kitId: string): Promise<boolean> {
     try {
       const templatePath = this.getKitTemplatePath(kitId);
-      const stat = await fs.stat(templatePath);
-      return stat.isDirectory();
+      const entries: KitFileEntry[] = [];
+      await this.listDirRecursive(templatePath, '', entries);
+      return entries.length > 0;
     } catch {
       return false;
     }
@@ -472,10 +474,15 @@ export class KitFsService {
             }
           }
 
-          // Mark as stored on disk and clear files from DB JSON
-          kit.template.storedOnDisk = true;
-          kit.template.files = {};
-          settingsChanged = true;
+          // Only clear DB files if disk actually has files now
+          const diskHasFiles = await this.hasTemplateFiles(kit.id);
+          if (diskHasFiles) {
+            kit.template.storedOnDisk = true;
+            kit.template.files = {};
+            settingsChanged = true;
+          } else {
+            console.warn(`[Kit Migration] Keeping template files in DB for kit "${kit.name}" (${kit.id}) — disk write could not be verified`);
+          }
         }
       }
 
