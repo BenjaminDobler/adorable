@@ -1126,11 +1126,11 @@ body.light-mode .dashboard-container::before {
   transition: all 0.35s var(--ease-out-expo);
   position: relative;
 
-  &.built-in {
+  &.global {
     cursor: default;
   }
 
-  &:not(.built-in):hover {
+  &:not(.global):hover {
     border-color: var(--panel-border-hover);
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
@@ -1216,7 +1216,7 @@ body.light-mode .dashboard-container::before {
     font-weight: 600;
     letter-spacing: 0.03em;
 
-    &.built-in {
+    &.global {
       background: linear-gradient(
         135deg,
         rgba(52, 211, 153, 0.15) 0%,

@@ -19,7 +19,7 @@ export interface DatabaseInitResult {
 // Bump LATEST_VERSION and add a new entry to `migrations` whenever the
 // Prisma schema changes.  Each migration is idempotent (uses addColumn /
 // tryExec helpers) so it's safe to re-run on any database state.
-const LATEST_VERSION = 9;
+const LATEST_VERSION = 10;
 
 type MigrationFn = (db: Database.Database) => void;
 
@@ -141,6 +141,17 @@ const migrations: Migration[] = [
       `);
       tryExec(db, 'CREATE INDEX IF NOT EXISTS "KitLesson_kitId_idx" ON "KitLesson"("kitId")');
       tryExec(db, 'CREATE INDEX IF NOT EXISTS "KitLesson_userId_idx" ON "KitLesson"("userId")');
+    },
+  },
+  {
+    version: 10,
+    name: 'Rename isBuiltIn to isGlobal + add deprecated on Kit',
+    up(db) {
+      // SQLite doesn't support ALTER COLUMN RENAME, so add new columns and copy data
+      addColumn(db, 'Kit', 'isGlobal', 'BOOLEAN NOT NULL DEFAULT 0');
+      addColumn(db, 'Kit', 'deprecated', 'BOOLEAN NOT NULL DEFAULT 0');
+      // Copy existing isBuiltIn values to isGlobal
+      tryExec(db, 'UPDATE "Kit" SET "isGlobal" = "isBuiltIn" WHERE "isBuiltIn" = 1');
     },
   },
 ];
@@ -343,7 +354,8 @@ function createFreshSchema(db: Database.Database): void {
       "name" TEXT NOT NULL,
       "description" TEXT,
       "thumbnail" TEXT,
-      "isBuiltIn" BOOLEAN NOT NULL DEFAULT 0,
+      "isGlobal" BOOLEAN NOT NULL DEFAULT 0,
+      "deprecated" BOOLEAN NOT NULL DEFAULT 0,
       "config" TEXT NOT NULL,
       "userId" TEXT,
       "teamId" TEXT,

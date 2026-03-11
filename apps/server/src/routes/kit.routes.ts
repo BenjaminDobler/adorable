@@ -407,15 +407,20 @@ router.get('/:id', async (req: any, res) => {
  */
 router.post('/', async (req: any, res) => {
   const user = req.user;
-  const { name, description, template, npmPackage, importSuffix, npmPackages, storybookUrl, components, selectedComponentIds, mcpServerIds, systemPrompt, baseSystemPrompt, lessonsEnabled } = req.body;
+  const { name, description, template, npmPackage, importSuffix, npmPackages, storybookUrl, components, selectedComponentIds, mcpServerIds, systemPrompt, baseSystemPrompt, lessonsEnabled, isGlobal } = req.body;
 
   if (!name) {
     return res.status(400).json({ error: 'Kit name is required' });
   }
 
+  // Only admins can create global kits
+  if (isGlobal && user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only admins can create global kits' });
+  }
+
   try {
-    // Check for duplicate name
-    if (await kitService.nameExists(name, user.id)) {
+    // Check for duplicate name (skip for global kits)
+    if (!isGlobal && await kitService.nameExists(name, user.id)) {
       return res.status(400).json({ error: 'A kit with this name already exists' });
     }
 
@@ -439,7 +444,7 @@ router.post('/', async (req: any, res) => {
     // Default template if not provided
     const kitTemplate: KitTemplate = template || {
       type: 'default',
-      files: {},  // Client-side will use BASE_FILES
+      files: {},
       angularVersion: '21'
     };
 
@@ -480,7 +485,7 @@ router.post('/', async (req: any, res) => {
     }
 
     // Save to Kit table
-    await kitService.create(newKit, user.id);
+    await kitService.create(newKit, user.id, undefined, !!isGlobal);
 
     // Generate and persist .adorable doc files on disk
     const docFiles = generateComponentDocFiles(newKit);
@@ -513,6 +518,11 @@ router.put('/:id', async (req: any, res) => {
 
     if (!existingKit) {
       return res.status(404).json({ error: 'Kit not found' });
+    }
+
+    // Only admins can edit global kits
+    if (existingKit.isGlobal && user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can edit global kits' });
     }
 
     const now = new Date().toISOString();
@@ -586,7 +596,7 @@ router.put('/:id', async (req: any, res) => {
     };
 
     // Save to Kit table
-    await kitService.update(id, updatedKit, user.id);
+    await kitService.update(id, updatedKit, user.id, user.role === 'admin');
 
     // Regenerate .adorable files if components changed (preserves user edits)
     if (components !== undefined) {
@@ -616,7 +626,7 @@ router.delete('/:id', async (req: any, res) => {
   const { id } = req.params;
 
   try {
-    const deleted = await kitService.delete(id, user.id);
+    const deleted = await kitService.delete(id, user.id, user.role === 'admin');
 
     if (!deleted) {
       return res.status(404).json({ error: 'Kit not found' });

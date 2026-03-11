@@ -166,7 +166,8 @@ model Kit {
   name        String
   description String?
   thumbnail   String?
-  isBuiltIn   Boolean  @default(false)
+  isGlobal    Boolean  @default(false)
+  deprecated  Boolean  @default(false)
   config      String   // JSON: template, npmPackages, resources, designTokens, systemPrompt, etc.
 
   // Ownership: one of these is set, not both

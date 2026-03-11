@@ -13,7 +13,6 @@ import { ProgressiveEditorStore } from '../services/progressive-editor.store';
 import { ScreenshotService } from '../../../core/services/screenshot';
 import { getServerUrl } from '../../../core/services/server-url';
 import { SafeUrlPipe } from '../../../shared/pipes/safe-url.pipe';
-import { BASE_FILES } from '../../../core/models/base-project';
 import { FigmaImportPayload } from '@adorable/shared-types';
 
 // Sub-components
@@ -712,7 +711,7 @@ Analyze the attached design images carefully and create matching Angular compone
       updatedFiles: []
     }]);
 
-    const previousFiles = this.projectService.files() || BASE_FILES;
+    const previousFiles = this.projectService.files() || {};
 
     let fullStreamText = '';
     let hasResult = false;
@@ -926,7 +925,7 @@ Analyze the attached design images carefully and create matching Angular compone
 
             const res = event.content;
 
-            const current = this.projectService.files() || BASE_FILES;
+            const current = this.projectService.files() || {};
             const projectFiles = this.projectService.mergeFiles(current, res.files);
 
             this.messages.update(msgs => {

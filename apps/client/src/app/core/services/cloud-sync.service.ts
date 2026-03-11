@@ -510,9 +510,6 @@ export class CloudSyncService {
    * Returns the cloud kit ID.
    */
   async publishKit(localKitId: string): Promise<string> {
-    // Built-in default kit exists on both local and cloud — no need to publish
-    if (localKitId === 'default-angular-21') return localKitId;
-
     // Check if already mapped
     const existingCloudId = this.getCloudKitId(localKitId);
     if (existingCloudId) return existingCloudId;

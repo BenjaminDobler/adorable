@@ -12,6 +12,7 @@ import { containerRegistry } from '../providers/container/container-registry';
 import { projectFsService } from '../services/project-fs.service';
 import { emailService } from '../services/email.service';
 import { STORAGE_DIR } from '../config';
+import { kitService } from '../services/kit.service';
 
 const router = express.Router();
 
@@ -221,6 +222,47 @@ router.delete('/teams/:id', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete team' });
+  }
+});
+
+// --- Global Kits ---
+
+router.get('/kits', async (req, res) => {
+  try {
+    const kits = await kitService.listGlobal();
+    res.json(kits);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to list global kits' });
+  }
+});
+
+router.put('/kits/:id/deprecate', async (req, res) => {
+  try {
+    const kit = await kitService.deprecate(req.params.id);
+    if (!kit) return res.status(404).json({ error: 'Global kit not found' });
+    res.json(kit);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to deprecate kit' });
+  }
+});
+
+router.put('/kits/:id/undeprecate', async (req, res) => {
+  try {
+    const kit = await kitService.undeprecate(req.params.id);
+    if (!kit) return res.status(404).json({ error: 'Global kit not found' });
+    res.json(kit);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to undeprecate kit' });
+  }
+});
+
+router.delete('/kits/:id', async (req: any, res) => {
+  try {
+    const deleted = await kitService.delete(req.params.id, req.user.id, true);
+    if (!deleted) return res.status(404).json({ error: 'Global kit not found' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete kit' });
   }
 });
 

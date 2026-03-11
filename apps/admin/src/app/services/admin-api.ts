@@ -88,6 +88,23 @@ export class AdminApiService {
     );
   }
 
+  // Global Kits
+  getGlobalKits() {
+    return this.http.get<any[]>(`${this.baseUrl}/kits`, { headers: this.headers() });
+  }
+
+  deprecateGlobalKit(id: string) {
+    return this.http.put<any>(`${this.baseUrl}/kits/${id}/deprecate`, {}, { headers: this.headers() });
+  }
+
+  undeprecateGlobalKit(id: string) {
+    return this.http.put<any>(`${this.baseUrl}/kits/${id}/undeprecate`, {}, { headers: this.headers() });
+  }
+
+  deleteGlobalKit(id: string) {
+    return this.http.delete<any>(`${this.baseUrl}/kits/${id}`, { headers: this.headers() });
+  }
+
   // Stats
   getStats() {
     return this.http.get<any>(`${this.baseUrl}/stats`, { headers: this.headers() });

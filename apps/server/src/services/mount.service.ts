@@ -23,7 +23,7 @@ export class MountService {
     // Only copy kit template files for new/empty projects.
     // Existing projects already have their files on disk — never overwrite with template.
     const hasSrc = await this.dirExists(path.join(projectPath, 'src'));
-    if (!hasSrc && kitId && kitId !== 'default-angular-21') {
+    if (!hasSrc && kitId) {
       const hasTemplate = await kitFsService.hasTemplateFiles(kitId);
       if (hasTemplate) {
         const templatePath = kitFsService.getKitTemplatePath(kitId);

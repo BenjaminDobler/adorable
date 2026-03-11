@@ -8,6 +8,7 @@ import { projectFsService } from '../services/project-fs.service';
 import { SITES_DIR, PORT } from '../config';
 import { containerRegistry } from '../providers/container/container-registry';
 import { generateSlug } from '../utils/slug';
+import { kitService } from '../services/kit.service';
 
 const router = express.Router();
 
@@ -432,8 +433,29 @@ router.get('/:id', async (req: any, res) => {
       });
     }
 
+    // Auto-assign a global kit if selectedKitId references a non-existent kit
+    let selectedKitId = project.selectedKitId;
+    if (selectedKitId) {
+      const kitExists = await prisma.kit.findUnique({ where: { id: selectedKitId } });
+      if (!kitExists) {
+        // Kit no longer exists — try to assign first available non-deprecated global kit
+        const globalKit = await prisma.kit.findFirst({
+          where: { isGlobal: true, deprecated: false },
+          orderBy: { createdAt: 'asc' },
+        });
+        selectedKitId = globalKit?.id || null;
+        if (selectedKitId !== project.selectedKitId) {
+          await prisma.project.update({
+            where: { id: project.id },
+            data: { selectedKitId },
+          });
+        }
+      }
+    }
+
     res.json({
         ...project,
+        selectedKitId,
         files,
         figmaImports: project.figmaImports ? JSON.parse(project.figmaImports) : [],
         messages: project.messages.map(m => ({
