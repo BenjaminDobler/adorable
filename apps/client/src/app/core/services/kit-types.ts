@@ -109,6 +109,16 @@ export interface StorybookResource extends KitResource {
   selectedComponentIds: string[];
 }
 
+export type DevServerPreset = 'angular-cli' | 'vite' | 'webpack' | 'custom';
+
+export interface KitCommands {
+  install?: { cmd: string; args: string[] };
+  dev?: { cmd: string; args: string[] };
+  build?: { cmd: string; args: string[] };
+  devServerPreset?: DevServerPreset;
+  devReadyPattern?: string;
+}
+
 export interface Kit {
   id: string;
   name: string;
@@ -133,13 +143,17 @@ export interface Kit {
   // Override base system prompt (optional, advanced — replaces the default)
   baseSystemPrompt?: string;
 
+  // Custom commands (optional)
+  commands?: KitCommands;
+
   // MCP servers (optional)
   mcpServerIds: string[];
 
   // Lessons learned (default: true)
   lessonsEnabled?: boolean;
 
-  isBuiltIn?: boolean;
+  isGlobal?: boolean;
+  deprecated?: boolean;
   teamId?: string;
   createdAt: string;
   updatedAt: string;

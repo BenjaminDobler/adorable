@@ -10,7 +10,6 @@ import { SkillsService, Skill } from '../../core/services/skills';
 import { SkillDialogComponent } from './skill-dialog/skill-dialog.component';
 import { GitHubSkillDialogComponent } from './github-skill-dialog/github-skill-dialog.component';
 import { Kit, StorybookResource } from '../../core/services/kit-types';
-import { DEFAULT_KIT } from '../../core/models/base-project';
 import { CloudSyncService, CloudSyncStatus, CloudKit, CloudSkill } from '../../core/services/cloud-sync.service';
 import { isDesktopApp } from '../../core/services/smart-container.engine';
 import { SyncStatusProject, Team } from '@adorable/shared-types';
@@ -60,11 +59,13 @@ export class DashboardComponent {
   filteredKits = computed(() => {
     const teamId = this.teamService.selectedTeamId();
     return this.allKitsMerged().filter((k: any) => {
-      if (k.isBuiltIn) return teamId === null; // Show built-in only in personal
+      if (k.isGlobal) return teamId === null; // Show global kits only in personal workspace
       if (teamId === null) return !k.teamId;
       return k.teamId === teamId;
     });
   });
+
+  isAdmin = this.authService.isAdmin;
 
   // Desktop mode detection
   isDesktopMode = computed(() => isDesktopApp());
@@ -111,9 +112,9 @@ export class DashboardComponent {
   // Kit-related state
   showKitSelection = signal(false);
 
-  // All kits including built-in default
+  // All kits (global kits now come from the API)
   allKits = computed(() => {
-    return [DEFAULT_KIT, ...this.kits()];
+    return this.kits();
   });
 
   // Merged lists: local + cloud-only items
@@ -152,7 +153,7 @@ export class DashboardComponent {
         name: ck.name,
         description: ck.description || '',
         isCloudOnly: true,
-        isBuiltIn: false,
+        isGlobal: false,
         resources: [],
         template: null,
         thumbnail: null,
@@ -252,9 +253,15 @@ export class DashboardComponent {
       this.loading.set(false);
   }
 
+  noKitsAvailable = computed(() => this.allKits().length === 0);
+
   createProject() {
     if (this.cloudEditorBlocked()) {
       this.router.navigate(['/cloud-blocked']);
+      return;
+    }
+    if (this.noKitsAvailable()) {
+      this.toastService.show('No kits available. An admin must create at least one global kit before projects can be created.', 'info');
       return;
     }
     // Show kit selection modal
@@ -395,7 +402,8 @@ export class DashboardComponent {
   }
 
   editKit(kit: Kit) {
-    this.router.navigate(['/kit-builder', kit.id]);
+    const queryParams = kit.isGlobal ? { global: 'true' } : undefined;
+    this.router.navigate(['/kit-builder', kit.id], { queryParams });
   }
 
   async deleteKit(id: string, event: Event) {

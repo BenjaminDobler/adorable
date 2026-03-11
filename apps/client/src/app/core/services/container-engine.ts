@@ -1,6 +1,26 @@
 import { Signal, WritableSignal } from '@angular/core';
 import { Observable } from 'rxjs';
 import { FileTree } from '@adorable/shared-types';
+import { DevServerPreset, KitCommands } from './kit-types';
+
+export const DEV_SERVER_PRESETS: Record<DevServerPreset, { urlPattern: RegExp; readyPattern: RegExp }> = {
+  'angular-cli': {
+    urlPattern: /Local:\s+(https?:\/\/localhost:\d+)/,
+    readyPattern: /Application bundle generation complete/,
+  },
+  'vite': {
+    urlPattern: /Local:\s+(https?:\/\/localhost:\d+)/,
+    readyPattern: /ready in \d+/,
+  },
+  'webpack': {
+    urlPattern: /https?:\/\/localhost:\d+/,
+    readyPattern: /compiled successfully/,
+  },
+  'custom': {
+    urlPattern: /https?:\/\/localhost:\d+/,
+    readyPattern: /.*/,
+  },
+};
 
 export interface ProcessOutput {
   stream: Observable<string>;
@@ -51,11 +71,11 @@ export abstract class ContainerEngine {
   // Execution
   abstract exec(cmd: string, args: string[], options?: any): Promise<ProcessOutput>;
   abstract writeToShell(data: string): Promise<void>;
-  abstract runBuild(args?: string[]): Promise<number>;
-  
+  abstract runBuild(args?: string[], command?: { cmd: string; args: string[] }): Promise<number>;
+
   // High-Level Workflows
-  abstract runInstall(): Promise<number>;
-  abstract startDevServer(): Promise<void>; // Should emit to status or return info
+  abstract runInstall(command?: { cmd: string; args: string[] }): Promise<number>;
+  abstract startDevServer(commands?: KitCommands): Promise<void>;
   abstract stopDevServer(): Promise<void>;
   
   abstract on(event: 'server-ready', callback: (port: number, url: string) => void): void;

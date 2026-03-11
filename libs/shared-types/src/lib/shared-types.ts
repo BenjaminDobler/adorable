@@ -222,6 +222,16 @@ export interface StorybookResource extends KitResource {
   selectedComponentIds: string[];
 }
 
+export type DevServerPreset = 'angular-cli' | 'vite' | 'webpack' | 'custom';
+
+export interface KitCommands {
+  install?: { cmd: string; args: string[] };
+  dev?: { cmd: string; args: string[] };
+  build?: { cmd: string; args: string[] };
+  devServerPreset?: DevServerPreset;
+  devReadyPattern?: string;
+}
+
 export interface Kit {
   id: string;
   name: string;
@@ -231,8 +241,10 @@ export interface Kit {
   npmPackage?: string;
   resources: KitResource[];
   designTokens?: DesignTokens;
+  commands?: KitCommands;
   mcpServerIds: string[];
-  isBuiltIn?: boolean;
+  isGlobal?: boolean;
+  deprecated?: boolean;
   createdAt: string;
   updatedAt: string;
 }

@@ -1,5 +1,6 @@
 import { Injectable, inject, signal, computed, Signal } from '@angular/core';
 import { ContainerEngine, ProcessOutput } from './container-engine';
+import { KitCommands } from './kit-types';
 import { LocalContainerEngine } from './local-container.engine';
 import { NativeContainerEngine } from './native-container.engine';
 import { FileTree } from '@adorable/shared-types';
@@ -82,9 +83,9 @@ export class SmartContainerEngine extends ContainerEngine {
     return await this.activeEngine().exec(cmd, args, options);
   }
   async writeToShell(data: string) { await this.activeEngine().writeToShell(data); }
-  async runBuild(args?: string[]) { return await this.activeEngine().runBuild(args); }
-  async runInstall() { return await this.activeEngine().runInstall(); }
-  async startDevServer() { await this.activeEngine().startDevServer(); }
+  async runBuild(args?: string[], command?: { cmd: string; args: string[] }) { return await this.activeEngine().runBuild(args, command); }
+  async runInstall(command?: { cmd: string; args: string[] }) { return await this.activeEngine().runInstall(command); }
+  async startDevServer(commands?: KitCommands) { await this.activeEngine().startDevServer(commands); }
   async stopDevServer() { await this.activeEngine().stopDevServer(); }
 
   on(event: 'server-ready', callback: (port: number, url: string) => void) {

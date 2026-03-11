@@ -452,7 +452,7 @@
                 </div>
               } @else {
                 <!-- Local kit card -->
-                <div class="kit-card" [class.built-in]="kit.isBuiltIn" (click)="kit.isBuiltIn ? null : editKit(kit)">
+                <div class="kit-card" [class.global]="kit.isGlobal && !isAdmin()" (click)="(kit.isGlobal && !isAdmin()) ? null : editKit(kit)">
                   <div class="kit-preview">
                     @if (kit.thumbnail) {
                       <img [src]="kit.thumbnail" alt="Kit Preview" />
@@ -473,8 +473,8 @@
                         <span class="kit-description">{{ kit.description }}</span>
                       }
                       <div class="kit-meta">
-                        @if (kit.isBuiltIn) {
-                          <span class="kit-badge built-in">Built-in</span>
+                        @if (kit.isGlobal) {
+                          <span class="kit-badge global">Global</span>
                         }
                         @if (kit.template.angularVersion) {
                           <span class="kit-badge">Angular {{ kit.template.angularVersion }}</span>
@@ -484,9 +484,9 @@
                         }
                       </div>
                     </div>
-                    @if (!kit.isBuiltIn) {
+                    @if (!kit.isGlobal || isAdmin()) {
                       <div class="kit-actions">
-                        @if (teamService.selectedTeamId() === null && teamService.teams().length > 0) {
+                        @if (!kit.isGlobal && teamService.selectedTeamId() === null && teamService.teams().length > 0) {
                           <button class="btn-action" (click)="openMoveToTeamDialog('kit', kit.id, $event)" title="Move to Team">
                             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
@@ -494,14 +494,14 @@
                             </svg>
                           </button>
                         }
-                        @if (teamService.selectedTeamId() !== null) {
+                        @if (!kit.isGlobal && teamService.selectedTeamId() !== null) {
                           <button class="btn-action" (click)="removeFromTeam('kit', kit.id, $event)" title="Move to Personal">
                             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
                             </svg>
                           </button>
                         }
-                        @if (isCloudConnected()) {
+                        @if (!kit.isGlobal && isCloudConnected()) {
                           <button
                             class="btn-action"
                             (click)="publishKitToCloud(kit.id, $event)"
@@ -616,8 +616,8 @@
                 <span class="kit-selection-desc">{{ kit.description }}</span>
               }
               <div class="kit-selection-meta">
-                @if (kit.isBuiltIn) {
-                  <span class="kit-badge built-in">Built-in</span>
+                @if (kit.isGlobal) {
+                  <span class="kit-badge global">Global</span>
                 }
                 @if (kit.template.angularVersion) {
                   <span class="kit-badge">Angular {{ kit.template.angularVersion }}</span>

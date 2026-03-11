@@ -4,8 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { ApiService } from '../../../core/services/api';
 import { ToastService } from '../../../core/services/toast';
-import { Kit, KitResource, StorybookComponent, StorybookResource, FileTree, KitTemplate, NpmPackageConfig } from '../../../core/services/kit-types';
-import { BASE_FILES } from '../../../core/models/base-project';
+import { Kit, KitResource, StorybookComponent, StorybookResource, FileTree, KitTemplate, NpmPackageConfig, DevServerPreset, KitCommands } from '../../../core/services/kit-types';
+import { AuthService } from '../../../core/services/auth';
 import { FolderImportComponent } from '../folder-import/folder-import';
 import { ComponentEditorModalComponent } from './component-editor-modal/component-editor-modal.component';
 import { ToolTesterComponent } from './tool-tester/tool-tester.component';
@@ -31,12 +31,15 @@ export class KitBuilderComponent {
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private toastService = inject(ToastService);
+  private authService = inject(AuthService);
 
+  isAdmin = this.authService.isAdmin;
   componentEditorModal = viewChild(ComponentEditorModalComponent);
 
   // Loaded kit (for edit mode)
   kit: Kit | null = null;
   kitId: string | null = null;
+  isGlobalKit = signal(false);
   mcpServers: { id: string; name: string; enabled: boolean }[] = [];
   loading = signal(true);
 
@@ -59,6 +62,13 @@ export class KitBuilderComponent {
   npmPackages = signal<NpmPackageConfig[]>([]);
   newPackageName = signal('');
   newPackageSuffix = signal<string>('Component');
+
+  // Commands
+  installCommand = signal('');
+  devCommand = signal('');
+  buildCommand = signal('');
+  devServerPreset = signal<DevServerPreset>('angular-cli');
+  customReadyPattern = signal('');
 
   // Template state
   templateType = signal<'default' | 'custom'>('default');
@@ -173,6 +183,10 @@ export class KitBuilderComponent {
 
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id');
+    const globalParam = this.route.snapshot.queryParamMap.get('global');
+    if (globalParam === 'true') {
+      this.isGlobalKit.set(true);
+    }
 
     // Load default system prompt for the override textarea
     this.apiService.getDefaultSystemPrompt().subscribe({
@@ -216,6 +230,9 @@ export class KitBuilderComponent {
   }
 
   private populateForm(kit: Kit) {
+    if (kit.isGlobal) {
+      this.isGlobalKit.set(true);
+    }
     this.kitName.set(kit.name);
     this.kitDescription.set(kit.description || '');
     this.kitSystemPrompt.set(kit.systemPrompt || '');
@@ -238,6 +255,21 @@ export class KitBuilderComponent {
         this.importedFileCount.set(this.countFiles(kit.template.files));
         this.expandedTemplatePaths.set(this.getTopLevelDirPaths(kit.template.files));
       }
+    }
+
+    // Commands
+    if (kit.commands) {
+      if (kit.commands.install) {
+        this.installCommand.set([kit.commands.install.cmd, ...kit.commands.install.args].join(' '));
+      }
+      if (kit.commands.dev) {
+        this.devCommand.set([kit.commands.dev.cmd, ...kit.commands.dev.args].join(' '));
+      }
+      if (kit.commands.build) {
+        this.buildCommand.set([kit.commands.build.cmd, ...kit.commands.build.args].join(' '));
+      }
+      this.devServerPreset.set(kit.commands.devServerPreset ?? 'angular-cli');
+      this.customReadyPattern.set(kit.commands.devReadyPattern ?? '');
     }
 
     // Lessons enabled
@@ -738,12 +770,12 @@ export class KitBuilderComponent {
         type: this.templateType(),
         files: this.templateType() === 'custom' && this.customTemplate()
           ? this.customTemplate()!
-          : BASE_FILES,
+          : {},
         angularVersion: '21'
       };
 
       const packages = this.npmPackages();
-      const kitData = {
+      const kitData: any = {
         name,
         description: this.kitDescription() || undefined,
         template,
@@ -758,6 +790,27 @@ export class KitBuilderComponent {
         baseSystemPrompt: this.showBasePromptOverride() && this.kitBaseSystemPrompt() ? this.kitBaseSystemPrompt() : undefined,
         lessonsEnabled: this.kitLessonsEnabled(),
       };
+
+      // Commands
+      const commands: KitCommands = {};
+      const parseCmd = (str: string) => {
+        const parts = str.trim().split(/\s+/);
+        return parts.length > 0 ? { cmd: parts[0], args: parts.slice(1) } : undefined;
+      };
+      if (this.installCommand().trim()) commands.install = parseCmd(this.installCommand())!;
+      if (this.devCommand().trim()) commands.dev = parseCmd(this.devCommand())!;
+      if (this.buildCommand().trim()) commands.build = parseCmd(this.buildCommand())!;
+      if (this.devServerPreset() !== 'angular-cli') commands.devServerPreset = this.devServerPreset();
+      if (this.devServerPreset() === 'custom' && this.customReadyPattern().trim()) {
+        commands.devReadyPattern = this.customReadyPattern().trim();
+      }
+      if (Object.keys(commands).length > 0) {
+        kitData.commands = commands;
+      }
+
+      if (this.isGlobalKit()) {
+        kitData.isGlobal = true;
+      }
 
       let result;
       if (this.kit) {

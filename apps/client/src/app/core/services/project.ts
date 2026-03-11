@@ -4,7 +4,6 @@ import { ApiService } from './api';
 import { ContainerEngine } from './container-engine';
 import { ToastService } from './toast';
 import { Router } from '@angular/router';
-import { BASE_FILES, DEFAULT_KIT } from '../models/base-project';
 import { RUNTIME_SCRIPTS } from '../models/runtime-scripts';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -16,7 +15,7 @@ import {
   mergeFiles as sharedMergeFiles,
 } from '@adorable/shared-types';
 import { ScreenshotService } from './screenshot';
-import { Kit, FileTree as KitFileTree } from './kit-types';
+import { Kit, FileTree as KitFileTree, KitCommands } from './kit-types';
 import { HMRTriggerService } from './hmr-trigger.service';
 import { getServerUrl } from './server-url';
 
@@ -107,6 +106,7 @@ export class ProjectService {
   /** Whether this project has been persisted to the database at least once. */
   isSaved = signal(false);
   selectedKitId = signal<string | null>(null);
+  currentKit = signal<Kit | null>(null);
   currentKitTemplate = signal<KitFileTree | null>(null);
 
   // Use store for files
@@ -329,7 +329,7 @@ export class ProjectService {
       const exitCode = await this.containerEngine.runBuild([
         '--base-href',
         './',
-      ]);
+      ], this.currentKit()?.commands?.build);
       if (exitCode !== 0) throw new Error('Build failed');
 
       let distPath = 'dist';
@@ -487,7 +487,7 @@ export class ProjectService {
 
       if (depsUnchanged) {
         try {
-          const baseFiles = this.currentKitTemplate() || BASE_FILES;
+          const baseFiles = this.currentKitTemplate() || {};
           const mergedFiles = this.mergeFiles(baseFiles, files || {});
           if (isStale()) return;
 
@@ -531,8 +531,8 @@ export class ProjectService {
       // Yield before heavy sync operations
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      // Use kit template if provided, otherwise use current kit template or default BASE_FILES
-      const baseFiles = kitTemplate || this.currentKitTemplate() || BASE_FILES;
+      // Use kit template if provided, otherwise use current kit template
+      const baseFiles = kitTemplate || this.currentKitTemplate() || {};
       if (kitTemplate) {
         this.currentKitTemplate.set(kitTemplate);
       }
@@ -563,11 +563,12 @@ export class ProjectService {
       }
       if (isStale()) return;
 
-      const exitCode = await this.containerEngine.runInstall();
+      const kitCommands = this.currentKit()?.commands;
+      const exitCode = await this.containerEngine.runInstall(kitCommands?.install);
       if (isStale()) return;
 
       if (exitCode === 0) {
-        this.containerEngine.startDevServer();
+        this.containerEngine.startDevServer(kitCommands);
       }
     } catch (err: any) {
       console.error(err);
@@ -585,14 +586,13 @@ export class ProjectService {
    * Load kit template files for a given kit
    */
   async loadKitTemplate(kitId: string): Promise<KitFileTree | null> {
-    if (kitId === DEFAULT_KIT.id) {
-      return DEFAULT_KIT.template.files;
-    }
-
     try {
       const result = await this.apiService.getKit(kitId).toPromise();
-      if (result?.kit?.template?.files) {
-        return result.kit.template.files;
+      if (result?.kit) {
+        this.currentKit.set(result.kit);
+        if (result.kit.template?.files) {
+          return result.kit.template.files;
+        }
       }
     } catch (err) {
       console.error('Failed to load kit template:', err);

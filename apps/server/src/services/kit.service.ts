@@ -2,7 +2,7 @@
  * Kit Service
  *
  * Central service for Kit DB operations. Kits are stored in the Prisma Kit table
- * with top-level queryable fields (id, name, description, thumbnail, isBuiltIn)
+ * with top-level queryable fields (id, name, description, thumbnail, isGlobal)
  * and a JSON `config` column for everything else (template, npmPackages, resources, etc.).
  *
  * The Kit TypeScript interface (providers/kits/types.ts) stays unchanged —
@@ -17,7 +17,8 @@ type KitRow = {
   name: string;
   description: string | null;
   thumbnail: string | null;
-  isBuiltIn: boolean;
+  isGlobal: boolean;
+  deprecated: boolean;
   config: string;
   userId: string | null;
   teamId: string | null;
@@ -35,7 +36,8 @@ function dbRowToKit(row: KitRow): Kit {
     name: row.name,
     description: row.description || undefined,
     thumbnail: row.thumbnail || undefined,
-    isBuiltIn: row.isBuiltIn,
+    isGlobal: row.isGlobal,
+    deprecated: row.deprecated || false,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     // Spread config fields (template, npmPackage, importSuffix, npmPackages, resources, designTokens, systemPrompt, baseSystemPrompt, mcpServerIds)
@@ -49,6 +51,7 @@ function dbRowToKit(row: KitRow): Kit {
     baseSystemPrompt: config.baseSystemPrompt,
     mcpServerIds: config.mcpServerIds || [],
     lessonsEnabled: config.lessonsEnabled,
+    commands: config.commands,
     teamId: row.teamId || undefined,
   };
 }
@@ -68,13 +71,14 @@ function kitToDbData(kit: Kit, userId?: string, teamId?: string) {
     baseSystemPrompt: kit.baseSystemPrompt,
     mcpServerIds: kit.mcpServerIds,
     lessonsEnabled: kit.lessonsEnabled,
+    commands: kit.commands,
   };
   return {
     id: kit.id,
     name: kit.name,
     description: kit.description || null,
     thumbnail: kit.thumbnail || null,
-    isBuiltIn: kit.isBuiltIn || false,
+    isGlobal: kit.isGlobal || false,
     config: JSON.stringify(config),
     userId: teamId ? null : (userId || null),
     teamId: teamId || null,
@@ -97,7 +101,7 @@ class KitService {
       where: {
         OR: [
           { userId },
-          { userId: null, isBuiltIn: true },
+          { userId: null, isGlobal: true, deprecated: false },
           ...(teamIds.length > 0 ? [{ teamId: { in: teamIds } }] : []),
         ],
       },
@@ -121,7 +125,7 @@ class KitService {
         id: kitId,
         OR: [
           { userId },
-          { userId: null, isBuiltIn: true },
+          { userId: null, isGlobal: true },
           ...(teamIds.length > 0 ? [{ teamId: { in: teamIds } }] : []),
         ],
       },
@@ -133,24 +137,47 @@ class KitService {
    * Create a new kit in the database.
    * When teamId is set, userId is cleared (exclusive ownership).
    */
-  async create(kit: Kit, userId: string, teamId?: string): Promise<Kit> {
-    const data = kitToDbData(kit, userId, teamId);
+  async create(kit: Kit, userId: string, teamId?: string, isGlobal = false): Promise<Kit> {
+    const data = kitToDbData(kit, isGlobal ? undefined : userId, teamId);
+    if (isGlobal) {
+      data.isGlobal = true;
+      data.userId = null;
+      data.teamId = null;
+    }
     const row = await prisma.kit.create({ data });
     return dbRowToKit(row);
   }
 
   /**
+   * List all global kits (including deprecated) — for admin panel.
+   */
+  async listGlobal(): Promise<Kit[]> {
+    const rows = await prisma.kit.findMany({
+      where: { isGlobal: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    return rows.map(dbRowToKit);
+  }
+
+  /**
    * Update an existing kit. Only updates fields present in `updates`.
+   * When isAdmin is true and the kit is global, bypasses userId ownership check.
    * Returns the updated kit or undefined if not found.
    */
-  async update(kitId: string, updates: Kit, userId: string): Promise<Kit | undefined> {
-    // Verify ownership
-    const existing = await prisma.kit.findFirst({
-      where: { id: kitId, userId },
-    });
+  async update(kitId: string, updates: Kit, userId: string, isAdmin = false): Promise<Kit | undefined> {
+    const existing = await prisma.kit.findUnique({ where: { id: kitId } });
     if (!existing) return undefined;
 
-    const data = kitToDbData(updates, userId);
+    // Verify ownership: admin can update global kits, users can only update their own
+    if (existing.isGlobal) {
+      if (!isAdmin) return undefined;
+    } else if (existing.userId !== userId) {
+      return undefined;
+    }
+
+    const data = kitToDbData(updates, existing.isGlobal ? undefined : userId);
+    // Preserve isGlobal flag
+    data.isGlobal = existing.isGlobal;
     // Remove id — can't update primary key
     const { id, ...updateData } = data;
     const row = await prisma.kit.update({
@@ -161,16 +188,40 @@ class KitService {
   }
 
   /**
-   * Delete a kit by ID, scoped to the user.
+   * Delete a kit by ID. Admin can delete global kits, users can only delete their own.
    */
-  async delete(kitId: string, userId: string): Promise<boolean> {
-    const existing = await prisma.kit.findFirst({
-      where: { id: kitId, userId },
-    });
+  async delete(kitId: string, userId: string, isAdmin = false): Promise<boolean> {
+    const existing = await prisma.kit.findUnique({ where: { id: kitId } });
     if (!existing) return false;
+
+    if (existing.isGlobal) {
+      if (!isAdmin) return false;
+    } else if (existing.userId !== userId) {
+      return false;
+    }
 
     await prisma.kit.delete({ where: { id: kitId } });
     return true;
+  }
+
+  /**
+   * Deprecate a global kit (admin-only). Deprecated kits are hidden from new project creation.
+   */
+  async deprecate(kitId: string): Promise<Kit | undefined> {
+    const existing = await prisma.kit.findFirst({ where: { id: kitId, isGlobal: true } });
+    if (!existing) return undefined;
+    const row = await prisma.kit.update({ where: { id: kitId }, data: { deprecated: true } });
+    return dbRowToKit(row);
+  }
+
+  /**
+   * Undeprecate a global kit (admin-only). Restores visibility for new project creation.
+   */
+  async undeprecate(kitId: string): Promise<Kit | undefined> {
+    const existing = await prisma.kit.findFirst({ where: { id: kitId, isGlobal: true } });
+    if (!existing) return undefined;
+    const row = await prisma.kit.update({ where: { id: kitId }, data: { deprecated: false } });
+    return dbRowToKit(row);
   }
 
   /**

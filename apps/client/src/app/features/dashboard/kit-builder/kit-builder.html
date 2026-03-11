@@ -14,6 +14,9 @@
           Back to Kits
         </button>
         <h2>{{ kit ? 'Edit Starter Kit' : 'Create Starter Kit' }}</h2>
+        @if (isGlobalKit()) {
+          <span class="global-kit-badge">Global Kit</span>
+        }
       </div>
 
       @if (loading()) {
@@ -43,6 +46,18 @@
                 placeholder="e.g., Enterprise Angular starter"
               />
             </div>
+
+            @if (isAdmin()) {
+              <div class="form-group global-toggle">
+                <label class="toggle-label">
+                  <span class="toggle-switch" [class.active]="isGlobalKit()" (click)="isGlobalKit.set(!isGlobalKit())">
+                    <span class="toggle-knob"></span>
+                  </span>
+                  <span>Global Kit</span>
+                  <span class="toggle-hint">Available to all users</span>
+                </label>
+              </div>
+            }
           </div>
 
           <div class="form-section">
@@ -141,6 +156,72 @@
                   </div>
                 </div>
               }
+            }
+          </div>
+
+          <div class="form-section">
+            <h4>Commands (Optional)</h4>
+            <p class="section-hint">Customize the install, dev server, and build commands. Leave blank to use npm defaults.</p>
+
+            <div class="form-group">
+              <label>Install Command</label>
+              <input
+                type="text"
+                [ngModel]="installCommand()"
+                (ngModelChange)="installCommand.set($event)"
+                placeholder="npm install"
+              />
+              <span class="hint">e.g., pnpm install, yarn install, bun install</span>
+            </div>
+
+            <div class="form-group">
+              <label>Dev Server Command</label>
+              <input
+                type="text"
+                [ngModel]="devCommand()"
+                (ngModelChange)="devCommand.set($event)"
+                placeholder="npm start"
+              />
+              <span class="hint">e.g., pnpm start, npx vite</span>
+            </div>
+
+            <div class="form-group">
+              <label>Build Command</label>
+              <input
+                type="text"
+                [ngModel]="buildCommand()"
+                (ngModelChange)="buildCommand.set($event)"
+                placeholder="npm run build"
+              />
+              <span class="hint">e.g., pnpm run build, npx vite build</span>
+            </div>
+
+            <div class="form-group">
+              <label>Dev Server Readiness Detection</label>
+              <select
+                [ngModel]="devServerPreset()"
+                (ngModelChange)="devServerPreset.set($event)"
+              >
+                <option value="angular-cli">Angular CLI</option>
+                <option value="vite">Vite</option>
+                <option value="webpack">Webpack</option>
+                <option value="custom">Custom</option>
+              </select>
+              <span class="hint">How to detect when the dev server is ready. Choose the tool your project uses.</span>
+            </div>
+
+            @if (devServerPreset() === 'custom') {
+              <div class="form-group">
+                <label>Custom Ready Pattern (regex)</label>
+                <input
+                  type="text"
+                  [ngModel]="customReadyPattern()"
+                  (ngModelChange)="customReadyPattern.set($event)"
+                  placeholder="e.g., ready in \\d+"
+                  class="monospace-input"
+                />
+                <span class="hint">Regular expression matched against dev server console output to detect readiness</span>
+              </div>
             }
           </div>
 

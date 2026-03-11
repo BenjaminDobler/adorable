@@ -1,7 +1,8 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { ContainerEngine, ProcessOutput } from './container-engine';
+import { ContainerEngine, ProcessOutput, DEV_SERVER_PRESETS } from './container-engine';
 import { FileTree } from '@adorable/shared-types';
+import { KitCommands } from './kit-types';
 import { Observable, of, shareReplay } from 'rxjs';
 import { getServerUrl } from './server-url';
 
@@ -194,36 +195,44 @@ export class LocalContainerEngine extends ContainerEngine {
       };
   }
 
-  async runInstall(): Promise<number> {
+  async runInstall(command?: { cmd: string; args: string[] }): Promise<number> {
     this.status.set('Installing dependencies...');
-    const res = await this.exec('npm', ['install'], { stream: true });
+    const { cmd, args } = command ?? { cmd: 'npm', args: ['install'] };
+    const res = await this.exec(cmd, args, { stream: true });
     res.stream.subscribe(chunk => this.serverOutput.update(o => o + chunk));
-    return await res.exit; 
+    return await res.exit;
   }
 
-  async startDevServer(): Promise<void> {
+  async startDevServer(commands?: KitCommands): Promise<void> {
     this.status.set('Starting dev server...');
     // Kill anything lingering on port 4200 before starting (prevents "Port already in use")
     try {
       await this.exec('sh', ['-c', 'fuser -k 4200/tcp 2>/dev/null || true']);
     } catch { /* ignore — fuser may not be available or port may be free */ }
-    const userId = JSON.parse(localStorage.getItem('adorable_user') || '{}').id;
-    // Pass --host 0.0.0.0 to ensure it listens on all interfaces for Docker networking
-    const res = await this.exec('npm', ['start', '--', '--host=0.0.0.0', '--allowed-hosts=all'], {
+    const { cmd, args: devArgs } = commands?.dev ?? { cmd: 'npm', args: ['start'] };
+    const fullArgs = [...devArgs, '--', '--host=0.0.0.0', '--allowed-hosts=all'];
+    const res = await this.exec(cmd, fullArgs, {
         stream: true
     });
-    
+
+    // Resolve readiness patterns from preset or custom
+    const preset = commands?.devServerPreset ?? 'angular-cli';
+    const presetPatterns = DEV_SERVER_PRESETS[preset];
+    const readyPattern = preset === 'custom' && commands?.devReadyPattern
+      ? new RegExp(commands.devReadyPattern)
+      : presetPatterns.readyPattern;
+
     res.stream.subscribe(chunk => {
         this.serverOutput.update(o => o + chunk);
         // Strip ANSI codes for logic checks
         // eslint-disable-next-line no-control-regex
         const clean = chunk.replace(/\x1B\[[0-9;]*[mK]/g, '');
-        
-        if (clean.includes('Application bundle generation complete')) {
+
+        if (readyPattern.test(clean)) {
              const userId = JSON.parse(localStorage.getItem('adorable_user') || '{}').id;
              const serverBase = getServerUrl();
              const proxyUrl = `${serverBase}/api/proxy/?user=${userId}`;
-             
+
              // Small delay before setting URL to ensure server is actually listening and stable
              setTimeout(() => {
                 this.url.set(proxyUrl);
@@ -333,7 +342,7 @@ export class LocalContainerEngine extends ContainerEngine {
   }
   async startShell(): Promise<void> {}
   async writeToShell(data: string): Promise<void> {}
-  async runBuild(args?: string[]): Promise<number> { return 0; }
+  async runBuild(args?: string[], command?: { cmd: string; args: string[] }): Promise<number> { return 0; }
   async readdir(path: string, options?: any): Promise<any> { return []; } 
   
   onServerReadyCallback?: (port: number, url: string) => void;

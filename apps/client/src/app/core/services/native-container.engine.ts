@@ -1,7 +1,8 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { ContainerEngine, ProcessOutput } from './container-engine';
+import { ContainerEngine, ProcessOutput, DEV_SERVER_PRESETS } from './container-engine';
 import { FileTree } from '@adorable/shared-types';
+import { KitCommands } from './kit-types';
 import { Observable, of, shareReplay } from 'rxjs';
 import { getServerUrl } from './server-url';
 
@@ -230,19 +231,29 @@ export class NativeContainerEngine extends ContainerEngine {
     };
   }
 
-  async runInstall(): Promise<number> {
+  async runInstall(command?: { cmd: string; args: string[] }): Promise<number> {
     this.status.set('Installing dependencies...');
-    const res = await this.exec('npm', ['install'], { stream: true });
+    const { cmd, args } = command ?? { cmd: 'npm', args: ['install'] };
+    const res = await this.exec(cmd, args, { stream: true });
     res.stream.subscribe(chunk => this.serverOutput.update(o => o + chunk));
     return await res.exit;
   }
 
-  async startDevServer(): Promise<void> {
+  async startDevServer(commands?: KitCommands): Promise<void> {
     this.status.set('Starting dev server...');
-    // Use --port=0 to get a random free port, or a specific port
-    const res = await this.exec('npm', ['start', '--', '--port=0'], {
+    const { cmd, args: devArgs } = commands?.dev ?? { cmd: 'npm', args: ['start'] };
+    const fullArgs = [...devArgs, '--', '--port=0'];
+    const res = await this.exec(cmd, fullArgs, {
       stream: true
     });
+
+    // Resolve readiness patterns from preset or custom
+    const preset = commands?.devServerPreset ?? 'angular-cli';
+    const presetPatterns = DEV_SERVER_PRESETS[preset];
+    const urlPattern = presetPatterns.urlPattern;
+    const readyPattern = preset === 'custom' && commands?.devReadyPattern
+      ? new RegExp(commands.devReadyPattern)
+      : presetPatterns.readyPattern;
 
     res.stream.subscribe(chunk => {
       this.serverOutput.update(o => o + chunk);
@@ -250,17 +261,17 @@ export class NativeContainerEngine extends ContainerEngine {
       // eslint-disable-next-line no-control-regex
       const clean = chunk.replace(/\x1B\[[0-9;]*[mK]/g, '');
 
-      // Detect the dev server URL from Angular CLI output
-      const urlMatch = clean.match(/Local:\s+(https?:\/\/localhost:\d+)/);
+      // Detect the dev server URL
+      const urlMatch = clean.match(urlPattern);
       if (urlMatch) {
-        const devUrl = urlMatch[1];
+        const devUrl = urlMatch[1] || urlMatch[0];
         setTimeout(() => {
           this.url.set(devUrl);
           this.status.set('Ready');
           this.startFileWatcher();
           this.onServerReady(parseInt(new URL(devUrl).port), devUrl);
         }, 1000);
-      } else if (clean.includes('Application bundle generation complete') && !this.url()) {
+      } else if (readyPattern.test(clean) && !this.url()) {
         // Fallback: if we didn't catch the URL, try localhost:4200
         setTimeout(() => {
           if (!this.url()) {
@@ -378,10 +389,11 @@ export class NativeContainerEngine extends ContainerEngine {
   async startShell(): Promise<void> {}
   async writeToShell(data: string): Promise<void> {}
 
-  async runBuild(args?: string[]): Promise<number> {
-    const buildArgs = ['run', 'build'];
+  async runBuild(args?: string[], command?: { cmd: string; args: string[] }): Promise<number> {
+    const { cmd, args: baseArgs } = command ?? { cmd: 'npm', args: ['run', 'build'] };
+    const buildArgs = [...baseArgs];
     if (args && args.length) buildArgs.push('--', ...args);
-    const res = await this.exec('npm', buildArgs, { stream: true });
+    const res = await this.exec(cmd, buildArgs, { stream: true });
     res.stream.subscribe(chunk => this.serverOutput.update(o => o + chunk));
     return res.exit;
   }
