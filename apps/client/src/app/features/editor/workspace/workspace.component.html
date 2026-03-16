@@ -131,7 +131,7 @@
     <div
       class="editor-frame-container"
       [style.display]="activeTab() === 'files' ? 'flex' : 'none'"
-      [style.flex]="'0 0 ' + editorHeight() + '%'"
+      [style.flex]="isPreviewUndocked() ? '1 1 100%' : '0 0 ' + editorHeight() + '%'"
     >
       <button
         class="split-toggle-btn"
@@ -208,11 +208,12 @@
     <div
       class="resizer"
       (mousedown)="startResizing($event)"
-      [style.display]="activeTab() === 'files' ? 'flex' : 'none'"
+      [style.display]="activeTab() === 'files' && !isPreviewUndocked() ? 'flex' : 'none'"
     >
       <div class="handle"></div>
     </div>
 
+    @if (!isPreviewUndocked()) {
     <div
       class="preview-wrapper"
       style="display: flex; flex: 1; flex-direction: column; min-height: 0"
@@ -224,12 +225,15 @@
           [isInspectionActive]="isInspectionActive()"
           [isAnnotating]="isAnnotating()"
           [isFullscreen]="layoutService.isFullscreen()"
+          [isUndocked]="isPreviewUndocked()"
+          [isDesktop]="isDesktop()"
           (previewDeviceChange)="previewDevice.set($event)"
           (inspectionToggled)="toggleInspection()"
           (annotationToggled)="toggleAnnotation()"
           (screenshotRequested)="startSelection()"
           (fullscreenToggled)="layoutService.isFullscreen.set(!layoutService.isFullscreen())"
           (reload)="reloadIframe()"
+          (undockToggled)="toggleUndock()"
         />
         <div class="iframe-wrapper">
           <iframe
@@ -257,6 +261,7 @@
       </div>
       }
     </div>
+    }
 
     @if (isSelecting && selectionRect) {
     <div

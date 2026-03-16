@@ -120,6 +120,10 @@ export class WorkspaceComponent implements AfterViewChecked {
   // Responsive preview
   previewDevice = signal<'desktop' | 'tablet' | 'phone'>('desktop');
 
+  // Preview undock (desktop only)
+  isPreviewUndocked = signal(false);
+  isDesktop = signal(!!(window as any).electronAPI?.isDesktop);
+
   showDebug = signal(false);
 
   loadingMessages = [
@@ -179,10 +183,14 @@ export class WorkspaceComponent implements AfterViewChecked {
     effect(() => {
       const data = this.visualEditorData();
       if (!data) {
-        // Properties panel closed - clear selection in iframe
-        const iframe = document.querySelector('iframe');
-        if (iframe && iframe.contentWindow) {
-          iframe.contentWindow.postMessage({ type: 'CLEAR_SELECTION' }, '*');
+        if (this.isPreviewUndocked()) {
+          const eApi = (window as any).electronAPI;
+          eApi?.previewSendCommand({ type: 'clear-selection' });
+        } else {
+          const iframe = document.querySelector('iframe');
+          if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({ type: 'CLEAR_SELECTION' }, '*');
+          }
         }
       }
     });
@@ -218,6 +226,74 @@ export class WorkspaceComponent implements AfterViewChecked {
         } else {
           this.projectService.reloadPreview(null);
         }
+      }
+    });
+
+    // Listen for preview window state changes from Electron
+    const electronAPI = (window as any).electronAPI;
+    if (electronAPI?.onPreviewStateChanged) {
+      electronAPI.onPreviewStateChanged((state: { undocked: boolean }) => {
+        this.isPreviewUndocked.set(state.undocked);
+      });
+      // Sync initial state
+      electronAPI.previewGetState?.().then((state: { undocked: boolean }) => {
+        if (state) this.isPreviewUndocked.set(state.undocked);
+      });
+    }
+
+    // Listen for events relayed from the preview shell (inspect, annotation, screenshot)
+    if (electronAPI?.onPreviewEvent) {
+      electronAPI.onPreviewEvent((event: any) => {
+        if (event.type === 'element-selected') {
+          this.visualEditorData.set(event.payload);
+        }
+        if (event.type === 'inline-text-edit') {
+          const payload = event.payload;
+          const fingerprint = {
+            tagName: payload.tagName,
+            text: payload.text,
+            elementId: payload.elementId,
+            componentName: payload.componentName,
+            hostTag: payload.hostTag,
+            classes: payload.classes,
+            id: payload.attributes?.id,
+          };
+          const result = this.templateService.findAndModify(fingerprint, {
+            type: 'text',
+            value: payload.newText,
+          });
+          if (result.success) {
+            this.projectService.fileStore.updateFile(result.path, result.content);
+            this.containerEngine.writeFile(result.path, result.content);
+            this.toastService.show(result.isInsideLoop ? 'Text updated (all instances in loop affected)' : 'Text updated', result.isInsideLoop ? 'info' : 'success');
+          }
+        }
+        if (event.type === 'screenshot-captured' && event.image) {
+          if (this.chatComponent) {
+            this.chatComponent.setImage(event.image);
+            this.toastService.show('Screenshot captured', 'success');
+          }
+        }
+        if (event.type === 'annotation-done' && event.image) {
+          if (this.chatComponent) {
+            this.chatComponent.setAnnotatedImage(event.image, event.annotations || {});
+            this.toastService.show('Annotation attached to chat', 'success');
+          }
+        }
+        if (event.type === 'preview-console') {
+          this.containerEngine.addConsoleLog({
+            level: event.level,
+            message: event.message,
+          });
+        }
+      });
+    }
+
+    // When the container engine URL changes while undocked, navigate the preview window
+    effect(() => {
+      const url = this.containerEngine.url();
+      if (url && this.isPreviewUndocked() && electronAPI?.previewNavigate) {
+        electronAPI.previewNavigate(url);
       }
     });
 
@@ -299,15 +375,18 @@ export class WorkspaceComponent implements AfterViewChecked {
     // Close properties panel when inspector is toggled off
     if (!isActive) this.visualEditorData.set(null);
 
-    const iframe = document.querySelector('iframe');
-    if (iframe && iframe.contentWindow) {
-      iframe.contentWindow.postMessage(
-        {
-          type: 'TOGGLE_INSPECTOR',
-          enabled: isActive,
-        },
-        '*',
-      );
+    if (this.isPreviewUndocked()) {
+      // Proxy to preview shell window
+      const electronAPI = (window as any).electronAPI;
+      electronAPI?.previewSendCommand({ type: 'toggle-inspect' });
+    } else {
+      const iframe = document.querySelector('iframe');
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage(
+          { type: 'TOGGLE_INSPECTOR', enabled: isActive },
+          '*',
+        );
+      }
     }
   }
 
@@ -317,6 +396,12 @@ export class WorkspaceComponent implements AfterViewChecked {
     // Disable inspector when entering annotation mode
     if (newState && this.isInspectionActive()) {
       this.toggleInspection();
+    }
+
+    if (this.isPreviewUndocked()) {
+      // Proxy to preview shell window
+      const electronAPI = (window as any).electronAPI;
+      electronAPI?.previewSendCommand({ type: 'toggle-annotate' });
     }
   }
 
@@ -424,6 +509,12 @@ export class WorkspaceComponent implements AfterViewChecked {
   }
 
   startSelection() {
+    if (this.isPreviewUndocked()) {
+      // Proxy to preview shell window
+      const electronAPI = (window as any).electronAPI;
+      electronAPI?.previewSendCommand({ type: 'start-screenshot' });
+      return;
+    }
     this.isSelecting = true;
   }
 
@@ -523,10 +614,32 @@ export class WorkspaceComponent implements AfterViewChecked {
   }
 
   reloadIframe() {
+    if (this.isPreviewUndocked()) {
+      // Reload the separate preview window
+      const electronAPI = (window as any).electronAPI;
+      const url = this.containerEngine.url();
+      if (electronAPI?.previewNavigate && url) {
+        electronAPI.previewNavigate(url);
+      }
+      return;
+    }
     const iframe = document.querySelector('iframe');
     if (iframe) {
       const currentSrc = iframe.src;
       iframe.src = currentSrc;
+    }
+  }
+
+  async toggleUndock() {
+    const electronAPI = (window as any).electronAPI;
+    if (!electronAPI) return;
+
+    if (this.isPreviewUndocked()) {
+      await electronAPI.previewDock();
+    } else {
+      const url = this.containerEngine.url();
+      if (!url) return;
+      await electronAPI.previewUndock(url);
     }
   }
 

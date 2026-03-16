@@ -41,6 +41,7 @@ export interface GenerateOptions {
   contextSummary?: string; // Compacted summary of older conversation turns
   sapAiCore?: SapAiCoreConfig; // SAP AI Core connection config
   kitLessonsEnabled?: boolean; // Enable save_lesson tool + lesson injection (default: true)
+  cdpEnabled?: boolean; // Enable CDP browser tools (desktop mode with undocked preview)
 }
 
 export interface TokenUsage {

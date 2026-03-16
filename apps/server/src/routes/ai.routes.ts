@@ -327,6 +327,19 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
         console.log(`[AI] Active kit: ${activeKit.name} (from ${kitId ? 'project' : 'settings'})`);
       }
 
+      // Check if CDP browser tools are available (desktop mode)
+      let cdpEnabled = false;
+      if (process.env['ADORABLE_DESKTOP_MODE'] === 'true') {
+        try {
+          const agentPort = process.env['ADORABLE_AGENT_PORT'] || '3334';
+          const cdpStatus = await fetch(`http://localhost:${agentPort}/api/native/cdp/status`);
+          const cdpData = await cdpStatus.json();
+          cdpEnabled = cdpData.available === true;
+        } catch {
+          // CDP not available
+        }
+      }
+
       const result = await llm.streamGenerate({
           prompt,
           previousFiles, // Still passed for fallback or initial context
@@ -348,6 +361,7 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
           contextSummary,
           sapAiCore,
           kitLessonsEnabled: userSettings.kitLessonsEnabled !== false,
+          cdpEnabled,
       }, {
           onText: (text) => {
               res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);

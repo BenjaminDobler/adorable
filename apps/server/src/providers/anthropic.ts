@@ -131,6 +131,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       activeKitId,
       userId,
       projectId,
+      cdpEnabled: options.cdpEnabled,
+      hasVerifiedWithBrowser: false,
     };
 
     let turnCount = 0;
@@ -264,6 +266,22 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
           } else {
             callbacks.onText?.('Build successful.\n');
             ctx.hasRunBuild = true;
+
+            // CDP verification: after successful build, ask AI to verify with browse tools
+            if (ctx.cdpEnabled && !ctx.hasVerifiedWithBrowser && turnCount < maxTurns - 3) {
+              ctx.hasVerifiedWithBrowser = true;
+              callbacks.onText?.('Verifying with browser tools...\n');
+              const verifyMsg = 'Build succeeded. Now verify the application works correctly:\n'
+                + '1. Wait a moment for the dev server to reload, then use `browse_console` to check for runtime errors\n'
+                + '2. Use `browse_screenshot` to capture the current state of the application\n'
+                + '3. Analyze the screenshot — does the UI match what was requested?\n'
+                + '4. If there are issues (errors, broken layout, missing elements), fix them and rebuild\n'
+                + '5. If everything looks correct, you are done.';
+              logger.logText('INJECTED_USER_MESSAGE', verifyMsg, { reason: 'cdp_post_build_verification' });
+              messages.push({ role: 'user', content: [{ type: 'text', text: verifyMsg }] });
+              turnCount++;
+              continue;
+            }
           }
         }
         break;

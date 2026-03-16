@@ -353,6 +353,49 @@
     min-height: 0;
   }
 
+  .undocked-placeholder {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    color: var(--text-secondary);
+    background: var(--bg-color);
+    text-align: center;
+
+    h3 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.85rem;
+      max-width: 300px;
+      line-height: 1.4;
+    }
+
+    .dock-btn {
+      margin-top: 0.5rem;
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+
+      &:hover {
+        background: var(--bg-hover);
+        border-color: var(--accent-color);
+      }
+    }
+  }
+
   iframe {
     width: 100%;
     height: 100%;

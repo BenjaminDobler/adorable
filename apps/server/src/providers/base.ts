@@ -1,6 +1,6 @@
 import { FileSystemInterface, StreamCallbacks, GenerateOptions, HistoryMessage } from './types';
 import { jsonrepair } from 'jsonrepair';
-import { TOOLS, SAVE_LESSON_TOOL } from './tools';
+import { TOOLS, SAVE_LESSON_TOOL, CDP_TOOLS } from './tools';
 import { ANGULAR_KNOWLEDGE_BASE } from './knowledge-base';
 import { SkillRegistry } from './skills/skill-registry';
 import { DebugLogger } from './debug-logger';
@@ -103,6 +103,8 @@ export interface AgentLoopContext {
   activeKitId?: string;
   userId?: string;
   projectId?: string;
+  cdpEnabled?: boolean;
+  hasVerifiedWithBrowser?: boolean;
 }
 
 export abstract class BaseLLMProvider {
@@ -122,6 +124,7 @@ export abstract class BaseLLMProvider {
     projectId?: string;
     history?: HistoryMessage[];
     contextSummary?: string;
+    cdpEnabled?: boolean;
   }> {
     const logger = new DebugLogger(providerName, options.projectId);
     if (!options.fileSystem) {
@@ -200,6 +203,11 @@ Only proceed with implementation after receiving the user's answers.`;
       } catch (error) {
         logger.log('MCP_INIT_ERROR', { error: error instanceof Error ? error.message : 'Unknown error' });
       }
+    }
+
+    // Add CDP browser tools when running in desktop mode with undocked preview
+    if (options.cdpEnabled) {
+      availableTools.push(...CDP_TOOLS);
     }
 
     // Add save_lesson tool when a kit is active and lessons are enabled
@@ -318,6 +326,24 @@ Only proceed with implementation after receiving the user's answers.`;
 
     const maxTurns = fs.exec ? 200 : 25;
 
+    // Inject CDP browse tool instructions when available
+    if (options.cdpEnabled) {
+      userMessage += `\n\n**BROWSER TOOLS (Preview Debugging):**\n`
+        + `You have access to browser tools that let you inspect the running application preview in real-time:\n`
+        + `- \`browse_screenshot\` — Capture a screenshot to visually verify the UI\n`
+        + `- \`browse_console\` — Read console errors/warnings from the running app\n`
+        + `- \`browse_evaluate\` — Execute JavaScript in the preview to inspect DOM, check state, or debug\n`
+        + `- \`browse_accessibility\` — Get the accessibility tree for structure analysis\n`
+        + `- \`browse_navigate\` — Navigate to different routes to test them\n`
+        + `- \`browse_click\` — Click elements to test interactivity\n\n`
+        + `**VERIFICATION WORKFLOW:** After a successful build, you SHOULD:\n`
+        + `1. Wait a few seconds for the dev server to reload, then use \`browse_screenshot\` to see the current state\n`
+        + `2. Use \`browse_console\` to check for runtime errors\n`
+        + `3. If the UI doesn't look right or has errors, fix the code and rebuild\n`
+        + `4. For interactive features, use \`browse_click\` and \`browse_evaluate\` to test them\n`
+        + `This is especially important when making visual/layout changes — always verify with a screenshot.\n`;
+    }
+
     // Determine effective system prompt: kit override or default
     let effectiveSystemPrompt = activeKit?.baseSystemPrompt || SYSTEM_PROMPT;
 
@@ -329,7 +355,7 @@ Only proceed with implementation after receiving the user's answers.`;
       );
     }
 
-    return { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName: activeKit?.name, activeKitId: activeKit?.id, userId: options.userId, projectId: options.projectId, history: options.history, contextSummary: options.contextSummary };
+    return { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName: activeKit?.name, activeKitId: activeKit?.id, userId: options.userId, projectId: options.projectId, history: options.history, contextSummary: options.contextSummary, cdpEnabled: options.cdpEnabled };
   }
 
   protected async addSkillTools(availableTools: any[], skillRegistry: SkillRegistry, fs: FileSystemInterface, userId?: string) {
@@ -733,6 +759,51 @@ Only proceed with implementation after receiving the user's answers.`;
             }
           }
           break;
+        // --- CDP Browser Tools ---
+        case 'browse_screenshot':
+        case 'browse_evaluate':
+        case 'browse_accessibility':
+        case 'browse_console':
+        case 'browse_navigate':
+        case 'browse_click':
+          {
+            const cdpEndpoint = toolName.replace('browse_', '');
+            const agentPort = process.env['ADORABLE_AGENT_PORT'] || '3334';
+            const agentUrl = `http://localhost:${agentPort}`;
+
+            if (process.env['ADORABLE_DESKTOP_MODE'] !== 'true') {
+              content = 'CDP browser tools are only available in desktop mode with the preview undocked.';
+              isError = true;
+            } else {
+              try {
+                const body: Record<string, any> = {};
+                if (toolName === 'browse_evaluate') body.expression = toolArgs.expression;
+                if (toolName === 'browse_console') body.clear = toolArgs.clear ?? true;
+                if (toolName === 'browse_navigate') body.url = toolArgs.url;
+                if (toolName === 'browse_click') { body.x = toolArgs.x; body.y = toolArgs.y; }
+
+                const resp = await fetch(`${agentUrl}/api/native/cdp/${cdpEndpoint}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(body),
+                });
+                const data = await resp.json();
+
+                if (!resp.ok) {
+                  content = `CDP ${cdpEndpoint} failed: ${data.error}`;
+                  isError = true;
+                } else if (toolName === 'browse_screenshot') {
+                  content = `[SCREENSHOT:data:image/png;base64,${data.image}]`;
+                } else {
+                  content = JSON.stringify(data, null, 2);
+                }
+              } catch (err: any) {
+                content = `CDP request failed: ${err.message}`;
+                isError = true;
+              }
+            }
+          }
+          break;
         default:
           content = `Error: Unknown tool ${toolName}`;
           isError = true;
@@ -790,6 +861,49 @@ Only proceed with implementation after receiving the user's answers.`;
         callbacks.onText?.('Build successful.\n');
         console.log(`[AutoBuild] Build succeeded`);
         ctx.hasRunBuild = true;
+      }
+    }
+
+    // CDP post-loop verification: if build succeeded but no browser verification happened yet
+    if (ctx.cdpEnabled && ctx.hasRunBuild && !ctx.hasVerifiedWithBrowser) {
+      ctx.hasVerifiedWithBrowser = true;
+      console.log('[BrowseVerify] Running post-loop browser verification...');
+      callbacks.onText?.('\nVerifying with browser tools...\n');
+
+      // Wait for dev server to reload after build
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      const verifyMsg = 'Build succeeded. Verify the application works correctly:\n'
+        + '1. Use `browse_console` to check for runtime errors\n'
+        + '2. Use `browse_screenshot` to capture the current state\n'
+        + '3. If there are issues, fix them. If everything looks correct, confirm and stop.';
+
+      const VERIFY_TURNS = 3;
+      let currentVerifyMsg = verifyMsg;
+      for (let verifyTurn = 0; verifyTurn < VERIFY_TURNS; verifyTurn++) {
+        console.log(`[BrowseVerify] Verification turn ${verifyTurn}`);
+        const result = await sendMessageAndGetToolCalls(currentVerifyMsg);
+
+        if (result.toolCalls.length === 0) break;
+
+        // Execute tools and collect results as a text summary for the next turn
+        const resultSummaries: string[] = [];
+        for (const call of result.toolCalls) {
+          callbacks.onToolCall?.(0, call.name, call.args);
+          const { content, isError } = await this.executeTool(call.name, call.args, ctx);
+          callbacks.onToolResult?.(call.id, content, call.name);
+
+          // For screenshot results, tell the model an image was captured
+          // (the actual image is sent via the provider's message handling)
+          const screenshotMatch = content.match(/^\[SCREENSHOT:/);
+          if (screenshotMatch && !isError) {
+            resultSummaries.push(`${call.name}: Screenshot captured successfully. Check the image above to verify the UI.`);
+          } else {
+            resultSummaries.push(`${call.name}: ${isError ? 'ERROR: ' : ''}${content.substring(0, 500)}`);
+          }
+        }
+
+        currentVerifyMsg = 'Tool results:\n' + resultSummaries.join('\n') + '\n\nAnalyze the results. If there are issues, fix them. If everything looks correct, you are done.';
       }
     }
 

@@ -99,4 +99,25 @@
       <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
     </svg>
   </button>
+  <!-- Undock/Dock (desktop only) -->
+  @if (isDesktop()) {
+    <div class="toolbar-separator"></div>
+    <button
+      [class.active]="isUndocked()"
+      (click)="undockToggled.emit()"
+      [title]="isUndocked() ? 'Dock Preview' : 'Undock Preview'"
+    >
+      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        @if (isUndocked()) {
+          <rect x="2" y="4" width="14" height="14" rx="2"/>
+          <path d="M22 2v8h-8"/>
+          <path d="M22 2l-7 7"/>
+        } @else {
+          <rect x="2" y="4" width="14" height="14" rx="2"/>
+          <path d="M15 2h7v7"/>
+          <path d="M17 12l5-5"/>
+        }
+      </svg>
+    </button>
+  }
 </div>

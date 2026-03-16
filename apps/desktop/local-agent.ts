@@ -444,6 +444,672 @@ app.post('/api/native/read-binary-file', async (req, res) => {
   }
 });
 
+// --- Preview Window Manager reference (set by main.ts) ---
+
+let previewManagerRef: any = null;
+let previewEventCallback: ((event: any) => void) | null = null;
+
+export function setPreviewManager(mgr: any) {
+  previewManagerRef = mgr;
+}
+
+export function setPreviewEventCallback(callback: (event: any) => void) {
+  previewEventCallback = callback;
+}
+
+// --- Preview Shell Event Relay ---
+
+/** Receives events from the preview shell (inspect, annotation, screenshot) and forwards to main window */
+app.post('/api/native/preview-shell/event', (req, res) => {
+  const event = req.body;
+  if (previewEventCallback && event?.type) {
+    previewEventCallback(event);
+  }
+  res.json({ success: true });
+});
+
+// --- CDP Bridge Routes ---
+
+app.post('/api/native/cdp/screenshot', async (_req, res) => {
+  if (!previewManagerRef?.isUndocked()) {
+    return res.status(400).json({ error: 'Preview is not undocked. Undock the preview window to use CDP tools.' });
+  }
+  try {
+    const image = await previewManagerRef.captureScreenshot();
+    res.json({ image });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/native/cdp/evaluate', async (req, res) => {
+  if (!previewManagerRef?.isUndocked()) {
+    return res.status(400).json({ error: 'Preview is not undocked.' });
+  }
+  try {
+    const result = await previewManagerRef.evaluate(req.body.expression);
+    res.json({ result });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/native/cdp/accessibility', async (_req, res) => {
+  if (!previewManagerRef?.isUndocked()) {
+    return res.status(400).json({ error: 'Preview is not undocked.' });
+  }
+  try {
+    const tree = await previewManagerRef.getAccessibilityTree();
+    res.json({ tree });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/native/cdp/console', async (req, res) => {
+  if (!previewManagerRef?.isUndocked()) {
+    return res.status(400).json({ error: 'Preview is not undocked.' });
+  }
+  try {
+    const messages = previewManagerRef.getConsoleMessages(req.body.clear !== false);
+    res.json({ messages });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/native/cdp/navigate', async (req, res) => {
+  if (!previewManagerRef?.isUndocked()) {
+    return res.status(400).json({ error: 'Preview is not undocked.' });
+  }
+  try {
+    await previewManagerRef.navigateCDP(req.body.url);
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/native/cdp/click', async (req, res) => {
+  if (!previewManagerRef?.isUndocked()) {
+    return res.status(400).json({ error: 'Preview is not undocked.' });
+  }
+  try {
+    await previewManagerRef.click(req.body.x, req.body.y);
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/native/cdp/status', (_req, res) => {
+  res.json({
+    available: !!previewManagerRef?.isUndocked(),
+  });
+});
+
+/**
+ * Serves the preview wrapper HTML page with an embedded toolbar.
+ * The preview window loads this instead of the raw dev server URL.
+ * Query param: ?url=<dev-server-url>
+ */
+app.get('/api/native/preview-shell', (req, res) => {
+  const previewUrl = req.query.url as string || 'about:blank';
+  res.setHeader('Content-Type', 'text/html');
+  res.send(getPreviewShellHTML(previewUrl));
+});
+
+/** Dock back — triggered from preview shell toolbar */
+app.post('/api/native/preview-shell/dock', async (_req, res) => {
+  if (previewManagerRef) {
+    await previewManagerRef.dock();
+  }
+  res.json({ success: true });
+});
+
+/** Open external URL — triggered from preview shell toolbar */
+app.post('/api/native/preview-shell/open-external', async (req, res) => {
+  const url = req.body.url;
+  if (url && /^https?:\/\//i.test(url) && openExternalHandler) {
+    openExternalHandler(url);
+  }
+  res.json({ success: true });
+});
+
+let openExternalHandler: ((url: string) => void) | null = null;
+
+export function setOpenExternalHandler(handler: (url: string) => void) {
+  openExternalHandler = handler;
+}
+
+function getPreviewShellHTML(previewUrl: string): string {
+  // The preview shell is a self-contained HTML page with toolbar, iframe, and overlay tools.
+  // It communicates with the main window via HTTP POSTs to the local agent event relay.
+  return /* html */ `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Adorable Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    /* Matches the main app's dark theme (styles.scss :root) */
+    --bg-color: #030304;
+    --bg-surface-2: #111114;
+    --bg-surface-3: #1a1a1f;
+    --panel-border: rgba(255, 255, 255, 0.06);
+    --panel-border-hover: rgba(255, 255, 255, 0.12);
+    --text-primary: #f0f0f2;
+    --text-secondary: #8a8a95;
+    --text-muted: #55555f;
+    --accent-color: #34d399;
+    --accent-glow: rgba(52, 211, 153, 0.35);
+    --radius-sm: 6px;
+  }
+  html, body { height: 100%; overflow: hidden; background: var(--bg-color); color: var(--text-primary); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  .shell { display: flex; flex-direction: column; height: 100vh; }
+
+  .toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px;
+    background: var(--bg-surface-2);
+    border-bottom: 1px solid var(--panel-border);
+    -webkit-app-region: drag;
+    flex-shrink: 0;
+  }
+  .toolbar button, .toolbar .device-buttons, .toolbar .url-display { -webkit-app-region: no-drag; }
+
+  .device-buttons { display: flex; gap: 4px; margin-right: auto; }
+
+  .toolbar button {
+    background: var(--bg-surface-3);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .toolbar button:hover { color: var(--text-primary); border-color: var(--text-muted); }
+  .toolbar button.active { background: var(--accent-glow) !important; border-color: var(--accent-color) !important; color: var(--accent-color) !important; }
+
+  .separator { width: 1px; height: 20px; background: var(--panel-border); margin: 0 4px; }
+
+  .url-display {
+    font-size: 11px; color: var(--text-muted);
+    background: rgba(0,0,0,0.3);
+    padding: 3px 10px; border-radius: var(--radius-sm);
+    border: 1px solid var(--panel-border);
+    max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .preview-area { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+  .preview-container {
+    flex: 1; display: flex; justify-content: center; align-items: stretch;
+    overflow: hidden; background: var(--bg-color);
+    padding: 0; transition: padding 0.3s ease;
+  }
+  .preview-container.device-tablet,
+  .preview-container.device-phone {
+    padding: 16px; align-items: center;
+    background: linear-gradient(135deg, #050506 0%, #0a0a0e 100%);
+  }
+
+  iframe {
+    border: none; width: 100%; height: 100%;
+    transition: width 0.3s ease, max-width 0.3s ease, box-shadow 0.3s ease, border-radius 0.3s ease;
+  }
+  .device-tablet iframe { max-width: 768px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); }
+  .device-phone iframe { max-width: 375px; border-radius: 32px; box-shadow: 0 8px 32px rgba(0,0,0,0.6); }
+
+  /* Annotation overlay */
+  #annotation-overlay {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    display: none; z-index: 100; cursor: crosshair;
+  }
+  #annotation-overlay.active { display: block; }
+  #annotation-canvas { width: 100%; height: 100%; }
+
+  .annotation-toolbar {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; padding: 8px 12px;
+    background: var(--bg-surface-2); border: 1px solid var(--panel-border); border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6); z-index: 101;
+  }
+  .annotation-toolbar button {
+    background: var(--bg-surface-3); border: 1px solid var(--panel-border); border-radius: var(--radius-sm);
+    padding: 6px 10px; color: var(--text-secondary); cursor: pointer; font-size: 12px;
+    transition: all 0.2s;
+  }
+  .annotation-toolbar button:hover { color: var(--text-primary); border-color: var(--text-muted); }
+  .annotation-toolbar button.active { background: var(--accent-glow) !important; border-color: var(--accent-color) !important; color: var(--accent-color) !important; }
+  .color-dot {
+    width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--panel-border); cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .color-dot:hover { border-color: var(--text-muted); }
+  .color-dot.active { border-color: var(--text-primary); box-shadow: 0 0 0 2px var(--accent-color); }
+
+  /* Screenshot selection overlay */
+  #screenshot-overlay {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    display: none; z-index: 100; cursor: crosshair;
+  }
+  #screenshot-overlay.active { display: block; }
+  .selection-box {
+    position: absolute; border: 2px dashed var(--accent-color);
+    background: rgba(52, 211, 153, 0.08);
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="toolbar">
+    <div class="device-buttons">
+      <button id="btn-phone" title="Phone (375px)" onclick="setDevice('phone')">
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+      </button>
+      <button id="btn-tablet" title="Tablet (768px)" onclick="setDevice('tablet')">
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+      </button>
+      <button id="btn-desktop" class="active" title="Desktop (100%)" onclick="setDevice('desktop')">
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </button>
+    </div>
+
+    <span class="url-display" id="url-display" title="${previewUrl}">${previewUrl.replace(new RegExp('^https?://'), '')}</span>
+
+    <div class="separator"></div>
+
+    <!-- Inspect -->
+    <button id="btn-inspect" title="Inspect Element" onclick="toggleInspect()">
+      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M5 2H2v3"/><path d="M19 2h3v3"/><path d="M2 19v3h3"/><path d="M22 19v3h-3"/><path d="M7 7l5.5 13 2-5 5-2L7 7z" fill="currentColor" stroke="currentColor" stroke-width="1.5"/></svg>
+    </button>
+    <!-- Screenshot selection -->
+    <button id="btn-screenshot" title="Screenshot Selection" onclick="startScreenshotSelection()">
+      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M2 7V2h5"/><path d="M17 2h5v5"/><path d="M22 17v5h-5"/><path d="M7 22H2v-5"/><rect x="6" y="9" width="12" height="9" rx="1"/><path d="M9 9l1-2h4l1 2"/><circle cx="12" cy="13.5" r="2.5"/></svg>
+    </button>
+    <!-- Annotate -->
+    <button id="btn-annotate" title="Annotate Preview" onclick="toggleAnnotate()">
+      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+    </button>
+    <!-- Refresh -->
+    <button title="Refresh Preview" onclick="refreshPreview()">
+      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    </button>
+    <!-- Open in browser -->
+    <button title="Open in Browser" onclick="openExternal()">
+      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+    </button>
+
+    <div class="separator"></div>
+
+    <!-- Dock back -->
+    <button title="Dock Preview Back" onclick="dockBack()">
+      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="4" width="14" height="14" rx="2"/><path d="M22 2v8h-8"/><path d="M22 2l-7 7"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="preview-area">
+    <div class="preview-container" id="preview-container">
+      <iframe id="preview-iframe" src="${previewUrl}"></iframe>
+    </div>
+
+    <!-- Annotation overlay (drawn on top of preview) -->
+    <div id="annotation-overlay">
+      <canvas id="annotation-canvas"></canvas>
+      <div class="annotation-toolbar" id="annotation-toolbar">
+        <button class="active" data-tool="pen" onclick="setAnnotationTool('pen')">Pen</button>
+        <button data-tool="arrow" onclick="setAnnotationTool('arrow')">Arrow</button>
+        <button data-tool="rect" onclick="setAnnotationTool('rect')">Rect</button>
+        <div class="separator"></div>
+        <div class="color-dot active" style="background:#ef4444" onclick="setAnnotationColor('#ef4444',this)"></div>
+        <div class="color-dot" style="background:#eab308" onclick="setAnnotationColor('#eab308',this)"></div>
+        <div class="color-dot" style="background:#3b82f6" onclick="setAnnotationColor('#3b82f6',this)"></div>
+        <div class="color-dot" style="background:#22c55e" onclick="setAnnotationColor('#22c55e',this)"></div>
+        <div class="color-dot" style="background:#ffffff" onclick="setAnnotationColor('#ffffff',this)"></div>
+        <div class="separator"></div>
+        <button onclick="clearAnnotation()">Clear</button>
+        <button onclick="cancelAnnotation()">Cancel</button>
+        <button onclick="finishAnnotation()" style="background:var(--accent-color);color:#030304;border-color:var(--accent-color);font-weight:500">Done</button>
+      </div>
+    </div>
+
+    <!-- Screenshot selection overlay -->
+    <div id="screenshot-overlay"></div>
+  </div>
+</div>
+
+<script>
+  const iframe = document.getElementById('preview-iframe');
+  const container = document.getElementById('preview-container');
+  let currentDevice = 'desktop';
+  let inspectActive = false;
+
+  // --- Event relay helper ---
+  function relayEvent(data) {
+    fetch('/api/native/preview-shell/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }).catch(() => {});
+  }
+
+  // --- Device switching ---
+  function setDevice(device) {
+    currentDevice = device;
+    container.className = 'preview-container device-' + device;
+    document.querySelectorAll('.device-buttons button').forEach(b => b.classList.remove('active'));
+    document.getElementById('btn-' + device)?.classList.add('active');
+  }
+
+  function refreshPreview() { iframe.src = iframe.src; }
+
+  function openExternal() {
+    fetch('/api/native/preview-shell/open-external', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: iframe.src || '${previewUrl}' })
+    }).catch(() => {});
+  }
+
+  function dockBack() {
+    fetch('/api/native/preview-shell/dock', { method: 'POST' }).catch(() => {});
+  }
+
+  // --- Navigation ---
+  function navigatePreview(url) {
+    iframe.src = url;
+    const display = document.getElementById('url-display');
+    display.textContent = url.replace(new RegExp('^https?://'), '');
+    display.title = url;
+  }
+
+  // --- Inspect Element ---
+  function toggleInspect() {
+    inspectActive = !inspectActive;
+    document.getElementById('btn-inspect').classList.toggle('active', inspectActive);
+    if (iframe.contentWindow) {
+      iframe.contentWindow.postMessage({ type: 'TOGGLE_INSPECTOR', enabled: inspectActive }, '*');
+    }
+  }
+
+  // Listen for iframe messages (ELEMENT_SELECTED, INLINE_TEXT_EDIT, PREVIEW_CONSOLE)
+  window.addEventListener('message', (event) => {
+    if (event.data?.type === 'ELEMENT_SELECTED') {
+      relayEvent({ type: 'element-selected', payload: event.data.payload });
+    }
+    if (event.data?.type === 'INLINE_TEXT_EDIT') {
+      relayEvent({ type: 'inline-text-edit', payload: event.data.payload });
+    }
+    if (event.data?.type === 'PREVIEW_CONSOLE') {
+      relayEvent({ type: 'preview-console', level: event.data.level, message: event.data.message });
+    }
+  });
+
+  // --- Screenshot Selection ---
+  let screenshotMode = false;
+  let ssStart = null;
+  const ssOverlay = document.getElementById('screenshot-overlay');
+
+  function startScreenshotSelection() {
+    screenshotMode = true;
+    ssOverlay.classList.add('active');
+    iframe.style.pointerEvents = 'none';
+  }
+
+  ssOverlay.addEventListener('mousedown', (e) => {
+    ssStart = { x: e.clientX, y: e.clientY };
+    const box = document.createElement('div');
+    box.className = 'selection-box';
+    box.id = 'ss-box';
+    ssOverlay.appendChild(box);
+  });
+
+  ssOverlay.addEventListener('mousemove', (e) => {
+    if (!ssStart) return;
+    const box = document.getElementById('ss-box');
+    if (!box) return;
+    const x = Math.min(e.clientX, ssStart.x);
+    const y = Math.min(e.clientY, ssStart.y);
+    const w = Math.abs(e.clientX - ssStart.x);
+    const h = Math.abs(e.clientY - ssStart.y);
+    box.style.left = x + 'px';
+    box.style.top = y + 'px';
+    box.style.width = w + 'px';
+    box.style.height = h + 'px';
+  });
+
+  ssOverlay.addEventListener('mouseup', async (e) => {
+    if (!ssStart) return;
+    const w = Math.abs(e.clientX - ssStart.x);
+    const h = Math.abs(e.clientY - ssStart.y);
+    ssStart = null;
+    const box = document.getElementById('ss-box');
+    if (box) box.remove();
+    ssOverlay.classList.remove('active');
+    iframe.style.pointerEvents = '';
+    screenshotMode = false;
+
+    if (w < 10 || h < 10) return;
+
+    // Capture full screenshot via CDP, then crop client-side
+    try {
+      const resp = await fetch('/api/native/cdp/screenshot', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const data = await resp.json();
+      if (data.image) {
+        relayEvent({ type: 'screenshot-captured', image: 'data:image/png;base64,' + data.image });
+      }
+    } catch {}
+  });
+
+  // --- Annotation ---
+  let annotationActive = false;
+  let annotationTool = 'pen';
+  let annotationColor = '#ef4444';
+  let annotationStrokes = [];
+  let currentStroke = null;
+  let annotationCtx = null;
+
+  const annOverlay = document.getElementById('annotation-overlay');
+  const annCanvas = document.getElementById('annotation-canvas');
+
+  function setupAnnotationCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = annOverlay.getBoundingClientRect();
+    annCanvas.width = rect.width * dpr;
+    annCanvas.height = rect.height * dpr;
+    annotationCtx = annCanvas.getContext('2d');
+    annotationCtx.scale(dpr, dpr);
+    redrawAnnotation();
+  }
+
+  function toggleAnnotate() {
+    annotationActive = !annotationActive;
+    document.getElementById('btn-annotate').classList.toggle('active', annotationActive);
+    annOverlay.classList.toggle('active', annotationActive);
+    iframe.style.pointerEvents = annotationActive ? 'none' : '';
+    if (annotationActive) {
+      // Disable inspector when annotating
+      if (inspectActive) toggleInspect();
+      annotationStrokes = [];
+      setupAnnotationCanvas();
+    }
+  }
+
+  function setAnnotationTool(tool) {
+    annotationTool = tool;
+    document.querySelectorAll('#annotation-toolbar button[data-tool]').forEach(b => b.classList.remove('active'));
+    document.querySelector('#annotation-toolbar button[data-tool="' + tool + '"]')?.classList.add('active');
+  }
+
+  function setAnnotationColor(color, el) {
+    annotationColor = color;
+    document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  function clearAnnotation() {
+    annotationStrokes = [];
+    redrawAnnotation();
+  }
+
+  function cancelAnnotation() {
+    annotationActive = false;
+    annOverlay.classList.remove('active');
+    document.getElementById('btn-annotate').classList.remove('active');
+    iframe.style.pointerEvents = '';
+    annotationStrokes = [];
+  }
+
+  async function finishAnnotation() {
+    // Get the annotation drawing as transparent PNG
+    const drawingDataUrl = annCanvas.toDataURL('image/png');
+    const annotations = {
+      texts: [],
+      hasArrows: annotationStrokes.some(s => s.type === 'arrow'),
+      hasRectangles: annotationStrokes.some(s => s.type === 'rect'),
+      hasFreehand: annotationStrokes.some(s => s.type === 'pen'),
+    };
+
+    // Capture the preview screenshot via CDP
+    let screenshotDataUrl = null;
+    try {
+      const resp = await fetch('/api/native/cdp/screenshot', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const data = await resp.json();
+      if (data.image) screenshotDataUrl = 'data:image/png;base64,' + data.image;
+    } catch {}
+
+    // Composite screenshot + annotation
+    if (screenshotDataUrl) {
+      const composited = await compositeImages(screenshotDataUrl, drawingDataUrl);
+      relayEvent({ type: 'annotation-done', image: composited, annotations });
+    } else {
+      relayEvent({ type: 'annotation-done', image: drawingDataUrl, annotations });
+    }
+
+    cancelAnnotation();
+  }
+
+  function compositeImages(base, overlay) {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const baseImg = new Image();
+      baseImg.onload = () => {
+        canvas.width = baseImg.width;
+        canvas.height = baseImg.height;
+        ctx.drawImage(baseImg, 0, 0);
+        const overlayImg = new Image();
+        overlayImg.onload = () => {
+          ctx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        overlayImg.src = overlay;
+      };
+      baseImg.src = base;
+    });
+  }
+
+  // --- Annotation drawing ---
+  annCanvas.addEventListener('mousedown', (e) => {
+    if (!annotationActive) return;
+    const rect = annCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (annotationTool === 'pen') {
+      currentStroke = { type: 'pen', color: annotationColor, width: 3, points: [{ x, y }] };
+    } else if (annotationTool === 'arrow' || annotationTool === 'rect') {
+      currentStroke = { type: annotationTool, color: annotationColor, width: 3, start: { x, y }, end: { x, y } };
+    }
+  });
+
+  annCanvas.addEventListener('mousemove', (e) => {
+    if (!currentStroke) return;
+    const rect = annCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (currentStroke.type === 'pen') {
+      currentStroke.points.push({ x, y });
+    } else {
+      currentStroke.end = { x, y };
+    }
+    redrawAnnotation();
+  });
+
+  annCanvas.addEventListener('mouseup', () => {
+    if (currentStroke) {
+      annotationStrokes.push(currentStroke);
+      currentStroke = null;
+      redrawAnnotation();
+    }
+  });
+
+  function redrawAnnotation() {
+    if (!annotationCtx) return;
+    const rect = annOverlay.getBoundingClientRect();
+    annotationCtx.clearRect(0, 0, rect.width, rect.height);
+    const allStrokes = [...annotationStrokes];
+    if (currentStroke) allStrokes.push(currentStroke);
+    for (const s of allStrokes) {
+      annotationCtx.strokeStyle = s.color;
+      annotationCtx.lineWidth = s.width;
+      annotationCtx.lineCap = 'round';
+      annotationCtx.lineJoin = 'round';
+      if (s.type === 'pen' && s.points.length > 1) {
+        annotationCtx.beginPath();
+        annotationCtx.moveTo(s.points[0].x, s.points[0].y);
+        for (let i = 1; i < s.points.length; i++) annotationCtx.lineTo(s.points[i].x, s.points[i].y);
+        annotationCtx.stroke();
+      } else if (s.type === 'rect') {
+        annotationCtx.strokeRect(s.start.x, s.start.y, s.end.x - s.start.x, s.end.y - s.start.y);
+      } else if (s.type === 'arrow') {
+        drawArrow(annotationCtx, s.start.x, s.start.y, s.end.x, s.end.y, s.color, s.width);
+      }
+    }
+  }
+
+  function drawArrow(ctx, x1, y1, x2, y2, color, width) {
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    const headLen = 14;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  // --- Handle commands from main window (via Electron IPC -> executeJavaScript) ---
+  function handleShellCommand(cmd) {
+    if (cmd.type === 'toggle-inspect') toggleInspect();
+    if (cmd.type === 'toggle-annotate') toggleAnnotate();
+    if (cmd.type === 'start-screenshot') startScreenshotSelection();
+    if (cmd.type === 'clear-selection') {
+      if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'CLEAR_SELECTION' }, '*');
+    }
+    if (cmd.type === 'select-element') {
+      if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'SELECT_ELEMENT', ...cmd.data }, '*');
+    }
+  }
+
+  // Resize annotation canvas when window resizes
+  window.addEventListener('resize', () => { if (annotationActive) setupAnnotationCanvas(); });
+</script>
+</body>
+</html>`;
+}
+
 // --- Also serve the Angular client ---
 
 import * as pathModule from 'path';

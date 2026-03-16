@@ -33,9 +33,13 @@ export class ScreenshotService {
 
   /**
    * Captures a thumbnail of the full preview iframe.
-   * Tries methods in order: Electron → WebExtension → iframe html2canvas fallback.
+   * Tries methods in order: CDP (if undocked) → Electron → WebExtension → iframe html2canvas fallback.
    */
   async captureThumbnail(): Promise<string | null> {
+    // If preview is undocked, use CDP screenshot via local agent
+    const cdpResult = await this.tryCDP();
+    if (cdpResult) return cdpResult;
+
     const iframe = this.iframe;
     if (!iframe || !iframe.contentWindow) {
       console.warn('[ScreenshotService] No active iframe to capture');
@@ -89,6 +93,27 @@ export class ScreenshotService {
 
     // Tier 3: iframe html2canvas fallback (~1-5s)
     return this.tryIframeFallback(iframe, opts.iframeFallbackRect);
+  }
+
+  private async tryCDP(): Promise<string | null> {
+    const electronAPI = (window as any).electronAPI;
+    if (!electronAPI?.nativeAgentUrl) return null;
+
+    try {
+      const res = await fetch(`${electronAPI.nativeAgentUrl}/api/native/cdp/screenshot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data.image) {
+        console.log('[ScreenshotService] Captured via CDP');
+        return `data:image/png;base64,${data.image}`;
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   private async tryElectron(rect: CaptureRect): Promise<string | null> {

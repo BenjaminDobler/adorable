@@ -19,6 +19,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('capture-page', rect),
   // Open a URL in the system default browser
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
+  // Preview window management (dock/undock for CDP access)
+  previewUndock: (url: string) => ipcRenderer.invoke('preview:undock', url),
+  previewDock: () => ipcRenderer.invoke('preview:dock'),
+  previewNavigate: (url: string) => ipcRenderer.invoke('preview:navigate', url),
+  previewGetState: () => ipcRenderer.invoke('preview:get-state'),
+  onPreviewStateChanged: (callback: (state: { undocked: boolean; url: string | null }) => void) => {
+    const listener = (_event: unknown, state: { undocked: boolean; url: string | null }) => callback(state);
+    ipcRenderer.on('preview:state-changed', listener);
+    return () => ipcRenderer.removeListener('preview:state-changed', listener);
+  },
+  // Send a command to the preview shell (e.g., toggle inspector)
+  previewSendCommand: (command: any) => ipcRenderer.invoke('preview:send-command', command),
+  // Listen for events relayed from the preview shell (element-selected, annotation-done, etc.)
+  onPreviewEvent: (callback: (event: any) => void) => {
+    const listener = (_event: unknown, data: any) => callback(data);
+    ipcRenderer.on('preview:event', listener);
+    return () => ipcRenderer.removeListener('preview:event', listener);
+  },
   // Cloud OAuth login: opens browser, returns JWT token
   cloudOAuthLogin: (cloudUrl: string, provider: string) =>
     ipcRenderer.invoke('cloud-oauth-login', cloudUrl, provider),

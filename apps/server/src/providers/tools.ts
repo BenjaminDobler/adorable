@@ -311,3 +311,83 @@ export const TOOLS = [
     }
   }
 ];
+
+/**
+ * CDP (Chrome DevTools Protocol) tools — available when running in desktop mode
+ * with the preview window undocked. These give the AI agent direct access to
+ * inspect, interact with, and debug the running application preview.
+ */
+export const CDP_TOOLS = [
+  {
+    name: 'browse_screenshot',
+    description: 'Capture a screenshot of the running application preview via Chrome DevTools Protocol. More reliable than take_screenshot — gives a direct capture of the preview window. Returns a base64 PNG image.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'browse_evaluate',
+    description: 'Execute JavaScript in the application preview via Chrome DevTools Protocol. Use to inspect DOM state, read computed styles, check variable values, debug runtime issues, or query the page. The expression is evaluated in the page context.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        expression: {
+          type: 'string',
+          description: 'JavaScript expression to evaluate in the preview page context. Can use await for async operations.'
+        }
+      },
+      required: ['expression']
+    }
+  },
+  {
+    name: 'browse_accessibility',
+    description: 'Get the accessibility tree of the preview page. Returns a structured view of all accessible elements with their roles, names, and descriptions. Useful for checking ARIA compliance, understanding page structure, and verifying semantic HTML.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'browse_console',
+    description: 'Read buffered console messages (log, warn, error) from the preview. Returns messages since last read. Use this to check for runtime errors, warnings, or debug output.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        clear: {
+          type: 'boolean',
+          description: 'Clear the buffer after reading. Defaults to true.'
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'browse_navigate',
+    description: 'Navigate the preview to a specific URL or route path. Use to test different routes/pages in the application.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'The URL to navigate to. Can be a full URL or a path relative to the dev server.'
+        }
+      },
+      required: ['url']
+    }
+  },
+  {
+    name: 'browse_click',
+    description: 'Click at specific coordinates in the preview page. Use after taking a screenshot to interact with visible elements.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        x: { type: 'number', description: 'X coordinate in pixels from the left edge.' },
+        y: { type: 'number', description: 'Y coordinate in pixels from the top edge.' }
+      },
+      required: ['x', 'y']
+    }
+  }
+];

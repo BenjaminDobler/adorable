@@ -6,13 +6,15 @@ import { fork, ChildProcess } from 'child_process';
 import * as http from 'http';
 import * as jwt from 'jsonwebtoken';
 import { ensureNode } from './node-bootstrap';
-import { startLocalAgent } from './local-agent';
+import { startLocalAgent, setPreviewManager, setOpenExternalHandler, setPreviewEventCallback } from './local-agent';
 import { getOrCreateJwtSecret } from './jwt-secret';
 import { initializeDatabase } from './db-init';
+import { PreviewWindowManager } from './preview-window';
 
 let mainWindow: BrowserWindow | null = null;
 let serverProcess: ChildProcess | null = null;
 let localUserToken: string | null = null;
+let previewManager: PreviewWindowManager | null = null;
 
 // Server and agent ports
 const SERVER_PORT = parseInt(process.env['ADORABLE_SERVER_PORT'] || '3333', 10);
@@ -357,6 +359,36 @@ app.on('ready', async () => {
       await shell.openExternal(url);
     });
 
+    // --- Preview Window IPC Handlers ---
+    ipcMain.handle('preview:undock', async (_event, url: string) => {
+      if (!previewManager) return { error: 'Not initialized' };
+      await previewManager.undock(url);
+      return { success: true };
+    });
+
+    ipcMain.handle('preview:dock', async () => {
+      if (!previewManager) return { error: 'Not initialized' };
+      await previewManager.dock();
+      return { success: true };
+    });
+
+    ipcMain.handle('preview:navigate', async (_event, url: string) => {
+      if (!previewManager) return { error: 'Not initialized' };
+      await previewManager.navigate(url);
+      return { success: true };
+    });
+
+    ipcMain.handle('preview:get-state', () => {
+      return previewManager?.getState() ?? { undocked: false, url: null };
+    });
+
+    // Send a command to the preview shell (inspect toggle, etc.)
+    ipcMain.handle('preview:send-command', async (_event, command: any) => {
+      if (!previewManager) return { error: 'Not initialized' };
+      previewManager.sendToShell(command);
+      return { success: true };
+    });
+
     // Cloud OAuth login: creates a temp localhost server, opens OAuth in system browser,
     // waits for the callback with a JWT token, then returns it to the renderer.
     ipcMain.handle('cloud-oauth-login', async (_event, cloudUrl: string, provider: string) => {
@@ -435,6 +467,21 @@ app.on('ready', async () => {
     await session.defaultSession.clearCache();
 
     createWindow();
+
+    // Initialize preview window manager (for dockable preview + CDP)
+    if (mainWindow) {
+      previewManager = new PreviewWindowManager(mainWindow, app.getPath('userData'), AGENT_PORT);
+      setPreviewManager(previewManager);
+      setOpenExternalHandler((url) => shell.openExternal(url));
+      setPreviewEventCallback((event) => {
+        // Forward preview shell events to the main window renderer
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('preview:event', event);
+        }
+      });
+      console.log('[Desktop] Preview window manager initialized');
+    }
+
     setupApplicationMenu();
     setupAutoUpdater();
   } catch (error) {
@@ -446,12 +493,16 @@ app.on('ready', async () => {
 });
 
 app.on('before-quit', () => {
+  previewManager?.destroy();
   stopEmbeddedServer();
 });
 
 app.on('window-all-closed', () => {
-  stopEmbeddedServer();
-  app.quit();
+  // Don't quit if only the preview window closed (mainWindow is still alive)
+  if (!mainWindow) {
+    stopEmbeddedServer();
+    app.quit();
+  }
 });
 
 app.on('activate', () => {
