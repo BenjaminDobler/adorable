@@ -8,6 +8,10 @@ export const DEV_SERVER_PRESETS: Record<DevServerPreset, { urlPattern: RegExp; r
     urlPattern: /Local:\s+(https?:\/\/localhost:\d+)/,
     readyPattern: /Application bundle generation complete/,
   },
+  'ong': {
+    urlPattern: /Local:\s+(https?:\/\/localhost:\d+)/,
+    readyPattern: /\[ong\] Dev server ready/,
+  },
   'vite': {
     urlPattern: /Local:\s+(https?:\/\/localhost:\d+)/,
     readyPattern: /ready in \d+/,

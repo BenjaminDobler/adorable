@@ -407,7 +407,7 @@ router.get('/:id', async (req: any, res) => {
  */
 router.post('/', async (req: any, res) => {
   const user = req.user;
-  const { name, description, template, npmPackage, importSuffix, npmPackages, storybookUrl, components, selectedComponentIds, mcpServerIds, systemPrompt, baseSystemPrompt, lessonsEnabled, isGlobal } = req.body;
+  const { name, description, template, npmPackage, importSuffix, npmPackages, storybookUrl, components, selectedComponentIds, mcpServerIds, systemPrompt, baseSystemPrompt, lessonsEnabled, isGlobal, commands } = req.body;
 
   if (!name) {
     return res.status(400).json({ error: 'Kit name is required' });
@@ -461,6 +461,7 @@ router.post('/', async (req: any, res) => {
       baseSystemPrompt: baseSystemPrompt || undefined,
       mcpServerIds: mcpServerIds || [],
       lessonsEnabled: lessonsEnabled !== undefined ? lessonsEnabled : undefined,
+      commands: commands || undefined,
       createdAt: now,
       updatedAt: now
     };
@@ -511,7 +512,7 @@ router.post('/', async (req: any, res) => {
 router.put('/:id', async (req: any, res) => {
   const user = req.user;
   const { id } = req.params;
-  const { name, description, template, npmPackage, importSuffix, npmPackages, storybookUrl, components, selectedComponentIds, mcpServerIds, systemPrompt, baseSystemPrompt, lessonsEnabled } = req.body;
+  const { name, description, template, npmPackage, importSuffix, npmPackages, storybookUrl, components, selectedComponentIds, mcpServerIds, systemPrompt, baseSystemPrompt, lessonsEnabled, commands } = req.body;
 
   try {
     const existingKit = await kitService.getById(id, user.id);
@@ -592,6 +593,7 @@ router.put('/:id', async (req: any, res) => {
       baseSystemPrompt: baseSystemPrompt !== undefined ? baseSystemPrompt : existingKit.baseSystemPrompt,
       mcpServerIds: mcpServerIds || existingKit.mcpServerIds,
       lessonsEnabled: lessonsEnabled !== undefined ? lessonsEnabled : existingKit.lessonsEnabled,
+      commands: commands !== undefined ? (commands && Object.keys(commands).length > 0 ? commands : undefined) : existingKit.commands,
       updatedAt: now
     };
 

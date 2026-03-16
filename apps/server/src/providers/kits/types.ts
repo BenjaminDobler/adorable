@@ -109,7 +109,7 @@ export interface StorybookResource extends KitResource {
   selectedComponentIds: string[];  // User-selected components to include
 }
 
-export type DevServerPreset = 'angular-cli' | 'vite' | 'webpack' | 'custom';
+export type DevServerPreset = 'angular-cli' | 'ong' | 'vite' | 'webpack' | 'custom';
 
 export interface KitCommands {
   install?: { cmd: string; args: string[] };
