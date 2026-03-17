@@ -2,6 +2,26 @@ import { Injectable, inject } from '@angular/core';
 import { ProjectService } from '../../../core/services/project';
 import { parse } from 'angular-html-parser';
 
+export interface OngAnnotation {
+  file: string;
+  line: number;
+  col: number;
+  tag: string;
+  component: string;
+  selector: string;
+  tsFile: string;
+  parent: number | null;
+  inLoop: boolean;
+  conditional: boolean;
+  text: { hasText: boolean; type: 'static' | 'interpolated' | 'mixed' | 'none'; content: string };
+  bindings: {
+    inputs: Record<string, string>;
+    outputs: Record<string, string>;
+    twoWay: Record<string, string>;
+    structural: string[];
+  };
+}
+
 export interface ElementFingerprint {
   componentName?: string; // Optional now
   hostTag?: string; // New fallback
@@ -9,7 +29,8 @@ export interface ElementFingerprint {
   text?: string;
   classes?: string;
   id?: string;
-  elementId?: string; // data-elements-id for reliable visual editing
+  elementId?: string; // data-elements-id for reliable visual editing, or _ong:N format
+  ongAnnotation?: OngAnnotation; // Rich metadata from ong template annotation plugin
   attributes?: Record<string, string>;
   childIndex?: number;
   parentTag?: string;
@@ -45,8 +66,15 @@ export class TemplateService {
     console.log('[TemplateService] Files loaded:', !!files, files ? Object.keys(files) : []);
     if (!files) return { content: '', path: '', success: false, error: 'No files loaded' };
 
+    // Fast path: ong annotation provides exact source location (file:line:col)
+    if (fingerprint.ongAnnotation) {
+      const result = this.modifyByOngAnnotation(files, fingerprint, modification);
+      if (result) return result;
+      console.warn('[TemplateService] ong annotation fast path failed, falling back to standard matching');
+    }
+
     let componentFile;
-    
+
     // 1. Try finding by Component Name
     if (fingerprint.componentName) {
        componentFile = this.findComponentFile(files, fingerprint.componentName);
@@ -153,6 +181,18 @@ export class TemplateService {
     const files = this.projectService.files();
     if (!files) return null;
 
+    // Fast path: ong annotation has exact source location
+    if (fingerprint.ongAnnotation) {
+      const ann = fingerprint.ongAnnotation;
+      return {
+        path: ann.file,
+        startLine: ann.line,
+        startColumn: ann.col + 1,
+        endLine: ann.line,
+        endColumn: ann.col + 1,
+      };
+    }
+
     // 1. Try finding the component file (same chain as findAndModify)
     let componentFile: { path: string; content: string } | null = null;
 
@@ -239,6 +279,135 @@ export class TemplateService {
     return this.getFileContent(files, path);
   }
 
+  /**
+   * Fast path: use ong annotation to go directly to the template file and exact source position.
+   * No component search, no fuzzy matching — just file:line:col.
+   */
+  private modifyByOngAnnotation(
+    files: any,
+    fingerprint: ElementFingerprint,
+    modification: { type: 'text' | 'style' | 'class'; value: string; property?: string },
+  ): ModificationResult | null {
+    const ann = fingerprint.ongAnnotation!;
+    console.log(`[TemplateService] ong fast path: ${ann.file}:${ann.line}:${ann.col}`);
+
+    // Check if the file is a .ts file (inline template) or .html (external template)
+    const isInline = ann.file.endsWith('.ts');
+
+    let templateContent: string | null;
+    let templatePath: string;
+    let tsContent: string | undefined;
+    let templateOffset: number | undefined;
+
+    if (isInline) {
+      // Inline template — read the .ts file and extract the template
+      tsContent = this.getFileContent(files, ann.file) ?? this.getFileContent(files, ann.tsFile) ?? undefined;
+      if (!tsContent) return null;
+
+      const inlineMatch = tsContent.match(/template\s*:\s*`([\s\S]*?)`/);
+      if (!inlineMatch) return null;
+
+      templateContent = inlineMatch[1];
+      templateOffset = inlineMatch.index! + inlineMatch[0].indexOf(templateContent);
+      templatePath = ann.file;
+    } else {
+      // External template — read the .html file directly
+      templateContent = this.getFileContent(files, ann.file);
+      templatePath = ann.file;
+    }
+
+    if (!templateContent) {
+      console.warn(`[TemplateService] ong fast path: could not read ${ann.file}`);
+      return null;
+    }
+
+    // Parse template and find the node at the exact line:col
+    let rootNodes;
+    try {
+      rootNodes = parse(templateContent).rootNodes;
+    } catch {
+      return null;
+    }
+
+    const match = this.findNodeAtPosition(rootNodes, ann.line, ann.col, isInline ? templateOffset : undefined, isInline ? tsContent : undefined);
+    if (!match) {
+      console.warn(`[TemplateService] ong fast path: no node at ${ann.line}:${ann.col}`);
+      return null;
+    }
+
+    // Apply modification (same logic as findAndModify)
+    let modifiedTemplate = templateContent;
+
+    if (modification.type === 'text') {
+      const textNode = match.children?.find((c: any) => c.value);
+      if (textNode) {
+        modifiedTemplate = this.replaceRange(templateContent, textNode.sourceSpan.start.offset, textNode.sourceSpan.end.offset, modification.value);
+      } else if (match.endSourceSpan) {
+        modifiedTemplate = this.replaceRange(templateContent, match.startSourceSpan.end.offset, match.endSourceSpan.start.offset, modification.value);
+      } else {
+        return { content: '', path: templatePath, success: false, error: 'Cannot edit text of self-closing element' };
+      }
+    } else if (modification.type === 'style') {
+      const styleAttr = match.attrs?.find((a: any) => a.name === 'style');
+      const styleDecl = `${modification.property}: ${modification.value};`;
+
+      if (styleAttr) {
+        const oldStyle = styleAttr.value;
+        const propRegex = new RegExp(`${modification.property}\\s*:[^;]+;?`, 'gi');
+        let newStyle = oldStyle;
+        if (propRegex.test(oldStyle)) {
+          newStyle = oldStyle.replace(propRegex, styleDecl);
+        } else {
+          newStyle = oldStyle + (oldStyle.trim().endsWith(';') ? ' ' : '; ') + styleDecl;
+        }
+        modifiedTemplate = this.replaceRange(templateContent, styleAttr.sourceSpan.start.offset, styleAttr.sourceSpan.end.offset, `style="${newStyle}"`);
+      } else {
+        const insertPos = match.sourceSpan.start.offset + match.name.length + 1;
+        modifiedTemplate = this.insertAt(templateContent, insertPos, ` style="${styleDecl}"`);
+      }
+    }
+
+    // Finalize
+    let finalContent = modifiedTemplate;
+    let finalPath = templatePath;
+
+    if (isInline && tsContent && templateOffset !== undefined) {
+      finalContent = this.replaceRange(tsContent, templateOffset, templateOffset + templateContent.length, modifiedTemplate);
+      finalPath = ann.tsFile || ann.file;
+    }
+
+    return { content: finalContent, path: finalPath, success: true, isInsideLoop: ann.inLoop };
+  }
+
+  /**
+   * Find a template AST node at an exact line:col position.
+   */
+  private findNodeAtPosition(nodes: any[], targetLine: number, targetCol: number, templateOffset?: number, tsContent?: string): any | null {
+    // Calculate the line offset for inline templates
+    let lineOffset = 0;
+    if (templateOffset !== undefined && tsContent) {
+      lineOffset = (tsContent.substring(0, templateOffset).match(/\n/g) || []).length;
+    }
+
+    for (const node of nodes) {
+      if (node.name && node.sourceSpan) {
+        const nodeLine = node.sourceSpan.start.line + 1 + lineOffset;
+        const nodeCol = node.sourceSpan.start.col;
+
+        if (nodeLine === targetLine && nodeCol === targetCol) {
+          return node;
+        }
+      }
+
+      // Recurse into children and block children
+      if (node.children) {
+        const found = this.findNodeAtPosition(node.children, targetLine, targetCol, templateOffset, tsContent);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
   private findNodeWithContext(nodes: any[], fingerprint: ElementFingerprint, depth = 0, parent: any = null, insideLoop = false): { node: any, isInsideLoop: boolean } | null {
      const result = this.findNode(nodes, fingerprint, depth, parent, insideLoop);
      return result;
@@ -310,16 +479,21 @@ export class TemplateService {
   private isMatch(node: any, fingerprint: ElementFingerprint): boolean {
      if (node.name.toLowerCase() !== fingerprint.tagName.toLowerCase()) return false;
 
-     // 0. Strongest Match: data-elements-id (Visual Editing ID)
+     // 0. Strongest Match: data-elements-id or _ong (Visual Editing ID)
      if (fingerprint.elementId) {
-        const elemIdAttr = node.attrs?.find((a: any) => a.name === 'data-elements-id');
-        if (elemIdAttr && elemIdAttr.value === fingerprint.elementId) {
-           console.log(`[TemplateService] ✅ Matched by data-elements-id: ${fingerprint.elementId}`);
-           return true;
+        // Skip _ong: prefixed IDs in AST matching — they don't exist in source templates.
+        // These are handled by the ong annotation fast path (modifyByOngAnnotation) instead.
+        if (fingerprint.elementId.startsWith('_ong:')) {
+           // Fall through to weaker matching as a safety net
+        } else {
+           const elemIdAttr = node.attrs?.find((a: any) => a.name === 'data-elements-id');
+           if (elemIdAttr && elemIdAttr.value === fingerprint.elementId) {
+              console.log(`[TemplateService] ✅ Matched by data-elements-id: ${fingerprint.elementId}`);
+              return true;
+           }
+           // If elementId was provided but doesn't match, this is NOT the node
+           return false;
         }
-        // If elementId was provided but doesn't match, this is NOT the node
-        // (Don't fall through to weaker matching)
-        return false;
      }
 
      // 1. Strong Match: HTML ID attribute

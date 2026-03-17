@@ -21,6 +21,14 @@ export class NativeContainerEngine extends ContainerEngine {
   public status = signal<string>('Idle');
   public url = signal<string | null>(null);
   public buildError = signal<string | null>(null);
+
+  /**
+   * When set, the detected dev server URL is wrapped through the local agent's
+   * injecting proxy so runtime scripts (inspector, console relay) are injected
+   * into HTML responses without modifying the project's source files.
+   * Used for external (open-folder) projects.
+   */
+  public useInjectingProxy = false;
   public previewConsoleLogs = signal<any[]>([]);
   public serverOutput = signal<string>('');
   public shellOutput = signal<string>('');
@@ -36,16 +44,18 @@ export class NativeContainerEngine extends ContainerEngine {
 
   public override lastBootedProjectId: string | null = null;
 
-  async boot(clean = false): Promise<void> {
+  async boot(clean = false, externalPath?: string): Promise<void> {
     this.status.set('Starting native project...');
     try {
-      console.log('[Native] boot() calling /start for', this.currentProjectId, 'clean:', clean);
+      const body: any = { projectId: this.currentProjectId, clean };
+      if (externalPath) body.externalPath = externalPath;
+      console.log('[Native] boot() calling /start for', this.currentProjectId, 'clean:', clean, 'externalPath:', externalPath || 'none');
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
       const res = await fetch(`${this.apiUrl}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: this.currentProjectId, clean }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
       clearTimeout(timeout);
@@ -265,21 +275,27 @@ export class NativeContainerEngine extends ContainerEngine {
       const urlMatch = clean.match(urlPattern);
       if (urlMatch) {
         const devUrl = urlMatch[1] || urlMatch[0];
-        setTimeout(() => {
-          this.url.set(devUrl);
+        setTimeout(async () => {
+          const displayUrl = this.useInjectingProxy
+            ? await this.startInjectingProxy(devUrl)
+            : devUrl;
+          this.url.set(displayUrl);
           this.status.set('Ready');
           this.startFileWatcher();
-          this.onServerReady(parseInt(new URL(devUrl).port), devUrl);
+          this.onServerReady(parseInt(new URL(devUrl).port), displayUrl);
         }, 1000);
       } else if (readyPattern.test(clean) && !this.url()) {
         // Fallback: if we didn't catch the URL, try localhost:4200
-        setTimeout(() => {
+        setTimeout(async () => {
           if (!this.url()) {
             const fallbackUrl = 'http://localhost:4200';
-            this.url.set(fallbackUrl);
+            const displayUrl = this.useInjectingProxy
+              ? await this.startInjectingProxy(fallbackUrl)
+              : fallbackUrl;
+            this.url.set(displayUrl);
             this.status.set('Ready');
             this.startFileWatcher();
-            this.onServerReady(4200, fallbackUrl);
+            this.onServerReady(4200, displayUrl);
           }
         }, 2000);
       }
@@ -414,6 +430,29 @@ export class NativeContainerEngine extends ContainerEngine {
       }));
     }
     return data.entries.map((e: any) => e.name);
+  }
+
+  /**
+   * Tell the local agent to start an injecting proxy for the given dev server URL.
+   * The proxy runs on its own port so all relative asset paths just work.
+   * Returns a promise that resolves with the proxy URL.
+   */
+  private async startInjectingProxy(devUrl: string): Promise<string> {
+    try {
+      const res = await fetch(`${this.apiUrl}/preview-proxy-target`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: devUrl }),
+      });
+      const data = await res.json();
+      if (data.port) {
+        return `http://localhost:${data.port}/`;
+      }
+    } catch (e) {
+      console.warn('[Native] Failed to start injecting proxy:', e);
+    }
+    // Fallback: use raw dev server URL (no script injection)
+    return devUrl;
   }
 
   onServerReadyCallback?: (port: number, url: string) => void;

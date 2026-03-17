@@ -66,7 +66,7 @@ export class SmartContainerEngine extends ContainerEngine {
   clearPreviewLogs() { this.activeEngine().clearPreviewLogs(); }
   clearBuildError() { this.activeEngine().clearBuildError(); }
 
-  async boot() { await this.activeEngine().boot(); }
+  async boot(clean = false, externalPath?: string) { await this.activeEngine().boot(clean, externalPath); }
   async teardown() { await this.activeEngine().teardown(); }
   async mount(files: FileTree) { await this.activeEngine().mount(files); }
   override async mountProject(projectId: string, kitId: string | null) { await this.activeEngine().mountProject?.(projectId, kitId); }

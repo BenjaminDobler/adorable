@@ -55,7 +55,7 @@ export abstract class ContainerEngine {
   abstract clearBuildError(): void;
   
   // Lifecycle
-  abstract boot(): Promise<void>;
+  abstract boot(clean?: boolean, externalPath?: string): Promise<void>;
   abstract teardown(): Promise<void>;
 
   // File System

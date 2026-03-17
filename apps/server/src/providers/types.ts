@@ -42,6 +42,7 @@ export interface GenerateOptions {
   sapAiCore?: SapAiCoreConfig; // SAP AI Core connection config
   kitLessonsEnabled?: boolean; // Enable save_lesson tool + lesson injection (default: true)
   cdpEnabled?: boolean; // Enable CDP browser tools (desktop mode with undocked preview)
+  skipVisualEditingIds?: boolean; // Skip data-elements-id instruction (external projects use ong annotations instead)
 }
 
 export interface TokenUsage {

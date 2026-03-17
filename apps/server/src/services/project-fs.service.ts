@@ -81,7 +81,7 @@ export class ProjectFsService {
     return this.readTree(projectPath);
   }
 
-  private async readTree(dirPath: string): Promise<any> {
+  async readTree(dirPath: string): Promise<any> {
     const result: any = {};
     let entries;
     try {

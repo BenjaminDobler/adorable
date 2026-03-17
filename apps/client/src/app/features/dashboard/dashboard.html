@@ -118,13 +118,23 @@
       </div>
 
       @if (activeTab() === 'projects') {
-        <button class="btn-create" (click)="createProject()">
-          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          <span>New Adorable</span>
-        </button>
+        <div class="project-tab-actions">
+          @if (isDesktopMode()) {
+            <button class="btn-create-secondary" (click)="openExternalProject()">
+              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              </svg>
+              <span>Open Folder</span>
+            </button>
+          }
+          <button class="btn-create" (click)="createProject()">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>New Adorable</span>
+          </button>
+        </div>
       } @else if (activeTab() === 'skills') {
         <div class="skill-actions">
           <input type="file" #skillUpload (change)="onSkillUpload($event)" accept=".md" style="display: none">

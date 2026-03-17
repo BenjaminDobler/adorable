@@ -174,6 +174,12 @@ body.light-mode .dashboard-container::before {
   border-bottom: none;
 }
 
+.project-tab-actions {
+  display: flex;
+  gap: 0.625rem;
+  align-items: center;
+}
+
 .tabs {
   display: flex;
   gap: 0.25rem;

@@ -4,15 +4,18 @@
     "module": "commonjs",
     "lib": ["ES2020"],
     "outDir": "../../dist/apps/desktop",
-    "rootDir": ".",
+    "rootDir": "../..",
     "strict": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "declaration": false,
-    "sourceMap": true
+    "sourceMap": true,
+    "paths": {
+      "@adorable/shared-types": ["../../libs/shared-types/src/index.ts"]
+    }
   },
-  "include": ["*.ts"],
+  "include": ["*.ts", "../../libs/shared-types/src/**/*.ts"],
   "exclude": ["node_modules"]
 }

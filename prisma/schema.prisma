@@ -89,6 +89,9 @@ model Project {
   githubPagesUrl      String?   // GitHub Pages URL if enabled
   githubWebhook       GitHubWebhook?
 
+  // External project (desktop only — open existing folder)
+  externalPath        String?   // Absolute path to external project directory
+
   // Cloud Sync (desktop ↔ cloud)
   cloudProjectId      String?   // On desktop: the cloud project's ID
   cloudCommitSha      String?   // Last synced cloud commit SHA

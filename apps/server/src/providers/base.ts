@@ -63,7 +63,15 @@ export const SYSTEM_PROMPT =
 +"    - Rewrite code that already works just because you'd write it differently\n"
 +"    - Keep iterating after a successful build — the task is COMPLETE\n"
 +"    If the user wants changes, they will ask. Your job is to implement what was requested, verify it builds, and stop.\n"
-+"11. **Visual Editing IDs:** Add a `data-elements-id` attribute to EVERY HTML element. Use ONLY static string values — NEVER use interpolation (`{{ }}`), property binding (`[attr.data-elements-id]`), or any dynamic expression. Use a descriptive naming convention: `{component}-{element}-{number}`. Example:\n"
++"**CLARIFYING QUESTIONS:**\n"
++"When genuinely uncertain about requirements that would significantly impact implementation, use the `ask_user` tool. Examples:\n"
++"- Vague requests missing critical details (e.g., 'make it better' with no specifics)\n"
++"- Multiple valid interpretations that lead to very different implementations\n"
++"- Ambiguous references to features, styling, or data sources\n"
++"Do NOT overuse this tool - proceed with reasonable assumptions when the request is clear enough.\n";
+
+export const VISUAL_EDITING_IDS_INSTRUCTION =
+"11. **Visual Editing IDs:** Add a `data-elements-id` attribute to EVERY HTML element. Use ONLY static string values — NEVER use interpolation (`{{ }}`), property binding (`[attr.data-elements-id]`), or any dynamic expression. Use a descriptive naming convention: `{component}-{element}-{number}`. Example:\n"
 +"    ```html\n"
 +"    <div data-elements-id=\"card-container-1\" class=\"card\">\n"
 +"      <h2 data-elements-id=\"card-title-1\">Title</h2>\n"
@@ -77,13 +85,7 @@ export const SYSTEM_PROMPT =
 +"      <div data-elements-id=\"card-item-1\">{{ item.name }}</div>\n"
 +"    }\n"
 +"    ```\n"
-+"    These IDs enable visual editing. Maintain existing IDs when editing templates.\n\n"
-+"**CLARIFYING QUESTIONS:**\n"
-+"When genuinely uncertain about requirements that would significantly impact implementation, use the `ask_user` tool. Examples:\n"
-+"- Vague requests missing critical details (e.g., 'make it better' with no specifics)\n"
-+"- Multiple valid interpretations that lead to very different implementations\n"
-+"- Ambiguous references to features, styling, or data sources\n"
-+"Do NOT overuse this tool - proceed with reasonable assumptions when the request is clear enough.\n";
++"    These IDs enable visual editing. Maintain existing IDs when editing templates.\n\n";
 
 export { ANGULAR_KNOWLEDGE_BASE };
 
@@ -346,6 +348,12 @@ Only proceed with implementation after receiving the user's answers.`;
 
     // Determine effective system prompt: kit override or default
     let effectiveSystemPrompt = activeKit?.baseSystemPrompt || SYSTEM_PROMPT;
+
+    // Include visual editing IDs instruction for standard projects (not external projects
+    // which use ong compile-time annotations instead)
+    if (!options.skipVisualEditingIds) {
+      effectiveSystemPrompt += VISUAL_EDITING_IDS_INSTRUCTION;
+    }
 
     // When a component library kit is active, override the "don't explore" instruction
     if (activeKit) {

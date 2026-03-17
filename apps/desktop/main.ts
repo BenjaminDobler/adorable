@@ -336,6 +336,15 @@ app.on('ready', async () => {
       event.returnValue = AGENT_PORT;
     });
 
+    // Register IPC handler for opening a folder dialog (desktop "Open Folder" feature)
+    ipcMain.handle('open-folder-dialog', async () => {
+      const result = await dialog.showOpenDialog(mainWindow!, {
+        properties: ['openDirectory'],
+        title: 'Open Angular/Nx Project',
+      });
+      return result.canceled ? null : result.filePaths[0];
+    });
+
     // Register IPC handler for fast screenshot capture
     ipcMain.handle('capture-page', async (_event, rect?: { x: number; y: number; width: number; height: number }) => {
       if (!mainWindow) return null;

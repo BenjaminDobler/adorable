@@ -106,6 +106,10 @@ export class ProjectService {
   /** Whether this project has been persisted to the database at least once. */
   isSaved = signal(false);
   selectedKitId = signal<string | null>(null);
+  /** Absolute path to an external project directory (desktop "Open Folder" feature). */
+  externalPath = signal<string | null>(null);
+  /** Auto-detected config for external projects (commands, preset, etc.). */
+  detectedConfig = signal<any>(null);
   currentKit = signal<Kit | null>(null);
   currentKitTemplate = signal<KitFileTree | null>(null);
 
@@ -181,6 +185,11 @@ export class ProjectService {
       this.projectName.set(project.name);
       this.isSaved.set(true);
       this.selectedKitId.set(project.selectedKitId || null);
+      this.externalPath.set(project.externalPath || null);
+      this.detectedConfig.set(project.detectedConfig || null);
+      if (project.externalPath) {
+        console.log('[ProjectService] External project:', project.externalPath);
+      }
 
       if (project.messages) {
         this.messages.set(
@@ -235,7 +244,8 @@ export class ProjectService {
 
     const doSave = (thumb?: string) => {
       // Capture files at save-execution time (not earlier) to avoid stale snapshots
-      const currentFiles = this.files();
+      // For external projects, don't send files — they live on disk already
+      const currentFiles = this.externalPath() ? undefined : this.files();
       // Strip file snapshots from messages — git commits handle time-travel now.
       const messagesWithoutFiles = this.messages().map(
         ({ files: _files, ...rest }) => rest,
@@ -292,7 +302,7 @@ export class ProjectService {
           // Only update if we're still on the same project
           if (captured && this.projectId() === id) {
             console.log('[ProjectService] Updating thumbnail after save');
-            const latestFiles = this.files();
+            const latestFiles = this.externalPath() ? undefined : this.files();
             const latestMsgs = this.messages().map(
               ({ files: _f, ...rest }) => rest,
             );
@@ -524,51 +534,97 @@ export class ProjectService {
       }
       if (isStale()) return;
 
-      // Full clean when switching kit templates to clear stale node_modules/lockfiles
-      await this.containerEngine.clean(!!kitTemplate);
-      if (isStale()) return;
+      const extPath = this.externalPath();
 
-      // Yield before heavy sync operations
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      // External project: skip mount/clean — files already live on disk
+      console.log('[reloadPreview] externalPath:', extPath, '| projectId:', this.projectId());
+      if (extPath) {
+        // Set files in the store for the editor UI
+        if (files && Object.keys(files).length > 0) {
+          this.fileStore.setFiles(files);
+        }
+        if (isStale()) return;
 
-      // Use kit template if provided, otherwise use current kit template
-      const baseFiles = kitTemplate || this.currentKitTemplate() || {};
-      if (kitTemplate) {
-        this.currentKitTemplate.set(kitTemplate);
-      }
+        // Boot NativeManager pointing at the external path
+        await this.containerEngine.boot(false, extPath);
+        if (isStale()) return;
 
-      const mergedFiles = this.mergeFiles(baseFiles, files || {});
+        // Enable injecting proxy so runtime scripts (inspector, console relay)
+        // are injected into HTML responses without modifying project files
+        const nativeEngine = (this.containerEngine as any).nativeEngine || this.containerEngine;
+        if (nativeEngine.useInjectingProxy !== undefined) {
+          nativeEngine.useInjectingProxy = true;
+        }
 
-      // Yield before updating store (triggers change detection)
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      if (isStale()) return;
+        // Use detected config commands for external projects, fall back to kit commands
+        const detected = this.detectedConfig();
+        const kitCommands = this.currentKit()?.commands;
+        const installCmd = detected?.commands?.install || kitCommands?.install;
+        const devCmd = detected?.commands?.dev || kitCommands?.dev;
+        const devServerPreset = detected?.devServerPreset || kitCommands?.devServerPreset;
+        const externalCommands = devCmd || devServerPreset
+          ? { ...kitCommands, dev: devCmd, devServerPreset, install: installCmd } as KitCommands
+          : kitCommands;
 
-      this.fileStore.setFiles(mergedFiles);
+        const exitCode = await this.containerEngine.runInstall(installCmd);
+        if (isStale()) return;
 
-      // Use server-side mount when project has been saved (has a projectId on disk)
-      const pid = this.projectId();
-      if (pid && this.isSaved() && this.containerEngine.mountProject) {
-        await this.containerEngine.mountProject(
-          pid,
-          this.selectedKitId() || null,
-        );
+        if (exitCode === 0) {
+          this.containerEngine.startDevServer(externalCommands);
+        }
       } else {
-        // Fallback for new unsaved projects: send files over HTTP
+        // Standard project flow — disable injecting proxy
+        const nativeEngineStd = (this.containerEngine as any).nativeEngine || this.containerEngine;
+        if (nativeEngineStd.useInjectingProxy !== undefined) {
+          nativeEngineStd.useInjectingProxy = false;
+        }
+
+        // Full clean when switching kit templates to clear stale node_modules/lockfiles
+        await this.containerEngine.clean(!!kitTemplate);
+        if (isStale()) return;
+
+        // Yield before heavy sync operations
         await new Promise((resolve) => setTimeout(resolve, 0));
 
-        const tree = this.prepareFilesForMount(mergedFiles);
+        // Use kit template if provided, otherwise use current kit template
+        const baseFiles = kitTemplate || this.currentKitTemplate() || {};
+        if (kitTemplate) {
+          this.currentKitTemplate.set(kitTemplate);
+        }
 
-        await this.containerEngine.mount(tree);
+        const mergedFiles = this.mergeFiles(baseFiles, files || {});
+
+        // Yield before updating store (triggers change detection)
+        await new Promise((resolve) => setTimeout(resolve, 0));
         if (isStale()) return;
-      }
-      if (isStale()) return;
 
-      const kitCommands = this.currentKit()?.commands;
-      const exitCode = await this.containerEngine.runInstall(kitCommands?.install);
-      if (isStale()) return;
+        this.fileStore.setFiles(mergedFiles);
 
-      if (exitCode === 0) {
-        this.containerEngine.startDevServer(kitCommands);
+        // Use server-side mount when project has been saved (has a projectId on disk)
+        const pid = this.projectId();
+        if (pid && this.isSaved() && this.containerEngine.mountProject) {
+          await this.containerEngine.mountProject(
+            pid,
+            this.selectedKitId() || null,
+          );
+        } else {
+          // Fallback for new unsaved projects: send files over HTTP
+          await new Promise((resolve) => setTimeout(resolve, 0));
+
+          const tree = this.prepareFilesForMount(mergedFiles);
+
+          await this.containerEngine.mount(tree);
+          if (isStale()) return;
+        }
+        if (isStale()) return;
+
+        const kitCommands = this.currentKit()?.commands;
+        const exitCode = await this.containerEngine.runInstall(kitCommands?.install);
+        if (isStale()) return;
+
+        if (exitCode === 0) {
+          this.containerEngine.startDevServer(kitCommands);
+        }
       }
     } catch (err: any) {
       console.error(err);

@@ -9,6 +9,7 @@ import { SITES_DIR, PORT } from '../config';
 import { containerRegistry } from '../providers/container/container-registry';
 import { generateSlug } from '../utils/slug';
 import { kitService } from '../services/kit.service';
+import { detectProjectConfig } from '../services/project-detect.service';
 
 const router = express.Router();
 
@@ -31,7 +32,7 @@ router.get('/', async (req: any, res) => {
           ...(teamIds.length > 0 ? [{ teamId: { in: teamIds } }] : []),
         ],
       },
-      select: { name: true, id: true, updatedAt: true, thumbnail: true, teamId: true, cloudProjectId: true, cloudCommitSha: true, cloudLastSyncAt: true, isPublished: true, publishSlug: true, publishVisibility: true, publishedAt: true },
+      select: { name: true, id: true, updatedAt: true, thumbnail: true, teamId: true, externalPath: true, cloudProjectId: true, cloudCommitSha: true, cloudLastSyncAt: true, isPublished: true, publishSlug: true, publishVisibility: true, publishedAt: true },
       orderBy: { updatedAt: 'desc' }
     });
     res.json(projects);
@@ -119,8 +120,9 @@ router.post('/', async (req: any, res) => {
       });
     }
 
-    // Write files to disk if provided
-    if (files && Object.keys(files).length > 0) {
+    // Write files to disk if provided (skip for external projects — files live on disk already)
+    const isExternal = existingProject?.externalPath || false;
+    if (!isExternal && files && Object.keys(files).length > 0) {
       console.log(`[Save Project] Writing files to disk for ${project.id}`);
       await projectFsService.writeProjectFiles(project.id, files);
 
@@ -149,6 +151,93 @@ router.post('/', async (req: any, res) => {
   } catch (error) {
     console.error('[Save Project] Error:', error);
     res.status(500).json({ error: 'Failed to save project' });
+  }
+});
+
+// ---- Open External Project (Desktop Only) ----
+// Must be defined BEFORE /:id routes to avoid Express matching "open-external" as an :id param.
+
+const BLOCKED_PATHS = ['/', '/System', '/etc', '/usr', '/bin', '/sbin', '/var', '/tmp',
+  'C:\\', 'C:\\Windows', 'C:\\Program Files'];
+
+router.post('/open-external', async (req: any, res) => {
+  const user = req.user;
+  const { path: externalPath, name } = req.body;
+
+  if (!externalPath) {
+    return res.status(400).json({ error: 'path is required' });
+  }
+
+  // Validate absolute path
+  if (!path.isAbsolute(externalPath)) {
+    return res.status(400).json({ error: 'Path must be absolute' });
+  }
+
+  // Block sensitive system paths
+  if (BLOCKED_PATHS.some(bp => externalPath === bp || externalPath === bp + '/')) {
+    return res.status(400).json({ error: 'Cannot open a system directory' });
+  }
+
+  try {
+    // Validate path exists and is a directory
+    const stat = await fs.stat(externalPath);
+    if (!stat.isDirectory()) {
+      return res.status(400).json({ error: 'Path is not a directory' });
+    }
+
+    // Check for package.json
+    try {
+      await fs.access(path.join(externalPath, 'package.json'));
+    } catch {
+      return res.status(400).json({ error: 'No package.json found in the selected directory' });
+    }
+
+    // Check if this path is already linked to a project
+    const existing = await prisma.project.findFirst({
+      where: { externalPath, userId: user.id },
+      include: {
+        messages: {
+          orderBy: { timestamp: 'asc' as const },
+          select: { id: true, role: true, text: true, usage: true, model: true, commitSha: true, timestamp: true }
+        }
+      }
+    });
+    if (existing) {
+      return res.json({
+        ...existing,
+        files: {},
+        figmaImports: existing.figmaImports ? JSON.parse(existing.figmaImports) : [],
+        messages: existing.messages.map((m: any) => ({
+          ...m,
+          usage: m.usage ? JSON.parse(m.usage) : undefined,
+          model: m.model || undefined,
+        })),
+        reopened: true,
+      });
+    }
+
+    // Auto-detect project config
+    const detectedConfig = await detectProjectConfig(externalPath);
+
+    // Create DB record with externalPath
+    const project = await prisma.project.create({
+      data: {
+        name: name || detectedConfig.name,
+        userId: user.id,
+        externalPath,
+      }
+    });
+
+    res.json({
+      ...project,
+      files: {},
+      messages: [],
+      figmaImports: [],
+      detectedConfig,
+    });
+  } catch (error: any) {
+    console.error('[Open External] Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to open external project' });
   }
 });
 
@@ -417,20 +506,29 @@ router.get('/:id', async (req: any, res) => {
 
     // Read files from disk
     let files: any = {};
-    const existsOnDisk = await projectFsService.projectExistsOnDisk(project.id);
+    if (project.externalPath) {
+      // External project — read directly from external path
+      try {
+        files = await projectFsService.readTree(project.externalPath);
+      } catch (e) {
+        console.warn(`[Load Project] Failed to read external path ${project.externalPath}:`, e);
+      }
+    } else {
+      const existsOnDisk = await projectFsService.projectExistsOnDisk(project.id);
 
-    if (existsOnDisk) {
-      files = await projectFsService.readProjectFiles(project.id);
-    } else if (project.files) {
-      // Lazy migration: files exist in DB but not on disk
-      console.log(`[Load Project] Lazy migrating files to disk for ${project.id}`);
-      files = JSON.parse(project.files);
-      await projectFsService.writeProjectFiles(project.id, files);
-      // Clear the DB column to free space
-      await prisma.project.update({
-        where: { id: project.id },
-        data: { files: null }
-      });
+      if (existsOnDisk) {
+        files = await projectFsService.readProjectFiles(project.id);
+      } else if (project.files) {
+        // Lazy migration: files exist in DB but not on disk
+        console.log(`[Load Project] Lazy migrating files to disk for ${project.id}`);
+        files = JSON.parse(project.files);
+        await projectFsService.writeProjectFiles(project.id, files);
+        // Clear the DB column to free space
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { files: null }
+        });
+      }
     }
 
     // Auto-assign a global kit if selectedKitId references a non-existent kit
@@ -453,10 +551,21 @@ router.get('/:id', async (req: any, res) => {
       }
     }
 
+    // Auto-detect project config for external projects
+    let detectedConfig;
+    if (project.externalPath) {
+      try {
+        detectedConfig = await detectProjectConfig(project.externalPath);
+      } catch (e) {
+        console.warn(`[Load Project] Failed to detect config for ${project.externalPath}:`, e);
+      }
+    }
+
     res.json({
         ...project,
         selectedKitId,
         files,
+        detectedConfig,
         figmaImports: project.figmaImports ? JSON.parse(project.figmaImports) : [],
         messages: project.messages.map(m => ({
           ...m,
@@ -473,17 +582,21 @@ router.get('/:id', async (req: any, res) => {
 router.delete('/:id', async (req: any, res) => {
     const user = req.user;
     try {
-      // Look up project to get publishSlug before deleting
+      // Look up project to get publishSlug and externalPath before deleting
       const project = await prisma.project.findFirst({
         where: { id: req.params.id, userId: user.id },
-        select: { publishSlug: true },
+        select: { publishSlug: true, externalPath: true },
       });
 
       await prisma.project.delete({
         where: { id: req.params.id, userId: user.id }
       });
-      // Also delete files from disk
-      await projectFsService.deleteProjectFiles(req.params.id);
+
+      // Only delete files from disk for non-external projects
+      // External projects keep their files — we only remove the DB record
+      if (!project?.externalPath) {
+        await projectFsService.deleteProjectFiles(req.params.id);
+      }
 
       // Clean up published site directory
       if (project?.publishSlug) {

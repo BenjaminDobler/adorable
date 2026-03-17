@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   nativeAgentUrl: 'http://localhost:' + agentPort,
   // Get auto-login token for desktop mode (returns Promise<string>)
   getLocalUserToken: () => ipcRenderer.invoke('get-local-user-token'),
+  // Open a native folder picker dialog (returns Promise<string | null>)
+  openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
   // Fast screenshot capture via Electron's native capturePage
   capturePage: (rect?: { x: number; y: number; width: number; height: number }) =>
     ipcRenderer.invoke('capture-page', rect),

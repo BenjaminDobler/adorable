@@ -19,7 +19,7 @@ export interface DatabaseInitResult {
 // Bump LATEST_VERSION and add a new entry to `migrations` whenever the
 // Prisma schema changes.  Each migration is idempotent (uses addColumn /
 // tryExec helpers) so it's safe to re-run on any database state.
-const LATEST_VERSION = 10;
+const LATEST_VERSION = 11;
 
 type MigrationFn = (db: Database.Database) => void;
 
@@ -154,6 +154,13 @@ const migrations: Migration[] = [
       tryExec(db, 'UPDATE "Kit" SET "isGlobal" = "isBuiltIn" WHERE "isBuiltIn" = 1');
     },
   },
+  {
+    version: 11,
+    name: 'External project path (open existing folder)',
+    up(db) {
+      addColumn(db, 'Project', 'externalPath', 'TEXT');
+    },
+  },
 ];
 
 // ── Public API ──────────────────────────────────────────────────────
@@ -261,6 +268,7 @@ function createFreshSchema(db: Database.Database): void {
       "githubLastCommitSha" TEXT,
       "githubSyncEnabled" BOOLEAN NOT NULL DEFAULT 0,
       "githubPagesUrl" TEXT,
+      "externalPath" TEXT,
       "cloudProjectId" TEXT,
       "cloudCommitSha" TEXT,
       "cloudLastSyncAt" DATETIME,

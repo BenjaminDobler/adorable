@@ -26,6 +26,20 @@ export class NativeManager {
     return this.projectPath;
   }
 
+  /**
+   * Point at an external project directory (no copy, no clean).
+   * Used for "Open Folder" to work on existing projects in-place.
+   */
+  async openExternalPath(externalPath: string): Promise<string> {
+    this.stopWatcher();
+    for (const child of this.childProcesses) {
+      try { child.kill('SIGTERM'); } catch { /* already dead */ }
+    }
+    this.childProcesses = [];
+    this.projectPath = externalPath;
+    return this.projectPath;
+  }
+
   isRunning(): boolean {
     return this.projectPath !== null;
   }

@@ -40,7 +40,7 @@ export class LocalContainerEngine extends ContainerEngine {
     }
   }
 
-  async boot(): Promise<void> {
+  async boot(_clean?: boolean, _externalPath?: string): Promise<void> {
     this.status.set('Booting Local Container...');
     try {
       await this.http.post(`${this.apiUrl}/start`, { projectId: this.currentProjectId }).toPromise();

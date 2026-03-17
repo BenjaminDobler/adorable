@@ -268,6 +268,15 @@ export class DashboardComponent {
     this.showKitSelection.set(true);
   }
 
+  async openExternalProject() {
+    const folderPath = await (window as any).electronAPI?.openFolderDialog();
+    if (!folderPath) return;
+    this.apiService.openExternalProject(folderPath).subscribe({
+      next: (project) => this.router.navigate(['/editor', project.id]),
+      error: (err) => this.toastService.show(err.error?.error || 'Failed to open project', 'error'),
+    });
+  }
+
   createProjectWithKit(kitId: string) {
     this.showKitSelection.set(false);
     this.router.navigate(['/editor', 'new'], { queryParams: { name: 'New Project', kitId } });

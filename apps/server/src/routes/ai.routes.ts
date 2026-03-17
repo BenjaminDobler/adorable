@@ -14,6 +14,7 @@ import { SapAiCoreConfig } from '../providers/types';
 import { getAvailableModels as getSapModels } from '../providers/sap-ai-core';
 import { kitService } from '../services/kit.service';
 import { projectFsService } from '../services/project-fs.service';
+import { prisma } from '../db/prisma';
 import { calculateCost } from '../providers/pricing';
 import * as fsSync from 'fs';
 
@@ -234,6 +235,7 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
 
     // Resolve project path on disk and build exec delegate
     let fileSystem: DiskFileSystem | undefined;
+    let isExternalProject = false;
     if (projectId) {
        try {
          let projectPath: string | null = null;
@@ -273,11 +275,20 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
            } catch { /* No native container */ }
          }
 
-         // Fallback: use projectFsService which already reads ADORABLE_PROJECTS_DIR
+         // Fallback: check for external project path, then use projectFsService
          if (!projectPath) {
-           projectPath = projectFsService.getProjectPath(projectId);
-           if (!fsSync.existsSync(projectPath)) {
-             fsSync.mkdirSync(projectPath, { recursive: true });
+           const project = await prisma.project.findFirst({
+             where: { id: projectId },
+             select: { externalPath: true }
+           });
+           if (project?.externalPath) {
+             projectPath = project.externalPath;
+             isExternalProject = true;
+           } else {
+             projectPath = projectFsService.getProjectPath(projectId);
+             if (!fsSync.existsSync(projectPath)) {
+               fsSync.mkdirSync(projectPath, { recursive: true });
+             }
            }
          }
 
@@ -299,10 +310,19 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
     if (projectId) {
       try {
         const { gitService } = await import('../services/git.service');
-        const projectPath = projectFsService.getProjectPath(projectId);
-        const exists = await projectFsService.projectExistsOnDisk(projectId);
+        // Resolve the correct project path (external or internal)
+        let gitProjectPath: string;
+        const proj = await prisma.project.findFirst({ where: { id: projectId }, select: { externalPath: true } });
+        if (proj?.externalPath) {
+          gitProjectPath = proj.externalPath;
+        } else {
+          gitProjectPath = projectFsService.getProjectPath(projectId);
+        }
+        const exists = proj?.externalPath
+          ? fsSync.existsSync(gitProjectPath)
+          : await projectFsService.projectExistsOnDisk(projectId);
         if (exists) {
-          preCommitSha = await gitService.commit(projectPath, `Before: ${prompt.substring(0, 80)}`);
+          preCommitSha = await gitService.commit(gitProjectPath, `Before: ${prompt.substring(0, 80)}`);
         }
       } catch (gitErr) {
         console.warn('[Git] Pre-generation commit failed:', gitErr);
@@ -362,6 +382,7 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
           sapAiCore,
           kitLessonsEnabled: userSettings.kitLessonsEnabled !== false,
           cdpEnabled,
+          skipVisualEditingIds: isExternalProject,
       }, {
           onText: (text) => {
               res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);
@@ -405,8 +426,10 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
       if (projectId) {
         import('../services/git.service').then(async ({ gitService }) => {
           try {
-            const projectPath = projectFsService.getProjectPath(projectId);
-            const commitSha = await gitService.commit(projectPath, `AI: ${prompt.substring(0, 80)}`);
+            // Resolve the correct project path (external or internal)
+            const proj = await prisma.project.findFirst({ where: { id: projectId }, select: { externalPath: true } });
+            const gitPath = proj?.externalPath || projectFsService.getProjectPath(projectId);
+            const commitSha = await gitService.commit(gitPath, `AI: ${prompt.substring(0, 80)}`);
             if (commitSha) {
               console.log(`[Git] Post-generation commit: ${commitSha}`);
             }

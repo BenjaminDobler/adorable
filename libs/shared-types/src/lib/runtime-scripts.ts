@@ -23,6 +23,27 @@ export const RUNTIME_SCRIPTS = `
       console.error = function(...args) { originalError.apply(console, args); send('error', args); };
     })();
 
+    // Element ID helpers — supports both _ong annotations and legacy data-elements-id
+    function __getElementId(el) {
+      // Prefer _ong annotation (compile-time, from ong Vite plugin)
+      var ongId = el.getAttribute('_ong');
+      if (ongId) return '_ong:' + ongId;
+      // Fall back to data-elements-id (AI-generated)
+      return __getElementId(el);
+    }
+    function __getOngAnnotation(el) {
+      var ongId = el.getAttribute('_ong');
+      if (ongId && window.__ong_annotations) return window.__ong_annotations[ongId] || null;
+      return null;
+    }
+    function __findElementById(id) {
+      if (!id) return null;
+      if (id.startsWith('_ong:')) {
+        return document.querySelector('[_ong="' + id.slice(5) + '"]');
+      }
+      return document.querySelector('[data-elements-id="' + id + '"]');
+    }
+
     // Visual Inspector Script
     (function() {
       let active = false;
@@ -79,7 +100,7 @@ export const RUNTIME_SCRIPTS = `
       function showSelectionOverlay(element) {
         createSelectionOverlay();
         selectedElement = element;
-        selectedElementId = element.getAttribute('data-elements-id');
+        selectedElementId = __getElementId(element);
         const sel = document.getElementById('inspector-selection');
         const label = document.getElementById('inspector-selection-label');
         if (!sel) return;
@@ -122,7 +143,7 @@ export const RUNTIME_SCRIPTS = `
 
         // Check if element is still in DOM, if not try to re-find by ID
         if (!document.body.contains(selectedElement) && selectedElementId) {
-          const newElement = document.querySelector('[data-elements-id="' + selectedElementId + '"]');
+          const newElement = __findElementById(selectedElementId);
           if (newElement) {
             selectedElement = newElement;
             startObserving(newElement);
@@ -205,7 +226,7 @@ export const RUNTIME_SCRIPTS = `
 
            // Try to find by data-elements-id first
            if (elementId) {
-              target = document.querySelector('[data-elements-id="' + elementId + '"]');
+              target = __findElementById(elementId);
            }
 
            // Fallback: find by walking up from currently selected element
@@ -257,7 +278,7 @@ export const RUNTIME_SCRIPTS = `
               while (hierEl && hierEl !== document.body && hierEl !== document.documentElement) {
                  newHierarchy.unshift({
                     tagName: hierEl.tagName.toLowerCase(),
-                    elementId: hierEl.getAttribute('data-elements-id') || null,
+                    elementId: __getElementId(hierEl),
                     text: hierEl.innerText ? hierEl.innerText.substring(0, 20).trim() : '',
                     classes: hierEl.className || ''
                  });
@@ -271,7 +292,8 @@ export const RUNTIME_SCRIPTS = `
                     text: target.innerText ? target.innerText.substring(0, 100).trim() : '',
                     componentName: componentName,
                     hostTag: hostTag,
-                    elementId: target.getAttribute('data-elements-id'),
+                    elementId: __getElementId(target),
+                    ongAnnotation: __getOngAnnotation(target),
                     classes: target.className,
                     hierarchy: newHierarchy,
                     attributes: {
@@ -390,7 +412,7 @@ export const RUNTIME_SCRIPTS = `
         const computedStyle = window.getComputedStyle(target);
 
         // Capture data-elements-id for reliable visual editing
-        const elementId = target.getAttribute('data-elements-id');
+        const elementId = __getElementId(target);
 
         // Calculate child index among siblings of same tag
         let childIndex = 0;
@@ -406,7 +428,7 @@ export const RUNTIME_SCRIPTS = `
         while (el && el !== document.body && el !== document.documentElement) {
            hierarchy.unshift({
               tagName: el.tagName.toLowerCase(),
-              elementId: el.getAttribute('data-elements-id') || null,
+              elementId: __getElementId(el),
               text: el.innerText ? el.innerText.substring(0, 20).trim() : '',
               classes: el.className || ''
            });
@@ -424,6 +446,7 @@ export const RUNTIME_SCRIPTS = `
             componentName: componentName,
             hostTag: hostTag,
             elementId: elementId,
+            ongAnnotation: __getOngAnnotation(target),
             childIndex: childIndex,
             parentTag: target.parentNode ? target.parentNode.tagName.toLowerCase() : null,
             classes: target.className,
@@ -493,7 +516,7 @@ export const RUNTIME_SCRIPTS = `
 
         // Store original text for cancel
         const originalText = target.textContent;
-        const elementId = target.getAttribute('data-elements-id');
+        const elementId = __getElementId(target);
 
         // Build fingerprint for the element
         let componentName = null;
@@ -546,6 +569,7 @@ export const RUNTIME_SCRIPTS = `
                 text: originalText,
                 newText: newText,
                 elementId: elementId,
+                ongAnnotation: __getOngAnnotation(target),
                 componentName: componentName,
                 hostTag: hostTag,
                 classes: target.className,

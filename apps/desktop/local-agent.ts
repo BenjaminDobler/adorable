@@ -11,6 +11,7 @@ import * as fs from 'fs/promises';
 import { EventEmitter } from 'events';
 import { watch, type FSWatcher } from 'chokidar';
 import * as os from 'os';
+import * as http from 'http';
 
 // --- NativeManager (self-contained) ---
 
@@ -22,6 +23,8 @@ class NativeManager {
   private recentWrites = new Set<string>();
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private stopKillTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Whether the current project is an external folder (not managed by Adorable) */
+  public isExternalProject = false;
 
   private get baseDir(): string {
     return process.env['ADORABLE_PROJECTS_DIR'] || path.join(os.homedir(), 'adorable-projects');
@@ -47,6 +50,7 @@ class NativeManager {
     }
     this.stopWatcher();
 
+    this.isExternalProject = false;
     this.projectPath = path.join(this.baseDir, projectId);
     await fs.mkdir(this.projectPath, { recursive: true });
 
@@ -65,6 +69,35 @@ class NativeManager {
       } catch { /* empty or inaccessible — fine, mount will populate it */ }
     }
 
+    return this.projectPath;
+  }
+
+  /**
+   * Point NativeManager at an external project directory (no copy, no clean).
+   * Used for "Open Folder" to work on existing projects in-place.
+   */
+  async openExternalPath(externalPath: string): Promise<string> {
+    // Cancel any pending delayed SIGKILL from a previous stop() call
+    if (this.stopKillTimer) {
+      clearTimeout(this.stopKillTimer);
+      this.stopKillTimer = null;
+    }
+
+    // Kill any remaining child processes from a previous project
+    if (this.childProcesses.length > 0) {
+      for (const child of this.childProcesses) {
+        if (!child.pid) continue;
+        try { process.kill(-child.pid, 'SIGKILL'); } catch {
+          try { child.kill('SIGKILL'); } catch { /* already dead */ }
+        }
+      }
+      this.childProcesses = [];
+    }
+    this.stopWatcher();
+
+    // Point directly at the external path — no copying or cleaning
+    this.isExternalProject = true;
+    this.projectPath = externalPath;
     return this.projectPath;
   }
 
@@ -139,6 +172,7 @@ class NativeManager {
     if (!this.projectPath) throw new Error('Project not initialized');
     const cwd = workDir || this.projectPath;
     const mergedEnv = { ...process.env, ...env };
+    if (this.isExternalProject) mergedEnv['ADORABLE_ANNOTATE_TEMPLATES'] = 'true';
     return new Promise((resolve, reject) => {
       const child = spawn(cmd[0], cmd.slice(1), {
         cwd,
@@ -166,6 +200,7 @@ class NativeManager {
     if (!this.projectPath) throw new Error('Project not initialized');
     const cwd = workDir || this.projectPath;
     const mergedEnv = { ...process.env, ...env };
+    if (this.isExternalProject) mergedEnv['ADORABLE_ANNOTATE_TEMPLATES'] = 'true';
     return new Promise((resolve, reject) => {
       const child = spawn(cmd[0], cmd.slice(1), {
         cwd,
@@ -296,13 +331,31 @@ const AGENT_PORT = parseInt(process.env['ADORABLE_AGENT_PORT'] || '3334', 10);
 app.post('/api/native/start', async (req, res) => {
   console.log('[Agent] POST /start received');
   try {
-    const { projectId, clean } = req.body;
-    console.log('[Agent] Creating project:', projectId, 'clean:', clean !== false);
-    const projectPath = await manager.createProject(projectId || 'desktop', clean !== false);
-    console.log('[Agent] Project created at:', projectPath);
+    const { projectId, clean, externalPath } = req.body;
+    let projectPath: string;
+    if (externalPath) {
+      console.log('[Agent] Opening external path:', externalPath);
+      projectPath = await manager.openExternalPath(externalPath);
+    } else {
+      console.log('[Agent] Creating project:', projectId, 'clean:', clean !== false);
+      projectPath = await manager.createProject(projectId || 'desktop', clean !== false);
+    }
+    console.log('[Agent] Project ready at:', projectPath);
     res.json({ projectPath });
   } catch (e: any) {
     console.error('[Agent] Start failed:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/native/open-external', async (req, res) => {
+  try {
+    const { path: externalPath } = req.body;
+    if (!externalPath) return res.status(400).json({ error: 'path is required' });
+    const projectPath = await manager.openExternalPath(externalPath);
+    res.json({ projectPath });
+  } catch (e: any) {
+    console.error('[Agent] open-external failed:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -379,7 +432,7 @@ app.get('/api/native/exec-stream', async (req, res) => {
   const cmd = req.query.cmd as string;
   const args = req.query.args ? (req.query.args as string).split(',') : [];
   const env = req.query.env ? JSON.parse(req.query.env as string) : undefined;
-  console.log('[Agent] exec-stream:', cmd, args.join(' '));
+  console.log('[Agent] exec-stream:', cmd, args.join(' '), '| cwd:', manager.getProjectPath());
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -1114,6 +1167,147 @@ function getPreviewShellHTML(previewUrl: string): string {
 
 import * as pathModule from 'path';
 
+// --- Injecting Proxy for External Projects ---
+// Proxies the dev server and injects RUNTIME_SCRIPTS into HTML responses.
+// This lets visual editing tools (inspector, annotations, console relay) work
+// on external projects without modifying their source files.
+
+// Use the full runtime scripts (inspector, console relay, element selection, screenshots)
+// so external projects get full visual editing capabilities through the proxy.
+import { RUNTIME_SCRIPTS } from '@adorable/shared-types';
+const RUNTIME_SCRIPTS_INJECTION = `<!-- ADORABLE_RUNTIME_SCRIPTS -->\n${RUNTIME_SCRIPTS}\n<!-- /ADORABLE_RUNTIME_SCRIPTS -->`;
+
+// --- Injecting Preview Proxy (dedicated port) ---
+// Runs on its own port so relative paths in the app just work (no path prefix needed).
+// Forwards all requests to the dev server, injecting RUNTIME_SCRIPTS into HTML responses.
+
+let proxyTarget: { hostname: string; port: string } | null = null;
+let proxyServer: http.Server | null = null;
+let proxyPort: number | null = null;
+
+function startPreviewProxy(target: { hostname: string; port: string }): Promise<number> {
+  // Reuse existing server if target didn't change
+  if (proxyServer && proxyTarget?.hostname === target.hostname && proxyTarget?.port === target.port && proxyPort) {
+    return Promise.resolve(proxyPort);
+  }
+
+  // Close previous proxy server
+  if (proxyServer) {
+    proxyServer.close();
+    proxyServer = null;
+    proxyPort = null;
+  }
+
+  proxyTarget = target;
+
+  return new Promise((resolve) => {
+    const server = http.createServer((req, res) => {
+      const proxyOpts: http.RequestOptions = {
+        hostname: target.hostname,
+        port: target.port,
+        path: req.url,
+        method: req.method,
+        headers: { ...req.headers, host: `${target.hostname}:${target.port}` },
+      };
+
+      const proxyReq = http.request(proxyOpts, (proxyRes) => {
+        const contentType = proxyRes.headers['content-type'] || '';
+        const isHtml = contentType.includes('text/html');
+
+        if (!isHtml) {
+          res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+          proxyRes.pipe(res);
+          return;
+        }
+
+        // HTML: buffer, inject runtime scripts, send
+        const chunks: Buffer[] = [];
+        proxyRes.on('data', (chunk: Buffer) => chunks.push(chunk));
+        proxyRes.on('end', () => {
+          let body = Buffer.concat(chunks).toString('utf-8');
+
+          if (body.includes('</head>')) {
+            body = body.replace('</head>', `${RUNTIME_SCRIPTS_INJECTION}\n</head>`);
+          }
+
+          const headers = { ...proxyRes.headers };
+          delete headers['content-length'];
+          delete headers['content-encoding'];
+          res.writeHead(proxyRes.statusCode || 200, headers);
+          res.end(body);
+        });
+      });
+
+      proxyReq.on('error', (err) => {
+        if (!res.headersSent) {
+          res.writeHead(502, { 'Content-Type': 'text/plain' });
+          res.end(`Proxy error: ${err.message}`);
+        }
+      });
+
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
+        req.pipe(proxyReq);
+      } else {
+        proxyReq.end();
+      }
+    });
+
+    // Forward WebSocket upgrades (HMR)
+    server.on('upgrade', (req: http.IncomingMessage, socket: any, head: Buffer) => {
+      const wsReq = http.request({
+        hostname: target.hostname,
+        port: target.port,
+        path: req.url,
+        method: 'GET',
+        headers: { ...req.headers, host: `${target.hostname}:${target.port}` },
+      });
+
+      wsReq.on('upgrade', (_proxyRes, proxySocket, proxyHead) => {
+        socket.write(
+          `HTTP/1.1 101 Switching Protocols\r\n` +
+          Object.entries(_proxyRes.headers).map(([k, v]) => `${k}: ${v}`).join('\r\n') +
+          '\r\n\r\n'
+        );
+        if (proxyHead.length) socket.write(proxyHead);
+        proxySocket.pipe(socket);
+        socket.pipe(proxySocket);
+        proxySocket.on('error', () => socket.destroy());
+        socket.on('error', () => proxySocket.destroy());
+      });
+
+      wsReq.on('error', () => socket.destroy());
+      wsReq.end();
+    });
+
+    server.listen(0, '127.0.0.1', () => {
+      const addr = server.address();
+      const port = typeof addr === 'object' && addr ? addr.port : 0;
+      proxyServer = server;
+      proxyPort = port;
+      console.log(`[Agent] Injecting preview proxy on http://localhost:${port} → ${target.hostname}:${target.port}`);
+      resolve(port);
+    });
+  });
+}
+
+app.post('/api/native/preview-proxy-target', async (req, res) => {
+  const { url } = req.body;
+  if (!url) {
+    if (proxyServer) { proxyServer.close(); proxyServer = null; proxyPort = null; proxyTarget = null; }
+    return res.json({ success: true, port: null });
+  }
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1') {
+      return res.status(403).json({ error: 'Only localhost targets allowed' });
+    }
+    const port = await startPreviewProxy({ hostname: parsed.hostname, port: parsed.port || '80' });
+    res.json({ success: true, port });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export function startLocalAgent(clientPath?: string): Promise<number> {
   // Serve the built Angular client if path provided
   if (clientPath) {
@@ -1128,10 +1322,11 @@ export function startLocalAgent(clientPath?: string): Promise<number> {
   }
 
   return new Promise((resolve) => {
-    app.listen(AGENT_PORT, () => {
+    const server = app.listen(AGENT_PORT, () => {
       console.log(`[Local Agent] Listening on http://localhost:${AGENT_PORT}`);
       resolve(AGENT_PORT);
     });
+
   });
 }
 
