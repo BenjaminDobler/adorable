@@ -1174,8 +1174,15 @@ import * as pathModule from 'path';
 
 // Use the full runtime scripts (inspector, console relay, element selection, screenshots)
 // so external projects get full visual editing capabilities through the proxy.
-import { RUNTIME_SCRIPTS } from '@adorable/shared-types';
-const RUNTIME_SCRIPTS_INJECTION = `<!-- ADORABLE_RUNTIME_SCRIPTS -->\n${RUNTIME_SCRIPTS}\n<!-- /ADORABLE_RUNTIME_SCRIPTS -->`;
+// Loaded at runtime from the compiled shared-types output (built by `nx build server`).
+let RUNTIME_SCRIPTS_INJECTION = '';
+try {
+  const runtimeScriptsPath = path.join(__dirname, '..', '..', 'libs', 'shared-types', 'src', 'lib', 'runtime-scripts');
+  const { RUNTIME_SCRIPTS } = require(runtimeScriptsPath);
+  RUNTIME_SCRIPTS_INJECTION = `<!-- ADORABLE_RUNTIME_SCRIPTS -->\n${RUNTIME_SCRIPTS}\n<!-- /ADORABLE_RUNTIME_SCRIPTS -->`;
+} catch {
+  console.warn('[Agent] Could not load runtime scripts for preview proxy injection');
+}
 
 // --- Injecting Preview Proxy (dedicated port) ---
 // Runs on its own port so relative paths in the app just work (no path prefix needed).
