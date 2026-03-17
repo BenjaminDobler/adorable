@@ -91,7 +91,7 @@ export class ProjectFsService {
     }
 
     for (const entry of entries) {
-      if (EXCLUDED_DIRS.has(entry.name) || entry.name === '.DS_Store') continue;
+      if (EXCLUDED_DIRS.has(entry.name) || entry.name === '.DS_Store' || entry.name === '.adorable-settings.json') continue;
 
       const fullPath = path.join(dirPath, entry.name);
 

@@ -426,6 +426,21 @@ export class NativeContainerEngine extends ContainerEngine {
   }
 
 
+  // --- Storage Settings ---
+
+  async getStorageSettings(): Promise<{ localStorage: Record<string, string>; cookies: Record<string, string> }> {
+    const res = await fetch(`${this.apiUrl}/storage-settings`);
+    return res.json();
+  }
+
+  async saveStorageSettings(settings: { localStorage: Record<string, string>; cookies: Record<string, string> }): Promise<void> {
+    await fetch(`${this.apiUrl}/storage-settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+  }
+
   onServerReadyCallback?: (port: number, url: string) => void;
   on(event: 'server-ready', callback: (port: number, url: string) => void): void {
     this.onServerReadyCallback = callback;

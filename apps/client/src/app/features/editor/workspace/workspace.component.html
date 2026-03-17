@@ -234,6 +234,7 @@
           (fullscreenToggled)="layoutService.isFullscreen.set(!layoutService.isFullscreen())"
           (reload)="reloadIframe()"
           (undockToggled)="toggleUndock()"
+          (settingsRequested)="showProjectSettings.set(true)"
         />
         <div class="iframe-wrapper">
           <iframe
@@ -280,3 +281,7 @@
   [visible]="showDebug()"
   (closed)="showDebug.set(false)"
 />
+
+@if (showProjectSettings()) {
+  <app-project-settings (close)="showProjectSettings.set(false)" />
+}

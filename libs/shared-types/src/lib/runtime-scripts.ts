@@ -1,6 +1,29 @@
 export const RUNTIME_SCRIPTS = `
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script>
+    // Storage Settings Loader — applies localStorage/cookie presets before the app bootstraps
+    (function() {
+      var agentUrl = 'http://localhost:' + (window.__adorable_agent_port || '3334');
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', agentUrl + '/api/native/storage-settings', false); // synchronous
+        xhr.send();
+        if (xhr.status === 200) {
+          var settings = JSON.parse(xhr.responseText);
+          if (settings.localStorage) {
+            Object.keys(settings.localStorage).forEach(function(key) {
+              localStorage.setItem(key, settings.localStorage[key]);
+            });
+          }
+          if (settings.cookies) {
+            Object.keys(settings.cookies).forEach(function(key) {
+              document.cookie = key + '=' + encodeURIComponent(settings.cookies[key]) + '; path=/';
+            });
+          }
+        }
+      } catch(e) { /* agent not available — skip */ }
+    })();
+
     // Console Interceptor
     (function() {
       const originalLog = console.log;

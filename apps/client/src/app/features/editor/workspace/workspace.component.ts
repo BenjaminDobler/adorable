@@ -39,6 +39,7 @@ import { InsightsPanelComponent } from '../insights/insights-panel.component';
 import { VisualEditorPanelComponent } from '../chat/visual-editor-panel/visual-editor-panel.component';
 import { PreviewToolbarComponent } from './preview-toolbar/preview-toolbar.component';
 import { DebugOverlayComponent } from './debug-overlay/debug-overlay.component';
+import { ProjectSettingsComponent } from '../project-settings/project-settings.component';
 
 @Component({
   standalone: true,
@@ -57,6 +58,7 @@ import { DebugOverlayComponent } from './debug-overlay/debug-overlay.component';
     VisualEditorPanelComponent,
     PreviewToolbarComponent,
     DebugOverlayComponent,
+    ProjectSettingsComponent,
   ],
   selector: 'app-workspace',
   templateUrl: './workspace.component.html',
@@ -119,6 +121,9 @@ export class WorkspaceComponent implements AfterViewChecked {
 
   // Responsive preview
   previewDevice = signal<'desktop' | 'tablet' | 'phone'>('desktop');
+
+  // Project settings dialog
+  showProjectSettings = signal(false);
 
   // Preview undock (desktop only)
   isPreviewUndocked = signal(false);

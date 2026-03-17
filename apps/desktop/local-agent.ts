@@ -412,6 +412,32 @@ app.post('/api/native/stop', async (_req, res) => {
   }
 });
 
+// --- Storage Settings (localStorage/cookie presets for external projects) ---
+
+const SETTINGS_FILENAME = '.adorable-settings.json';
+
+app.get('/api/native/storage-settings', async (_req, res) => {
+  if (!manager.getProjectPath()) return res.json({ localStorage: {}, cookies: {} });
+  try {
+    const settingsPath = path.join(manager.getProjectPath()!, SETTINGS_FILENAME);
+    const data = await fs.readFile(settingsPath, 'utf-8');
+    res.json(JSON.parse(data));
+  } catch {
+    res.json({ localStorage: {}, cookies: {} });
+  }
+});
+
+app.post('/api/native/storage-settings', async (req, res) => {
+  if (!manager.getProjectPath()) return res.status(400).json({ error: 'No project open' });
+  try {
+    const settingsPath = path.join(manager.getProjectPath()!, SETTINGS_FILENAME);
+    await fs.writeFile(settingsPath, JSON.stringify(req.body, null, 2), 'utf-8');
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/native/watch', async (_req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
