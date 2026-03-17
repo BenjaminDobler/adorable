@@ -253,6 +253,7 @@ export class WorkspaceComponent implements AfterViewChecked {
             tagName: payload.tagName,
             text: payload.text,
             elementId: payload.elementId,
+            ongAnnotation: payload.ongAnnotation,
             componentName: payload.componentName,
             hostTag: payload.hostTag,
             classes: payload.classes,

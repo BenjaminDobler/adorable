@@ -172,7 +172,7 @@ class NativeManager {
     if (!this.projectPath) throw new Error('Project not initialized');
     const cwd = workDir || this.projectPath;
     const mergedEnv = { ...process.env, ...env };
-    if (this.isExternalProject) mergedEnv['ADORABLE_ANNOTATE_TEMPLATES'] = 'true';
+    // No env vars needed for external projects — ong flags are passed as CLI args
     return new Promise((resolve, reject) => {
       const child = spawn(cmd[0], cmd.slice(1), {
         cwd,
@@ -200,9 +200,39 @@ class NativeManager {
     if (!this.projectPath) throw new Error('Project not initialized');
     const cwd = workDir || this.projectPath;
     const mergedEnv = { ...process.env, ...env };
-    if (this.isExternalProject) mergedEnv['ADORABLE_ANNOTATE_TEMPLATES'] = 'true';
+
+    // For external projects running ong: replace `npx @richapps/ong` with Adorable's
+    // own ong binary and inject --inject-html-file for runtime script injection.
+    // This ensures we use the correct ong version (npx may cache an old one).
+    let finalCmd = cmd;
+    if (this.isExternalProject && cmd.some(a => a.includes('@richapps/ong'))) {
+      let ongBin: string;
+      try {
+        // resolve from Adorable's node_modules — works in both dev and packaged mode
+        ongBin = require.resolve('@richapps/ong/bin/ong.js');
+      } catch {
+        ongBin = path.join(__dirname, '..', '..', '..', 'node_modules', '@richapps', 'ong', 'bin', 'ong.js');
+      }
+      const runtimeScriptsPath = path.join(__dirname, '..', '..', 'libs', 'shared-types', 'src', 'lib', 'runtime-scripts.js');
+
+      // Replace npx + @richapps/ong with direct node + ong binary
+      finalCmd = cmd.map(a => a === '@richapps/ong' ? ongBin : a);
+      if (finalCmd[0] === 'npx') {
+        finalCmd[0] = 'node';
+      }
+
+      // Insert --inject-html-file before the '--' separator
+      const dashDashIdx = finalCmd.indexOf('--');
+      if (dashDashIdx !== -1) {
+        finalCmd = [...finalCmd.slice(0, dashDashIdx), '--inject-html-file', runtimeScriptsPath, ...finalCmd.slice(dashDashIdx)];
+      } else {
+        finalCmd = [...finalCmd, '--inject-html-file', runtimeScriptsPath];
+      }
+      console.log('[Agent] ong command:', finalCmd.join(' '));
+    }
+
     return new Promise((resolve, reject) => {
-      const child = spawn(cmd[0], cmd.slice(1), {
+      const child = spawn(finalCmd[0], finalCmd.slice(1), {
         cwd,
         env: mergedEnv,
         shell: true,

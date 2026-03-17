@@ -202,7 +202,7 @@ async function discoverNxApps(workspaceRoot: string): Promise<NxApp[]> {
  * Set ong dev/build commands on the config, optionally with --project and -c flags.
  */
 function applyOngCommands(config: DetectedProjectConfig, projectPath?: string, configuration?: string): void {
-  const devArgs = ['@richapps/ong', 'serve'];
+  const devArgs = ['@richapps/ong', 'serve', '--annotate-templates'];
   const buildArgs = ['@richapps/ong', 'build'];
 
   if (projectPath && projectPath !== '.') {

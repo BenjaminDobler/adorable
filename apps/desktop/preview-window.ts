@@ -18,6 +18,9 @@ interface PreviewState {
   url: string | null;
 }
 
+// Script to inject — will be set by setRuntimeScripts()
+let runtimeScriptsCode: string | null = null;
+
 const MAX_CONSOLE_BUFFER = 1000;
 
 export class PreviewWindowManager {
@@ -252,6 +255,49 @@ export class PreviewWindowManager {
     ).catch(() => {});
   }
 
+  /**
+   * Set the runtime scripts code to inject into the preview iframe via CDP.
+   * When set, scripts are injected via Page.addScriptToEvaluateOnNewDocument
+   * so they run on every page load / HMR reload — no proxy needed.
+   */
+  setRuntimeScripts(code: string | null): void {
+    runtimeScriptsCode = code;
+    // If already undocked and debugger attached, inject immediately
+    if (code && this.isDebuggerAttached) {
+      this.injectRuntimeScripts();
+    }
+  }
+
+  /**
+   * Inject runtime scripts into the iframe via CDP.
+   * Uses Page.addScriptToEvaluateOnNewDocument so scripts persist across navigations.
+   */
+  private async injectRuntimeScripts(): Promise<void> {
+    if (!runtimeScriptsCode || !this.isDebuggerAttached || !this.previewWindow) return;
+
+    try {
+      // Try to inject into the iframe target specifically
+      const sessionId = await this.getIframeSessionId();
+      if (sessionId) {
+        await this.previewWindow.webContents.debugger.sendCommand(
+          'Page.addScriptToEvaluateOnNewDocument',
+          { source: runtimeScriptsCode },
+          sessionId
+        );
+        console.log('[PreviewWindow] Runtime scripts injected via CDP (iframe target)');
+      } else {
+        // Fallback: inject into the main page (scripts will run in the shell, not ideal)
+        await this.previewWindow.webContents.debugger.sendCommand(
+          'Page.addScriptToEvaluateOnNewDocument',
+          { source: runtimeScriptsCode }
+        );
+        console.log('[PreviewWindow] Runtime scripts injected via CDP (main page)');
+      }
+    } catch (err) {
+      console.warn('[PreviewWindow] Failed to inject runtime scripts via CDP:', err);
+    }
+  }
+
   destroy(): void {
     if (this.previewWindow) {
       this.detachDebugger();
@@ -357,6 +403,11 @@ export class PreviewWindowManager {
       });
 
       console.log('[PreviewWindow] CDP debugger attached');
+
+      // Inject runtime scripts if set (for external projects without proxy)
+      if (runtimeScriptsCode) {
+        this.injectRuntimeScripts();
+      }
     } catch (err) {
       console.warn('[PreviewWindow] Failed to attach debugger:', err);
       this.isDebuggerAttached = false;

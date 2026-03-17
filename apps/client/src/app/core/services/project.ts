@@ -552,8 +552,8 @@ export class ProjectService {
         // Enable injecting proxy so runtime scripts (inspector, console relay)
         // are injected into HTML responses without modifying project files
         const nativeEngine = (this.containerEngine as any).nativeEngine || this.containerEngine;
-        if (nativeEngine.useInjectingProxy !== undefined) {
-          nativeEngine.useInjectingProxy = true;
+        if (nativeEngine.isExternalProject !== undefined) {
+          nativeEngine.isExternalProject = true;
         }
 
         // Use detected config commands for external projects, fall back to kit commands
@@ -575,8 +575,8 @@ export class ProjectService {
       } else {
         // Standard project flow — disable injecting proxy
         const nativeEngineStd = (this.containerEngine as any).nativeEngine || this.containerEngine;
-        if (nativeEngineStd.useInjectingProxy !== undefined) {
-          nativeEngineStd.useInjectingProxy = false;
+        if (nativeEngineStd.isExternalProject !== undefined) {
+          nativeEngineStd.isExternalProject = false;
         }
 
         // Full clean when switching kit templates to clear stale node_modules/lockfiles

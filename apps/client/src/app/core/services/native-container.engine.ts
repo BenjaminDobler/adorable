@@ -23,12 +23,11 @@ export class NativeContainerEngine extends ContainerEngine {
   public buildError = signal<string | null>(null);
 
   /**
-   * When set, the detected dev server URL is wrapped through the local agent's
-   * injecting proxy so runtime scripts (inspector, console relay) are injected
-   * into HTML responses without modifying the project's source files.
-   * Used for external (open-folder) projects.
+   * When set (external projects), ong handles runtime script injection via
+   * its HTML inject plugin — no proxy needed. The preview loads the raw
+   * dev server URL so cookies, localStorage, and auth redirects all work.
    */
-  public useInjectingProxy = false;
+  public isExternalProject = false;
   public previewConsoleLogs = signal<any[]>([]);
   public serverOutput = signal<string>('');
   public shellOutput = signal<string>('');
@@ -275,27 +274,21 @@ export class NativeContainerEngine extends ContainerEngine {
       const urlMatch = clean.match(urlPattern);
       if (urlMatch) {
         const devUrl = urlMatch[1] || urlMatch[0];
-        setTimeout(async () => {
-          const displayUrl = this.useInjectingProxy
-            ? await this.startInjectingProxy(devUrl)
-            : devUrl;
-          this.url.set(displayUrl);
+        setTimeout(() => {
+          this.url.set(devUrl);
           this.status.set('Ready');
           this.startFileWatcher();
-          this.onServerReady(parseInt(new URL(devUrl).port), displayUrl);
+          this.onServerReady(parseInt(new URL(devUrl).port), devUrl);
         }, 1000);
       } else if (readyPattern.test(clean) && !this.url()) {
         // Fallback: if we didn't catch the URL, try localhost:4200
-        setTimeout(async () => {
+        setTimeout(() => {
           if (!this.url()) {
             const fallbackUrl = 'http://localhost:4200';
-            const displayUrl = this.useInjectingProxy
-              ? await this.startInjectingProxy(fallbackUrl)
-              : fallbackUrl;
-            this.url.set(displayUrl);
+            this.url.set(fallbackUrl);
             this.status.set('Ready');
             this.startFileWatcher();
-            this.onServerReady(4200, displayUrl);
+            this.onServerReady(4200, fallbackUrl);
           }
         }, 2000);
       }
@@ -432,28 +425,6 @@ export class NativeContainerEngine extends ContainerEngine {
     return data.entries.map((e: any) => e.name);
   }
 
-  /**
-   * Tell the local agent to start an injecting proxy for the given dev server URL.
-   * The proxy runs on its own port so all relative asset paths just work.
-   * Returns a promise that resolves with the proxy URL.
-   */
-  private async startInjectingProxy(devUrl: string): Promise<string> {
-    try {
-      const res = await fetch(`${this.apiUrl}/preview-proxy-target`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: devUrl }),
-      });
-      const data = await res.json();
-      if (data.port) {
-        return `http://localhost:${data.port}/`;
-      }
-    } catch (e) {
-      console.warn('[Native] Failed to start injecting proxy:', e);
-    }
-    // Fallback: use raw dev server URL (no script injection)
-    return devUrl;
-  }
 
   onServerReadyCallback?: (port: number, url: string) => void;
   on(event: 'server-ready', callback: (port: number, url: string) => void): void {

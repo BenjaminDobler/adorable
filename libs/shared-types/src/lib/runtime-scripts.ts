@@ -29,7 +29,7 @@ export const RUNTIME_SCRIPTS = `
       var ongId = el.getAttribute('_ong');
       if (ongId) return '_ong:' + ongId;
       // Fall back to data-elements-id (AI-generated)
-      return __getElementId(el);
+      return el.getAttribute('data-elements-id') || null;
     }
     function __getOngAnnotation(el) {
       var ongId = el.getAttribute('_ong');

@@ -359,6 +359,7 @@ app.on('ready', async () => {
       return result.canceled ? null : result.filePaths[0];
     });
 
+
     // Register IPC handler for fast screenshot capture
     ipcMain.handle('capture-page', async (_event, rect?: { x: number; y: number; width: number; height: number }) => {
       if (!mainWindow) return null;
@@ -489,7 +490,10 @@ app.on('ready', async () => {
     // Clear browser cache to ensure fresh client chunks are loaded after rebuilds
     await session.defaultSession.clearCache();
 
+
     createWindow();
+
+
 
     // Initialize preview window manager (for dockable preview + CDP)
     if (mainWindow) {

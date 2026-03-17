@@ -88,11 +88,14 @@ export class VisualEditorPanelComponent {
       text: data.text,
       classes: data.classes,
       id: data.attributes?.id,
+      elementId: data.elementId,
+      ongAnnotation: data.ongAnnotation,
       childIndex: data.childIndex,
       parentTag: data.parentTag
     };
 
     const result = this.templateService.findAndModify(fingerprint, { type, value, property });
+    console.log('[VisualEditor] result:', { success: result.success, path: result.path, error: result.error, contentLength: result.content?.length });
 
     if (result.success) {
       this.projectService.fileStore.updateFile(result.path, result.content);
