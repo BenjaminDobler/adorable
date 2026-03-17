@@ -39,6 +39,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('preview:event', listener);
     return () => ipcRenderer.removeListener('preview:event', listener);
   },
+  // Listen for menu commands from the native menu bar
+  onMenuOpenFolder: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('menu:open-folder', listener);
+    return () => ipcRenderer.removeListener('menu:open-folder', listener);
+  },
   // Cloud OAuth login: opens browser, returns JWT token
   cloudOAuthLogin: (cloudUrl: string, provider: string) =>
     ipcRenderer.invoke('cloud-oauth-login', cloudUrl, provider),

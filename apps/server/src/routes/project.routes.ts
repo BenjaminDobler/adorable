@@ -195,11 +195,13 @@ router.post('/open-external', async (req: any, res) => {
     // Auto-detect project config
     const detectedConfig = await detectProjectConfig(externalPath, selectedNxApp, selectedConfiguration);
 
-    // Nx workspace with multiple apps — ask the user to pick one
-    if (detectedConfig.nxApps && detectedConfig.nxApps.length > 1 && !detectedConfig.selectedNxApp) {
+    // Multiple apps or multiple configurations available — ask the user to pick
+    const hasMultipleApps = detectedConfig.apps && detectedConfig.apps.length > 1;
+    const hasMultipleConfigs = detectedConfig.apps?.some(a => a.configurations.length > 1);
+    if ((hasMultipleApps || hasMultipleConfigs) && !selectedNxApp && !selectedConfiguration) {
       return res.json({
         needsAppSelection: true,
-        nxApps: detectedConfig.nxApps,
+        apps: detectedConfig.apps,
         detectedConfig,
       });
     }

@@ -2069,6 +2069,7 @@ body.light-mode .dashboard-container::before {
   gap: 0.625rem;
   max-height: 300px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .team-pick-card {

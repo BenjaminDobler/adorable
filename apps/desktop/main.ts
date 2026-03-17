@@ -271,6 +271,20 @@ function setupApplicationMenu(): void {
         ]
       : []),
     {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Open Folder...',
+          accelerator: isMac ? 'Cmd+O' : 'Ctrl+O',
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send('menu:open-folder');
+            }
+          },
+        },
+      ],
+    },
+    {
       label: 'Edit',
       submenu: [
         { role: 'undo' },

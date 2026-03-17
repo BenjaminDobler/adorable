@@ -152,3 +152,112 @@
     opacity: 1;
   }
 }
+
+// Nx App / Configuration Selection Dialog (triggered by File → Open Folder)
+.nx-app-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10001;
+  background: var(--bg-surface-2, #1a1a1f);
+  border: 1px solid var(--panel-border, rgba(255,255,255,0.06));
+  border-radius: 16px;
+  padding: 2rem;
+  min-width: 400px;
+  max-width: 500px;
+  color: var(--text-primary, #f0f0f2);
+
+  h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.25rem;
+  }
+
+  p {
+    margin: 0 0 1.25rem;
+    color: var(--text-secondary, #8a8a95);
+    font-size: 0.875rem;
+  }
+}
+
+.nx-app-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-x: hidden;
+}
+
+.nx-app-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.875rem 1rem;
+  background: var(--bg-surface-1, #111114);
+  border: 1px solid var(--panel-border, rgba(255,255,255,0.06));
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  svg {
+    color: var(--text-muted, #55555f);
+    flex-shrink: 0;
+  }
+
+  &:hover {
+    border-color: var(--accent-color, #34d399);
+    background: rgba(52, 211, 153, 0.05);
+
+    svg { color: var(--accent-color, #34d399); }
+  }
+}
+
+.nx-app-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+
+  strong {
+    font-size: 0.9375rem;
+  }
+
+  span {
+    font-size: 0.75rem;
+    color: var(--text-muted, #55555f);
+  }
+}
+
+.nx-app-config {
+  margin-left: auto;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-surface-2, #1a1a1f);
+  border: 1px solid var(--panel-border, rgba(255,255,255,0.06));
+  border-radius: 6px;
+  color: var(--text-secondary, #8a8a95);
+  font-size: 0.75rem;
+  cursor: pointer;
+
+  &:hover { border-color: var(--panel-border-hover, rgba(255,255,255,0.12)); }
+}
+
+.nx-app-actions {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--panel-border, rgba(255,255,255,0.06));
+  display: flex;
+  justify-content: flex-end;
+}
+
+.nx-app-cancel {
+  padding: 0.5rem 1.25rem;
+  background: transparent;
+  border: 1px solid var(--panel-border, rgba(255,255,255,0.06));
+  border-radius: 8px;
+  color: var(--text-secondary, #8a8a95);
+  cursor: pointer;
+  font-size: 0.875rem;
+
+  &:hover {
+    background: var(--bg-surface-3, #222228);
+    color: var(--text-primary, #f0f0f2);
+  }
+}

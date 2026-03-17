@@ -20,11 +20,11 @@ export interface DetectedProjectConfig {
     build: { cmd: string; args: string[] };
   };
   devServerPreset: DevServerPreset;
-  /** For Nx workspaces: list of available apps the user can choose from */
-  nxApps?: NxApp[];
-  /** For Nx workspaces: the selected app (set after user picks one) */
-  selectedNxApp?: string;
-  /** For Nx workspaces: the selected configuration (e.g. "development", "production") */
+  /** Available apps the user can choose from (Nx workspaces, or single app for Angular CLI) */
+  apps?: NxApp[];
+  /** The selected app (set after user picks one, or auto-selected for single-app projects) */
+  selectedApp?: string;
+  /** The selected configuration (e.g. "development", "production") */
   selectedConfiguration?: string;
 }
 
@@ -79,26 +79,14 @@ export async function detectProjectConfig(projectPath: string, selectedNxApp?: s
     // Discover available apps in the workspace
     const nxApps = await discoverNxApps(projectPath);
     if (nxApps.length > 0) {
-      config.nxApps = nxApps;
+      config.apps = nxApps;
     }
 
     // If a specific app is selected (or there's only one), configure commands for it
     const appToServe = selectedNxApp || (nxApps.length === 1 ? nxApps[0].root : null);
     if (appToServe) {
-      config.selectedNxApp = appToServe;
-      const devArgs = ['@richapps/ong', 'serve', '--project', appToServe];
-      const buildArgs = ['@richapps/ong', 'build', '--project', appToServe];
-
-      // Apply configuration if selected (otherwise ong uses the serve target's defaultConfiguration)
-      const configToUse = selectedConfiguration;
-      if (configToUse) {
-        config.selectedConfiguration = configToUse;
-        devArgs.push('-c', configToUse);
-        buildArgs.push('-c', configToUse);
-      }
-
-      config.commands.dev = { cmd: 'npx', args: devArgs };
-      config.commands.build = { cmd: 'npx', args: buildArgs };
+      config.selectedApp = appToServe;
+      applyOngCommands(config, appToServe, selectedConfiguration);
     }
 
     // Use first app name if available
@@ -114,6 +102,42 @@ export async function detectProjectConfig(projectPath: string, selectedNxApp?: s
   const hasAngularJson = await fileExists(path.join(projectPath, 'angular.json'));
   if (hasAngularJson) {
     config.framework = 'angular-cli';
+
+    // Extract apps and configurations from angular.json
+    try {
+      const angularJson = JSON.parse(await fs.readFile(path.join(projectPath, 'angular.json'), 'utf-8'));
+      const projects = angularJson.projects || {};
+      const apps: NxApp[] = [];
+
+      for (const [projName, proj] of Object.entries(projects) as [string, any][]) {
+        const serveTarget = proj.architect?.serve || proj.targets?.serve;
+        if (serveTarget) {
+          apps.push({
+            name: projName,
+            root: proj.root || projName,
+            configurations: Object.keys(serveTarget.configurations || {}),
+            defaultConfiguration: serveTarget.defaultConfiguration,
+          });
+        }
+      }
+
+      if (apps.length > 0) {
+        config.apps = apps;
+        const appToServe = selectedNxApp || (apps.length === 1 ? apps[0].root : null);
+        if (appToServe) {
+          config.selectedApp = appToServe;
+          applyOngCommands(config, undefined, selectedConfiguration);
+        }
+        config.name = apps[0].name;
+      }
+    } catch {
+      // Failed to parse angular.json — use defaults
+    }
+  }
+
+  // If no app selection needed (simple project), apply ong commands with config if provided
+  if (!config.apps || config.apps.length === 0) {
+    applyOngCommands(config, undefined, selectedConfiguration);
   }
 
   return config;
@@ -170,6 +194,28 @@ async function discoverNxApps(workspaceRoot: string): Promise<NxApp[]> {
   }
 
   return apps;
+}
+
+/**
+ * Set ong dev/build commands on the config, optionally with --project and -c flags.
+ */
+function applyOngCommands(config: DetectedProjectConfig, projectPath?: string, configuration?: string): void {
+  const devArgs = ['@richapps/ong', 'serve'];
+  const buildArgs = ['@richapps/ong', 'build'];
+
+  if (projectPath && projectPath !== '.') {
+    devArgs.push('--project', projectPath);
+    buildArgs.push('--project', projectPath);
+  }
+
+  if (configuration) {
+    config.selectedConfiguration = configuration;
+    devArgs.push('-c', configuration);
+    buildArgs.push('-c', configuration);
+  }
+
+  config.commands.dev = { cmd: 'npx', args: devArgs };
+  config.commands.build = { cmd: 'npx', args: buildArgs };
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
