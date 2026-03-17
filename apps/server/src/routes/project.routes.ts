@@ -217,6 +217,17 @@ router.post('/open-external', async (req: any, res) => {
       }
     });
     if (existing) {
+      // Update stored app/config if a new selection was made
+      if (detectedConfig.selectedApp || detectedConfig.selectedConfiguration) {
+        const newExternalConfig = JSON.stringify({
+          selectedApp: detectedConfig.selectedApp,
+          selectedConfiguration: detectedConfig.selectedConfiguration,
+        });
+        await prisma.project.update({
+          where: { id: existing.id },
+          data: { files: newExternalConfig },
+        });
+      }
       return res.json({
         ...existing,
         files: {},
@@ -232,11 +243,16 @@ router.post('/open-external', async (req: any, res) => {
     }
 
     // Create DB record with externalPath
+    // Store selected app/config in the `files` field as JSON (external projects don't use it for file storage)
+    const externalConfig = (detectedConfig.selectedApp || detectedConfig.selectedConfiguration)
+      ? JSON.stringify({ selectedApp: detectedConfig.selectedApp, selectedConfiguration: detectedConfig.selectedConfiguration })
+      : undefined;
     const project = await prisma.project.create({
       data: {
         name: name || detectedConfig.name,
         userId: user.id,
         externalPath,
+        files: externalConfig,
       }
     });
 
@@ -567,7 +583,17 @@ router.get('/:id', async (req: any, res) => {
     let detectedConfig;
     if (project.externalPath) {
       try {
-        detectedConfig = await detectProjectConfig(project.externalPath);
+        // Restore previously selected app/config from the `files` field
+        let storedApp: string | undefined;
+        let storedConfig: string | undefined;
+        if (project.files) {
+          try {
+            const ext = JSON.parse(project.files);
+            storedApp = ext.selectedApp;
+            storedConfig = ext.selectedConfiguration;
+          } catch { /* not JSON — old file data, ignore */ }
+        }
+        detectedConfig = await detectProjectConfig(project.externalPath, storedApp, storedConfig);
       } catch (e) {
         console.warn(`[Load Project] Failed to detect config for ${project.externalPath}:`, e);
       }

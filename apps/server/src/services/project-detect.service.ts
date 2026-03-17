@@ -167,30 +167,32 @@ async function discoverNxApps(workspaceRoot: string): Promise<NxApp[]> {
     } catch { /* ignore */ }
   }
 
-  // Scan apps/ directory
-  const appsDir = path.join(workspaceRoot, 'apps');
-  try {
-    const entries = await fs.readdir(appsDir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const appProjectJson = path.join(appsDir, entry.name, 'project.json');
-      if (await fileExists(appProjectJson)) {
-        try {
-          const pj = JSON.parse(await fs.readFile(appProjectJson, 'utf-8'));
-          const serveTarget = pj.targets?.serve;
-          if (serveTarget) {
-            apps.push({
-              name: pj.name || entry.name,
-              root: `apps/${entry.name}`,
-              configurations: Object.keys(serveTarget.configurations || {}),
-              defaultConfiguration: serveTarget.defaultConfiguration,
-            });
-          }
-        } catch { /* ignore */ }
+  // Scan common directories for Nx apps (apps/, packages/, projects/)
+  for (const dir of ['apps', 'packages', 'projects']) {
+    const scanDir = path.join(workspaceRoot, dir);
+    try {
+      const entries = await fs.readdir(scanDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const appProjectJson = path.join(scanDir, entry.name, 'project.json');
+        if (await fileExists(appProjectJson)) {
+          try {
+            const pj = JSON.parse(await fs.readFile(appProjectJson, 'utf-8'));
+            const serveTarget = pj.targets?.serve;
+            if (serveTarget) {
+              apps.push({
+                name: pj.name || entry.name,
+                root: `${dir}/${entry.name}`,
+                configurations: Object.keys(serveTarget.configurations || {}),
+                defaultConfiguration: serveTarget.defaultConfiguration,
+              });
+            }
+          } catch { /* ignore */ }
+        }
       }
+    } catch {
+      // Directory doesn't exist — skip
     }
-  } catch {
-    // No apps/ directory
   }
 
   return apps;
