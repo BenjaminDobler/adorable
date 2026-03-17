@@ -23,6 +23,10 @@
       "to": "server"
     },
     {
+      "from": "dist/libs/shared-types",
+      "to": "libs/shared-types"
+    },
+    {
       "from": "apps/desktop/icons",
       "to": "icons"
     }

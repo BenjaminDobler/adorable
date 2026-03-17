@@ -208,12 +208,16 @@ class NativeManager {
     if (this.isExternalProject && cmd.some(a => a.includes('@richapps/ong'))) {
       let ongBin: string;
       try {
-        // resolve from Adorable's node_modules — works in both dev and packaged mode
         ongBin = require.resolve('@richapps/ong/bin/ong.js');
       } catch {
         ongBin = path.join(__dirname, '..', '..', '..', 'node_modules', '@richapps', 'ong', 'bin', 'ong.js');
       }
-      const runtimeScriptsPath = path.join(__dirname, '..', '..', 'libs', 'shared-types', 'src', 'lib', 'runtime-scripts.js');
+      // Runtime scripts path: in dev mode __dirname is dist/apps/desktop/,
+      // in packaged mode it's inside asar so use process.resourcesPath
+      const isPackaged = __dirname.includes('app.asar');
+      const runtimeScriptsPath = isPackaged
+        ? path.join(process.resourcesPath!, 'libs', 'shared-types', 'src', 'lib', 'runtime-scripts.js')
+        : path.join(__dirname, '..', '..', 'libs', 'shared-types', 'src', 'lib', 'runtime-scripts.js');
 
       // Replace npx + @richapps/ong with direct node + ong binary
       finalCmd = cmd.map(a => a === '@richapps/ong' ? ongBin : a);
@@ -1233,7 +1237,10 @@ import * as pathModule from 'path';
 // Loaded at runtime from the compiled shared-types output (built by `nx build server`).
 let RUNTIME_SCRIPTS_INJECTION = '';
 try {
-  const runtimeScriptsPath = path.join(__dirname, '..', '..', 'libs', 'shared-types', 'src', 'lib', 'runtime-scripts');
+  const _isPackaged = __dirname.includes('app.asar');
+  const runtimeScriptsPath = _isPackaged
+    ? path.join(process.resourcesPath!, 'libs', 'shared-types', 'src', 'lib', 'runtime-scripts')
+    : path.join(__dirname, '..', '..', 'libs', 'shared-types', 'src', 'lib', 'runtime-scripts');
   const { RUNTIME_SCRIPTS } = require(runtimeScriptsPath);
   RUNTIME_SCRIPTS_INJECTION = `<!-- ADORABLE_RUNTIME_SCRIPTS -->\n${RUNTIME_SCRIPTS}\n<!-- /ADORABLE_RUNTIME_SCRIPTS -->`;
 } catch {
