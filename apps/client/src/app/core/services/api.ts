@@ -84,8 +84,8 @@ export class ApiService {
     return this.http.get<any>(`${this.apiUrl}/projects/${id}`);
   }
 
-  openExternalProject(path: string, name?: string): Observable<any> {
-    return this.http.post(`${this.apiUrl}/projects/open-external`, { path, name });
+  openExternalProject(path: string, name?: string, selectedNxApp?: string, selectedConfiguration?: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/projects/open-external`, { path, name, selectedNxApp, selectedConfiguration });
   }
 
   deleteProject(id: string) {

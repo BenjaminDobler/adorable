@@ -268,13 +268,56 @@ export class DashboardComponent {
     this.showKitSelection.set(true);
   }
 
+  // Nx app selection state
+  showNxAppSelection = signal(false);
+  nxApps = signal<{ name: string; root: string; configurations: string[]; defaultConfiguration?: string }[]>([]);
+  pendingExternalPath = signal<string | null>(null);
+  selectedNxConfiguration = signal<Record<string, string>>({});  // appRoot → selected config
+
   async openExternalProject() {
     const folderPath = await (window as any).electronAPI?.openFolderDialog();
     if (!folderPath) return;
     this.apiService.openExternalProject(folderPath).subscribe({
-      next: (project) => this.router.navigate(['/editor', project.id]),
+      next: (result) => {
+        if (result.needsAppSelection && result.nxApps) {
+          // Nx workspace with multiple apps — show picker
+          this.nxApps.set(result.nxApps);
+          this.pendingExternalPath.set(folderPath);
+          // Pre-select default configurations
+          const defaults: Record<string, string> = {};
+          for (const app of result.nxApps) {
+            if (app.defaultConfiguration) defaults[app.root] = app.defaultConfiguration;
+          }
+          this.selectedNxConfiguration.set(defaults);
+          this.showNxAppSelection.set(true);
+        } else if (result.id) {
+          this.router.navigate(['/editor', result.id]);
+        }
+      },
       error: (err) => this.toastService.show(err.error?.error || 'Failed to open project', 'error'),
     });
+  }
+
+  selectNxApp(appRoot: string) {
+    const folderPath = this.pendingExternalPath();
+    if (!folderPath) return;
+    this.showNxAppSelection.set(false);
+    const config = this.selectedNxConfiguration()[appRoot];
+    this.apiService.openExternalProject(folderPath, undefined, appRoot, config).subscribe({
+      next: (project) => {
+        if (project.id) this.router.navigate(['/editor', project.id]);
+      },
+      error: (err) => this.toastService.show(err.error?.error || 'Failed to open project', 'error'),
+    });
+  }
+
+  setNxConfiguration(appRoot: string, config: string) {
+    this.selectedNxConfiguration.update(m => ({ ...m, [appRoot]: config }));
+  }
+
+  cancelNxAppSelection() {
+    this.showNxAppSelection.set(false);
+    this.pendingExternalPath.set(null);
   }
 
   createProjectWithKit(kitId: string) {

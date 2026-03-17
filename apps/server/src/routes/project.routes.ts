@@ -162,7 +162,7 @@ const BLOCKED_PATHS = ['/', '/System', '/etc', '/usr', '/bin', '/sbin', '/var', 
 
 router.post('/open-external', async (req: any, res) => {
   const user = req.user;
-  const { path: externalPath, name } = req.body;
+  const { path: externalPath, name, selectedNxApp, selectedConfiguration } = req.body;
 
   if (!externalPath) {
     return res.status(400).json({ error: 'path is required' });
@@ -192,6 +192,18 @@ router.post('/open-external', async (req: any, res) => {
       return res.status(400).json({ error: 'No package.json found in the selected directory' });
     }
 
+    // Auto-detect project config
+    const detectedConfig = await detectProjectConfig(externalPath, selectedNxApp, selectedConfiguration);
+
+    // Nx workspace with multiple apps — ask the user to pick one
+    if (detectedConfig.nxApps && detectedConfig.nxApps.length > 1 && !detectedConfig.selectedNxApp) {
+      return res.json({
+        needsAppSelection: true,
+        nxApps: detectedConfig.nxApps,
+        detectedConfig,
+      });
+    }
+
     // Check if this path is already linked to a project
     const existing = await prisma.project.findFirst({
       where: { externalPath, userId: user.id },
@@ -212,12 +224,10 @@ router.post('/open-external', async (req: any, res) => {
           usage: m.usage ? JSON.parse(m.usage) : undefined,
           model: m.model || undefined,
         })),
+        detectedConfig,
         reopened: true,
       });
     }
-
-    // Auto-detect project config
-    const detectedConfig = await detectProjectConfig(externalPath);
 
     // Create DB record with externalPath
     const project = await prisma.project.create({

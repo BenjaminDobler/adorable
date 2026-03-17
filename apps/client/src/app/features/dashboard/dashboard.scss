@@ -180,6 +180,25 @@ body.light-mode .dashboard-container::before {
   align-items: center;
 }
 
+.nx-app-card {
+  cursor: pointer;
+}
+
+.nx-config-select {
+  margin-left: auto;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--panel-border-hover);
+  }
+}
+
 .tabs {
   display: flex;
   gap: 0.25rem;

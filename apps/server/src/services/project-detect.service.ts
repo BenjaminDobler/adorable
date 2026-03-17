@@ -3,6 +3,13 @@ import * as path from 'path';
 
 export type DevServerPreset = 'angular-cli' | 'ong' | 'vite' | 'custom';
 
+export interface NxApp {
+  name: string;
+  root: string;  // e.g. "apps/editor"
+  configurations: string[];  // e.g. ["production", "development"]
+  defaultConfiguration?: string;
+}
+
 export interface DetectedProjectConfig {
   name: string;
   framework: 'angular-cli' | 'nx' | 'unknown';
@@ -13,6 +20,12 @@ export interface DetectedProjectConfig {
     build: { cmd: string; args: string[] };
   };
   devServerPreset: DevServerPreset;
+  /** For Nx workspaces: list of available apps the user can choose from */
+  nxApps?: NxApp[];
+  /** For Nx workspaces: the selected app (set after user picks one) */
+  selectedNxApp?: string;
+  /** For Nx workspaces: the selected configuration (e.g. "development", "production") */
+  selectedConfiguration?: string;
 }
 
 /**
@@ -20,17 +33,17 @@ export interface DetectedProjectConfig {
  * Reads package.json, angular.json, nx.json, project.json, and lock files
  * to determine the framework, package manager, and commands.
  */
-export async function detectProjectConfig(projectPath: string): Promise<DetectedProjectConfig> {
+export async function detectProjectConfig(projectPath: string, selectedNxApp?: string, selectedConfiguration?: string): Promise<DetectedProjectConfig> {
   const config: DetectedProjectConfig = {
     name: path.basename(projectPath),
     framework: 'unknown',
     packageManager: 'npm',
     commands: {
       install: { cmd: 'npm', args: ['install'] },
-      dev: { cmd: 'npm', args: ['start'] },
-      build: { cmd: 'npm', args: ['run', 'build'] },
+      dev: { cmd: 'npx', args: ['@richapps/ong', 'serve'] },
+      build: { cmd: 'npx', args: ['@richapps/ong', 'build'] },
     },
-    devServerPreset: 'angular-cli',
+    devServerPreset: 'ong',
   };
 
   // Read package.json
@@ -40,7 +53,6 @@ export async function detectProjectConfig(projectPath: string): Promise<Detected
       config.name = pkgJson.name;
     }
   } catch {
-    // No package.json — return defaults
     return config;
   }
 
@@ -53,49 +65,46 @@ export async function detectProjectConfig(projectPath: string): Promise<Detected
   if (hasPnpmLock) {
     config.packageManager = 'pnpm';
     config.commands.install = { cmd: 'pnpm', args: ['install'] };
-    config.commands.dev = { cmd: 'pnpm', args: ['start'] };
-    config.commands.build = { cmd: 'pnpm', args: ['run', 'build'] };
   } else if (hasYarnLock) {
     config.packageManager = 'yarn';
     config.commands.install = { cmd: 'yarn', args: ['install'] };
-    config.commands.dev = { cmd: 'yarn', args: ['start'] };
-    config.commands.build = { cmd: 'yarn', args: ['run', 'build'] };
   }
 
   // Detect Nx workspace
-  const [hasNxJson, hasProjectJson] = await Promise.all([
-    fileExists(path.join(projectPath, 'nx.json')),
-    fileExists(path.join(projectPath, 'project.json')),
-  ]);
+  const hasNxJson = await fileExists(path.join(projectPath, 'nx.json'));
 
   if (hasNxJson) {
     config.framework = 'nx';
-    // Nx with Angular uses the same dev server output as angular-cli
-    config.devServerPreset = 'angular-cli';
 
-    if (hasProjectJson) {
-      // Read project.json to find serve/build targets
-      try {
-        const projectJson = JSON.parse(await fs.readFile(path.join(projectPath, 'project.json'), 'utf-8'));
-        const pm = config.packageManager === 'pnpm' ? 'pnpm' : config.packageManager === 'yarn' ? 'yarn' : 'npx';
+    // Discover available apps in the workspace
+    const nxApps = await discoverNxApps(projectPath);
+    if (nxApps.length > 0) {
+      config.nxApps = nxApps;
+    }
 
-        if (projectJson.targets?.serve) {
-          config.commands.dev = { cmd: pm, args: pm === 'npx' ? ['nx', 'serve'] : ['run', 'nx', 'serve'] };
-          if (pm === 'npx') config.commands.dev = { cmd: 'npx', args: ['nx', 'serve'] };
-        }
-        if (projectJson.targets?.build) {
-          config.commands.build = { cmd: pm, args: pm === 'npx' ? ['nx', 'build'] : ['run', 'nx', 'build'] };
-          if (pm === 'npx') config.commands.build = { cmd: 'npx', args: ['nx', 'build'] };
-        }
+    // If a specific app is selected (or there's only one), configure commands for it
+    const appToServe = selectedNxApp || (nxApps.length === 1 ? nxApps[0].root : null);
+    if (appToServe) {
+      config.selectedNxApp = appToServe;
+      const devArgs = ['@richapps/ong', 'serve', '--project', appToServe];
+      const buildArgs = ['@richapps/ong', 'build', '--project', appToServe];
 
-        // Check if using vite builder
-        const serveExecutor = projectJson.targets?.serve?.executor || '';
-        if (serveExecutor.includes('vite')) {
-          config.devServerPreset = 'vite';
-        }
-      } catch {
-        // Failed to parse project.json
+      // Apply configuration if selected (otherwise ong uses the serve target's defaultConfiguration)
+      const configToUse = selectedConfiguration;
+      if (configToUse) {
+        config.selectedConfiguration = configToUse;
+        devArgs.push('-c', configToUse);
+        buildArgs.push('-c', configToUse);
       }
+
+      config.commands.dev = { cmd: 'npx', args: devArgs };
+      config.commands.build = { cmd: 'npx', args: buildArgs };
+    }
+
+    // Use first app name if available
+    if (nxApps.length > 0) {
+      const selected = nxApps.find(a => a.root === appToServe) || nxApps[0];
+      config.name = selected.name;
     }
 
     return config;
@@ -107,13 +116,60 @@ export async function detectProjectConfig(projectPath: string): Promise<Detected
     config.framework = 'angular-cli';
   }
 
-  // External projects always use ong for dev/build (enables template annotations for visual editing).
-  // ong is a drop-in replacement that reads the same angular.json / project.json config.
-  config.commands.dev = { cmd: 'npx', args: ['@richapps/ong', 'serve'] };
-  config.commands.build = { cmd: 'npx', args: ['@richapps/ong', 'build'] };
-  config.devServerPreset = 'ong';
-
   return config;
+}
+
+/**
+ * Discover Nx apps by scanning the apps/ directory for project.json files
+ * that have a "serve" target (indicating they're servable applications).
+ */
+async function discoverNxApps(workspaceRoot: string): Promise<NxApp[]> {
+  const apps: NxApp[] = [];
+
+  // Check root project.json first (single-project Nx workspace)
+  const rootProjectJson = path.join(workspaceRoot, 'project.json');
+  if (await fileExists(rootProjectJson)) {
+    try {
+      const pj = JSON.parse(await fs.readFile(rootProjectJson, 'utf-8'));
+      const serveTarget = pj.targets?.serve;
+      if (serveTarget || pj.targets?.['serve-static']) {
+        apps.push({
+          name: pj.name || path.basename(workspaceRoot),
+          root: '.',
+          configurations: Object.keys(serveTarget?.configurations || {}),
+          defaultConfiguration: serveTarget?.defaultConfiguration,
+        });
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Scan apps/ directory
+  const appsDir = path.join(workspaceRoot, 'apps');
+  try {
+    const entries = await fs.readdir(appsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const appProjectJson = path.join(appsDir, entry.name, 'project.json');
+      if (await fileExists(appProjectJson)) {
+        try {
+          const pj = JSON.parse(await fs.readFile(appProjectJson, 'utf-8'));
+          const serveTarget = pj.targets?.serve;
+          if (serveTarget) {
+            apps.push({
+              name: pj.name || entry.name,
+              root: `apps/${entry.name}`,
+              configurations: Object.keys(serveTarget.configurations || {}),
+              defaultConfiguration: serveTarget.defaultConfiguration,
+            });
+          }
+        } catch { /* ignore */ }
+      }
+    }
+  } catch {
+    // No apps/ directory
+  }
+
+  return apps;
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
