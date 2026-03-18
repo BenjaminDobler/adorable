@@ -51,6 +51,13 @@
         >
           Insights
         </button>
+        <button
+          class="tab-btn"
+          [class.active]="activeTab() === 'translations'"
+          (click)="activeTab.set('translations')"
+        >
+          i18n
+        </button>
       </div>
 
       @if (activeTab() === 'chat') {
@@ -110,6 +117,9 @@
       }
       @if (activeTab() === 'insights') {
       <app-insights-panel></app-insights-panel>
+      }
+      @if (activeTab() === 'translations') {
+      <app-translations-panel></app-translations-panel>
       }
     </div>
 

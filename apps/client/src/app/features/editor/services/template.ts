@@ -66,6 +66,12 @@ export class TemplateService {
     console.log('[TemplateService] Files loaded:', !!files, files ? Object.keys(files) : []);
     if (!files) return { content: '', path: '', success: false, error: 'No files loaded' };
 
+    // Translation path: if the text comes from a translate pipe, edit the JSON file instead
+    if (modification.type === 'text' && fingerprint.ongAnnotation) {
+      const translationResult = this.tryModifyTranslation(files, fingerprint, modification.value);
+      if (translationResult) return translationResult;
+    }
+
     // Fast path: ong annotation provides exact source location (file:line:col)
     if (fingerprint.ongAnnotation) {
       const result = this.modifyByOngAnnotation(files, fingerprint, modification);
@@ -787,5 +793,170 @@ export class TemplateService {
 
   private insertAt(str: string, index: number, insertion: string): string {
      return str.substring(0, index) + insertion + str.substring(index);
+  }
+
+  // --- Translation JSON editing ---
+
+  /** Regex to detect translate/transloco/i18n pipe expressions and extract the key. */
+  private static TRANSLATE_PIPE_RE = /\{\{\s*['"]([^'"]+)['"]\s*\|\s*(translate|transloco|i18n)\b/;
+
+  /**
+   * Detects if an element's text comes from a translation pipe and, if so,
+   * updates the corresponding value in the translation JSON file.
+   */
+  private tryModifyTranslation(files: any, fingerprint: ElementFingerprint, newText: string): ModificationResult | null {
+    const ann = fingerprint.ongAnnotation!;
+    if (ann.text.type !== 'interpolated' && ann.text.type !== 'mixed') return null;
+
+    const match = ann.text.content.match(TemplateService.TRANSLATE_PIPE_RE);
+    if (!match) return null;
+
+    const translationKey = match[1];
+    console.log(`[TemplateService] Detected translation key: "${translationKey}" (pipe: ${match[2]})`);
+
+    // Find all translation JSON files in the project
+    const jsonFiles = this.findTranslationJsonFiles(files);
+    if (jsonFiles.length === 0) {
+      console.warn('[TemplateService] No translation JSON files found');
+      return null;
+    }
+
+    console.log(`[TemplateService] Found ${jsonFiles.length} translation file(s):`, jsonFiles.map(f => f.path));
+
+    // Find the file whose value for this key matches the original displayed text.
+    // This gives us the currently active locale's file.
+    const originalText = (fingerprint.text || '').trim();
+    let targetFile: { path: string; content: string } | null = null;
+
+    for (const jf of jsonFiles) {
+      try {
+        const json = JSON.parse(jf.content);
+        const currentValue = this.getNestedValue(json, translationKey);
+        if (currentValue !== undefined) {
+          // Strip interpolation params (e.g., "Hello {{name}}" → compare base text)
+          const stripped = String(currentValue).replace(/\{\{[^}]*\}\}/g, '').trim();
+          const originalStripped = originalText.replace(/\{\{[^}]*\}\}/g, '').trim();
+          if (currentValue === originalText || stripped === originalStripped || !targetFile) {
+            targetFile = jf;
+            if (currentValue === originalText) break; // exact match, stop looking
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    if (!targetFile) {
+      console.warn(`[TemplateService] Key "${translationKey}" not found in any translation file`);
+      return null;
+    }
+
+    console.log(`[TemplateService] Updating translation in: ${targetFile.path}`);
+
+    try {
+      const json = JSON.parse(targetFile.content);
+      this.setNestedValue(json, translationKey, newText);
+      const updatedContent = JSON.stringify(json, null, 2) + '\n';
+      return { content: updatedContent, path: targetFile.path, success: true };
+    } catch (e: any) {
+      return { content: '', path: targetFile.path, success: false, error: `Failed to update translation: ${e.message}` };
+    }
+  }
+
+  /**
+   * Finds translation JSON files by scanning common i18n directory locations.
+   */
+  private findTranslationJsonFiles(files: any): Array<{ path: string; content: string }> {
+    const results: Array<{ path: string; content: string }> = [];
+
+    // Collect all JSON files from common i18n directories
+    const i18nDirs = this.findI18nDirectories(files);
+
+    for (const dir of i18nDirs) {
+      const dirNode = this.getDirectoryNode(files, dir);
+      if (!dirNode) continue;
+
+      for (const key in dirNode) {
+        const node = dirNode[key];
+        if (node.file && key.endsWith('.json')) {
+          results.push({ path: `${dir}/${key}`, content: node.file.contents });
+        }
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Scans the file tree for directories that look like i18n/translation directories.
+   */
+  private findI18nDirectories(files: any, currentPath = ''): string[] {
+    const dirs: string[] = [];
+    const i18nNames = new Set(['i18n', 'locale', 'locales', 'translations', 'lang', 'langs']);
+
+    for (const key in files) {
+      const node = files[key];
+      const fullPath = currentPath ? `${currentPath}/${key}` : key;
+
+      if (node.directory) {
+        if (i18nNames.has(key.toLowerCase())) {
+          dirs.push(fullPath);
+        }
+        // Recurse to find nested i18n dirs (e.g., src/assets/i18n/)
+        dirs.push(...this.findI18nDirectories(node.directory, fullPath));
+      }
+    }
+
+    return dirs;
+  }
+
+  /** Navigate the file tree to get a directory node at a given path. */
+  private getDirectoryNode(tree: any, path: string): any | null {
+    const parts = path.split('/');
+    let current = tree;
+    for (const part of parts) {
+      if (!current[part]) return null;
+      if (current[part].directory) {
+        current = current[part].directory;
+      } else {
+        return null;
+      }
+    }
+    return current;
+  }
+
+  /** Get a value from a nested object using a dot-separated key (e.g., "nav.title"). */
+  private getNestedValue(obj: any, key: string): any {
+    // Try flat key first (e.g., { "nav.title": "..." })
+    if (key in obj) return obj[key];
+
+    // Try nested path (e.g., { nav: { title: "..." } })
+    const parts = key.split('.');
+    let current = obj;
+    for (const part of parts) {
+      if (current == null || typeof current !== 'object') return undefined;
+      current = current[part];
+    }
+    return current;
+  }
+
+  /** Set a value in a nested object using a dot-separated key. Creates intermediate objects as needed. */
+  private setNestedValue(obj: any, key: string, value: any): void {
+    // If the key exists as a flat key, update it flat
+    if (key in obj) {
+      obj[key] = value;
+      return;
+    }
+
+    // Otherwise use nested path
+    const parts = key.split('.');
+    let current = obj;
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (!(parts[i] in current) || typeof current[parts[i]] !== 'object') {
+        current[parts[i]] = {};
+      }
+      current = current[parts[i]];
+    }
+    current[parts[parts.length - 1]] = value;
   }
 }

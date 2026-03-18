@@ -41,6 +41,7 @@ import { VisualEditorPanelComponent } from '../chat/visual-editor-panel/visual-e
 import { PreviewToolbarComponent } from './preview-toolbar/preview-toolbar.component';
 import { DebugOverlayComponent } from './debug-overlay/debug-overlay.component';
 import { ProjectSettingsComponent } from '../project-settings/project-settings.component';
+import { TranslationsPanelComponent } from '../translations/translations-panel.component';
 
 @Component({
   standalone: true,
@@ -60,6 +61,7 @@ import { ProjectSettingsComponent } from '../project-settings/project-settings.c
     PreviewToolbarComponent,
     DebugOverlayComponent,
     ProjectSettingsComponent,
+    TranslationsPanelComponent,
   ],
   selector: 'app-workspace',
   templateUrl: './workspace.component.html',
@@ -108,7 +110,7 @@ export class WorkspaceComponent implements AfterViewChecked {
   @ViewChild(EditorComponent) editorComponent?: EditorComponent;
   @ViewChild(FigmaPanelComponent) figmaPanel?: FigmaPanelComponent;
 
-  activeTab = signal<'chat' | 'terminal' | 'files' | 'figma' | 'versions' | 'insights'>(
+  activeTab = signal<'chat' | 'terminal' | 'files' | 'figma' | 'versions' | 'insights' | 'translations'>(
     'chat',
   );
 
@@ -392,6 +394,7 @@ export class WorkspaceComponent implements AfterViewChecked {
         tagName: payload.tagName,
         text: payload.text,
         elementId: payload.elementId,
+        ongAnnotation: payload.ongAnnotation,
         componentName: payload.componentName,
         hostTag: payload.hostTag,
         classes: payload.classes,
@@ -406,10 +409,11 @@ export class WorkspaceComponent implements AfterViewChecked {
       if (result.success) {
         this.projectService.fileStore.updateFile(result.path, result.content);
         this.containerEngine.writeFile(result.path, result.content);
-        this.toastService.show(
-          result.isInsideLoop ? 'Text updated (all instances in loop affected)' : 'Text updated',
-          result.isInsideLoop ? 'info' : 'success',
-        );
+        const isTranslation = result.path.endsWith('.json');
+        const msg = isTranslation
+          ? `Translation updated in ${result.path.split('/').pop()}`
+          : result.isInsideLoop ? 'Text updated (all instances in loop affected)' : 'Text updated';
+        this.toastService.show(msg, isTranslation ? 'info' : result.isInsideLoop ? 'info' : 'success');
       } else {
         this.toastService.show('Failed to update text: ' + result.error, 'error');
       }
