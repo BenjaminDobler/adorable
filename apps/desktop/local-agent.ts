@@ -236,12 +236,15 @@ class NativeManager {
         finalCmd[0] = 'node';
       }
 
-      // Insert --inject-html-file before the '--' separator
+      // Insert --inject-html-file and --no-open before the '--' separator.
+      // --no-open overrides angular.json's `open: true` to prevent the dev
+      // server from launching the system browser (the preview lives in Adorable).
       const dashDashIdx = finalCmd.indexOf('--');
+      const extraFlags = ['--inject-html-file', runtimeScriptsPath, '--no-open'];
       if (dashDashIdx !== -1) {
-        finalCmd = [...finalCmd.slice(0, dashDashIdx), '--inject-html-file', runtimeScriptsPath, ...finalCmd.slice(dashDashIdx)];
+        finalCmd = [...finalCmd.slice(0, dashDashIdx), ...extraFlags, ...finalCmd.slice(dashDashIdx)];
       } else {
-        finalCmd = [...finalCmd, '--inject-html-file', runtimeScriptsPath];
+        finalCmd = [...finalCmd, ...extraFlags];
       }
       console.log('[Agent] ong command:', finalCmd.join(' '));
     }

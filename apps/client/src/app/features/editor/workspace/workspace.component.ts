@@ -700,6 +700,12 @@ export class WorkspaceComponent implements AfterViewChecked {
     }
   }
 
+  openWebviewDevTools() {
+    if (this._webviewElement?.openDevTools) {
+      this._webviewElement.openDevTools();
+    }
+  }
+
   async toggleUndock() {
     const electronAPI = (window as any).electronAPI;
     if (!electronAPI) return;

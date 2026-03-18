@@ -566,12 +566,30 @@ export class ProjectService {
           ? { ...kitCommands, dev: devCmd, devServerPreset, install: installCmd } as KitCommands
           : kitCommands;
 
-        const exitCode = await this.containerEngine.runInstall(installCmd);
-        if (isStale()) return;
-
-        if (exitCode === 0) {
-          this.containerEngine.startDevServer(externalCommands);
+        // Skip install if node_modules already exists (external projects manage their own deps).
+        // When install is needed (first open or after dependency changes), use `ci` for speed.
+        let skipInstall = false;
+        try {
+          const entries = await this.containerEngine.readdir('node_modules');
+          if (entries && entries.length > 0) {
+            skipInstall = true;
+            console.log('[reloadPreview] node_modules exists, skipping install');
+          }
+        } catch {
+          // node_modules doesn't exist or readdir failed — need to install
         }
+
+        if (!skipInstall) {
+          // Prefer `ci` over `install` for faster, deterministic installs
+          const ciCmd = installCmd
+            ? { cmd: installCmd.cmd, args: installCmd.args.map((a: string) => a === 'install' ? 'ci' : a) }
+            : undefined;
+          const exitCode = await this.containerEngine.runInstall(ciCmd);
+          if (isStale()) return;
+          if (exitCode !== 0) return;
+        }
+
+        this.containerEngine.startDevServer(externalCommands);
       } else {
         // Standard project flow — disable injecting proxy
         const nativeEngineStd = (this.containerEngine as any).nativeEngine || this.containerEngine;

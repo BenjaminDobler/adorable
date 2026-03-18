@@ -22,4 +22,5 @@ export class PreviewToolbarComponent {
   reload = output<void>();
   undockToggled = output<void>();
   settingsRequested = output<void>();
+  devtoolsRequested = output<void>();
 }

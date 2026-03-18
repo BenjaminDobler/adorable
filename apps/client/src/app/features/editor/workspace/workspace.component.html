@@ -245,6 +245,7 @@
           (reload)="reloadIframe()"
           (undockToggled)="toggleUndock()"
           (settingsRequested)="showProjectSettings.set(true)"
+          (devtoolsRequested)="openWebviewDevTools()"
         />
         <div class="iframe-wrapper">
           @if (isDesktop()) {

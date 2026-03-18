@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ContainerEngine } from '../../../core/services/container-engine';
 import { NativeContainerEngine } from '../../../core/services/native-container.engine';
+import { ProjectService } from '../../../core/services/project';
 import { ToastService } from '../../../core/services/toast';
 
 @Component({
@@ -18,6 +19,30 @@ import { ToastService } from '../../../core/services/toast';
       </div>
 
       <div class="settings-body">
+        <section>
+          <h4>
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+            Dev Server Port
+          </h4>
+          <p class="hint">Fixed port for the dev server. Set to 0 for automatic (free port).</p>
+          <div class="port-row">
+            <input
+              type="number"
+              [value]="fixedPort()"
+              (input)="fixedPort.set(+$any($event.target).value || 0)"
+              placeholder="0"
+              class="port-input"
+              min="0"
+              max="65535"
+            />
+            <span class="port-hint">{{ fixedPort() === 0 ? 'Auto' : 'Port ' + fixedPort() }}</span>
+          </div>
+        </section>
+
         <section>
           <h4>
             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
@@ -202,6 +227,29 @@ import { ToastService } from '../../../core/services/toast';
       border-radius: 4px;
       &:hover { color: #ef4444; background: rgba(239,68,68,0.1); }
     }
+    .port-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .port-input {
+      width: 120px;
+      padding: 0.5rem 0.75rem;
+      background: var(--bg-surface-1, #111114);
+      border: 1px solid var(--panel-border, rgba(255,255,255,0.06));
+      border-radius: 6px;
+      color: var(--text-primary, #f0f0f2);
+      font-size: 0.8125rem;
+      font-family: monospace;
+      &:focus {
+        outline: none;
+        border-color: var(--accent-color, #34d399);
+      }
+    }
+    .port-hint {
+      font-size: 0.75rem;
+      color: var(--text-muted, #55555f);
+    }
     .add-btn {
       background: none;
       border: 1px dashed var(--panel-border, rgba(255,255,255,0.06));
@@ -246,12 +294,14 @@ import { ToastService } from '../../../core/services/toast';
 })
 export class ProjectSettingsComponent {
   private containerEngine = inject(ContainerEngine);
+  private projectService = inject(ProjectService);
   private toastService = inject(ToastService);
 
   close = output();
 
   localStorageEntries = signal<{ key: string; value: string }[]>([]);
   cookieEntries = signal<{ key: string; value: string }[]>([]);
+  fixedPort = signal(0);
   saving = signal(false);
 
   constructor() {
@@ -269,6 +319,7 @@ export class ProjectSettingsComponent {
       this.cookieEntries.set(
         Object.entries(settings.cookies || {}).map(([key, value]) => ({ key, value }))
       );
+      this.fixedPort.set(engine.fixedPort());
     } catch {
       // No settings yet
     }
@@ -321,15 +372,24 @@ export class ProjectSettingsComponent {
         if (e.key.trim()) cookies[e.key.trim()] = e.value;
       }
       await engine.saveStorageSettings({ localStorage, cookies });
-      this.toastService.show('Settings saved. Reloading preview...', 'success');
 
-      // Reload the preview iframe to apply the new settings
-      setTimeout(() => {
-        const iframe = document.querySelector('iframe') as HTMLIFrameElement;
-        if (iframe?.contentWindow) iframe.contentWindow.location.reload();
-      }, 300);
+      const portChanged = engine.fixedPort() !== this.fixedPort();
+      engine.fixedPort.set(this.fixedPort());
 
-      this.close.emit();
+      if (portChanged) {
+        // Port changed — restart the dev server so it binds to the new port
+        this.toastService.show('Port changed. Restarting dev server...', 'info');
+        this.close.emit();
+        this.projectService.reloadPreview(this.projectService.files());
+      } else {
+        this.toastService.show('Settings saved. Reloading preview...', 'success');
+        // Reload the preview to apply storage settings
+        setTimeout(() => {
+          const iframe = document.querySelector('iframe') as HTMLIFrameElement;
+          if (iframe?.contentWindow) iframe.contentWindow.location.reload();
+        }, 300);
+        this.close.emit();
+      }
     } catch (e: any) {
       this.toastService.show('Failed to save settings', 'error');
     } finally {

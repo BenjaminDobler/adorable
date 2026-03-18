@@ -28,6 +28,8 @@ export class NativeContainerEngine extends ContainerEngine {
    * dev server URL so cookies, localStorage, and auth redirects all work.
    */
   public isExternalProject = false;
+  /** Fixed dev server port (0 = auto-select a free port). */
+  public fixedPort = signal(0);
   public previewConsoleLogs = signal<any[]>([]);
   public serverOutput = signal<string>('');
   public shellOutput = signal<string>('');
@@ -251,7 +253,8 @@ export class NativeContainerEngine extends ContainerEngine {
   async startDevServer(commands?: KitCommands): Promise<void> {
     this.status.set('Starting dev server...');
     const { cmd, args: devArgs } = commands?.dev ?? { cmd: 'npm', args: ['start'] };
-    const fullArgs = [...devArgs, '--', '--port=0'];
+    const port = this.fixedPort();
+    const fullArgs = [...devArgs, '--', `--port=${port}`];
     const res = await this.exec(cmd, fullArgs, {
       stream: true
     });
