@@ -89,7 +89,7 @@
     "@google/genai": "^1.42.0",
     "@oxc-angular/vite": "^0.0.12",
     "@prisma/client": "^6.4.1",
-    "@richapps/ong": "^0.1.26",
+    "@richapps/ong": "^0.1.27",
     "@types/cookie": "^0.6.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cookie-signature": "^1.1.2",
