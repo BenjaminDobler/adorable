@@ -13,6 +13,9 @@
     "!electron-builder.json"
   ],
   "npmRebuild": true,
+  "asarUnpack": [
+    "node_modules/**"
+  ],
   "extraResources": [
     {
       "from": "dist/apps/client/browser",

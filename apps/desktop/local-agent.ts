@@ -209,8 +209,19 @@ class NativeManager {
       let ongBin: string;
       try {
         ongBin = require.resolve('@richapps/ong/bin/ong.js');
+        // In packaged mode, require.resolve returns a path inside app.asar;
+        // replace with the unpacked path so the binary can be spawned.
+        if (ongBin.includes('app.asar') && !ongBin.includes('app.asar.unpacked')) {
+          ongBin = ongBin.replace('app.asar', 'app.asar.unpacked');
+        }
       } catch {
-        ongBin = path.join(__dirname, '..', '..', '..', 'node_modules', '@richapps', 'ong', 'bin', 'ong.js');
+        // Fallback: in packaged mode use the unpacked asar path
+        const isPackagedFallback = __dirname.includes('app.asar');
+        if (isPackagedFallback) {
+          ongBin = path.join(process.resourcesPath!, 'app.asar.unpacked', 'node_modules', '@richapps', 'ong', 'bin', 'ong.js');
+        } else {
+          ongBin = path.join(__dirname, '..', '..', '..', 'node_modules', '@richapps', 'ong', 'bin', 'ong.js');
+        }
       }
       // Runtime scripts path: in dev mode __dirname is dist/apps/desktop/,
       // in packaged mode it's inside asar so use process.resourcesPath
