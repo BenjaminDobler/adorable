@@ -29,6 +29,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      webviewTag: true,
     },
   });
 
@@ -349,6 +350,7 @@ app.on('ready', async () => {
     ipcMain.on('get-agent-port', (event) => {
       event.returnValue = AGENT_PORT;
     });
+
 
     // Register IPC handler for opening a folder dialog (desktop "Open Folder" feature)
     ipcMain.handle('open-folder-dialog', async () => {

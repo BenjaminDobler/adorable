@@ -237,11 +237,20 @@
           (settingsRequested)="showProjectSettings.set(true)"
         />
         <div class="iframe-wrapper">
-          <iframe
-            #previewFrame
-            [src]="containerEngine.url() | safeUrl"
-            [style.pointer-events]="isResizingSidebar || isResizingEditor || isAnnotating() || isSelecting ? 'none' : 'auto'"
-          ></iframe>
+          @if (isDesktop()) {
+            <webview
+              #previewWebview
+              [attr.src]="containerEngine.url()"
+              [style.pointer-events]="isResizingSidebar || isResizingEditor || isAnnotating() || isSelecting ? 'none' : 'auto'"
+              style="width: 100%; height: 100%; border: none;"
+            ></webview>
+          } @else {
+            <iframe
+              #previewFrame
+              [src]="containerEngine.url() | safeUrl"
+              [style.pointer-events]="isResizingSidebar || isResizingEditor || isAnnotating() || isSelecting ? 'none' : 'auto'"
+            ></iframe>
+          }
         </div>
         <app-annotation-overlay
           [active]="isAnnotating()"

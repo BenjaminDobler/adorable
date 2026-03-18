@@ -7,6 +7,7 @@ import {
   ElementRef,
   AfterViewChecked,
   HostListener,
+  NO_ERRORS_SCHEMA,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -63,6 +64,7 @@ import { ProjectSettingsComponent } from '../project-settings/project-settings.c
   selector: 'app-workspace',
   templateUrl: './workspace.component.html',
   styleUrl: './workspace.component.scss',
+  schemas: [NO_ERRORS_SCHEMA],
 })
 export class WorkspaceComponent implements AfterViewChecked {
   private apiService = inject(ApiService);
@@ -87,6 +89,20 @@ export class WorkspaceComponent implements AfterViewChecked {
       this.screenshotService.registerIframe(ref.nativeElement);
     }
   }
+
+  @ViewChild('previewWebview', { static: false }) set previewWebview(
+    ref: ElementRef | undefined,
+  ) {
+    const el = ref?.nativeElement;
+    if (el && el !== this._webviewElement) {
+      this._webviewElement = null; // not ready for .send() until dom-ready
+      this.setupWebviewListeners(el);
+    } else if (!el) {
+      this._webviewElement = null;
+    }
+  }
+
+  private _webviewElement: any = null;
 
   @ViewChild(ChatComponent) chatComponent!: ChatComponent;
   @ViewChild(EditorComponent) editorComponent?: EditorComponent;
@@ -192,10 +208,7 @@ export class WorkspaceComponent implements AfterViewChecked {
           const eApi = (window as any).electronAPI;
           eApi?.previewSendCommand({ type: 'clear-selection' });
         } else {
-          const iframe = document.querySelector('iframe');
-          if (iframe && iframe.contentWindow) {
-            iframe.contentWindow.postMessage({ type: 'CLEAR_SELECTION' }, '*');
-          }
+          this.sendToPreview({ type: 'CLEAR_SELECTION' });
         }
       }
     });
@@ -303,7 +316,7 @@ export class WorkspaceComponent implements AfterViewChecked {
       }
     });
 
-    // Listen for iframe messages
+    // Listen for iframe messages (cloud/non-desktop mode)
     window.addEventListener('message', (event) => {
       if (event.data.type === 'PREVIEW_CONSOLE') {
         this.containerEngine.addConsoleLog({
@@ -312,63 +325,112 @@ export class WorkspaceComponent implements AfterViewChecked {
         });
       }
 
-      if (event.data.type === 'ELEMENT_SELECTED') {
-        this.visualEditorData.set(event.data.payload);
-        // Keep inspection mode active - user can toggle it off with the button
+      this.handlePreviewMessage(event.data);
+    });
+  }
+
+  /**
+   * Sets up event listeners on the <webview> element to handle IPC messages
+   * from the preview (forwarded by webview-preload.ts).
+   */
+  private setupWebviewListeners(webview: any) {
+    // Mark the webview as ready for executeJavaScript once the guest page has loaded,
+    // and inject a message bridge that forwards runtime script messages to the host
+    // via console.debug (captured by the console-message event below).
+    webview.addEventListener('dom-ready', () => {
+      console.log('[WorkspaceComponent] Webview dom-ready');
+      this._webviewElement = webview;
+
+      // Inject a listener that forwards page messages to the host via console.debug.
+      // Runtime scripts call window.parent.postMessage(data, '*'). In a webview,
+      // window.parent === window, so this dispatches a message event on the same window.
+      // We catch it here and forward via console.debug with a prefix.
+      webview.executeJavaScript(`
+        (function() {
+          var _dbg = console.debug.bind(console);
+          window.addEventListener('message', function(event) {
+            if (event.data && event.data.type && !event.data.__fromHost) {
+              _dbg('__ADORABLE_IPC__' + JSON.stringify(event.data));
+            }
+          });
+        })();
+      `).catch(() => {});
+    });
+
+    // Capture console output from the webview.
+    // Also handles __ADORABLE_IPC__ messages for guest→host communication.
+    webview.addEventListener('console-message', (event: any) => {
+      const msg: string = event.message;
+
+      // Handle guest→host IPC messages (forwarded by injected bridge)
+      if (msg.startsWith('__ADORABLE_IPC__')) {
+        try {
+          const data = JSON.parse(msg.slice('__ADORABLE_IPC__'.length));
+          this.handlePreviewMessage(data);
+        } catch {}
+        return;
       }
 
-      // Handle in-place text editing
-      if (event.data.type === 'INLINE_TEXT_EDIT') {
-        const payload = event.data.payload;
-        const fingerprint = {
-          tagName: payload.tagName,
-          text: payload.text,
-          elementId: payload.elementId,
-          componentName: payload.componentName,
-          hostTag: payload.hostTag,
-          classes: payload.classes,
-          id: payload.attributes?.id,
-        };
-
-        console.log('[WorkspaceComponent] INLINE_TEXT_EDIT received:', {
-          fingerprint,
-          newText: payload.newText,
-          filesLoaded: !!this.projectService.files(),
-        });
-
-        const result = this.templateService.findAndModify(fingerprint, {
-          type: 'text',
-          value: payload.newText,
-        });
-
-        console.log('[WorkspaceComponent] findAndModify result:', result);
-
-        if (result.success) {
-          // Update the file in the store
-          this.projectService.fileStore.updateFile(result.path, result.content);
-          // Write to container (no reload needed - text already updated in DOM)
-          this.containerEngine.writeFile(result.path, result.content);
-
-          if (result.isInsideLoop) {
-            this.toastService.show(
-              'Text updated (all instances in loop affected)',
-              'info',
-            );
-          } else {
-            this.toastService.show('Text updated', 'success');
-          }
-        } else {
-          console.error(
-            '[WorkspaceComponent] In-place edit failed:',
-            result.error,
-          );
-          this.toastService.show(
-            'Failed to update text: ' + result.error,
-            'error',
-          );
-        }
+      // Forward regular console output to the debug panel
+      const levelMap: Record<number, 'log' | 'warn' | 'error'> = { 1: 'log', 2: 'warn', 3: 'error' };
+      const level = levelMap[event.level];
+      if (level) {
+        this.containerEngine.addConsoleLog({ level, message: msg });
       }
     });
+  }
+
+  /** Handles a message from the preview (either via webview bridge or iframe postMessage). */
+  private handlePreviewMessage(data: any) {
+    if (data.type === 'ELEMENT_SELECTED') {
+      this.visualEditorData.set(data.payload);
+    }
+
+    if (data.type === 'INLINE_TEXT_EDIT') {
+      const payload = data.payload;
+      const fingerprint = {
+        tagName: payload.tagName,
+        text: payload.text,
+        elementId: payload.elementId,
+        componentName: payload.componentName,
+        hostTag: payload.hostTag,
+        classes: payload.classes,
+        id: payload.attributes?.id,
+      };
+
+      const result = this.templateService.findAndModify(fingerprint, {
+        type: 'text',
+        value: payload.newText,
+      });
+
+      if (result.success) {
+        this.projectService.fileStore.updateFile(result.path, result.content);
+        this.containerEngine.writeFile(result.path, result.content);
+        this.toastService.show(
+          result.isInsideLoop ? 'Text updated (all instances in loop affected)' : 'Text updated',
+          result.isInsideLoop ? 'info' : 'success',
+        );
+      } else {
+        this.toastService.show('Failed to update text: ' + result.error, 'error');
+      }
+    }
+  }
+
+  /** Send a message to the preview, handling both webview (desktop) and iframe (cloud). */
+  private sendToPreview(data: any) {
+    if (this._webviewElement) {
+      // Use executeJavaScript to dispatch directly into the page context.
+      // This is more reliable than .send() + preload because it doesn't
+      // depend on the preload being loaded or IPC channels working.
+      const tagged = { ...data, __fromHost: true };
+      const js = `window.postMessage(${JSON.stringify(tagged)}, '*')`;
+      this._webviewElement.executeJavaScript(js).catch(() => {});
+    } else {
+      const iframe = document.querySelector('iframe');
+      if (iframe?.contentWindow) {
+        iframe.contentWindow.postMessage(data, '*');
+      }
+    }
   }
 
   toggleInspection() {
@@ -386,13 +448,7 @@ export class WorkspaceComponent implements AfterViewChecked {
       const electronAPI = (window as any).electronAPI;
       electronAPI?.previewSendCommand({ type: 'toggle-inspect' });
     } else {
-      const iframe = document.querySelector('iframe');
-      if (iframe && iframe.contentWindow) {
-        iframe.contentWindow.postMessage(
-          { type: 'TOGGLE_INSPECTOR', enabled: isActive },
-          '*',
-        );
-      }
+      this.sendToPreview({ type: 'TOGGLE_INSPECTOR', enabled: isActive });
     }
   }
 
@@ -629,10 +685,14 @@ export class WorkspaceComponent implements AfterViewChecked {
       }
       return;
     }
-    const iframe = document.querySelector('iframe');
-    if (iframe) {
-      const currentSrc = iframe.src;
-      iframe.src = currentSrc;
+    if (this._webviewElement) {
+      this._webviewElement.reload();
+    } else {
+      const iframe = document.querySelector('iframe');
+      if (iframe) {
+        const currentSrc = iframe.src;
+        iframe.src = currentSrc;
+      }
     }
   }
 
