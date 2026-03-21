@@ -6,7 +6,7 @@ import { fork, ChildProcess } from 'child_process';
 import * as http from 'http';
 import * as jwt from 'jsonwebtoken';
 import { ensureNode } from './node-bootstrap';
-import { startLocalAgent, setPreviewManager, setOpenExternalHandler, setPreviewEventCallback } from './local-agent';
+import { startLocalAgent, stopLocalAgent, setPreviewManager, setOpenExternalHandler, setPreviewEventCallback } from './local-agent';
 import { getOrCreateJwtSecret } from './jwt-secret';
 import { initializeDatabase } from './db-init';
 import { PreviewWindowManager } from './preview-window';
@@ -523,6 +523,7 @@ app.on('ready', async () => {
 
 app.on('before-quit', () => {
   previewManager?.destroy();
+  stopLocalAgent();
   stopEmbeddedServer();
 });
 

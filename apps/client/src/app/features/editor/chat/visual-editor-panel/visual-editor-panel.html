@@ -53,13 +53,26 @@
     <div class="section-header">
       <span class="section-icon">📝</span>
       <span class="section-title">Content</span>
+      <span class="content-type-badge" [attr.data-type]="textContentInfo.type">
+        {{ textContentInfo.type }}
+      </span>
     </div>
-    <div class="inline-hint">Double-click element in preview to edit directly</div>
+    @if (textContentInfo.type === 'i18n') {
+      <div class="i18n-key-row">
+        <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 8l6 6"/><path d="M4 14l6 -6 2 -3"/><path d="M2 5h12"/><path d="M7 2h1"/>
+          <path d="M22 22l-5 -10 -5 10"/><path d="M14 18h6"/>
+        </svg>
+        <span class="i18n-key">{{ textContentInfo.key }}</span>
+      </div>
+    } @else if (textContentInfo.type !== 'static' && textContentInfo.type !== 'unknown') {
+      <div class="inline-hint">Expression — editing will update the template</div>
+    }
     <div class="input-row">
       <input
         [(ngModel)]="editText"
         (keydown.enter)="applyVisualEdit('text', editText)"
-        placeholder="Element text..."
+        [placeholder]="textContentInfo.type === 'i18n' ? 'Translation value...' : 'Element text...'"
       />
       <button (click)="applyVisualEdit('text', editText)" class="btn-apply" title="Apply">
         <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"></polyline></svg>

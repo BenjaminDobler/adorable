@@ -47,7 +47,16 @@
             <div class="translation-edit">
               <input
                 type="text"
+                class="edit-input edit-input--key"
+                placeholder="Key"
+                [value]="editingNewKey()"
+                (input)="editingNewKey.set($any($event.target).value)"
+                (keydown.escape)="cancelEditing()"
+              />
+              <input
+                type="text"
                 class="edit-input"
+                placeholder="Value"
                 [value]="editingValue()"
                 (input)="editingValue.set($any($event.target).value)"
                 (keydown.enter)="saveEditing(entry)"

@@ -5,6 +5,7 @@ import { TemplateService, ElementFingerprint } from '../../services/template';
 import { ProjectService } from '../../../../core/services/project';
 import { ContainerEngine } from '../../../../core/services/container-engine';
 import { ToastService } from '../../../../core/services/toast';
+import { HMRTriggerService } from '../../../../core/services/hmr-trigger.service';
 
 @Component({
   selector: 'app-visual-editor-panel',
@@ -18,6 +19,7 @@ export class VisualEditorPanelComponent {
   private projectService = inject(ProjectService);
   private containerEngine = inject(ContainerEngine);
   private toastService = inject(ToastService);
+  private hmrTriggerService = inject(HMRTriggerService);
 
   @Input({ required: true }) visualEditorData!: ReturnType<typeof signal<any>>;
 
@@ -49,6 +51,23 @@ export class VisualEditorPanelComponent {
 
   visualPrompt = '';
 
+  private static TRANSLATE_PIPE_RE = /\{\{\s*['"]([^'"]+)['"]\s*\|\s*(translate|transloco|i18n)\b/;
+
+  /** Returns the content type label and optional i18n key for the selected element. */
+  get textContentInfo(): { type: 'i18n' | 'expression' | 'static' | 'unknown'; key?: string } {
+    const data = this.visualEditorData();
+    const ann = data?.ongAnnotation;
+    if (!ann) return { type: 'unknown' };
+
+    if (ann.text.type === 'interpolated' || ann.text.type === 'mixed') {
+      const match = ann.text.content?.match(VisualEditorPanelComponent.TRANSLATE_PIPE_RE);
+      if (match) return { type: 'i18n', key: match[1] };
+      return { type: 'expression' };
+    }
+    if (ann.text.type === 'static') return { type: 'static' };
+    return { type: 'unknown' };
+  }
+
   constructor() {
     effect(() => {
       const data = this.visualEditorData();
@@ -77,7 +96,7 @@ export class VisualEditorPanelComponent {
     });
   }
 
-  applyVisualEdit(type: 'text' | 'style', value: string, property?: string) {
+  async applyVisualEdit(type: 'text' | 'style', value: string, property?: string) {
     if (!this.visualEditorData()) return;
 
     const data = this.visualEditorData();
@@ -94,13 +113,18 @@ export class VisualEditorPanelComponent {
       parentTag: data.parentTag
     };
 
-    const result = this.templateService.findAndModify(fingerprint, { type, value, property });
+    const result = await this.templateService.findAndModify(fingerprint, { type, value, property });
     console.log('[VisualEditor] result:', { success: result.success, path: result.path, error: result.error, contentLength: result.content?.length });
 
     if (result.success) {
       this.projectService.fileStore.updateFile(result.path, result.content);
-      this.containerEngine.writeFile(result.path, result.content);
-      this.toastService.show('Update applied', 'success');
+      await this.containerEngine.writeFile(result.path, result.content);
+      const isTranslation = result.path.endsWith('.json') || result.path.endsWith('.jsonc');
+      if (isTranslation) this.hmrTriggerService.reloadTranslations();
+      const msg = isTranslation
+        ? `Translation updated in ${result.path.split('/').pop()}`
+        : 'Update applied';
+      this.toastService.show(msg, isTranslation ? 'info' : 'success');
 
       if (type === 'text') {
         this.visualEditorData.update((d: any) => ({ ...d, text: value }));

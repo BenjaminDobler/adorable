@@ -24,8 +24,12 @@ export const RUNTIME_SCRIPTS = `
       } catch(e) { /* agent not available — skip */ }
     })();
 
-    // Console Interceptor
+    // Console Interceptor — only active in iframe mode (window.parent !== window).
+    // In Electron webview mode window.parent === window, so postMessage would loop back;
+    // webview console output is captured natively via the console-message event instead.
     (function() {
+      if (window.parent === window) return;
+
       const originalLog = console.log;
       const originalWarn = console.warn;
       const originalError = console.error;
@@ -240,6 +244,104 @@ export const RUNTIME_SCRIPTS = `
 
         if (event.data.type === 'RELOAD_REQ') {
            window.location.reload();
+        }
+
+        if (event.data.type === 'RELOAD_TRANSLATIONS') {
+          console.log('[adorable] RELOAD_TRANSLATIONS received');
+          let reloaded = false;
+          try {
+            const ng = window.ng;
+
+            // Duck-type check and invoke a translation service instance.
+            function tryReloadService(svc) {
+              if (!svc || typeof svc !== 'object') return false;
+              // Transloco: has getActiveLang() + reloadLang()
+              if (typeof svc.reloadLang === 'function' && typeof svc.getActiveLang === 'function') {
+                svc.reloadLang(svc.getActiveLang()).subscribe?.();
+                return true;
+              }
+              // ngx-translate: has currentLang string + reloadLang()
+              // reloadLang() clears the cache and re-fetches. onTranslationChange fires and
+              // markForCheck() is called on TranslatePipe instances, but in Web Component apps
+              // (createCustomElement) and some Angular 19 setups zone.js doesn't automatically
+              // schedule a CD run. ng.applyChanges() forces a synchronous traversal.
+              if (typeof svc.reloadLang === 'function' && typeof svc.currentLang === 'string') {
+                var lang = svc.currentLang;
+                svc.reloadLang(lang).subscribe(function() {
+                  if (typeof svc.use === 'function') svc.use(lang);
+                  // Force CD: find all root Angular components and apply changes.
+                  // ng.applyChanges() calls markDirty() + detectChanges() synchronously,
+                  // which re-evaluates all translate pipes in the component tree.
+                  try {
+                    if (window.ng && typeof ng.applyChanges === 'function') {
+                      var seen = new WeakSet();
+                      function forceCD(el) {
+                        try {
+                          var c = ng.getComponent(el);
+                          if (c && !seen.has(c)) { seen.add(c); ng.applyChanges(c); }
+                        } catch(e) {}
+                      }
+                      // Standard apps: <app-root ng-version="...">
+                      document.querySelectorAll('[ng-version]').forEach(forceCD);
+                      // Web Component apps: root is a custom element (tag contains '-')
+                      Array.from(document.body.children).forEach(forceCD);
+                    }
+                  } catch(e) {}
+                });
+                return true;
+              }
+              return false;
+            }
+
+            // Scan all DOM elements — check both component properties AND the LView array.
+            // When translate pipe is used (not injected directly), the pipe instance lives
+            // in the LView (el.__ngContext__) from HEADER_OFFSET (~20) onwards.
+            // The pipe instance has the TranslateService/TranslocoService as a property.
+            const allEls = document.querySelectorAll('*');
+            const checkedInstances = new WeakSet();
+
+            function scanInstance(inst) {
+              if (!inst || typeof inst !== 'object' || checkedInstances.has(inst)) return false;
+              checkedInstances.add(inst);
+              if (tryReloadService(inst)) return true;
+              // One level deeper (e.g. pipe instance -> translate service property)
+              const props = Object.getOwnPropertyNames(inst);
+              for (const p of props) {
+                let val;
+                try { val = inst[p]; } catch { continue; }
+                if (tryReloadService(val)) return true;
+              }
+              return false;
+            }
+
+            outer: for (const el of allEls) {
+              const ctx = el['__ngContext__'];
+              if (!ctx) continue;
+              // Angular 17+: __ngContext__ is LContext {lView, nodeIndex, component}
+              // Older Angular: __ngContext__ is the LView array directly
+              const lView = Array.isArray(ctx) ? ctx : ctx.lView;
+              if (!Array.isArray(lView)) continue;
+
+              // Scan from HEADER_OFFSET (~20) for directive/pipe instances.
+              // TranslatePipe instances have a "translate" property = TranslateService.
+              for (let i = 20; i < lView.length && i < 200; i++) {
+                if (scanInstance(lView[i])) { reloaded = true; break outer; }
+              }
+
+              // Also check the component instance directly
+              if (ng?.getComponent) {
+                let comp;
+                try { comp = ng.getComponent(el); } catch {}
+                if (comp && scanInstance(comp)) { reloaded = true; break outer; }
+              }
+            }
+          } catch(e) {
+            console.warn('[adorable] Translation service reload failed:', e);
+          }
+          console.log('[adorable] RELOAD_TRANSLATIONS done, reloaded:', reloaded);
+          if (!reloaded) {
+            window.location.reload();
+          }
         }
 
         if (event.data.type === 'SELECT_ELEMENT') {

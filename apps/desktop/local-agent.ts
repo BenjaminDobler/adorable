@@ -5,7 +5,7 @@
  */
 import express from 'express';
 import cors from 'cors';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, execFileSync, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { EventEmitter } from 'events';
@@ -25,6 +25,8 @@ class NativeManager {
   private stopKillTimer: ReturnType<typeof setTimeout> | null = null;
   /** Whether the current project is an external folder (not managed by Adorable) */
   public isExternalProject = false;
+  /** Ports used by dev server processes (tracked for cleanup on stop). */
+  public trackedPorts: Set<number> = new Set();
 
   private get baseDir(): string {
     return process.env['ADORABLE_PROJECTS_DIR'] || path.join(os.homedir(), 'adorable-projects');
@@ -48,6 +50,8 @@ class NativeManager {
       }
       this.childProcesses = [];
     }
+    killPortsSync(this.trackedPorts);
+    this.trackedPorts.clear();
     this.stopWatcher();
 
     this.isExternalProject = false;
@@ -93,6 +97,8 @@ class NativeManager {
       }
       this.childProcesses = [];
     }
+    killPortsSync(this.trackedPorts);
+    this.trackedPorts.clear();
     this.stopWatcher();
 
     // Point directly at the external path — no copying or cleaning
@@ -201,6 +207,9 @@ class NativeManager {
     const cwd = workDir || this.projectPath;
     const mergedEnv = { ...process.env, ...env };
 
+    // For external projects, pass --open=false to ong (supported since 0.1.29)
+    // so angular.json's "open: true" is overridden and no browser window is opened.
+
     // For external projects running ong: replace `npx @richapps/ong` with Adorable's
     // own ong binary and inject --inject-html-file for runtime script injection.
     // This ensures we use the correct ong version (npx may cache an old one).
@@ -236,17 +245,21 @@ class NativeManager {
         finalCmd[0] = 'node';
       }
 
-      // Insert --inject-html-file and --no-open before the '--' separator.
-      // --no-open overrides angular.json's `open: true` to prevent the dev
-      // server from launching the system browser (the preview lives in Adorable).
+      // Insert --inject-html-file and --open=false before the '--' separator.
       const dashDashIdx = finalCmd.indexOf('--');
-      const extraFlags = ['--inject-html-file', runtimeScriptsPath, '--no-open'];
+      const extraFlags = ['--inject-html-file', runtimeScriptsPath, '--open=false'];
       if (dashDashIdx !== -1) {
         finalCmd = [...finalCmd.slice(0, dashDashIdx), ...extraFlags, ...finalCmd.slice(dashDashIdx)];
       } else {
         finalCmd = [...finalCmd, ...extraFlags];
       }
       console.log('[Agent] ong command:', finalCmd.join(' '));
+    }
+
+    // Track any --port=XXXX argument so we can kill by port at cleanup time
+    for (const arg of finalCmd) {
+      const m = arg.match(/^--port=(\d+)$/);
+      if (m) this.trackedPorts.add(parseInt(m[1], 10));
     }
 
     return new Promise((resolve, reject) => {
@@ -350,6 +363,8 @@ class NativeManager {
     // Give processes a moment to exit gracefully, then force kill survivors.
     // Store the timer so createProject() can cancel it if a new project starts
     // before the timer fires (prevents killing the new project's processes).
+    const portsToKill = new Set(this.trackedPorts);
+    this.trackedPorts.clear();
     this.stopKillTimer = setTimeout(() => {
       this.stopKillTimer = null;
       for (const child of this.childProcesses) {
@@ -357,6 +372,8 @@ class NativeManager {
         try { process.kill(-child.pid, 'SIGKILL'); } catch { /* already dead */ }
       }
       this.childProcesses = [];
+      // Kill any process still holding the dev server port (grandchildren that escaped the group)
+      killPortsSync(portsToKill);
     }, 1000);
 
     // Don't null projectPath here — createProject() will override it.
@@ -1228,6 +1245,9 @@ function getPreviewShellHTML(previewUrl: string): string {
     if (cmd.type === 'select-element') {
       if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'SELECT_ELEMENT', ...cmd.data }, '*');
     }
+    if (cmd.type === 'RELOAD_TRANSLATIONS') {
+      if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'RELOAD_TRANSLATIONS' }, '*');
+    }
   }
 
   // Resize annotation canvas when window resizes
@@ -1392,6 +1412,47 @@ app.post('/api/native/preview-proxy-target', async (req, res) => {
   }
 });
 
+/** Kill any process listening on the given ports using lsof (macOS/Linux). */
+function killPortsSync(ports: Set<number>): void {
+  if (ports.size === 0 || process.platform === 'win32') return;
+  for (const port of ports) {
+    try {
+      const pids = execFileSync('lsof', ['-t', '-i', `tcp:${port}`], { encoding: 'utf8' })
+        .split('\n').map(s => s.trim()).filter(Boolean);
+      for (const pid of pids) {
+        try { process.kill(parseInt(pid, 10), 'SIGKILL'); } catch { /* already dead */ }
+      }
+      console.log(`[Agent] Killed processes on port ${port}: ${pids.join(', ') || 'none'}`);
+    } catch { /* lsof returns non-zero if no process found — ignore */ }
+  }
+}
+
+/** Synchronously kill all child processes tracked by the manager. */
+function killAllChildren(): void {
+  for (const child of manager['childProcesses'] as ChildProcess[]) {
+    if (!child.pid) continue;
+    try { process.kill(-child.pid, 'SIGKILL'); } catch {
+      try { child.kill('SIGKILL'); } catch { /* already dead */ }
+    }
+  }
+  manager['childProcesses'] = [];
+  killPortsSync(manager['trackedPorts'] as Set<number>);
+  (manager['trackedPorts'] as Set<number>).clear();
+}
+
+// Kill child processes when the local-agent process itself exits (covers app quit)
+process.on('exit', killAllChildren);
+process.on('SIGTERM', () => { killAllChildren(); process.exit(0); });
+process.on('SIGINT',  () => { killAllChildren(); process.exit(0); });
+
+let agentServer: http.Server | null = null;
+
+export function stopLocalAgent(): void {
+  killAllChildren();
+  agentServer?.close();
+  agentServer = null;
+}
+
 export function startLocalAgent(clientPath?: string): Promise<number> {
   // Serve the built Angular client if path provided
   if (clientPath) {
@@ -1406,11 +1467,10 @@ export function startLocalAgent(clientPath?: string): Promise<number> {
   }
 
   return new Promise((resolve) => {
-    const server = app.listen(AGENT_PORT, () => {
+    agentServer = app.listen(AGENT_PORT, () => {
       console.log(`[Local Agent] Listening on http://localhost:${AGENT_PORT}`);
       resolve(AGENT_PORT);
     });
-
   });
 }
 

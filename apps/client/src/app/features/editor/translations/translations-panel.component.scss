@@ -135,6 +135,18 @@
   font-size: 0.8rem;
   outline: none;
   box-sizing: border-box;
+
+  &--key {
+    font-family: monospace;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    border-color: var(--panel-border);
+
+    &:focus {
+      border-color: var(--accent-color);
+      color: var(--text-primary);
+    }
+  }
 }
 
 .edit-actions {
