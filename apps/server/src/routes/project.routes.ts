@@ -535,9 +535,14 @@ router.get('/:id', async (req: any, res) => {
     // Read files from disk
     let files: any = {};
     if (project.externalPath) {
-      // External project — read directly from external path
+      // External project — read source files only (skip images, fonts, binaries).
+      // This keeps the load fast while still giving the editor all the content it needs
+      // (.ts, .html, .json, etc.) for template editing, translation keys, and annotations.
+      console.log(`[Load Project] Reading external project files for ${project.externalPath}`);
+      const t0 = Date.now();
       try {
-        files = await projectFsService.readTree(project.externalPath);
+        files = await projectFsService.readTree(project.externalPath, true);
+        console.log(`[Load Project] External project read in ${Date.now() - t0}ms`);
       } catch (e) {
         console.warn(`[Load Project] Failed to read external path ${project.externalPath}:`, e);
       }
@@ -593,8 +598,9 @@ router.get('/:id', async (req: any, res) => {
             storedConfig = ext.selectedConfiguration;
           } catch { /* not JSON — old file data, ignore */ }
         }
+        const tDetect = Date.now();
         detectedConfig = await detectProjectConfig(project.externalPath, storedApp, storedConfig);
-      } catch (e) {
+        console.log(`[Load Project] detectProjectConfig took ${Date.now() - tDetect}ms`);      } catch (e) {
         console.warn(`[Load Project] Failed to detect config for ${project.externalPath}:`, e);
       }
     }

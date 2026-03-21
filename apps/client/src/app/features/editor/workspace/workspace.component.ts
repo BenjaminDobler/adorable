@@ -42,6 +42,7 @@ import { PreviewToolbarComponent } from './preview-toolbar/preview-toolbar.compo
 import { DebugOverlayComponent } from './debug-overlay/debug-overlay.component';
 import { ProjectSettingsComponent } from '../project-settings/project-settings.component';
 import { TranslationsPanelComponent } from '../translations/translations-panel.component';
+import { HMRTriggerService } from '../../../core/services/hmr-trigger.service';
 
 @Component({
   standalone: true,
@@ -76,6 +77,7 @@ export class WorkspaceComponent implements AfterViewChecked {
   private toastService = inject(ToastService);
   private screenshotService = inject(ScreenshotService);
   private templateService = inject(TemplateService);
+  private hmrTriggerService = inject(HMRTriggerService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
 
@@ -180,6 +182,16 @@ export class WorkspaceComponent implements AfterViewChecked {
   constructor() {
     this.fetchSettings();
 
+    // Reload preview (webview/undocked) on demand from HMRTriggerService
+    this.hmrTriggerService.reloadPreview$.subscribe(() => this.reloadIframe());
+
+    // Send RELOAD_TRANSLATIONS to the preview — runtime scripts try smart reload first,
+    // then fall back to window.location.reload() if no translation service is found.
+    this.hmrTriggerService.reloadTranslations$.subscribe(() => {
+      console.log('[Workspace] reloadTranslations$ → sendToPreview | webview:', !!this._webviewElement, '| undocked:', this.isPreviewUndocked());
+      this.sendToPreview({ type: 'RELOAD_TRANSLATIONS' });
+    });
+
     // Re-fetch settings when navigating back from profile
     this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd && event.url === '/dashboard') {
@@ -263,7 +275,7 @@ export class WorkspaceComponent implements AfterViewChecked {
 
     // Listen for events relayed from the preview shell (inspect, annotation, screenshot)
     if (electronAPI?.onPreviewEvent) {
-      electronAPI.onPreviewEvent((event: any) => {
+      electronAPI.onPreviewEvent(async (event: any) => {
         if (event.type === 'element-selected') {
           this.visualEditorData.set(event.payload);
         }
@@ -279,7 +291,7 @@ export class WorkspaceComponent implements AfterViewChecked {
             classes: payload.classes,
             id: payload.attributes?.id,
           };
-          const result = this.templateService.findAndModify(fingerprint, {
+          const result = await this.templateService.findAndModify(fingerprint, {
             type: 'text',
             value: payload.newText,
           });
@@ -383,7 +395,7 @@ export class WorkspaceComponent implements AfterViewChecked {
   }
 
   /** Handles a message from the preview (either via webview bridge or iframe postMessage). */
-  private handlePreviewMessage(data: any) {
+  private async handlePreviewMessage(data: any) {
     if (data.type === 'ELEMENT_SELECTED') {
       this.visualEditorData.set(data.payload);
     }
@@ -401,7 +413,7 @@ export class WorkspaceComponent implements AfterViewChecked {
         id: payload.attributes?.id,
       };
 
-      const result = this.templateService.findAndModify(fingerprint, {
+      const result = await this.templateService.findAndModify(fingerprint, {
         type: 'text',
         value: payload.newText,
       });
@@ -409,27 +421,35 @@ export class WorkspaceComponent implements AfterViewChecked {
       if (result.success) {
         this.projectService.fileStore.updateFile(result.path, result.content);
         this.containerEngine.writeFile(result.path, result.content);
-        const isTranslation = result.path.endsWith('.json');
+        const isTranslation = result.path.endsWith('.json') || result.path.endsWith('.jsonc');
         const msg = isTranslation
           ? `Translation updated in ${result.path.split('/').pop()}`
           : result.isInsideLoop ? 'Text updated (all instances in loop affected)' : 'Text updated';
         this.toastService.show(msg, isTranslation ? 'info' : result.isInsideLoop ? 'info' : 'success');
+        if (isTranslation) {
+          this.hmrTriggerService.reloadTranslations();
+        }
       } else {
         this.toastService.show('Failed to update text: ' + result.error, 'error');
       }
     }
   }
 
-  /** Send a message to the preview, handling both webview (desktop) and iframe (cloud). */
+  /** Send a message to the preview, handling webview, undocked window, and iframe (cloud). */
   private sendToPreview(data: any) {
     if (this._webviewElement) {
-      // Use executeJavaScript to dispatch directly into the page context.
-      // This is more reliable than .send() + preload because it doesn't
-      // depend on the preload being loaded or IPC channels working.
+      // Docked webview — use executeJavaScript to dispatch directly into the page context.
       const tagged = { ...data, __fromHost: true };
       const js = `window.postMessage(${JSON.stringify(tagged)}, '*')`;
-      this._webviewElement.executeJavaScript(js).catch(() => {});
+      this._webviewElement.executeJavaScript(js)
+        .then(() => console.log('[Workspace] executeJavaScript resolved for', data.type))
+        .catch((e: any) => console.error('[Workspace] executeJavaScript FAILED for', data.type, e));
+    } else if (this.isPreviewUndocked()) {
+      // Undocked preview window — route via Electron IPC.
+      const electronAPI = (window as any).electronAPI;
+      electronAPI?.previewSendCommand(data);
     } else {
+      // Cloud iframe fallback.
       const iframe = document.querySelector('iframe');
       if (iframe?.contentWindow) {
         iframe.contentWindow.postMessage(data, '*');
@@ -471,7 +491,7 @@ export class WorkspaceComponent implements AfterViewChecked {
     }
   }
 
-  onGoToCode(fingerprint: ElementFingerprint) {
+  async onGoToCode(fingerprint: ElementFingerprint) {
     const location = this.templateService.findElementLocation(fingerprint);
     if (!location) {
       this.toastService.show('Could not locate element in source code', 'error');
@@ -482,8 +502,8 @@ export class WorkspaceComponent implements AfterViewChecked {
     this.activeTab.set('files');
 
     // Open the file in the editor
-    const content = this.projectService.fileStore.getFileContent(location.path);
-    if (content === null || content === undefined) {
+    const content = await this.projectService.getFileContent(location.path);
+    if (content === null) {
       this.toastService.show(`File not found: ${location.path}`, 'error');
       return;
     }
@@ -728,10 +748,12 @@ export class WorkspaceComponent implements AfterViewChecked {
     }
   }
 
-  onFileSelect(event: { name: string; path: string; content: string }) {
+  async onFileSelect(event: { name: string; path: string; content: string }) {
     this.selectedFileName.set(event.name);
     this.selectedFilePath.set(event.path);
-    this.selectedFileContent.set(event.content);
+    // For external projects, content may be empty (structure-only). Fetch on demand.
+    const content = event.content || await this.projectService.getFileContent(event.path) || '';
+    this.selectedFileContent.set(content);
   }
 
   async onFileAction(action: FileAction) {
@@ -763,7 +785,7 @@ export class WorkspaceComponent implements AfterViewChecked {
       case 'rename':
         if (action.newPath) {
           const content =
-            this.projectService.fileStore.getFileContent(action.path) || '';
+            await this.projectService.getFileContent(action.path) || '';
           this.projectService.fileStore.renameFile(action.path, action.newPath);
           try {
             await this.containerEngine.writeFile(action.newPath, content);

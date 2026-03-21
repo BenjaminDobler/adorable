@@ -138,20 +138,18 @@ export class ProjectService {
   async loadProject(id: string) {
     // Bump epoch so any in-flight loadProject/reloadPreview from a previous call bails out
     const epoch = ++this._loadEpoch;
-    console.log('load project 1');
+    const _tLoad = Date.now();
 
     // Cancel any active AI generation before switching projects
     // This prevents SSE events from the old project bleeding into the new one
     const sameProject =
       this.projectId() === id && this.containerEngine.url();
-    console.log('load project 2');
 
     if (!sameProject) {
       this.projectSwitching$.next();
       // Pause HMR to prevent buffered file updates from bleeding across projects
       this.hmrTrigger.pause();
     }
-    console.log('load project 3');
 
     this.loading.set(true);
     const stopPromise = sameProject
@@ -161,15 +159,12 @@ export class ProjectService {
           new Promise((resolve) => setTimeout(resolve, 5000)),
         ]);
 
-    console.log('load project 4');
-
     try {
       // Start API fetch (and server stop if needed) IN PARALLEL
       const [_, project] = await Promise.all([
         stopPromise,
         this.apiService.loadProject(id).toPromise(),
       ]);
-      console.log('load project 5');
 
       // Another loadProject was called while we were waiting — abort
       if (this._loadEpoch !== epoch) return;
@@ -187,9 +182,6 @@ export class ProjectService {
       this.selectedKitId.set(project.selectedKitId || null);
       this.externalPath.set(project.externalPath || null);
       this.detectedConfig.set(project.detectedConfig || null);
-      if (project.externalPath) {
-        console.log('[ProjectService] External project:', project.externalPath);
-      }
 
       if (project.messages) {
         this.messages.set(
@@ -211,6 +203,7 @@ export class ProjectService {
 
       // skipStop=true if we already stopped above; false if same project (let reloadPreview fast-path handle it)
       await this.reloadPreview(project.files, undefined, !sameProject, epoch);
+      console.log(`[loadProject] DONE — total time: ${Date.now() - _tLoad}ms`);
       // Resume HMR after new project files are loaded
       this.hmrTrigger.resume();
     } catch (err) {
@@ -537,7 +530,6 @@ export class ProjectService {
       const extPath = this.externalPath();
 
       // External project: skip mount/clean — files already live on disk
-      console.log('[reloadPreview] externalPath:', extPath, '| projectId:', this.projectId());
       if (extPath) {
         // Set files in the store for the editor UI
         if (files && Object.keys(files).length > 0) {
@@ -573,7 +565,6 @@ export class ProjectService {
           const entries = await this.containerEngine.readdir('node_modules');
           if (entries && entries.length > 0) {
             skipInstall = true;
-            console.log('[reloadPreview] node_modules exists, skipping install');
           }
         } catch {
           // node_modules doesn't exist or readdir failed — need to install
@@ -637,8 +628,22 @@ export class ProjectService {
         if (isStale()) return;
 
         const kitCommands = this.currentKit()?.commands;
-        const exitCode = await this.containerEngine.runInstall(kitCommands?.install);
-        if (isStale()) return;
+
+        // Skip install if node_modules already exists — saves significant time on repeat opens.
+        let skipInstallLocal = false;
+        try {
+          const entries = await this.containerEngine.readdir('node_modules');
+          if (entries && entries.length > 0) {
+            skipInstallLocal = true;
+            console.log('[reloadPreview] node_modules exists, skipping install');
+          }
+        } catch { /* node_modules absent — need to install */ }
+
+        let exitCode = 0;
+        if (!skipInstallLocal) {
+          exitCode = await this.containerEngine.runInstall(kitCommands?.install);
+          if (isStale()) return;
+        }
 
         if (exitCode === 0) {
           this.containerEngine.startDevServer(kitCommands);
@@ -686,6 +691,33 @@ export class ProjectService {
         await this.reloadPreview(this.files(), template);
       }
     }
+  }
+
+  /**
+   * Fetch a file's content from disk via the container engine and populate it in the store.
+   * Used for external projects where the store is loaded with structure-only (empty contents).
+   * Returns the content, or null if the fetch fails.
+   */
+  async readFileIntoStore(filePath: string): Promise<string | null> {
+    try {
+      const content = await this.containerEngine.readFile(filePath);
+      this.fileStore.updateFile(filePath, content);
+      return content;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get file content from the store, fetching from disk if not yet loaded (structure-only mode).
+   * Returns null if the file doesn't exist in the store at all.
+   */
+  async getFileContent(filePath: string): Promise<string | null> {
+    const stored = this.fileStore.getFileContent(filePath);
+    if (stored === null) return null; // file not in store
+    if (stored !== '') return stored; // already loaded
+    // Empty string means structure-only placeholder — fetch from disk
+    return this.readFileIntoStore(filePath);
   }
 
   // Helpers

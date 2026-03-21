@@ -5,6 +5,7 @@ import { BINARY_EXTENSIONS } from '@adorable/shared-types';
 
 const EXCLUDED_DIRS = new Set(['node_modules', '.git', '.angular', 'dist', '.cache', 'tmp', '.nx', '.adorable']);
 
+
 export class ProjectFsService {
   /**
    * Get the filesystem path for a project.
@@ -81,7 +82,7 @@ export class ProjectFsService {
     return this.readTree(projectPath);
   }
 
-  async readTree(dirPath: string): Promise<any> {
+  async readTree(dirPath: string, structureOnly = false): Promise<any> {
     const result: any = {};
     let entries;
     try {
@@ -90,30 +91,47 @@ export class ProjectFsService {
       return result;
     }
 
+    const fileReads: Promise<void>[] = [];
+    const dirReads: Promise<void>[] = [];
+
     for (const entry of entries) {
       if (EXCLUDED_DIRS.has(entry.name) || entry.name === '.DS_Store' || entry.name === '.adorable-settings.json') continue;
 
       const fullPath = path.join(dirPath, entry.name);
 
       if (entry.isDirectory()) {
-        result[entry.name] = {
-          directory: await this.readTree(fullPath)
-        };
+        const name = entry.name;
+        dirReads.push(
+          this.readTree(fullPath, structureOnly).then(sub => {
+            result[name] = { directory: sub };
+          })
+        );
       } else if (entry.isFile()) {
-        const ext = path.extname(entry.name).toLowerCase();
-        if (BINARY_EXTENSIONS.has(ext)) {
-          const buffer = await fs.readFile(fullPath);
-          result[entry.name] = {
-            file: { contents: buffer.toString('base64'), encoding: 'base64' }
-          };
+        const name = entry.name;
+        if (structureOnly) {
+          // Structure-only mode (external projects): record file existence without reading contents.
+          // File contents are fetched on-demand via /api/native/read-file when the user opens them.
+          result[name] = { file: { contents: '' } };
         } else {
-          const contents = await fs.readFile(fullPath, 'utf-8');
-          result[entry.name] = {
-            file: { contents }
-          };
+          const ext = path.extname(name).toLowerCase();
+          if (BINARY_EXTENSIONS.has(ext)) {
+            fileReads.push(
+              fs.readFile(fullPath).then(buffer => {
+                result[name] = { file: { contents: buffer.toString('base64'), encoding: 'base64' } };
+              })
+            );
+          } else {
+            fileReads.push(
+              fs.readFile(fullPath, 'utf-8').then(contents => {
+                result[name] = { file: { contents } };
+              })
+            );
+          }
         }
       }
     }
+
+    await Promise.all([...fileReads, ...dirReads]);
 
     return result;
   }

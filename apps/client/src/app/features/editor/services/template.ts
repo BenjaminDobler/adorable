@@ -60,11 +60,17 @@ export interface ElementLocation {
 export class TemplateService {
   private projectService = inject(ProjectService);
 
-  findAndModify(fingerprint: ElementFingerprint, modification: { type: 'text' | 'style' | 'class', value: string, property?: string }): ModificationResult {
+  async findAndModify(fingerprint: ElementFingerprint, modification: { type: 'text' | 'style' | 'class', value: string, property?: string }): Promise<ModificationResult> {
     const files = this.projectService.files();
     console.log('[TemplateService] findAndModify called with fingerprint:', fingerprint);
     console.log('[TemplateService] Files loaded:', !!files, files ? Object.keys(files) : []);
     if (!files) return { content: '', path: '', success: false, error: 'No files loaded' };
+
+    // For external projects loaded in structure-only mode, ensure the annotated file
+    // content is in the store before attempting any modification.
+    if (fingerprint.ongAnnotation?.file) {
+      await this.projectService.getFileContent(fingerprint.ongAnnotation.file);
+    }
 
     // Translation path: if the text comes from a translate pipe, edit the JSON file instead
     if (modification.type === 'text' && fingerprint.ongAnnotation) {
@@ -295,7 +301,7 @@ export class TemplateService {
     modification: { type: 'text' | 'style' | 'class'; value: string; property?: string },
   ): ModificationResult | null {
     const ann = fingerprint.ongAnnotation!;
-    console.log(`[TemplateService] ong fast path: ${ann.file}:${ann.line}:${ann.col}`);
+    console.log(`[TemplateService] ong fast path: ${ann.file}:${ann.line}:${ann.col} | top-level keys: ${Object.keys(files).slice(0, 10).join(', ')}`);
 
     // Check if the file is a .ts file (inline template) or .html (external template)
     const isInline = ann.file.endsWith('.ts');
@@ -864,13 +870,26 @@ export class TemplateService {
   }
 
   /**
-   * Finds translation JSON files by scanning common i18n directory locations.
+   * Finds translation JSON/JSONC files by scanning common i18n directory locations.
+   * Scoped to the selected Nx app when applicable.
    */
   private findTranslationJsonFiles(files: any): Array<{ path: string; content: string }> {
     const results: Array<{ path: string; content: string }> = [];
 
-    // Collect all JSON files from common i18n directories
-    const i18nDirs = this.findI18nDirectories(files);
+    const detectedConfig = this.projectService.detectedConfig();
+    const selectedApp: string | null = detectedConfig?.selectedApp ?? null;
+
+    let searchRoot = files;
+    let pathPrefix = '';
+    if (selectedApp && selectedApp !== '.') {
+      const appNode = this.getDirectoryNode(files, selectedApp);
+      if (appNode) {
+        searchRoot = appNode;
+        pathPrefix = selectedApp + '/';
+      }
+    }
+
+    const i18nDirs = this.findI18nDirectories(searchRoot).map((d: string) => pathPrefix + d);
 
     for (const dir of i18nDirs) {
       const dirNode = this.getDirectoryNode(files, dir);
@@ -878,8 +897,10 @@ export class TemplateService {
 
       for (const key in dirNode) {
         const node = dirNode[key];
-        if (node.file && key.endsWith('.json')) {
-          results.push({ path: `${dir}/${key}`, content: node.file.contents });
+        if (node.file && (key.endsWith('.json') || key.endsWith('.jsonc'))) {
+          // Strip single-line comments for JSONC support
+          const content = node.file.contents.replace(/\/\/[^\n]*/g, '');
+          results.push({ path: `${dir}/${key}`, content });
         }
       }
     }
