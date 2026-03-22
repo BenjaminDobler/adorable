@@ -85,12 +85,11 @@ export const RUNTIME_SCRIPTS = `
         overlay = document.createElement('div');
         overlay.id = 'inspector-overlay';
         overlay.style.position = 'fixed';
-        overlay.style.border = '2px solid #3ecf8e'; // Angular Green
-        overlay.style.backgroundColor = 'rgba(62, 207, 142, 0.2)';
+        overlay.style.border = '1px solid #2196F3';
+        overlay.style.backgroundColor = 'transparent';
         overlay.style.zIndex = '999999';
         overlay.style.pointerEvents = 'none';
         overlay.style.display = 'none';
-        overlay.style.transition = 'all 0.1s ease';
         document.body.appendChild(overlay);
       }
 
@@ -99,12 +98,11 @@ export const RUNTIME_SCRIPTS = `
         selectionOverlay = document.createElement('div');
         selectionOverlay.id = 'inspector-selection';
         selectionOverlay.style.position = 'fixed';
-        selectionOverlay.style.border = '2px solid #3ecf8e';
-        selectionOverlay.style.backgroundColor = 'rgba(62, 207, 142, 0.1)';
+        selectionOverlay.style.border = '2px solid #2196F3';
+        selectionOverlay.style.backgroundColor = 'transparent';
         selectionOverlay.style.zIndex = '999998';
         selectionOverlay.style.pointerEvents = 'none';
         selectionOverlay.style.display = 'none';
-        selectionOverlay.style.boxShadow = '0 0 0 4px rgba(62, 207, 142, 0.2)';
         document.body.appendChild(selectionOverlay);
 
         // Add a label to show element info
@@ -113,8 +111,8 @@ export const RUNTIME_SCRIPTS = `
         label.style.position = 'absolute';
         label.style.top = '-24px';
         label.style.left = '0';
-        label.style.background = '#3ecf8e';
-        label.style.color = '#000';
+        label.style.background = '#2196F3';
+        label.style.color = '#fff';
         label.style.padding = '2px 8px';
         label.style.fontSize = '11px';
         label.style.fontFamily = 'monospace';
