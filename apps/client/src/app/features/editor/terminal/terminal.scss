@@ -12,11 +12,10 @@
   flex-direction: column;
   background: #000;
   min-height: 0;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--panel-border);
+  border-radius: 0;
+  border: none;
   overflow: hidden;
-  margin: 0 1rem 1rem 1rem;
-  box-shadow: var(--shadow-lg);
+  margin: 0;
 
   .terminal-header {
     padding: 0.5rem 1rem;

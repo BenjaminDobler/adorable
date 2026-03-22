@@ -13,6 +13,7 @@
   }
 
   &.fullscreen {
+    .side-nav,
     .sidebar,
     .resizer-sidebar,
     .editor-frame-container,
@@ -213,44 +214,50 @@
   background: var(--bg-surface-1);
 }
 
-.tab-bar {
+.side-nav {
   display: flex;
-  padding: 0 1.25rem;
-  border-bottom: 1px solid var(--panel-border);
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 0;
+  gap: 0.25rem;
   background: var(--bg-surface-1);
-  gap: 0.5rem;
-  overflow: hidden;
+  border-right: 1px solid var(--panel-border);
+  flex-shrink: 0;
+  width: 48px;
 
-  .tab-btn {
-    background: transparent;
+  .nav-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
     border: none;
-    padding: 0.875rem 0.75rem;
+    background: transparent;
     color: var(--text-secondary);
-    font-size: 0.85rem;
-    font-weight: 500;
     cursor: pointer;
-    position: relative;
     transition: all 0.2s;
-
-    &::after {
-      content: '';
-      position: absolute;
-      bottom: -1px;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: var(--accent-color);
-      transform: scaleX(0);
-      transition: transform 0.2s ease;
-    }
+    position: relative;
 
     &:hover {
       color: var(--text-primary);
+      background: var(--bg-surface-2);
     }
+
     &.active {
-      color: var(--text-primary);
-      &::after {
-        transform: scaleX(1);
+      color: var(--accent-color);
+      background: var(--bg-surface-2);
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: -6px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 16px;
+        border-radius: 0 2px 2px 0;
+        background: var(--accent-color);
       }
     }
   }

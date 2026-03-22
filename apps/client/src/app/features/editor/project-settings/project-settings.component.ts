@@ -1,4 +1,4 @@
-import { Component, inject, signal, output } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ContainerEngine } from '../../../core/services/container-engine';
@@ -11,13 +11,7 @@ import { ToastService } from '../../../core/services/toast';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="settings-backdrop" (click)="close.emit()"></div>
-    <div class="settings-dialog">
-      <div class="settings-header">
-        <h3>Project Settings</h3>
-        <button class="close-btn" (click)="close.emit()">&times;</button>
-      </div>
-
+    <div class="settings-panel">
       <div class="settings-body">
         <section>
           <h4>
@@ -121,7 +115,6 @@ import { ToastService } from '../../../core/services/toast';
       </div>
 
       <div class="settings-footer">
-        <button class="btn-cancel" (click)="close.emit()">Cancel</button>
         <button class="btn-save" (click)="save()" [disabled]="saving()">
           {{ saving() ? 'Saving...' : 'Save & Reload Preview' }}
         </button>
@@ -129,47 +122,22 @@ import { ToastService } from '../../../core/services/toast';
     </div>
   `,
   styles: [`
-    .settings-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.5);
-      z-index: 10000;
-    }
-    .settings-dialog {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 10001;
-      background: var(--bg-surface-2, #1a1a1f);
-      border: 1px solid var(--panel-border, rgba(255,255,255,0.06));
-      border-radius: 16px;
-      width: 560px;
-      max-height: 80vh;
+    :host {
       display: flex;
       flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      background: var(--bg-surface-1);
+    }
+    .settings-panel {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
       color: var(--text-primary, #f0f0f2);
     }
-    .settings-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 1.25rem 1.5rem;
-      border-bottom: 1px solid var(--panel-border, rgba(255,255,255,0.06));
-      h3 { margin: 0; font-size: 1.125rem; }
-    }
-    .close-btn {
-      background: none;
-      border: none;
-      color: var(--text-muted, #55555f);
-      font-size: 1.5rem;
-      cursor: pointer;
-      padding: 0;
-      line-height: 1;
-      &:hover { color: var(--text-primary, #f0f0f2); }
-    }
     .settings-body {
-      padding: 1.25rem 1.5rem;
+      padding: 1.25rem;
       overflow-y: auto;
       flex: 1;
       min-height: 0;
@@ -205,7 +173,7 @@ import { ToastService } from '../../../core/services/toast';
     .kv-key, .kv-value {
       flex: 1;
       padding: 0.5rem 0.75rem;
-      background: var(--bg-surface-1, #111114);
+      background: var(--bg-surface-2, #1a1a1f);
       border: 1px solid var(--panel-border, rgba(255,255,255,0.06));
       border-radius: 6px;
       color: var(--text-primary, #f0f0f2);
@@ -235,7 +203,7 @@ import { ToastService } from '../../../core/services/toast';
     .port-input {
       width: 120px;
       padding: 0.5rem 0.75rem;
-      background: var(--bg-surface-1, #111114);
+      background: var(--bg-surface-2, #1a1a1f);
       border: 1px solid var(--panel-border, rgba(255,255,255,0.06));
       border-radius: 6px;
       color: var(--text-primary, #f0f0f2);
@@ -264,22 +232,11 @@ import { ToastService } from '../../../core/services/toast';
       }
     }
     .settings-footer {
-      display: flex;
-      justify-content: flex-end;
-      gap: 0.5rem;
-      padding: 1rem 1.5rem;
+      padding: 1rem 1.25rem;
       border-top: 1px solid var(--panel-border, rgba(255,255,255,0.06));
     }
-    .btn-cancel {
-      padding: 0.5rem 1rem;
-      background: none;
-      border: 1px solid var(--panel-border, rgba(255,255,255,0.06));
-      border-radius: 8px;
-      color: var(--text-secondary, #8a8a95);
-      cursor: pointer;
-      &:hover { background: var(--bg-surface-3, #222228); }
-    }
     .btn-save {
+      width: 100%;
       padding: 0.5rem 1.25rem;
       background: var(--accent-color, #34d399);
       border: none;
@@ -296,8 +253,6 @@ export class ProjectSettingsComponent {
   private containerEngine = inject(ContainerEngine);
   private projectService = inject(ProjectService);
   private toastService = inject(ToastService);
-
-  close = output();
 
   localStorageEntries = signal<{ key: string; value: string }[]>([]);
   cookieEntries = signal<{ key: string; value: string }[]>([]);
@@ -379,7 +334,6 @@ export class ProjectSettingsComponent {
       if (portChanged) {
         // Port changed — restart the dev server so it binds to the new port
         this.toastService.show('Port changed. Restarting dev server...', 'info');
-        this.close.emit();
         this.projectService.reloadPreview(this.projectService.files());
       } else {
         this.toastService.show('Settings saved. Reloading preview...', 'success');
@@ -388,7 +342,6 @@ export class ProjectSettingsComponent {
           const iframe = document.querySelector('iframe') as HTMLIFrameElement;
           if (iframe?.contentWindow) iframe.contentWindow.location.reload();
         }, 300);
-        this.close.emit();
       }
     } catch (e: any) {
       this.toastService.show('Failed to save settings', 'error');

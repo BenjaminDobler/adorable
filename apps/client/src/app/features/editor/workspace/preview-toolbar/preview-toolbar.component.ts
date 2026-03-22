@@ -21,6 +21,5 @@ export class PreviewToolbarComponent {
   fullscreenToggled = output<void>();
   reload = output<void>();
   undockToggled = output<void>();
-  settingsRequested = output<void>();
   devtoolsRequested = output<void>();
 }

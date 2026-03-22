@@ -112,7 +112,7 @@ export class WorkspaceComponent implements AfterViewChecked {
   @ViewChild(EditorComponent) editorComponent?: EditorComponent;
   @ViewChild(FigmaPanelComponent) figmaPanel?: FigmaPanelComponent;
 
-  activeTab = signal<'chat' | 'terminal' | 'files' | 'figma' | 'versions' | 'insights' | 'translations'>(
+  activeTab = signal<'chat' | 'terminal' | 'files' | 'figma' | 'versions' | 'insights' | 'translations' | 'settings'>(
     'chat',
   );
 
