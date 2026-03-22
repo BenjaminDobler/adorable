@@ -499,9 +499,13 @@ export class ProjectService {
           await new Promise((resolve) => setTimeout(resolve, 0));
           if (isStale()) return;
 
-          const tree = this.prepareFilesForMount(mergedFiles);
-          await this.containerEngine.mount(tree);
-          if (isStale()) return;
+          // External projects: files already live on disk, skip mount to avoid
+          // overwriting real files with lazy-loaded empty stubs
+          if (!this.externalPath()) {
+            const tree = this.prepareFilesForMount(mergedFiles);
+            await this.containerEngine.mount(tree);
+            if (isStale()) return;
+          }
 
           return; // Angular HMR picks up the file changes
         } catch (err) {

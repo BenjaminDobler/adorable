@@ -61,7 +61,7 @@ export class TemplateService {
   private projectService = inject(ProjectService);
 
   async findAndModify(fingerprint: ElementFingerprint, modification: { type: 'text' | 'style' | 'class', value: string, property?: string }): Promise<ModificationResult> {
-    const files = this.projectService.files();
+    let files = this.projectService.files();
     console.log('[TemplateService] findAndModify called with fingerprint:', fingerprint);
     console.log('[TemplateService] Files loaded:', !!files, files ? Object.keys(files) : []);
     if (!files) return { content: '', path: '', success: false, error: 'No files loaded' };
@@ -70,6 +70,13 @@ export class TemplateService {
     // content is in the store before attempting any modification.
     if (fingerprint.ongAnnotation?.file) {
       await this.projectService.getFileContent(fingerprint.ongAnnotation.file);
+      // Also load the .ts file if different (needed for inline template resolution)
+      if (fingerprint.ongAnnotation.tsFile && fingerprint.ongAnnotation.tsFile !== fingerprint.ongAnnotation.file) {
+        await this.projectService.getFileContent(fingerprint.ongAnnotation.tsFile);
+      }
+      // Re-read files after lazy load — the store has a new snapshot now
+      files = this.projectService.files();
+      if (!files) return { content: '', path: '', success: false, error: 'No files loaded' };
     }
 
     // Translation path: if the text comes from a translate pipe, edit the JSON file instead
