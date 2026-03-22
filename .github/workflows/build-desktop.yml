@@ -40,14 +40,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Python 3.11 (has distutils needed by node-gyp)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies (skip postinstall to control Python for node-gyp)
+        run: npm install --ignore-scripts
+
+      - name: Rebuild native modules for Electron
+        run: npx @electron/rebuild -f -o better-sqlite3
 
       - name: Set app version
         run: |
@@ -96,14 +104,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Python 3.11 (has distutils needed by node-gyp)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies (skip postinstall to control Python for node-gyp)
+        run: npm install --ignore-scripts
+
+      - name: Rebuild native modules for Electron
+        run: npx @electron/rebuild -f -o better-sqlite3
 
       - name: Set app version
         run: |
@@ -126,14 +142,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Python 3.11 (has distutils needed by node-gyp)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies (skip postinstall to control Python for node-gyp)
+        run: npm install --ignore-scripts
+
+      - name: Rebuild native modules for Electron
+        run: npx @electron/rebuild -f -o better-sqlite3
 
       - name: Set app version
         run: |
