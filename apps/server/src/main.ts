@@ -13,6 +13,7 @@ import { prisma } from './db/prisma';
 import { authRouter } from './routes/auth.routes';
 import { projectRouter } from './routes/project.routes';
 import { aiRouter } from './routes/ai.routes';
+import { contextPreviewRouter } from './routes/context-preview.routes';
 import { containerRouter } from './routes/container.routes';
 import { profileRouter } from './routes/profile.routes';
 import { skillsRouter } from './routes/skills.routes';
@@ -134,6 +135,7 @@ app.use('/api/projects', projectRouter);
 app.use('/api/github', githubRouter);  // Must be before aiRouter (which has global auth)
 app.use('/api/webhooks', webhooksRouter);  // Webhooks also don't need auth
 app.use('/api', aiRouter);
+app.use('/api/context-preview', contextPreviewRouter);
 app.use('/api/container', containerRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/skills', skillsRouter);
