@@ -1,0 +1,75 @@
+<div class="modal-backdrop" (click)="closed.emit()">
+  <div class="modal" (click)="$event.stopPropagation()">
+
+    <div class="modal-header">
+      <div class="modal-title">
+        <span>Context Preview</span>
+        <span class="total-tokens">{{ formatTokens(data().estimatedTokens.total) }} tokens estimated</span>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-copy-all" (click)="copyAll()">Copy All</button>
+        <button class="btn-close" (click)="closed.emit()">✕</button>
+      </div>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- System Prompt -->
+      <div class="section">
+        <div class="section-header" (click)="toggle('systemPrompt')">
+          <span class="section-toggle">{{ isCollapsed('systemPrompt') ? '▶' : '▼' }}</span>
+          <span class="section-title">System Prompt</span>
+          <span class="section-tokens">{{ formatTokens(data().estimatedTokens.systemPrompt) }} tokens</span>
+          <button class="btn-copy-section" (click)="copySection(data().systemPrompt); $event.stopPropagation()">Copy</button>
+        </div>
+        @if (!isCollapsed('systemPrompt')) {
+          <pre class="section-content">{{ data().systemPrompt }}</pre>
+        }
+      </div>
+
+      <!-- Knowledge Base -->
+      <div class="section">
+        <div class="section-header" (click)="toggle('knowledgeBase')">
+          <span class="section-toggle">{{ isCollapsed('knowledgeBase') ? '▶' : '▼' }}</span>
+          <span class="section-title">Knowledge Base</span>
+          <span class="section-tokens">{{ formatTokens(data().estimatedTokens.knowledgeBase) }} tokens</span>
+          <button class="btn-copy-section" (click)="copySection(data().knowledgeBase); $event.stopPropagation()">Copy</button>
+        </div>
+        @if (!isCollapsed('knowledgeBase')) {
+          <pre class="section-content">{{ data().knowledgeBase }}</pre>
+        }
+      </div>
+
+      <!-- User Message -->
+      <div class="section">
+        <div class="section-header" (click)="toggle('userMessage')">
+          <span class="section-toggle">{{ isCollapsed('userMessage') ? '▶' : '▼' }}</span>
+          <span class="section-title">User Message</span>
+          <span class="section-tokens">{{ formatTokens(data().estimatedTokens.userMessage) }} tokens</span>
+          <button class="btn-copy-section" (click)="copySection(data().userMessage); $event.stopPropagation()">Copy</button>
+        </div>
+        @if (!isCollapsed('userMessage')) {
+          <pre class="section-content">{{ data().userMessage }}</pre>
+        }
+      </div>
+
+      <!-- History -->
+      @if (data().history.length > 0 || data().contextSummary) {
+        <div class="section">
+          <div class="section-header" (click)="toggle('history')">
+            <span class="section-toggle">{{ isCollapsed('history') ? '▶' : '▼' }}</span>
+            <span class="section-title">
+              History ({{ data().history.length }} turn{{ data().history.length !== 1 ? 's' : '' }}{{ data().contextSummary ? ' + summary' : '' }})
+            </span>
+            <span class="section-tokens">{{ formatTokens(data().estimatedTokens.history) }} tokens</span>
+            <button class="btn-copy-section" (click)="copySection(historyText()); $event.stopPropagation()">Copy</button>
+          </div>
+          @if (!isCollapsed('history')) {
+            <pre class="section-content">{{ historyText() }}</pre>
+          }
+        </div>
+      }
+
+    </div>
+  </div>
+</div>
