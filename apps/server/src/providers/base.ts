@@ -1061,11 +1061,17 @@ Only proceed with implementation after receiving the user's answers.`;
     return map;
   }
 
+  private static TREE_SKIP_DIRS = new Set([
+    'node_modules', 'dist', '.angular', '.cache', '.git', '.adorable',
+    '.nx', 'coverage', '.nyc_output', 'tmp', '.tmp', '__pycache__', '.tox',
+  ]);
+
   protected generateTreeSummary(structure: any, prefix = ''): string {
     let summary = '';
     const entries = Object.entries(structure).sort((a, b) => a[0].localeCompare(b[0]));
 
     for (const [key, node] of entries) {
+      if ((node as any).directory && BaseLLMProvider.TREE_SKIP_DIRS.has(key)) continue;
       const path = prefix + key;
       if ((node as any).file) {
         summary += `${path}\n`;
