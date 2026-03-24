@@ -380,10 +380,7 @@ export class ApiService {
     history?: { role: string; text: string }[],
     contextSummary?: string
   }): Observable<any> {
-    const token = localStorage.getItem('adorable_token');
-    return this.http.post(`${this.apiUrl}/context-preview`, { prompt, previousFiles, ...options }, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    return this.http.post(`${this.apiUrl}/context-preview`, { prompt, previousFiles, ...options });
   }
 
   // Fetch metadata for multiple components
