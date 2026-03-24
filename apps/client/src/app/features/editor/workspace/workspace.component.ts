@@ -187,9 +187,9 @@ export class WorkspaceComponent implements AfterViewChecked {
 
     // Send RELOAD_TRANSLATIONS to the preview — runtime scripts try smart reload first,
     // then fall back to window.location.reload() if no translation service is found.
-    this.hmrTriggerService.reloadTranslations$.subscribe(() => {
+    this.hmrTriggerService.reloadTranslations$.subscribe(({ content }) => {
       console.log('[Workspace] reloadTranslations$ → sendToPreview | webview:', !!this._webviewElement, '| undocked:', this.isPreviewUndocked());
-      this.sendToPreview({ type: 'RELOAD_TRANSLATIONS' });
+      this.sendToPreview({ type: 'RELOAD_TRANSLATIONS', content });
     });
 
     // Re-fetch settings when navigating back from profile
@@ -420,14 +420,14 @@ export class WorkspaceComponent implements AfterViewChecked {
 
       if (result.success) {
         this.projectService.fileStore.updateFile(result.path, result.content);
-        this.containerEngine.writeFile(result.path, result.content);
+        await this.containerEngine.writeFile(result.path, result.content);
         const isTranslation = result.path.endsWith('.json') || result.path.endsWith('.jsonc');
         const msg = isTranslation
           ? `Translation updated in ${result.path.split('/').pop()}`
           : result.isInsideLoop ? 'Text updated (all instances in loop affected)' : 'Text updated';
         this.toastService.show(msg, isTranslation ? 'info' : result.isInsideLoop ? 'info' : 'success');
         if (isTranslation) {
-          this.hmrTriggerService.reloadTranslations();
+          this.hmrTriggerService.reloadTranslations(result.content);
         }
       } else {
         this.toastService.show('Failed to update text: ' + result.error, 'error');

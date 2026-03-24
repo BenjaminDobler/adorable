@@ -14,7 +14,7 @@ export class HMRTriggerService {
    * The workspace component subscribes and calls sendToPreview() which handles
    * both the docked webview (via executeJavaScript) and iframe cases.
    */
-  readonly reloadTranslations$ = new Subject<void>();
+  readonly reloadTranslations$ = new Subject<{ content: string | null }>();
 
   triggerUpdate(_path: string, _content: string): void {}
   pause(): void {}
@@ -26,10 +26,11 @@ export class HMRTriggerService {
 
   /**
    * Ask the preview to reload translations via Angular's injector (no full page reload).
+   * Passes the new translation content directly to avoid HTTP cache issues.
    * Falls back to window.location.reload() inside the preview if no translation service found.
    */
-  reloadTranslations(): void {
+  reloadTranslations(content?: string): void {
     console.log('[HMR] reloadTranslations called, subscribers:', this.reloadTranslations$.observers?.length ?? '?');
-    this.reloadTranslations$.next();
+    this.reloadTranslations$.next({ content: content ?? null });
   }
 }

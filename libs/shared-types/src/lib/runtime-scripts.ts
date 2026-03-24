@@ -247,8 +247,31 @@ export const RUNTIME_SCRIPTS = `
         if (event.data.type === 'RELOAD_TRANSLATIONS') {
           console.log('[adorable] RELOAD_TRANSLATIONS received');
           let reloaded = false;
+          // The host passes the new translation content directly in the message,
+          // so we can use setTranslation() instead of reloadLang() to avoid HTTP caching.
+          var translationContent = event.data.content || null;
+          var parsedTranslations = null;
+          if (translationContent) {
+            try { parsedTranslations = JSON.parse(translationContent); } catch(e) {}
+          }
           try {
             const ng = window.ng;
+
+            // Force change detection on all root Angular components.
+            function forceChangeDetection() {
+              if (!window.ng) return;
+              try {
+                var seen = new WeakSet();
+                function forceCD(el) {
+                  try {
+                    var c = ng.getComponent(el);
+                    if (c && !seen.has(c)) { seen.add(c); ng.applyChanges(c); }
+                  } catch(e) {}
+                }
+                document.querySelectorAll('[ng-version]').forEach(forceCD);
+                Array.from(document.body.children).forEach(forceCD);
+              } catch(e) {}
+            }
 
             // Duck-type check and invoke a translation service instance.
             function tryReloadService(svc) {
@@ -259,33 +282,22 @@ export const RUNTIME_SCRIPTS = `
                 return true;
               }
               // ngx-translate: has currentLang string + reloadLang()
-              // reloadLang() clears the cache and re-fetches. onTranslationChange fires and
-              // markForCheck() is called on TranslatePipe instances, but in Web Component apps
-              // (createCustomElement) and some Angular 19 setups zone.js doesn't automatically
-              // schedule a CD run. ng.applyChanges() forces a synchronous traversal.
               if (typeof svc.reloadLang === 'function' && typeof svc.currentLang === 'string') {
                 var lang = svc.currentLang;
-                svc.reloadLang(lang).subscribe(function() {
+                if (parsedTranslations && typeof svc.setTranslation === 'function') {
+                  // Fast path: inject content directly — no HTTP round-trip, no cache issues.
+                  // setTranslation fires onTranslationChange which calls markForCheck() on all
+                  // TranslatePipe instances. use() re-emits onLangChange to trigger CD scheduling.
+                  svc.setTranslation(lang, parsedTranslations, { shouldMerge: false });
                   if (typeof svc.use === 'function') svc.use(lang);
-                  // Force CD: find all root Angular components and apply changes.
-                  // ng.applyChanges() calls markDirty() + detectChanges() synchronously,
-                  // which re-evaluates all translate pipes in the component tree.
-                  try {
-                    if (window.ng && typeof ng.applyChanges === 'function') {
-                      var seen = new WeakSet();
-                      function forceCD(el) {
-                        try {
-                          var c = ng.getComponent(el);
-                          if (c && !seen.has(c)) { seen.add(c); ng.applyChanges(c); }
-                        } catch(e) {}
-                      }
-                      // Standard apps: <app-root ng-version="...">
-                      document.querySelectorAll('[ng-version]').forEach(forceCD);
-                      // Web Component apps: root is a custom element (tag contains '-')
-                      Array.from(document.body.children).forEach(forceCD);
-                    }
-                  } catch(e) {}
-                });
+                  forceChangeDetection();
+                } else {
+                  // Fallback: re-fetch via HTTP (may hit browser cache).
+                  svc.reloadLang(lang).subscribe(function() {
+                    if (typeof svc.use === 'function') svc.use(lang);
+                    forceChangeDetection();
+                  });
+                }
                 return true;
               }
               return false;

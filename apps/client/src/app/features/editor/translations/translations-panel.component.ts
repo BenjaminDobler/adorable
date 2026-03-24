@@ -205,7 +205,7 @@ export class TranslationsPanelComponent {
         const updated = JSON.stringify(json, null, 2) + '\n';
         this.projectService.fileStore.updateFile(filePath, updated);
         this.containerEngine.writeFile(filePath, updated).then(() => {
-          this.hmrTriggerService.reloadTranslations();
+          this.hmrTriggerService.reloadTranslations(updated);
         });
         this.translationFiles.update(tfs =>
           tfs.map(tf => {
