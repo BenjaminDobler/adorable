@@ -370,6 +370,22 @@ export class ApiService {
     return this.http.post<{ summary: string }>(`${this.apiUrl}/summarize-context`, { messages });
   }
 
+  // Context preview
+  previewContext(prompt: string, previousFiles?: any, options?: {
+    provider?: string, apiKey?: string, model?: string,
+    openFiles?: { [path: string]: string }, forcedSkill?: string,
+    planMode?: boolean, kitId?: string, projectId?: string,
+    builtInTools?: { webSearch?: boolean, urlContext?: boolean },
+    reasoningEffort?: string,
+    history?: { role: string; text: string }[],
+    contextSummary?: string
+  }): Observable<any> {
+    const token = localStorage.getItem('adorable_token');
+    return this.http.post(`${this.apiUrl}/context-preview`, { prompt, previousFiles, ...options }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  }
+
   // Fetch metadata for multiple components
   fetchBatchComponentMetadata(packageName: string, componentNames: string[]): Observable<{
     success: boolean;
