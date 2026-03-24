@@ -53,7 +53,7 @@ export class ContextPreviewModalComponent {
       `=== SYSTEM PROMPT ===\n${d.systemPrompt}`,
       `=== KNOWLEDGE BASE ===\n${d.knowledgeBase}`,
       `=== USER MESSAGE ===\n${d.userMessage}`,
-      d.history.length ? `=== HISTORY ===\n${this.historyText()}` : null,
+      (d.history.length > 0 || d.contextSummary) ? `=== HISTORY ===\n${this.historyText()}` : null,
     ].filter(Boolean).join('\n\n');
     await navigator.clipboard.writeText(all);
   }
