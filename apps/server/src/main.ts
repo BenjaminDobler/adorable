@@ -134,8 +134,8 @@ app.use('/api/auth/social', socialAuthRouter);
 app.use('/api/projects', projectRouter);
 app.use('/api/github', githubRouter);  // Must be before aiRouter (which has global auth)
 app.use('/api/webhooks', webhooksRouter);  // Webhooks also don't need auth
-app.use('/api', aiRouter);
 app.use('/api/context-preview', contextPreviewRouter);
+app.use('/api', aiRouter);
 app.use('/api/container', containerRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/skills', skillsRouter);

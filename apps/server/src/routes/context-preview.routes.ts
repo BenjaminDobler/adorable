@@ -70,7 +70,7 @@ router.post('/', requireCloudEditorAccess, async (req: any, res) => {
         if (!fsSync.existsSync(projectPath)) fsSync.mkdirSync(projectPath, { recursive: true });
       }
     } else {
-      projectPath = path.join(os.tmpdir(), 'adorable-context-preview');
+      projectPath = path.join(os.tmpdir(), 'adorable-context-preview', user.id);
       if (!fsSync.existsSync(projectPath)) fsSync.mkdirSync(projectPath, { recursive: true });
     }
 
@@ -118,10 +118,12 @@ router.post('/', requireCloudEditorAccess, async (req: any, res) => {
         knowledgeBase: estimateTokens(knowledgeBase),
         userMessage: estimateTokens(ctx.userMessage),
         history: estimateTokens(historyText),
+        contextSummary: estimateTokens(ctx.contextSummary || ''),
         total: estimateTokens(ctx.effectiveSystemPrompt)
           + estimateTokens(knowledgeBase)
           + estimateTokens(ctx.userMessage)
-          + estimateTokens(historyText),
+          + estimateTokens(historyText)
+          + estimateTokens(ctx.contextSummary || ''),
       }
     };
 
