@@ -1076,6 +1076,7 @@ Analyze the attached design images carefully and create matching Angular compone
       error: (err: any) => {
         console.error('[ContextPreview] Failed:', err);
         this.contextPreviewLoading.set(false);
+        this.toastService.show('Failed to load context preview', 'error');
       }
     });
   }
