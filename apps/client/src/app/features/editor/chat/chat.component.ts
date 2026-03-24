@@ -172,6 +172,11 @@ export class ChatComponent {
         }, 0);
     });
 
+    // Raise sidebar z-index when context preview modal is open
+    effect(() => {
+      this.popoverToggled.emit(!!this.contextPreviewData());
+    });
+
     // Load models when appSettings changes
     effect(() => {
       const settings = this.appSettings();
@@ -340,6 +345,11 @@ export class ChatComponent {
   onAiChangeRequested(prompt: string) {
     this.prompt.set(prompt);
     this.generate();
+  }
+
+  previewAiChange(prompt: string) {
+    this.prompt.set(prompt);
+    this.previewContext();
   }
 
   // ===== File Upload Handlers =====

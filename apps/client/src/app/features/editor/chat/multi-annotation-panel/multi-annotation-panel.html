@@ -1,0 +1,79 @@
+<div class="multi-annotation-panel">
+  <div class="panel-header">
+    <h3>Multi-Annotate</h3>
+    <span class="item-count">{{ items().length }}</span>
+    @if (items().length) {
+      <button (click)="clearAll.emit()" class="clear-all-btn" title="Remove all annotations">Clear All</button>
+    }
+    <button (click)="closePanel.emit()" class="close-btn">&#x2715;</button>
+  </div>
+
+  <div class="panel-hint">
+    Click elements in the preview to annotate them. Add notes describing what to change.
+  </div>
+
+  <div class="cards-list">
+    @for (item of items(); track item.index) {
+      <div class="annotation-card" [attr.data-card-index]="item.index">
+        <div class="card-header">
+          <span class="index-badge">{{ item.index }}</span>
+          <div class="card-info">
+            <span class="tag-name">&lt;{{ item.tagName }}&gt;</span>
+            @if (item.componentName) {
+              <span class="component-badge">{{ item.componentName }}</span>
+            }
+          </div>
+          <button class="remove-btn" (click)="removeItem.emit(item.index)" title="Remove">
+            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        @if (item.ongAnnotation) {
+          <div class="source-line">
+            {{ item.ongAnnotation.file }}:{{ item.ongAnnotation.line }}
+          </div>
+        }
+
+        @if (item.text) {
+          <div class="element-text">"{{ item.text.length > 50 ? item.text.substring(0, 50) + '...' : item.text }}"</div>
+        }
+
+        <textarea
+          #noteTextarea
+          [attr.data-index]="item.index"
+          class="note-input"
+          placeholder="Describe what to change..."
+          [ngModel]="item.note"
+          (ngModelChange)="onNoteInput(item, $event)"
+          rows="2"
+        ></textarea>
+      </div>
+    }
+  </div>
+
+  @if (!items().length) {
+    <div class="empty-state">
+      Click elements in the preview to start annotating.
+    </div>
+  }
+
+  <div class="panel-footer">
+    <textarea
+      class="global-instruction"
+      placeholder="Overall instruction (optional)..."
+      [(ngModel)]="globalInstruction"
+      rows="2"
+    ></textarea>
+    <button
+      class="submit-btn"
+      [disabled]="!items().length"
+      (click)="onSubmitClick($event)"
+      title="Click to send · Cmd/Ctrl+Click to preview full context"
+    >
+      Apply with AI
+    </button>
+  </div>
+</div>

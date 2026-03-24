@@ -38,6 +38,7 @@ import {
 import { VersionsPanelComponent } from '../versions/versions-panel.component';
 import { InsightsPanelComponent } from '../insights/insights-panel.component';
 import { VisualEditorPanelComponent } from '../chat/visual-editor-panel/visual-editor-panel.component';
+import { MultiAnnotationPanelComponent, MultiAnnotationItem } from '../chat/multi-annotation-panel/multi-annotation-panel.component';
 import { PreviewToolbarComponent } from './preview-toolbar/preview-toolbar.component';
 import { DebugOverlayComponent } from './debug-overlay/debug-overlay.component';
 import { ProjectSettingsComponent } from '../project-settings/project-settings.component';
@@ -59,6 +60,7 @@ import { HMRTriggerService } from '../../../core/services/hmr-trigger.service';
     VersionsPanelComponent,
     InsightsPanelComponent,
     VisualEditorPanelComponent,
+    MultiAnnotationPanelComponent,
     PreviewToolbarComponent,
     DebugOverlayComponent,
     ProjectSettingsComponent,
@@ -111,6 +113,7 @@ export class WorkspaceComponent implements AfterViewChecked {
   @ViewChild(ChatComponent) chatComponent!: ChatComponent;
   @ViewChild(EditorComponent) editorComponent?: EditorComponent;
   @ViewChild(FigmaPanelComponent) figmaPanel?: FigmaPanelComponent;
+  @ViewChild(MultiAnnotationPanelComponent) multiAnnotationPanel?: MultiAnnotationPanelComponent;
 
   activeTab = signal<'chat' | 'terminal' | 'files' | 'figma' | 'versions' | 'insights' | 'translations' | 'settings'>(
     'chat',
@@ -137,7 +140,9 @@ export class WorkspaceComponent implements AfterViewChecked {
 
   isInspectionActive = signal(false);
   isAnnotating = signal(false);
+  isMultiAnnotating = signal(false);
   visualEditorData = signal<any>(null);
+  multiAnnotationItems = signal<MultiAnnotationItem[]>([]);
 
   // Responsive preview
   previewDevice = signal<'desktop' | 'tablet' | 'phone'>('desktop');
@@ -400,6 +405,29 @@ export class WorkspaceComponent implements AfterViewChecked {
       this.visualEditorData.set(data.payload);
     }
 
+    if (data.type === 'MULTI_ELEMENT_ADDED') {
+      const p = data.payload;
+      const item: MultiAnnotationItem = {
+        index: p.index,
+        elementId: p.elementId,
+        tagName: p.tagName,
+        text: p.text,
+        classes: p.classes || '',
+        componentName: p.componentName,
+        ongAnnotation: p.ongAnnotation,
+        note: '',
+      };
+      this.multiAnnotationItems.update(items => [...items, item]);
+      // Auto-focus the new item's textarea
+      setTimeout(() => {
+        this.multiAnnotationPanel?.scrollToAndFocus(p.index);
+      }, 100);
+    }
+
+    if (data.type === 'MULTI_ANNOTATION_CLICKED') {
+      this.multiAnnotationPanel?.scrollToAndFocus(data.index);
+    }
+
     if (data.type === 'INLINE_TEXT_EDIT') {
       const payload = data.payload;
       const fingerprint = {
@@ -463,6 +491,10 @@ export class WorkspaceComponent implements AfterViewChecked {
 
     // Disable annotation mode when enabling inspector
     if (isActive) this.isAnnotating.set(false);
+    // Disable multi-annotator when enabling inspector
+    if (isActive && this.isMultiAnnotating()) {
+      this.deactivateMultiAnnotation();
+    }
 
     // Close properties panel when inspector is toggled off
     if (!isActive) this.visualEditorData.set(null);
@@ -483,11 +515,75 @@ export class WorkspaceComponent implements AfterViewChecked {
     if (newState && this.isInspectionActive()) {
       this.toggleInspection();
     }
+    // Disable multi-annotator when entering freehand annotation mode
+    if (newState && this.isMultiAnnotating()) {
+      this.deactivateMultiAnnotation();
+    }
 
     if (this.isPreviewUndocked()) {
       // Proxy to preview shell window
       const electronAPI = (window as any).electronAPI;
       electronAPI?.previewSendCommand({ type: 'toggle-annotate' });
+    }
+  }
+
+  toggleMultiAnnotation() {
+    const newState = !this.isMultiAnnotating();
+    this.isMultiAnnotating.set(newState);
+
+    if (newState) {
+      // Disable inspector and freehand annotator
+      if (this.isInspectionActive()) {
+        this.isInspectionActive.set(false);
+        this.sendToPreview({ type: 'TOGGLE_INSPECTOR', enabled: false });
+      }
+      if (this.isAnnotating()) {
+        this.isAnnotating.set(false);
+      }
+      // Close visual editor panel
+      this.visualEditorData.set(null);
+    }
+    // Just hide/show badges — don't clear items
+    this.sendToPreview({ type: 'TOGGLE_MULTI_ANNOTATOR', enabled: newState });
+  }
+
+  /** Hides the multi-annotator UI without clearing annotations. */
+  private deactivateMultiAnnotation() {
+    this.isMultiAnnotating.set(false);
+    this.sendToPreview({ type: 'TOGGLE_MULTI_ANNOTATOR', enabled: false });
+  }
+
+  /** Clears all annotations and resets state completely. */
+  clearMultiAnnotations() {
+    this.multiAnnotationItems.set([]);
+    this.sendToPreview({ type: 'MULTI_ANNOTATE_CLEAR' });
+  }
+
+  onMultiAnnotateRemove(index: number) {
+    this.multiAnnotationItems.update(items => items.filter(i => i.index !== index));
+    this.sendToPreview({ type: 'MULTI_ANNOTATE_REMOVE', index });
+  }
+
+  onMultiAnnotateNoteChanged(event: { index: number; note: string }) {
+    this.sendToPreview({
+      type: 'MULTI_ANNOTATE_UPDATE_NOTE',
+      index: event.index,
+      note: event.note,
+      hasNote: !!event.note
+    });
+  }
+
+  onMultiAnnotateAiChange(prompt: string) {
+    this.deactivateMultiAnnotation();
+    this.clearMultiAnnotations();
+    if (this.chatComponent) {
+      this.chatComponent.onAiChangeRequested(prompt);
+    }
+  }
+
+  onMultiAnnotatePreview(prompt: string) {
+    if (this.chatComponent) {
+      this.chatComponent.previewAiChange(prompt);
     }
   }
 

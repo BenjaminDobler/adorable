@@ -10,6 +10,7 @@ export class PreviewToolbarComponent {
   previewDevice = input<'desktop' | 'tablet' | 'phone'>('desktop');
   isInspectionActive = input(false);
   isAnnotating = input(false);
+  isMultiAnnotating = input(false);
   isFullscreen = input(false);
   isUndocked = input(false);
   isDesktop = input(false);
@@ -17,6 +18,7 @@ export class PreviewToolbarComponent {
   previewDeviceChange = output<'desktop' | 'tablet' | 'phone'>();
   inspectionToggled = output<void>();
   annotationToggled = output<void>();
+  multiAnnotationToggled = output<void>();
   screenshotRequested = output<void>();
   fullscreenToggled = output<void>();
   reload = output<void>();

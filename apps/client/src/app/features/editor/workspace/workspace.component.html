@@ -179,6 +179,20 @@
         </app-visual-editor-panel>
       </div>
     }
+
+    @if (isMultiAnnotating()) {
+      <div class="visual-editor-overlay">
+        <app-multi-annotation-panel
+          [items]="multiAnnotationItems()"
+          (removeItem)="onMultiAnnotateRemove($event)"
+          (clearAll)="clearMultiAnnotations()"
+          (noteChanged)="onMultiAnnotateNoteChanged($event)"
+          (aiChangeRequested)="onMultiAnnotateAiChange($event)"
+          (previewRequested)="onMultiAnnotatePreview($event)"
+          (closePanel)="toggleMultiAnnotation()">
+        </app-multi-annotation-panel>
+      </div>
+    }
   </aside>
 
   <div class="resizer-sidebar" (mousedown)="startSidebarResizing($event)"></div>
@@ -280,12 +294,14 @@
           [previewDevice]="previewDevice()"
           [isInspectionActive]="isInspectionActive()"
           [isAnnotating]="isAnnotating()"
+          [isMultiAnnotating]="isMultiAnnotating()"
           [isFullscreen]="layoutService.isFullscreen()"
           [isUndocked]="isPreviewUndocked()"
           [isDesktop]="isDesktop()"
           (previewDeviceChange)="previewDevice.set($event)"
           (inspectionToggled)="toggleInspection()"
           (annotationToggled)="toggleAnnotation()"
+          (multiAnnotationToggled)="toggleMultiAnnotation()"
           (screenshotRequested)="startSelection()"
           (fullscreenToggled)="layoutService.isFullscreen.set(!layoutService.isFullscreen())"
           (reload)="reloadIframe()"
