@@ -355,6 +355,16 @@ Only proceed with implementation after receiving the user's answers.`;
       effectiveSystemPrompt += VISUAL_EDITING_IDS_INSTRUCTION;
     }
 
+    // Load project-level CLAUDE.md instructions if present
+    try {
+      const claudeMd = await fs.readFile('CLAUDE.md');
+      if (claudeMd) {
+        effectiveSystemPrompt += `\n\n--- Project Instructions (CLAUDE.md) ---\n${claudeMd}`;
+      }
+    } catch {
+      // CLAUDE.md doesn't exist — no action needed
+    }
+
     // When a component library kit is active, override the "don't explore" instruction
     if (activeKit) {
       effectiveSystemPrompt = effectiveSystemPrompt.replace(
