@@ -29,6 +29,7 @@ export class ChatInputComponent {
   mcpToolsCount = input(0);
 
   generateRequested = output<void>();
+  previewRequested = output<void>();
   cancelGeneration = output<void>();
   promptChange = output<string>();
   fileSelected = output<Event>();
@@ -47,6 +48,15 @@ export class ChatInputComponent {
   onTextareaKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
+      this.generateRequested.emit();
+    }
+  }
+
+  onSendClick(event: MouseEvent): void {
+    if (event.metaKey || event.ctrlKey) {
+      event.preventDefault();
+      this.previewRequested.emit();
+    } else {
       this.generateRequested.emit();
     }
   }
