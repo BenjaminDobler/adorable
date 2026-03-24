@@ -120,7 +120,7 @@ export class VisualEditorPanelComponent {
       this.projectService.fileStore.updateFile(result.path, result.content);
       await this.containerEngine.writeFile(result.path, result.content);
       const isTranslation = result.path.endsWith('.json') || result.path.endsWith('.jsonc');
-      if (isTranslation) this.hmrTriggerService.reloadTranslations();
+      if (isTranslation) this.hmrTriggerService.reloadTranslations(result.content);
       const msg = isTranslation
         ? `Translation updated in ${result.path.split('/').pop()}`
         : 'Update applied';
@@ -139,11 +139,27 @@ export class VisualEditorPanelComponent {
     if (!this.visualEditorData()) return;
 
     const data = this.visualEditorData();
-    const specificContext = data.componentName
-      ? `This change likely involves ${data.componentName}.`
-      : '';
+    const ann = data.ongAnnotation;
 
-    const fullPrompt = `Visual Edit Request:\nTarget Element: \`<${data.tagName}>\` class=\`"${data.classes}"\`\nOriginal Text: \`"${data.text}"\`\n${specificContext}\n\nInstruction: ${prompt}`;
+    let context = '';
+    if (ann) {
+      context += `\nSource file: \`${ann.file}\` line ${ann.line}`;
+      context += `\nComponent: ${ann.component} · selector: \`${ann.selector}\``;
+      context += `\nComponent TS file: \`${ann.tsFile}\``;
+      if (ann.text.type !== 'static' && ann.text.content) {
+        context += `\nTemplate expression: \`${ann.text.content}\``;
+      }
+      if (ann.inLoop)      context += `\nContext: element is inside a loop (@for) — change the data source, not the template literal`;
+      if (ann.conditional) context += `\nContext: element is inside a conditional (@if)`;
+      const inputs = Object.entries(ann.bindings?.inputs ?? {});
+      if (inputs.length)   context += `\nBound inputs: ${inputs.map(([k, v]) => `${k}="${v}"`).join(', ')}`;
+      const structural = ann.bindings?.structural ?? [];
+      if (structural.length) context += `\nStructural directives: ${structural.join(', ')}`;
+    } else if (data.componentName) {
+      context += `\nThis change likely involves ${data.componentName}.`;
+    }
+
+    const fullPrompt = `Visual Edit Request:\nTarget Element: \`<${data.tagName}>\` class=\`"${data.classes}"\`\nOriginal Text: \`"${data.text}"\`${context}\n\nInstruction: ${prompt}`;
 
     this.aiChangeRequested.emit(fullPrompt);
     this.closeEditor.emit();
