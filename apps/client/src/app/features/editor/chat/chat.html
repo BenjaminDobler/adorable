@@ -34,6 +34,7 @@
     [mcpToolsVisible]="mcpToolsVisible()"
     [mcpToolsCount]="mcpTools().length"
     (generateRequested)="generate()"
+    (previewRequested)="previewContext()"
     (cancelGeneration)="cancelGeneration()"
     (promptChange)="prompt.set($event)"
     (fileSelected)="onFileSelected($event)"
@@ -80,4 +81,12 @@
       <button class="image-preview-close" (click)="$event.stopPropagation(); previewImageUrl.set(null)">×</button>
     </div>
   </div>
+}
+
+<!-- Context Preview Modal -->
+@if (contextPreviewData()) {
+  <app-context-preview-modal
+    [data]="contextPreviewData()!"
+    (closed)="contextPreviewData.set(null)">
+  </app-context-preview-modal>
 }

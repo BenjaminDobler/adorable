@@ -21,6 +21,7 @@ import { ChatMessageListComponent } from './chat-message-list/chat-message-list.
 import { ChatInputComponent } from './chat-input/chat-input.component';
 import { AiSettingsPopoverComponent } from './ai-settings-popover/ai-settings-popover.component';
 import { McpToolsPanelComponent } from './mcp-tools-panel/mcp-tools-panel.component';
+import { ContextPreviewModalComponent, ContextPreviewData } from './context-preview-modal/context-preview-modal.component';
 
 @Component({
   selector: 'app-chat',
@@ -32,7 +33,8 @@ import { McpToolsPanelComponent } from './mcp-tools-panel/mcp-tools-panel.compon
     ChatMessageListComponent,
     ChatInputComponent,
     AiSettingsPopoverComponent,
-    McpToolsPanelComponent
+    McpToolsPanelComponent,
+    ContextPreviewModalComponent
   ],
   templateUrl: './chat.html',
   styleUrls: ['./chat.scss']
@@ -104,6 +106,10 @@ export class ChatComponent {
 
   // Plan Mode
   planMode = signal(false);
+
+  // Context Preview
+  contextPreviewData = signal<ContextPreviewData | null>(null);
+  contextPreviewLoading = signal(false);
 
   // Conversation history context
   private contextSummary = signal<string | null>(null);
@@ -988,6 +994,88 @@ Analyze the attached design images carefully and create matching Angular compone
         });
         this.progressiveStore.markAllComplete();
         this.activeSubscription = null;
+      }
+    });
+  }
+
+  async previewContext() {
+    if (this.contextPreviewLoading()) return;
+    const currentPrompt = this.prompt();
+    if (!currentPrompt.trim()) return;
+
+    let provider = 'anthropic';
+    let apiKey = '';
+    let model = '';
+    let builtInTools: { webSearch?: boolean, urlContext?: boolean } | undefined;
+
+    const settings = this.appSettings();
+    if (settings) {
+      if (settings.profiles && settings.activeProfileId) {
+        const active = settings.profiles.find((p: any) => p.id === settings.activeProfileId);
+        if (active) {
+          provider = active.provider;
+          apiKey = active.apiKey;
+          model = active.model;
+          builtInTools = active.builtInTools;
+        }
+      } else {
+        provider = settings.provider || provider;
+        apiKey = settings.apiKey || apiKey;
+        model = settings.model || model;
+      }
+    }
+
+    const currentSelection = this.selectedModel();
+    if (currentSelection && currentSelection.id) {
+      provider = currentSelection.provider;
+      model = currentSelection.id;
+      if (settings?.profiles) {
+        const profileForProvider = settings.profiles.find((p: any) => p.provider === provider);
+        if (profileForProvider) {
+          apiKey = profileForProvider.apiKey;
+          builtInTools = profileForProvider.builtInTools;
+        }
+      }
+    }
+
+    const previousFiles = this.projectService.files();
+
+    let historyToSend: { role: string; text: string }[] | undefined;
+    let summaryToSend: string | undefined;
+    if (!this.contextCleared()) {
+      const history: { role: string; text: string }[] = [];
+      for (const msg of this.messages()) {
+        if (msg.role === 'system' || !msg.text?.trim()) continue;
+        history.push({ role: msg.role, text: msg.text });
+      }
+      if (this.contextSummary() && history.length > 6) {
+        summaryToSend = this.contextSummary()!;
+        historyToSend = history.slice(-6);
+      } else {
+        historyToSend = history.length > 20 ? history.slice(-20) : history;
+      }
+    }
+
+    this.contextPreviewLoading.set(true);
+    this.apiService.previewContext(currentPrompt, previousFiles, {
+      provider, apiKey, model,
+      openFiles: this.getContextFiles(),
+      forcedSkill: this.selectedSkill()?.name,
+      planMode: this.planMode(),
+      kitId: this.projectService.selectedKitId() || undefined,
+      projectId: this.projectService.projectId() || undefined,
+      builtInTools,
+      reasoningEffort: this.reasoningEffort(),
+      history: historyToSend?.length ? historyToSend : undefined,
+      contextSummary: summaryToSend,
+    }).subscribe({
+      next: (data: ContextPreviewData) => {
+        this.contextPreviewData.set(data);
+        this.contextPreviewLoading.set(false);
+      },
+      error: (err: any) => {
+        console.error('[ContextPreview] Failed:', err);
+        this.contextPreviewLoading.set(false);
       }
     });
   }
