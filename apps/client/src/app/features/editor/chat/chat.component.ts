@@ -657,6 +657,29 @@ Please analyze the design images and structure, then create the corresponding An
     return Object.keys(contextFiles).length > 0 ? contextFiles : undefined;
   }
 
+  /**
+   * Return the file tree scoped to the selected app when this is an Nx monorepo.
+   * Sending the full workspace tree can exceed 600k tokens for large monorepos.
+   * The AI can explore libraries on demand via read_files / run_command.
+   */
+  getScopedFiles(): any {
+    const files = this.projectService.files() || {};
+    const selectedApp = this.projectService.detectedConfig()?.selectedApp;
+    if (!selectedApp || selectedApp === '.') return files;
+
+    // Navigate into the selectedApp subtree (e.g. "apps/my-app")
+    const parts = selectedApp.split('/');
+    let node: any = files;
+    for (const part of parts) {
+      if (node[part]?.directory) {
+        node = node[part].directory;
+      } else {
+        return files; // path not found — fall back to full tree
+      }
+    }
+    return node;
+  }
+
   // ===== Generation =====
 
   async generate() {
@@ -717,7 +740,7 @@ Analyze the attached design images carefully and create matching Angular compone
       updatedFiles: []
     }]);
 
-    const previousFiles = this.projectService.files() || {};
+    const previousFiles = this.getScopedFiles();
 
     let fullStreamText = '';
     let hasResult = false;
@@ -1038,7 +1061,7 @@ Analyze the attached design images carefully and create matching Angular compone
       }
     }
 
-    const previousFiles = this.projectService.files();
+    const previousFiles = this.getScopedFiles();
 
     let historyToSend: { role: string; text: string }[] | undefined;
     let summaryToSend: string | undefined;
