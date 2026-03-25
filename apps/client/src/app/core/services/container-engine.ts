@@ -1,4 +1,4 @@
-import { Signal, WritableSignal } from '@angular/core';
+import { Signal, WritableSignal, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import { FileTree } from '@adorable/shared-types';
 import { DevServerPreset, KitCommands } from './kit-types';
@@ -43,6 +43,8 @@ export abstract class ContainerEngine {
   get currentProjectId(): string | null { return this._currentProjectId; }
   set currentProjectId(value: string | null) { this._currentProjectId = value; }
   abstract url: Signal<string | null>;
+  /** Current route path inside the preview app (e.g. "/dashboard", "/products/123"). */
+  previewRoute = signal<string | null>(null);
   abstract buildError: Signal<string | null>;
   abstract previewConsoleLogs: Signal<Array<{ level: 'log'|'warn'|'error', message: string, timestamp: Date }>>;
   abstract serverOutput: Signal<string>;

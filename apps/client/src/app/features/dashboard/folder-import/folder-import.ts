@@ -2,6 +2,7 @@ import { Component, EventEmitter, Output, signal, computed } from '@angular/core
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FileTree, FileNode, DirectoryNode } from '../../../core/services/kit-types';
+import { svgIcon } from '../../../shared/ui/icons';
 
 interface TreeNode {
   name: string;
@@ -474,24 +475,24 @@ export class FolderImportComponent {
 
   getFileIcon(node: TreeNode): string {
     if (node.isDirectory) {
-      return node.expanded ? '📂' : '📁';
+      return node.expanded ? svgIcon('folder-open', 14) : svgIcon('folder', 14);
     }
     const ext = node.name.split('.').pop()?.toLowerCase();
     switch (ext) {
-      case 'ts': return '📘';
-      case 'js': return '📙';
-      case 'html': return '📄';
+      case 'ts':
+      case 'js': return svgIcon('file-code', 14);
+      case 'html': return svgIcon('file-text', 14);
       case 'css':
       case 'scss':
-      case 'sass': return '🎨';
-      case 'json': return '📋';
-      case 'md': return '📝';
+      case 'sass': return svgIcon('palette', 14);
+      case 'json': return svgIcon('file-json', 14);
+      case 'md': return svgIcon('file-text', 14);
       case 'png':
       case 'jpg':
       case 'jpeg':
       case 'gif':
-      case 'svg': return '🖼️';
-      default: return '📄';
+      case 'svg': return svgIcon('image', 14);
+      default: return svgIcon('file-text', 14);
     }
   }
 }

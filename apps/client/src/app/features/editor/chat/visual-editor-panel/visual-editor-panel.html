@@ -48,10 +48,21 @@
     }
   </div>
 
+  <!-- Tab Bar (Tailwind projects only) -->
+  @if (hasTailwind()) {
+    <div class="tab-bar">
+      <button [class.active]="activeTab() === 'styles'" (click)="activeTab.set('styles')">Styles</button>
+      <button [class.active]="activeTab() === 'tailwind'" (click)="activeTab.set('tailwind')">Tailwind</button>
+    </div>
+  }
+
+  <!-- Styles Tab -->
+  @if (activeTab() === 'styles' || !hasTailwind()) {
+
   <!-- Content Section -->
   <div class="property-section">
     <div class="section-header">
-      <span class="section-icon">📝</span>
+      <span class="section-icon"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg></span>
       <span class="section-title">Content</span>
       <span class="content-type-badge" [attr.data-type]="textContentInfo.type">
         {{ textContentInfo.type }}
@@ -83,7 +94,7 @@
   <!-- Colors Section -->
   <div class="property-section">
     <div class="section-header">
-      <span class="section-icon">🎨</span>
+      <span class="section-icon"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></span>
       <span class="section-title">Colors</span>
     </div>
     <div class="color-row">
@@ -109,7 +120,7 @@
   <!-- Typography Section -->
   <div class="property-section">
     <div class="section-header">
-      <span class="section-icon">📐</span>
+      <span class="section-icon"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 14h-5"/><path d="M16 16v-3.5a2.5 2.5 0 0 1 5 0V16"/><path d="M4.5 13h6"/><path d="m3 16 4.5-9 4.5 9"/></svg></span>
       <span class="section-title">Typography</span>
     </div>
     <div class="button-group-row">
@@ -150,7 +161,7 @@
   <!-- Spacing Section -->
   <div class="property-section">
     <div class="section-header">
-      <span class="section-icon">📦</span>
+      <span class="section-icon"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span>
       <span class="section-title">Spacing</span>
     </div>
     <div class="spacing-box-container">
@@ -182,7 +193,7 @@
   <!-- Border Section -->
   <div class="property-section">
     <div class="section-header">
-      <span class="section-icon">🔲</span>
+      <span class="section-icon"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg></span>
       <span class="section-title">Border</span>
     </div>
     <div class="slider-row">
@@ -196,7 +207,7 @@
   @if (isContainerElement()) {
     <div class="property-section">
       <div class="section-header">
-        <span class="section-icon">📐</span>
+        <span class="section-icon"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg></span>
         <span class="section-title">Layout</span>
       </div>
       <div class="button-group-row">
@@ -244,10 +255,97 @@
     </div>
   }
 
+  } <!-- end styles tab -->
+
+  <!-- Tailwind Tab -->
+  @if (activeTab() === 'tailwind' && hasTailwind()) {
+
+    <!-- Dynamic class binding warning -->
+    @if (hasDynamicClassBinding()) {
+      <div class="tw-warning">
+        Only static classes are editable. This element has dynamic class bindings.
+      </div>
+    }
+
+    <!-- Current Classes -->
+    <div class="property-section">
+      <div class="section-header">
+        <span class="section-icon"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg></span>
+        <span class="section-title">Current Classes</span>
+      </div>
+      <div class="class-chips">
+        @for (cls of currentClasses(); track cls) {
+          <span class="class-chip">
+            {{ cls }}
+            <button class="chip-remove" (click)="removeClass(cls)">×</button>
+          </span>
+        }
+        @if (currentClasses().size === 0) {
+          <span class="tw-empty">No classes</span>
+        }
+      </div>
+      <div class="input-row tw-free-input">
+        <input
+          [(ngModel)]="freeTextClass"
+          (keydown.enter)="addFreeTextClass()"
+          placeholder="Add class..."
+        />
+        <button (click)="addFreeTextClass()" class="btn-apply" title="Add">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Preset Categories -->
+    @for (category of tailwindCategories; track category.name; let catIdx = $index) {
+      <div class="tw-category">
+        <button class="tw-category-header" (click)="toggleCategory(catIdx)" [class.open]="activeTailwindCategory() === catIdx">
+          <span class="section-icon" [innerHTML]="category.icon"></span>
+          <span class="tw-category-name">{{ category.name }}</span>
+          <span class="tw-chevron">›</span>
+        </button>
+        @if (activeTailwindCategory() === catIdx) {
+          <div class="tw-category-body">
+            @for (group of category.groups; track group.label) {
+              <div class="tw-group">
+                <div class="tw-group-label">{{ group.label }}</div>
+                @if (group.presets[0]?.color !== undefined) {
+                  <div class="tw-color-grid">
+                    @for (preset of group.presets; track preset.class) {
+                      <button
+                        class="tw-color-swatch"
+                        [class.active]="currentClasses().has(preset.class)"
+                        [style.background]="preset.color"
+                        [style.border]="preset.color === '#ffffff' || preset.color === 'transparent' ? '1px solid var(--panel-border)' : 'none'"
+                        [title]="preset.class"
+                        (click)="toggleTailwindClass(preset.class)">
+                      </button>
+                    }
+                  </div>
+                } @else {
+                  <div class="tw-preset-grid">
+                    @for (preset of group.presets; track preset.class) {
+                      <button
+                        class="tw-preset-btn"
+                        [class.active]="currentClasses().has(preset.class)"
+                        (click)="toggleTailwindClass(preset.class)">
+                        {{ preset.label }}
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+  }
+
   <!-- AI Modification -->
   <div class="property-section ai-section">
     <div class="section-header">
-      <span class="section-icon">✨</span>
+      <span class="section-icon"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg></span>
       <span class="section-title">AI Modification</span>
     </div>
     <div class="input-container ai-input">
@@ -257,7 +355,8 @@
       ></textarea>
     </div>
     <button (click)="applyVisualChanges(visualPrompt)" class="btn-generate ai-apply-btn">
-      ✨ Apply with AI
+      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg>
+      Apply with AI
     </button>
   </div>
 </div>

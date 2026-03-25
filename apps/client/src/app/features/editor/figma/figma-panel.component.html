@@ -72,7 +72,7 @@
       <div class="user-info">
         @if (figmaService.status().user; as user) {
           <div class="user-badge">
-            <span class="avatar-placeholder">👤</span>
+            <span class="avatar-placeholder"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
             <span>{{ user.handle || user.email }}</span>
           </div>
         }
@@ -89,7 +89,7 @@
                   @if (payload.imageDataUris[0]) {
                     <img [src]="payload.imageDataUris[0]" alt="Preview" />
                   } @else {
-                    <div class="no-thumb">📁</div>
+                    <div class="no-thumb"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg></div>
                   }
                 </div>
                 <div class="import-info">
@@ -199,7 +199,7 @@
                   <polyline points="9 18 15 12 9 6"></polyline>
                 </svg>
               </span>
-              <span class="node-icon">{{ getNodeIcon(node.type) }}</span>
+              <span class="node-icon" [innerHTML]="getNodeIcon(node.type)"></span>
               <span class="node-name">{{ node.name }}</span>
               <button class="btn-use-layer btn-use-frame" title="Use this frame in chat" (click)="useLayerInChat(node.document, selectedImport()!, $event)">
                 Use
@@ -266,7 +266,7 @@
                   <polyline points="9 18 15 12 9 6"></polyline>
                 </svg>
               </span>
-              <span class="page-icon">📄</span>
+              <span class="page-icon"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span>
               <span class="page-name">{{ page.name }}</span>
               <button class="btn-select-all" (click)="selectAllInPage(page); $event.stopPropagation()">
                 Select all
@@ -320,7 +320,7 @@
             [checked]="isSelected(node.id)"
             (change)="toggleSelect(node.id)"
           />
-          <span class="node-icon">{{ getNodeIcon(node.type) }}</span>
+          <span class="node-icon" [innerHTML]="getNodeIcon(node.type)"></span>
           <span class="node-name">{{ node.name }}</span>
           @if (node.bounds) {
             <span class="node-size">{{ node.bounds.width }}×{{ node.bounds.height }}</span>
@@ -356,7 +356,7 @@
         } @else {
           <span class="expand-spacer"></span>
         }
-        <span class="node-icon">{{ getNodeIcon(node.type) }}</span>
+        <span class="node-icon" [innerHTML]="getNodeIcon(node.type)"></span>
         <span class="node-name">{{ node.name }}</span>
         @if (node.absoluteBoundingBox) {
           <span class="node-size">{{ node.absoluteBoundingBox.width | number:'1.0-0' }}×{{ node.absoluteBoundingBox.height | number:'1.0-0' }}</span>

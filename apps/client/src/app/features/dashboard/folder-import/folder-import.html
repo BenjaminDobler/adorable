@@ -120,7 +120,7 @@
         </label>
 
         <!-- Icon and name -->
-        <span class="node-icon">{{ getFileIcon(node) }}</span>
+        <span class="node-icon" [innerHTML]="getFileIcon(node)"></span>
         <span class="node-name" (click)="node.isDirectory && toggleExpand(node)">{{ node.name }}</span>
 
         <!-- File size (for files only) -->

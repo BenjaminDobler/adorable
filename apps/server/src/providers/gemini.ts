@@ -29,7 +29,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
     const modelName = model || 'gemini-2.5-flash';
 
     // Prepare shared context
-    const { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName, activeKitId, userId, projectId, history, contextSummary } = await this.prepareAgentContext(options, 'gemini');
+    const { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName, activeKitId, userId, projectId, history, contextSummary, buildCommand } = await this.prepareAgentContext(options, 'gemini');
     await this.addSkillTools(availableTools, skillRegistry, fs, options.userId);
 
     // Convert tools to Gemini format
@@ -119,6 +119,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       projectId,
       cdpEnabled: options.cdpEnabled,
       hasVerifiedWithBrowser: false,
+      buildCommand,
     };
 
     let turnCount = 0;

@@ -314,7 +314,7 @@
               <div class="components-section">
                 <div class="components-header">
                   <div class="components-info">
-                    <span class="success-icon">✓</span>
+                    <span class="success-icon"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
                     Found {{ totalCount() }} components
                     <span class="selected-count">({{ selectedCount() }} selected)</span>
                   </div>
@@ -355,7 +355,7 @@
                                 <span class="package-badge" [title]="component.sourcePackage">{{ component.sourcePackage.split('/').pop() }}</span>
                               }
                               @if (hasStoredDocs(component)) {
-                                <span class="has-docs-badge" title="Has custom documentation">✓</span>
+                                <span class="has-docs-badge" title="Has custom documentation"><svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
                               }
                             </label>
                             <button

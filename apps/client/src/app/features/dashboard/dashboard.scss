@@ -627,10 +627,12 @@ body.light-mode .dashboard-container::before {
   }
 
   .empty-icon {
-    font-size: 3.5rem;
     margin-bottom: 1.5rem;
     opacity: 0.6;
-    filter: grayscale(0.3);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   h2 {
@@ -779,7 +781,7 @@ body.light-mode .dashboard-container::before {
   }
 
   .skill-icon {
-    font-size: 1.25rem;
+    color: var(--text-secondary);
     background: linear-gradient(
       135deg,
       var(--bg-surface-3) 0%,

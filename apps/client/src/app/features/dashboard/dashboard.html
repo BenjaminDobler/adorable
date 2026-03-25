@@ -323,7 +323,7 @@
               }
             } @empty {
               <div class="empty-state">
-                <div class="empty-icon">📁</div>
+                <div class="empty-icon"><svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg></div>
                 <h2>No projects yet</h2>
                 <p>Get started by creating your first AI-generated Angular app.</p>
                 <button class="btn-create" (click)="createProject()">Create Project</button>
@@ -368,7 +368,7 @@
               } @else {
                 <!-- Local skill card -->
                 <div class="skill-card">
-                  <div class="skill-icon">⚡</div>
+                  <div class="skill-icon"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg></div>
                   <div class="skill-info">
                     <h3>{{ skill.name }}</h3>
                     <p>{{ skill.description }}</p>
@@ -400,7 +400,7 @@
               }
             } @empty {
               <div class="empty-state">
-                <div class="empty-icon">⚡</div>
+                <div class="empty-icon"><svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg></div>
                 <h2>No skills yet</h2>
                 <p>Install skills from GitHub or create your own to teach the AI new capabilities.</p>
                 <button class="btn-create" (click)="showGitHubDialog.set(true)">Install from GitHub</button>

@@ -3,7 +3,7 @@
     [messages]="messages()"
     [loading]="loading()"
     [compactMode]="compactMode()"
-    [quickStarters]="quickStarters"
+    [quickStarters]="projectService.externalPath() ? [] : quickStarters"
     [buildError]="containerEngine.buildError()"
     [projectImageAssets]="getProjectImageAssets()"
     (restoreVersion)="restoreVersion($event)"

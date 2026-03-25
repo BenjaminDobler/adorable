@@ -166,7 +166,7 @@ router.get('/models/:provider', async (req: any, res) => {
 });
 
 router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) => {
-    let { prompt, previousFiles, provider, model, apiKey, images, openFiles, forcedSkill, planMode, kitId, projectId, builtInTools, reasoningEffort, history, contextSummary } = req.body;
+    let { prompt, previousFiles, provider, model, apiKey, images, openFiles, forcedSkill, planMode, kitId, projectId, selectedApp, previewRoute, builtInTools, reasoningEffort, history, contextSummary } = req.body;
     const user = req.user;
 
     // Debug: Log images received
@@ -383,6 +383,11 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
           kitLessonsEnabled: userSettings.kitLessonsEnabled !== false,
           cdpEnabled,
           skipVisualEditingIds: isExternalProject,
+          selectedApp: isExternalProject ? selectedApp : undefined,
+          previewRoute: previewRoute || undefined,
+          buildCommand: isExternalProject
+            ? (selectedApp ? `npx @richapps/ong build --project ${selectedApp}` : 'npx @richapps/ong build')
+            : 'npm run build',
       }, {
           onText: (text) => {
               res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);

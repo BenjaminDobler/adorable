@@ -50,6 +50,36 @@ export const RUNTIME_SCRIPTS = `
       console.error = function(...args) { originalError.apply(console, args); send('error', args); };
     })();
 
+    // Route Change Tracker — reports the current URL path to the host whenever navigation occurs.
+    // Works with Angular Router (popstate + pushState/replaceState) and hash-based routing.
+    (function() {
+      var lastPath = '';
+      function reportRoute() {
+        var p = location.pathname + location.hash;
+        if (p !== lastPath) {
+          lastPath = p;
+          var msg = { type: 'PREVIEW_ROUTE_CHANGE', route: p };
+          if (window.parent !== window) {
+            window.parent.postMessage(msg, '*');
+          } else if (window.__adorable_ipc) {
+            window.__adorable_ipc('__ADORABLE_IPC__' + JSON.stringify(msg));
+          }
+        }
+      }
+      // Patch pushState/replaceState to detect programmatic navigation
+      var origPush = history.pushState;
+      var origReplace = history.replaceState;
+      history.pushState = function() { origPush.apply(this, arguments); reportRoute(); };
+      history.replaceState = function() { origReplace.apply(this, arguments); reportRoute(); };
+      window.addEventListener('popstate', reportRoute);
+      // Report initial route once DOM is ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', reportRoute);
+      } else {
+        reportRoute();
+      }
+    })();
+
     // Element ID helpers — supports both _ong annotations and legacy data-elements-id
     function __getElementId(el) {
       // Prefer _ong annotation (compile-time, from ong Vite plugin)

@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, signal, effect, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, signal, computed, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TemplateService, ElementFingerprint } from '../../services/template';
@@ -6,6 +6,7 @@ import { ProjectService } from '../../../../core/services/project';
 import { ContainerEngine } from '../../../../core/services/container-engine';
 import { ToastService } from '../../../../core/services/toast';
 import { HMRTriggerService } from '../../../../core/services/hmr-trigger.service';
+import { TAILWIND_CATEGORIES, TailwindCategory, getConflictPrefix } from './tailwind-presets';
 
 @Component({
   selector: 'app-visual-editor-panel',
@@ -50,6 +51,22 @@ export class VisualEditorPanelComponent {
   editGap = 0;
 
   visualPrompt = '';
+
+  // Tailwind state
+  hasTailwind = computed(() => this.projectService.detectedConfig()?.hasTailwind === true);
+  activeTab = signal<'styles' | 'tailwind'>('styles');
+  currentClasses = computed(() => {
+    const cls = this.visualEditorData()?.classes;
+    return new Set<string>(cls?.split(/\s+/).filter(Boolean) || []);
+  });
+  activeTailwindCategory = signal<number>(0);
+  tailwindCategories = TAILWIND_CATEGORIES;
+  freeTextClass = '';
+  hasDynamicClassBinding = computed(() => {
+    const ann = this.visualEditorData()?.ongAnnotation;
+    if (!ann?.bindings?.inputs) return false;
+    return 'class' in ann.bindings.inputs || 'ngClass' in ann.bindings.inputs;
+  });
 
   private static TRANSLATE_PIPE_RE = /\{\{\s*['"]([^'"]+)['"]\s*\|\s*(translate|transloco|i18n)\b/;
 
@@ -96,7 +113,7 @@ export class VisualEditorPanelComponent {
     });
   }
 
-  async applyVisualEdit(type: 'text' | 'style', value: string, property?: string) {
+  async applyVisualEdit(type: 'text' | 'style' | 'class', value: string, property?: string) {
     if (!this.visualEditorData()) return;
 
     const data = this.visualEditorData();
@@ -128,6 +145,8 @@ export class VisualEditorPanelComponent {
 
       if (type === 'text') {
         this.visualEditorData.update((d: any) => ({ ...d, text: value }));
+      } else if (type === 'class') {
+        this.visualEditorData.update((d: any) => ({ ...d, classes: value }));
       }
     } else {
       console.error('Visual Edit Failed:', result.error);
@@ -241,6 +260,47 @@ export class VisualEditorPanelComponent {
 
     const containerTags = ['div', 'section', 'main', 'aside', 'article', 'nav', 'header', 'footer', 'ul', 'ol', 'form', 'fieldset'];
     return containerTags.includes(data.tagName.toLowerCase());
+  }
+
+  toggleTailwindClass(cls: string) {
+    const classes = new Set(this.currentClasses());
+    if (classes.has(cls)) {
+      classes.delete(cls);
+    } else {
+      // Remove conflicting classes in the same group
+      const prefix = getConflictPrefix(cls);
+      if (prefix) {
+        for (const existing of classes) {
+          if (getConflictPrefix(existing) === prefix) {
+            classes.delete(existing);
+          }
+        }
+      }
+      classes.add(cls);
+    }
+    const newClassString = [...classes].join(' ');
+    this.applyVisualEdit('class', newClassString);
+  }
+
+  addFreeTextClass() {
+    const input = this.freeTextClass.trim();
+    if (!input) return;
+    const classes = new Set(this.currentClasses());
+    for (const cls of input.split(/\s+/)) {
+      if (cls) classes.add(cls);
+    }
+    this.freeTextClass = '';
+    this.applyVisualEdit('class', [...classes].join(' '));
+  }
+
+  removeClass(cls: string) {
+    const classes = new Set(this.currentClasses());
+    classes.delete(cls);
+    this.applyVisualEdit('class', [...classes].join(' '));
+  }
+
+  toggleCategory(index: number) {
+    this.activeTailwindCategory.set(this.activeTailwindCategory() === index ? -1 : index);
   }
 
   private parsePixelValue(value: string | undefined): number {

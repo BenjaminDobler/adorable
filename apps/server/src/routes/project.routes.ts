@@ -206,8 +206,9 @@ router.post('/open-external', async (req: any, res) => {
       });
     }
 
-    // Check if this path is already linked to a project
-    const existing = await prisma.project.findFirst({
+    // Check if this workspace+app combo already has a project.
+    // For multi-app workspaces each selected app gets its own project entry.
+    const candidates = await prisma.project.findMany({
       where: { externalPath, userId: user.id },
       include: {
         messages: {
@@ -216,8 +217,20 @@ router.post('/open-external', async (req: any, res) => {
         }
       }
     });
+
+    const targetApp = detectedConfig.selectedApp || null;
+    const existing = candidates.find(p => {
+      if (!p.files) return !targetApp; // no stored config matches no selection
+      try {
+        const ext = JSON.parse(p.files);
+        return (ext.selectedApp || null) === targetApp;
+      } catch {
+        return !targetApp;
+      }
+    });
+
     if (existing) {
-      // Update stored app/config if a new selection was made
+      // Update stored config if selection changed (e.g. different configuration)
       if (detectedConfig.selectedApp || detectedConfig.selectedConfiguration) {
         const newExternalConfig = JSON.stringify({
           selectedApp: detectedConfig.selectedApp,

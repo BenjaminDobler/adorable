@@ -401,6 +401,10 @@ export class WorkspaceComponent implements AfterViewChecked {
 
   /** Handles a message from the preview (either via webview bridge or iframe postMessage). */
   private async handlePreviewMessage(data: any) {
+    if (data.type === 'PREVIEW_ROUTE_CHANGE') {
+      this.containerEngine.previewRoute.set(data.route || null);
+    }
+
     if (data.type === 'ELEMENT_SELECTED') {
       this.visualEditorData.set(data.payload);
     }

@@ -26,6 +26,8 @@ export interface DetectedProjectConfig {
   selectedApp?: string;
   /** The selected configuration (e.g. "development", "production") */
   selectedConfiguration?: string;
+  /** Whether the project uses Tailwind CSS */
+  hasTailwind?: boolean;
 }
 
 /**
@@ -53,6 +55,7 @@ export async function detectProjectConfig(projectPath: string, selectedNxApp?: s
       config.name = pkgJson.name;
     }
   } catch {
+    config.hasTailwind = await detectTailwind(projectPath);
     return config;
   }
 
@@ -89,12 +92,16 @@ export async function detectProjectConfig(projectPath: string, selectedNxApp?: s
       applyOngCommands(config, appToServe, selectedConfiguration);
     }
 
-    // Use first app name if available
+    // Use selected app name; include workspace name for multi-app workspaces
     if (nxApps.length > 0) {
       const selected = nxApps.find(a => a.root === appToServe) || nxApps[0];
-      config.name = selected.name;
+      const workspaceName = path.basename(projectPath);
+      config.name = nxApps.length > 1 && selected.name !== workspaceName
+        ? `${workspaceName} / ${selected.name}`
+        : selected.name;
     }
 
+    config.hasTailwind = await detectTailwind(projectPath);
     return config;
   }
 
@@ -126,9 +133,15 @@ export async function detectProjectConfig(projectPath: string, selectedNxApp?: s
         const appToServe = selectedNxApp || (apps.length === 1 ? apps[0].root : null);
         if (appToServe) {
           config.selectedApp = appToServe;
-          applyOngCommands(config, undefined, selectedConfiguration);
+          applyOngCommands(config, appToServe, selectedConfiguration);
         }
-        config.name = apps[0].name;
+
+        // Use selected app name; include workspace name for multi-app workspaces
+        const selected = apps.find(a => a.root === appToServe) || apps[0];
+        const workspaceName = path.basename(projectPath);
+        config.name = apps.length > 1 && selected.name !== workspaceName
+          ? `${workspaceName} / ${selected.name}`
+          : selected.name;
       }
     } catch {
       // Failed to parse angular.json — use defaults
@@ -140,6 +153,7 @@ export async function detectProjectConfig(projectPath: string, selectedNxApp?: s
     applyOngCommands(config, undefined, selectedConfiguration);
   }
 
+  config.hasTailwind = await detectTailwind(projectPath);
   return config;
 }
 
@@ -168,7 +182,8 @@ async function discoverNxApps(workspaceRoot: string): Promise<NxApp[]> {
   }
 
   // Scan common directories for Nx apps (apps/, packages/, projects/)
-  for (const dir of ['apps', 'packages', 'projects']) {
+  const scannedDirs = new Set(['apps', 'packages', 'projects']);
+  for (const dir of scannedDirs) {
     const scanDir = path.join(workspaceRoot, dir);
     try {
       const entries = await fs.readdir(scanDir, { withFileTypes: true });
@@ -195,6 +210,32 @@ async function discoverNxApps(workspaceRoot: string): Promise<NxApp[]> {
     }
   }
 
+  // Also scan top-level directories for project.json (e.g. admin/ at workspace root)
+  const skipDirs = new Set([...scannedDirs, 'node_modules', 'dist', '.git', '.nx', '.angular']);
+  try {
+    const rootEntries = await fs.readdir(workspaceRoot, { withFileTypes: true });
+    for (const entry of rootEntries) {
+      if (!entry.isDirectory() || skipDirs.has(entry.name) || entry.name.startsWith('.')) continue;
+      const appProjectJson = path.join(workspaceRoot, entry.name, 'project.json');
+      if (await fileExists(appProjectJson)) {
+        // Skip if already found (e.g. from apps/ scan)
+        if (apps.some(a => a.root === entry.name)) continue;
+        try {
+          const pj = JSON.parse(await fs.readFile(appProjectJson, 'utf-8'));
+          const serveTarget = pj.targets?.serve;
+          if (serveTarget) {
+            apps.push({
+              name: pj.name || entry.name,
+              root: entry.name,
+              configurations: Object.keys(serveTarget.configurations || {}),
+              defaultConfiguration: serveTarget.defaultConfiguration,
+            });
+          }
+        } catch { /* ignore */ }
+      }
+    }
+  } catch { /* ignore */ }
+
   return apps;
 }
 
@@ -218,6 +259,19 @@ function applyOngCommands(config: DetectedProjectConfig, projectPath?: string, c
 
   config.commands.dev = { cmd: 'npx', args: devArgs };
   config.commands.build = { cmd: 'npx', args: buildArgs };
+}
+
+async function detectTailwind(projectPath: string): Promise<boolean> {
+  const tailwindFiles = [
+    'tailwind.config.js',
+    'tailwind.config.ts',
+    'tailwind.config.cjs',
+    'tailwind.config.mjs',
+  ];
+  for (const file of tailwindFiles) {
+    if (await fileExists(path.join(projectPath, file))) return true;
+  }
+  return false;
 }
 
 async function fileExists(filePath: string): Promise<boolean> {

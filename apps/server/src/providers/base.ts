@@ -31,7 +31,7 @@ export const SYSTEM_PROMPT =
 +"- **BEFORE using `edit_file`**, always `read_file` first to get the current file content. Never rely on your memory of the file — it may have changed. The `old_str` must match the EXACT current content.\n"
 +"- Use `delete_file` to remove files from the project. Use `rename_file` to move or rename files. Use `copy_file` to duplicate files.\n"
 +"- **BATCH TOOL CALLS:** When multiple independent operations are needed (e.g., reading several unrelated files, or writing files that don't depend on each other), invoke ALL tools in a single response. Never make sequential calls for independent operations.\n"
-+"- Use `run_command` to execute shell commands. **MANDATORY:** After you finish creating or modifying ALL components, you MUST run `npm run build` as your FINAL step to verify compilation. Do NOT end your turn without running the build. If the build fails (exit code != 0), read the error output, fix the file(s), and RE-RUN the build until it succeeds. If `run_command` is not available, you MUST manually verify: every import references an existing file, every `templateUrl` and `styleUrl` points to a file you created, every component used in a template is imported in that component's `imports` array, and the root `app.component.html` contains the correct top-level markup with router-outlet or child component selectors.\n"
++"- **MANDATORY BUILD CHECK:** After you finish creating or modifying ALL components, you MUST call `verify_build` as your FINAL step to verify compilation. Do NOT end your turn without running the build. `verify_build` automatically runs the correct build command for the project. If it fails, read the error output, fix the file(s), and call `verify_build` again until it succeeds. Do NOT use `run_command` for builds — always use `verify_build`. Use `run_command` for other shell tasks (tests, grep, etc.). If neither tool is available, you MUST manually verify: every import references an existing file, every `templateUrl` and `styleUrl` points to a file you created, every component used in a template is imported in that component's `imports` array, and the root `app.component.html` contains the correct top-level markup with router-outlet or child component selectors.\n"
 +"- **PRE-BUILD CHECKLIST:** Before running `npm run build`, verify:\n"
 +"  1. All import paths match exactly what the component documentation specifies (import path ≠ HTML tag name in many libraries)\n"
 +"  2. All HTML element tags match the component doc's **Selector** field (e.g., `<ui5-li>` not `<ui5-list-item-standard>`)\n"
@@ -107,6 +107,7 @@ export interface AgentLoopContext {
   projectId?: string;
   cdpEnabled?: boolean;
   hasVerifiedWithBrowser?: boolean;
+  buildCommand: string; // The resolved build command (e.g. "npm run build" or "npx @richapps/ong build --project apps/my-app")
 }
 
 export abstract class BaseLLMProvider {
@@ -127,6 +128,7 @@ export abstract class BaseLLMProvider {
     history?: HistoryMessage[];
     contextSummary?: string;
     cdpEnabled?: boolean;
+    buildCommand: string;
   }> {
     const logger = new DebugLogger(providerName, options.projectId);
     if (!options.fileSystem) {
@@ -143,6 +145,19 @@ export abstract class BaseLLMProvider {
       if (skill) {
         userMessage += `\n\n[SYSTEM INJECTION] The user has explicitly enabled the '${skill.name}' skill. You MUST follow these instructions:\n${skill.instructions}`;
       }
+    }
+
+    if (options.selectedApp) {
+      userMessage += `\n\n--- Workspace Context ---\nThis is an Nx monorepo. The user is working on the app at \`${options.selectedApp}\`. `
+        + `All file paths are relative to the workspace root. Focus changes on files inside \`${options.selectedApp}/\`. `
+        + `When creating or modifying files, always use the full workspace-relative path (e.g. \`${options.selectedApp}/src/app/...\`). `
+        + `Shared libraries may exist under \`libs/\` — use \`list_dir\` or \`run_command\` to explore them if needed.`;
+    }
+
+    if (options.previewRoute) {
+      userMessage += `\n\n--- Currently Visible Page ---\nThe user is viewing the route \`${options.previewRoute}\` in the live preview. `
+        + `When the user says "this page" or "here", they are referring to the component/page rendered at this route. `
+        + `Check the routing configuration to identify which component is rendered at this path.`;
     }
 
     if (options.previousFiles) {
@@ -167,17 +182,28 @@ export abstract class BaseLLMProvider {
 Only proceed with implementation after receiving the user's answers.`;
     }
 
+    const buildCommand = options.buildCommand || 'npm run build';
+
     const availableTools: any[] = [...TOOLS];
     if (fs.exec) {
       availableTools.push({
         name: "run_command",
-        description: "Execute a shell command in the project environment. Use this to run build commands, tests, or grep for information. Returns stdout, stderr and exit code.",
+        description: "Execute a shell command in the project environment. Use this to run tests, grep for information, or other commands. Returns stdout, stderr and exit code. Do NOT use this for build verification — use `verify_build` instead.",
         input_schema: {
           type: "object",
           properties: {
-            command: { type: "string", description: "The shell command to execute (e.g. 'npm run build', 'grep -r \"Component\" src')" }
+            command: { type: "string", description: "The shell command to execute (e.g. 'grep -r \"Component\" src', 'npm test')" }
           },
           required: ["command"]
+        }
+      });
+      availableTools.push({
+        name: "verify_build",
+        description: "Run the project's build command to check for compilation errors. Always use this after modifying files — it automatically runs the correct build command for the project type (Angular CLI, Nx monorepo, etc.).",
+        input_schema: {
+          type: "object",
+          properties: {},
+          required: []
         }
       });
     }
@@ -373,7 +399,7 @@ Only proceed with implementation after receiving the user's answers.`;
       );
     }
 
-    return { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName: activeKit?.name, activeKitId: activeKit?.id, userId: options.userId, projectId: options.projectId, history: options.history, contextSummary: options.contextSummary, cdpEnabled: options.cdpEnabled };
+    return { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName: activeKit?.name, activeKitId: activeKit?.id, userId: options.userId, projectId: options.projectId, history: options.history, contextSummary: options.contextSummary, cdpEnabled: options.cdpEnabled, buildCommand };
   }
 
   protected async addSkillTools(availableTools: any[], skillRegistry: SkillRegistry, fs: FileSystemInterface, userId?: string) {
@@ -685,6 +711,31 @@ Only proceed with implementation after receiving the user's answers.`;
             }
           }
           break;
+        case 'verify_build':
+          if (!fs.exec) throw new Error('verify_build is not supported in this environment.');
+          {
+            const buildCmd = ctx.buildCommand;
+            console.log(`[VerifyBuild] Running: ${buildCmd}`);
+            const res = await fs.exec(buildCmd);
+            content = sanitizeCommandOutput(buildCmd, res.stdout, res.stderr, res.exitCode);
+            if (res.exitCode !== 0) isError = true;
+            ctx.hasRunBuild = true;
+            if (res.exitCode !== 0) {
+              ctx.failedBuildCount++;
+              if (ctx.activeKitName && ctx.failedBuildCount >= 2) {
+                const nudge = `\n\n🚨 **BUILD FAILURE #${ctx.failedBuildCount} — STOP AND READ THE DOCS.**\nYou have had ${ctx.failedBuildCount} consecutive build failures with the ${ctx.activeKitName} component library. You MUST:\n1. Identify which components are causing errors\n2. Read their documentation: \`read_files\` → \`.adorable/components/{ComponentName}.md\`\n3. Fix the imports, selectors, and APIs based on the docs\n4. Remember: import paths and HTML tags often DO NOT match (e.g. import from \`/text-area\` but tag is \`<ui5-textarea>\`)\n5. Use \`edit_file\` to fix the specific error — do NOT rewrite entire files\n6. \`read_file\` BEFORE \`edit_file\` to get the exact current content\n**DO NOT remove or replace library components with plain HTML. DO NOT guess — read the docs.**`;
+                content += nudge;
+                ctx.logger.logText('BUILD_FAILURE_NUDGE', nudge, { failedBuildCount: ctx.failedBuildCount, activeKitName: ctx.activeKitName });
+              }
+            } else {
+              const priorFailures = ctx.failedBuildCount;
+              ctx.failedBuildCount = 0;
+              if (priorFailures >= 2 && ctx.activeKitName && ctx.activeKitId) {
+                content += `\n\n✅ **Build succeeded after ${priorFailures} failures.** You just worked through a non-trivial issue with the ${ctx.activeKitName} library. If you discovered something that isn't obvious from the docs (wrong import path, required wrapper, missing config, etc.), call \`save_lesson\` now so future sessions don't hit the same wall.`;
+              }
+            }
+          }
+          break;
         case 'run_command':
           if (!fs.exec) throw new Error('run_command is not supported in this environment.');
           validationError = this.validateToolArgs(toolName, toolArgs, ['command']);
@@ -843,15 +894,16 @@ Only proceed with implementation after receiving the user's answers.`;
     // Auto-build check in the no-tools-called path
     if (fs.exec && ctx.hasWrittenFiles && !ctx.hasRunBuild && !ctx.buildNudgeSent) {
       ctx.buildNudgeSent = true;
-      console.log(`[AutoBuild] Running npm run build...`);
+      const buildCmd = ctx.buildCommand;
+      console.log(`[AutoBuild] Running ${buildCmd}...`);
       callbacks.onText?.('\n\nVerifying build...\n');
-      const buildResult = await fs.exec('npm run build');
+      const buildResult = await fs.exec(buildCmd);
       console.log(`[AutoBuild] Build result: exitCode=${buildResult.exitCode}`);
 
       if (buildResult.exitCode !== 0) {
         callbacks.onText?.('Build failed. Fixing errors...\n');
-        const sanitizedBuildOutput = sanitizeCommandOutput('npm run build', buildResult.stdout || '', buildResult.stderr || '', buildResult.exitCode);
-        const fixMessage = `The build failed with the following errors. Fix ALL errors and then run \`npm run build\` again to verify.\n\n\`\`\`\n${sanitizedBuildOutput}\n\`\`\``;
+        const sanitizedBuildOutput = sanitizeCommandOutput(buildCmd, buildResult.stdout || '', buildResult.stderr || '', buildResult.exitCode);
+        const fixMessage = `The build failed with the following errors. Fix ALL errors and then use \`verify_build\` again to verify.\n\n\`\`\`\n${sanitizedBuildOutput}\n\`\`\``;
 
         const FIX_TURNS = 5;
         let currentFixMessage = fixMessage;
@@ -866,7 +918,7 @@ Only proceed with implementation after receiving the user's answers.`;
             const { content, isError } = await this.executeTool(call.name, call.args, ctx);
             callbacks.onToolResult?.(call.id, content, call.name);
 
-            if (call.name === 'run_command' && call.args?.command?.includes('build') && !isError) {
+            if ((call.name === 'verify_build' || (call.name === 'run_command' && call.args?.command?.includes('build'))) && !isError) {
               console.log(`[AutoBuild] Fix build succeeded on fix turn ${fixTurn}`);
               ctx.hasRunBuild = true;
             }

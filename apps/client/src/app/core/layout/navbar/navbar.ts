@@ -24,6 +24,7 @@ import { GitHubRepository, GitHubProjectSync, PublishVisibility } from '@adorabl
 import { ApiService } from '../../services/api';
 import { AppSettings, AIProfile, BuiltInToolConfig, SapAiCoreConfig, MCPServerConfig } from '../../../features/profile/profile.types';
 import { ThemeSettings } from '../../services/theme';
+import { svgIcon } from '../../../shared/ui/icons';
 
 interface ContainerInfo {
   containerId: string;
@@ -375,9 +376,9 @@ export class NavbarComponent {
     const type = this.themeService.themeType();
 
     if (type === 'pro') {
-      return mode === 'dark' ? '🎨' : '⚡';
+      return mode === 'dark' ? svgIcon('palette', 16) : svgIcon('zap', 16);
     }
-    return mode === 'dark' ? '🌙' : '☀️';
+    return mode === 'dark' ? svgIcon('moon', 16) : svgIcon('sun', 16);
   }
 
   // Publish Panel

@@ -43,6 +43,9 @@ export interface GenerateOptions {
   kitLessonsEnabled?: boolean; // Enable save_lesson tool + lesson injection (default: true)
   cdpEnabled?: boolean; // Enable CDP browser tools (desktop mode with undocked preview)
   skipVisualEditingIds?: boolean; // Skip data-elements-id instruction (external projects use ong annotations instead)
+  selectedApp?: string; // Selected Nx app root (e.g. "apps/my-app") — workspace-scoped context for AI
+  previewRoute?: string; // Current route path visible in the preview (e.g. "/dashboard")
+  buildCommand?: string; // Override build command (e.g. "npx @richapps/ong build --project apps/my-app")
 }
 
 export interface TokenUsage {
