@@ -196,6 +196,7 @@ export class VisualEditorPanelComponent {
       classes: data.classes,
       id: data.attributes?.id,
       elementId: data.elementId,
+      ongAnnotation: data.ongAnnotation,
       childIndex: data.childIndex,
       parentTag: data.parentTag
     };
