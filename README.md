@@ -18,6 +18,13 @@
 ### Runtime Engines
 *   **Local Docker:** Multi-tenant containerized execution for persistent, high-performance development. Background reaper pauses idle containers (15m) and hibernates them (2h) to save resources.
 *   **Native (Desktop):** Direct filesystem execution in the Electron desktop app without Docker.
+*   **OXC-Powered Dev Server:** Uses [ong](https://github.com/nicolo-ribaudo/ong) — an OXC/Vite-based Angular dev server written in Rust — as the default for both generated and external projects. Delivers significantly faster builds and enables compile-time template annotations for the visual editor.
+
+### External Project Support (Desktop)
+*   **Open Existing Projects:** Open any Angular CLI or Nx workspace project directly in Adorable via **File > Open Folder**.
+*   **Auto-Detection:** Automatically detects project type, framework, package manager (npm/yarn/pnpm), available apps, and configurations by scanning `angular.json`, `nx.json`, and lock files.
+*   **Nx Workspace Support:** Full multi-app workspace support — discover apps, select which one to work on, and scope all AI context and file operations to the selected app. Commands are automatically scoped (e.g., `ong serve --project apps/editor`).
+*   **Lazy File Loading:** External projects load in structure-only mode initially; file contents are lazy-loaded on demand to handle large codebases.
 
 ### Kit Builder
 *   **Component Kits:** Create reusable starter kits with custom templates, npm packages, component libraries, and AI instructions.
@@ -29,14 +36,36 @@
 ### Design & Visual Tools
 *   **Figma Integration:** Import designs directly from Figma via API (with Personal Access Token) or via the Adorable Figma Plugin for local exports. Browse layers, preview on hover, and send individual layers to chat.
 *   **Visual Inspector:** Click elements in the live preview to identify Angular components and ask the AI for targeted edits.
-*   **Visual Editor Panel:** Select elements in the preview to edit styles visually — colors, spacing, borders, flex layout, text — with a "Go to Code" button to jump to the source.
+*   **Visual Editor Panel:** Select elements in the preview to edit styles visually — colors, spacing, borders, flex layout, text, CSS classes — with a **Go to Code** button to jump directly to the source file and line.
+*   **Ong Template Annotations:** For external projects, ong injects rich compile-time annotations (exact file:line:col, component metadata, bindings, loop/conditional context) so the visual editor and AI can precisely locate and modify template elements without guessing.
+*   **Multi-Element Batch Edits:** Select multiple elements on the preview and add per-element instructions. Adorable compiles a structured prompt with source locations and context for each element.
 *   **Annotation Overlay:** Draw freehand, arrows, rectangles, and text labels directly on the preview to communicate design intent to the AI.
+
+### Translation Management
+*   **Built-in i18n Panel:** Auto-discovers i18n directories and JSON/JSONC translation files. Edit keys and values directly in a dedicated translations panel.
+*   **Multi-Locale Editing:** Key renames propagate across all locale files; value changes are scoped to the active locale.
+*   **Live Preview Reload:** Translation changes trigger HMR to auto-reload the preview without a full rebuild.
 
 ### Editor & Preview
 *   **Monaco Editor:** VS Code-powered editing with live sync to the preview.
 *   **Interactive Terminal:** Dedicated tabs for server logs, interactive shell, and browser console.
 *   **Open in VS Code:** (Docker mode) Open projects as a local folder or attach to the running container via Dev Containers. File changes sync back in real-time.
 *   **Time Travel:** Restore your project to any previous state in the chat history.
+*   **Project Settings:** Configure dev server port, localStorage presets, and cookie presets per project. For Nx workspaces, settings are stored per-app so each app gets its own configuration.
+
+### CDP Browser Tools (Desktop)
+The AI has access to Chrome DevTools Protocol tools for inspecting the running preview — available in both docked and undocked preview modes:
+*   **`browse_screenshot`** — Capture a screenshot of the running app to visually verify UI changes.
+*   **`browse_evaluate`** — Execute JavaScript in the preview to inspect DOM, read state, or debug.
+*   **`browse_accessibility`** — Get the full accessibility tree for structure and ARIA analysis.
+*   **`browse_console`** — Read buffered console messages (log, warn, error) from the running app.
+*   **`browse_navigate`** / **`browse_click`** — Navigate to routes and click elements to test interactivity.
+*   **Post-Build Verification:** After a successful build, the AI automatically uses browser tools to check for runtime errors and visually verify the result.
+
+### Undockable Preview (Desktop)
+*   **Docked Mode:** Preview renders as a `<webview>` embedded in the main editor window.
+*   **Undocked Mode:** Pop out the preview into a separate floating window with its own toolbar, device frame selection, and annotation tools. Window position and size are persisted.
+*   **Seamless Toggle:** Switch between docked and undocked via the preview toolbar. CDP browser tools work in both modes.
 
 ### Deployment & Sync
 *   **One-Click Publishing:** Build and publish to a live, shareable URL. Supports public and password-protected private sites.
@@ -51,8 +80,10 @@
 ### Desktop App
 *   **Standalone Electron App:** Bundles the server and client into a native macOS/Windows/Linux application.
 *   **Native Execution:** Run Angular projects directly on your machine without Docker.
+*   **Open External Projects:** Work on existing Angular/Nx projects in-place without copying files.
 *   **Offline-First:** Works without an internet connection (bring your own API keys).
 *   **Cloud Connect:** Link to a remote Adorable server for cross-device project sync.
+*   **Auto-Updates:** Built-in update checker with download progress and one-click install.
 
 ### Authentication & Administration
 *   **User Auth:** Email/password registration and login with JWT tokens. Social login via GitHub and Google OAuth.
@@ -147,9 +178,18 @@ npm run package:desktop:mac
 2.  **Choose Engine:** Toggle between **Local Docker** or **Native** (desktop) mode.
 3.  **Select a Kit:** When creating a project, choose a starter kit to bootstrap with specific templates and component libraries.
 4.  **Generate:** Type a prompt like *"Create a project management dashboard with signals"* in the Chat tab.
-5.  **Visual Edit:** Use the **Inspect** icon in the preview toolbar, click a UI element, and tell the AI what to change.
-6.  **Annotate:** Click the **pencil** icon to draw on the preview — freehand, arrows, rectangles, text labels — then send the annotated screenshot to the AI.
-7.  **Time Travel:** Click any previous message in the chat to restore the project to that point.
+5.  **Visual Edit:** Use the **Inspect** icon in the preview toolbar, click a UI element, and tell the AI what to change — or edit styles directly in the visual editor panel.
+6.  **Batch Edit:** Select multiple elements, add per-element instructions, and apply all changes in one go.
+7.  **Annotate:** Click the **pencil** icon to draw on the preview — freehand, arrows, rectangles, text labels — then send the annotated screenshot to the AI.
+8.  **Time Travel:** Click any previous message in the chat to restore the project to that point.
+9.  **Translations:** Use the **Translations** tab to edit i18n JSON files with instant preview reload.
+
+### External Projects (Desktop)
+
+1.  **Open Folder:** Use **File > Open Folder** (or Cmd/Ctrl+O) to open an existing Angular or Nx project.
+2.  **Select App:** For Nx workspaces with multiple apps, Adorable shows a picker to select which app to work on.
+3.  **Configure Settings:** Use the **Project Settings** panel to set dev server port, localStorage presets, and cookies. Settings are stored per-app for multi-app workspaces.
+4.  **Develop:** All AI generation, visual editing, and file operations are scoped to the selected app.
 
 ### Skills
 
