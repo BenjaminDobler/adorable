@@ -941,6 +941,10 @@ Analyze the attached design images carefully and create matching Angular compone
            this.hmrTrigger.triggerUpdate(event.path, event.content);
            this.progressiveStore.updateProgress(event.path, event.content, true);
            this.projectService.fileStore.updateFile(event.path, event.content);
+           // Auto-reload translations when the AI writes a JSON file (same as visual editor)
+           if (event.path.endsWith('.json') || event.path.endsWith('.jsonc')) {
+             this.hmrTrigger.reloadTranslations(event.content);
+           }
         } else if (event.type === 'file_progress') {
            this.progressiveStore.updateProgress(event.path, event.content, event.isComplete);
         } else if (event.type === 'screenshot_request') {
