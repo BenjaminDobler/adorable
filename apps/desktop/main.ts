@@ -508,6 +508,23 @@ app.on('ready', async () => {
           mainWindow.webContents.send('preview:event', event);
         }
       });
+
+      // Attach CDP to docked <webview> guest webContents when it loads a dev server URL.
+      // Electron fires 'web-contents-created' for every new webContents including
+      // webview guests. We detect the preview webview by checking its URL.
+      app.on('web-contents-created', (_event, wc) => {
+        if (wc.getType() !== 'webview') return;
+
+        wc.on('did-finish-load', () => {
+          const url = wc.getURL();
+          // Dev server URLs are always localhost
+          if (url && url.includes('localhost') && previewManager && !previewManager.isUndocked()) {
+            console.log('[Desktop] Docked webview loaded dev server URL, attaching CDP:', url);
+            previewManager.attachToDockedWebview(wc);
+          }
+        });
+      });
+
       console.log('[Desktop] Preview window manager initialized');
     }
 

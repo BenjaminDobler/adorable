@@ -233,7 +233,7 @@ Only proceed with implementation after receiving the user's answers.`;
       }
     }
 
-    // Add CDP browser tools when running in desktop mode with undocked preview
+    // Add CDP browser tools when running in desktop mode with preview active
     if (options.cdpEnabled) {
       availableTools.push(...CDP_TOOLS);
     }
@@ -841,7 +841,7 @@ Only proceed with implementation after receiving the user's answers.`;
             const agentUrl = `http://localhost:${agentPort}`;
 
             if (process.env['ADORABLE_DESKTOP_MODE'] !== 'true') {
-              content = 'CDP browser tools are only available in desktop mode with the preview undocked.';
+              content = 'CDP browser tools are only available in desktop mode with the preview running.';
               isError = true;
             } else {
               try {

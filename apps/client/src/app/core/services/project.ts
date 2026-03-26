@@ -552,6 +552,12 @@ export class ProjectService {
           nativeEngine.isExternalProject = true;
         }
 
+        // Tell the native agent which app is selected so per-app storage settings work
+        if (nativeEngine.setSelectedApp) {
+          const selectedApp = this.detectedConfig()?.selectedApp || null;
+          nativeEngine.setSelectedApp(selectedApp).catch(() => {});
+        }
+
         // Use detected config commands for external projects, fall back to kit commands
         const detected = this.detectedConfig();
         const kitCommands = this.currentKit()?.commands;

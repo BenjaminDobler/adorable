@@ -27,6 +27,8 @@ class NativeManager {
   public isExternalProject = false;
   /** Ports used by dev server processes (tracked for cleanup on stop). */
   public trackedPorts: Set<number> = new Set();
+  /** The currently selected app within an Nx/multi-app workspace (e.g. "apps/client"). */
+  public selectedApp: string | null = null;
 
   private get baseDir(): string {
     return process.env['ADORABLE_PROJECTS_DIR'] || path.join(os.homedir(), 'adorable-projects');
@@ -55,6 +57,7 @@ class NativeManager {
     this.stopWatcher();
 
     this.isExternalProject = false;
+    this.selectedApp = null;
     this.projectPath = path.join(this.baseDir, projectId);
     await fs.mkdir(this.projectPath, { recursive: true });
 
@@ -103,6 +106,7 @@ class NativeManager {
 
     // Point directly at the external path — no copying or cleaning
     this.isExternalProject = true;
+    this.selectedApp = null;
     this.projectPath = externalPath;
     return this.projectPath;
   }
@@ -448,25 +452,55 @@ app.post('/api/native/stop', async (_req, res) => {
 });
 
 // --- Storage Settings (localStorage/cookie presets for external projects) ---
+// Settings are stored per-app in multi-app workspaces (Nx, Angular workspace).
+// File format: { "perApp": { "apps/client": { localStorage, cookies }, ... } }
+// Backward compat: old flat format { localStorage, cookies } is migrated to "__default__" key.
 
 const SETTINGS_FILENAME = '.adorable-settings.json';
+const DEFAULT_APP_KEY = '__default__';
+const EMPTY_SETTINGS = { localStorage: {}, cookies: {} };
 
-app.get('/api/native/storage-settings', async (_req, res) => {
-  if (!manager.getProjectPath()) return res.json({ localStorage: {}, cookies: {} });
+async function readSettingsFile(settingsPath: string): Promise<Record<string, any>> {
   try {
-    const settingsPath = path.join(manager.getProjectPath()!, SETTINGS_FILENAME);
     const data = await fs.readFile(settingsPath, 'utf-8');
-    res.json(JSON.parse(data));
+    const parsed = JSON.parse(data);
+    // Migrate old flat format: { localStorage, cookies } → perApp.__default__
+    if (parsed && !parsed.perApp && (parsed.localStorage || parsed.cookies)) {
+      return { perApp: { [DEFAULT_APP_KEY]: { localStorage: parsed.localStorage || {}, cookies: parsed.cookies || {} } } };
+    }
+    return parsed && parsed.perApp ? parsed : { perApp: {} };
   } catch {
-    res.json({ localStorage: {}, cookies: {} });
+    return { perApp: {} };
+  }
+}
+
+app.put('/api/native/selected-app', (req, res) => {
+  manager.selectedApp = req.body.selectedApp || null;
+  console.log('[Agent] Selected app set to:', manager.selectedApp);
+  res.json({ success: true });
+});
+
+app.get('/api/native/storage-settings', async (req, res) => {
+  if (!manager.getProjectPath()) return res.json(EMPTY_SETTINGS);
+  try {
+    const appKey = (req.query.app as string) || manager.selectedApp || DEFAULT_APP_KEY;
+    const settingsPath = path.join(manager.getProjectPath()!, SETTINGS_FILENAME);
+    const allSettings = await readSettingsFile(settingsPath);
+    const appSettings = allSettings.perApp[appKey] || EMPTY_SETTINGS;
+    res.json(appSettings);
+  } catch {
+    res.json(EMPTY_SETTINGS);
   }
 });
 
 app.post('/api/native/storage-settings', async (req, res) => {
   if (!manager.getProjectPath()) return res.status(400).json({ error: 'No project open' });
   try {
+    const appKey = (req.query.app as string) || manager.selectedApp || DEFAULT_APP_KEY;
     const settingsPath = path.join(manager.getProjectPath()!, SETTINGS_FILENAME);
-    await fs.writeFile(settingsPath, JSON.stringify(req.body, null, 2), 'utf-8');
+    const allSettings = await readSettingsFile(settingsPath);
+    allSettings.perApp[appKey] = req.body;
+    await fs.writeFile(settingsPath, JSON.stringify(allSettings, null, 2), 'utf-8');
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -615,8 +649,8 @@ app.post('/api/native/preview-shell/event', (req, res) => {
 // --- CDP Bridge Routes ---
 
 app.post('/api/native/cdp/screenshot', async (_req, res) => {
-  if (!previewManagerRef?.isUndocked()) {
-    return res.status(400).json({ error: 'Preview is not undocked. Undock the preview window to use CDP tools.' });
+  if (!previewManagerRef?.isCdpAvailable()) {
+    return res.status(400).json({ error: 'CDP tools are not available. The preview must be running.' });
   }
   try {
     const image = await previewManagerRef.captureScreenshot();
@@ -627,8 +661,8 @@ app.post('/api/native/cdp/screenshot', async (_req, res) => {
 });
 
 app.post('/api/native/cdp/evaluate', async (req, res) => {
-  if (!previewManagerRef?.isUndocked()) {
-    return res.status(400).json({ error: 'Preview is not undocked.' });
+  if (!previewManagerRef?.isCdpAvailable()) {
+    return res.status(400).json({ error: 'CDP tools are not available. The preview must be running.' });
   }
   try {
     const result = await previewManagerRef.evaluate(req.body.expression);
@@ -639,8 +673,8 @@ app.post('/api/native/cdp/evaluate', async (req, res) => {
 });
 
 app.post('/api/native/cdp/accessibility', async (_req, res) => {
-  if (!previewManagerRef?.isUndocked()) {
-    return res.status(400).json({ error: 'Preview is not undocked.' });
+  if (!previewManagerRef?.isCdpAvailable()) {
+    return res.status(400).json({ error: 'CDP tools are not available. The preview must be running.' });
   }
   try {
     const tree = await previewManagerRef.getAccessibilityTree();
@@ -651,8 +685,8 @@ app.post('/api/native/cdp/accessibility', async (_req, res) => {
 });
 
 app.post('/api/native/cdp/console', async (req, res) => {
-  if (!previewManagerRef?.isUndocked()) {
-    return res.status(400).json({ error: 'Preview is not undocked.' });
+  if (!previewManagerRef?.isCdpAvailable()) {
+    return res.status(400).json({ error: 'CDP tools are not available. The preview must be running.' });
   }
   try {
     const messages = previewManagerRef.getConsoleMessages(req.body.clear !== false);
@@ -663,8 +697,8 @@ app.post('/api/native/cdp/console', async (req, res) => {
 });
 
 app.post('/api/native/cdp/navigate', async (req, res) => {
-  if (!previewManagerRef?.isUndocked()) {
-    return res.status(400).json({ error: 'Preview is not undocked.' });
+  if (!previewManagerRef?.isCdpAvailable()) {
+    return res.status(400).json({ error: 'CDP tools are not available. The preview must be running.' });
   }
   try {
     await previewManagerRef.navigateCDP(req.body.url);
@@ -675,8 +709,8 @@ app.post('/api/native/cdp/navigate', async (req, res) => {
 });
 
 app.post('/api/native/cdp/click', async (req, res) => {
-  if (!previewManagerRef?.isUndocked()) {
-    return res.status(400).json({ error: 'Preview is not undocked.' });
+  if (!previewManagerRef?.isCdpAvailable()) {
+    return res.status(400).json({ error: 'CDP tools are not available. The preview must be running.' });
   }
   try {
     await previewManagerRef.click(req.body.x, req.body.y);
@@ -688,7 +722,7 @@ app.post('/api/native/cdp/click', async (req, res) => {
 
 app.get('/api/native/cdp/status', (_req, res) => {
   res.json({
-    available: !!previewManagerRef?.isUndocked(),
+    available: !!previewManagerRef?.isCdpAvailable(),
   });
 });
 

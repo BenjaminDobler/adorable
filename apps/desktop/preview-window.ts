@@ -1,9 +1,14 @@
 /**
- * Preview Window Manager — Manages a separate BrowserWindow for the app preview.
- * The window loads a toolbar shell (served by local-agent) with the dev server
- * in an iframe. CDP operations target the iframe for direct app inspection.
+ * Preview Window Manager — Manages CDP browser tools for the app preview.
+ *
+ * CDP works in two modes:
+ *   1. **Docked** — preview is a <webview> tag in the main window. CDP attaches
+ *      directly to the webview's guest webContents (no iframe targeting needed).
+ *   2. **Undocked** — preview lives in a separate BrowserWindow that loads a
+ *      toolbar shell with the dev server in an iframe. CDP attaches to that
+ *      window's webContents and targets the iframe via Target.attachToTarget.
  */
-import { BrowserWindow, WebFrameMain } from 'electron';
+import { BrowserWindow, WebContents, WebFrameMain } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -32,6 +37,10 @@ export class PreviewWindowManager {
   private currentPreviewUrl: string | null = null;
   private iframeTargetId: string | null = null;
 
+  /** Guest webContents of the docked <webview> tag. */
+  private dockedWebContents: WebContents | null = null;
+  private isDockedDebuggerAttached = false;
+
   constructor(
     private mainWindow: BrowserWindow,
     userDataPath: string,
@@ -41,8 +50,123 @@ export class PreviewWindowManager {
     this.loadBounds();
   }
 
+  // --- Docked webview CDP support ---
+
+  /**
+   * Attach CDP to a docked <webview>'s guest webContents.
+   * Called from main.ts when a webview with a dev-server URL is detected.
+   */
+  attachToDockedWebview(webContents: WebContents): void {
+    // Don't attach if we're in undocked mode (undocked takes priority)
+    if (this.previewWindow) return;
+
+    this.detachFromDockedWebview();
+    this.dockedWebContents = webContents;
+
+    // Attach CDP debugger
+    try {
+      this.dockedWebContents.debugger.attach('1.3');
+      this.isDockedDebuggerAttached = true;
+
+      const debugger_ = this.dockedWebContents.debugger;
+      debugger_.sendCommand('Runtime.enable').catch(() => {});
+      debugger_.sendCommand('Page.enable').catch(() => {});
+
+      // Listen for console messages
+      debugger_.on('message', (_event, method, params) => {
+        if (method === 'Runtime.consoleAPICalled') {
+          const text = (params.args || [])
+            .map((arg: any) => arg.value ?? arg.description ?? String(arg))
+            .join(' ');
+          this.consoleBuffer.push({
+            level: params.type || 'log',
+            text,
+            timestamp: Date.now(),
+          });
+          if (this.consoleBuffer.length > MAX_CONSOLE_BUFFER) {
+            this.consoleBuffer = this.consoleBuffer.slice(-MAX_CONSOLE_BUFFER);
+          }
+        }
+      });
+
+      console.log('[PreviewWindow] CDP debugger attached to docked webview');
+
+      // Inject runtime scripts if set
+      if (runtimeScriptsCode) {
+        debugger_.sendCommand('Page.addScriptToEvaluateOnNewDocument', {
+          source: runtimeScriptsCode,
+        }).catch((err) => {
+          console.warn('[PreviewWindow] Failed to inject runtime scripts into docked webview:', err);
+        });
+      }
+    } catch (err) {
+      console.warn('[PreviewWindow] Failed to attach debugger to docked webview:', err);
+      this.isDockedDebuggerAttached = false;
+    }
+
+    // Clean up when webview is destroyed
+    webContents.on('destroyed', () => {
+      this.isDockedDebuggerAttached = false;
+      this.dockedWebContents = null;
+      this.consoleBuffer = [];
+    });
+  }
+
+  /**
+   * Detach CDP from the docked webview.
+   */
+  detachFromDockedWebview(): void {
+    if (this.dockedWebContents && this.isDockedDebuggerAttached) {
+      try {
+        this.dockedWebContents.debugger.detach();
+      } catch {
+        // already detached
+      }
+    }
+    this.isDockedDebuggerAttached = false;
+    this.dockedWebContents = null;
+    this.consoleBuffer = [];
+  }
+
+  // --- CDP availability ---
+
+  /**
+   * Returns true if CDP tools are available (either docked webview or undocked window).
+   */
+  isCdpAvailable(): boolean {
+    return (this.previewWindow !== null && this.isDebuggerAttached)
+      || (this.dockedWebContents !== null && this.isDockedDebuggerAttached);
+  }
+
+  /**
+   * Get the active webContents for CDP operations.
+   * Prefers undocked window, falls back to docked webview.
+   */
+  private get cdpWebContents(): WebContents | null {
+    if (this.previewWindow && this.isDebuggerAttached) {
+      return this.previewWindow.webContents;
+    }
+    if (this.dockedWebContents && this.isDockedDebuggerAttached) {
+      return this.dockedWebContents;
+    }
+    return null;
+  }
+
+  /**
+   * Whether we're currently in docked mode (webview CDP, not undocked window).
+   * This affects how some CDP operations work (no iframe targeting in docked mode).
+   */
+  private get isDockedMode(): boolean {
+    return !this.previewWindow && this.dockedWebContents !== null && this.isDockedDebuggerAttached;
+  }
+
+  // --- Undock/Dock ---
+
   async undock(url: string): Promise<void> {
     this.currentPreviewUrl = url;
+
+    // When undocking, detach from docked webview (undocked window takes over)
+    this.detachFromDockedWebview();
 
     if (this.previewWindow) {
       // Already undocked — navigate the inner iframe
@@ -135,16 +259,29 @@ export class PreviewWindowManager {
     return this.previewWindow !== null;
   }
 
-  // --- CDP Operations (target the iframe, not the shell) ---
+  // --- CDP Operations ---
 
   async captureScreenshot(): Promise<string> {
-    this.ensurePreviewWindow();
+    const wc = this.cdpWebContents;
+    if (!wc) throw new Error('No CDP target available.');
 
-    // Try to capture just the iframe content via CDP target
-    const sessionId = await this.getIframeSessionId();
-    if (sessionId && this.isDebuggerAttached) {
+    if (this.isDockedMode) {
+      // Docked webview: capture directly (no iframe targeting)
       try {
-        const result = await this.previewWindow!.webContents.debugger.sendCommand(
+        const result = await wc.debugger.sendCommand('Page.captureScreenshot', { format: 'png' });
+        return result.data;
+      } catch {
+        // Fallback to Electron capture
+        const image = await wc.capturePage();
+        return image.toPNG().toString('base64');
+      }
+    }
+
+    // Undocked mode: try to capture just the iframe content via CDP target
+    const sessionId = await this.getIframeSessionId();
+    if (sessionId) {
+      try {
+        const result = await wc.debugger.sendCommand(
           'Page.captureScreenshot',
           { format: 'png' },
           sessionId
@@ -156,16 +293,11 @@ export class PreviewWindowManager {
     }
 
     // Fallback: capture the entire preview window (includes toolbar)
-    if (this.isDebuggerAttached) {
-      try {
-        const result = await this.previewWindow!.webContents.debugger.sendCommand(
-          'Page.captureScreenshot',
-          { format: 'png' }
-        );
-        return result.data;
-      } catch {
-        // Fall through
-      }
+    try {
+      const result = await wc.debugger.sendCommand('Page.captureScreenshot', { format: 'png' });
+      return result.data;
+    } catch {
+      // Fall through
     }
 
     const image = await this.previewWindow!.webContents.capturePage();
@@ -173,9 +305,15 @@ export class PreviewWindowManager {
   }
 
   async evaluate(expression: string): Promise<any> {
-    this.ensurePreviewWindow();
+    const wc = this.cdpWebContents;
+    if (!wc) throw new Error('No CDP target available.');
 
-    // Try executing in the iframe context via Electron's frame API
+    if (this.isDockedMode) {
+      // Docked webview: execute directly in the page context
+      return wc.executeJavaScript(expression);
+    }
+
+    // Undocked mode: try executing in the iframe context via Electron's frame API
     const iframeFrame = this.getIframeFrame();
     if (iframeFrame) {
       return iframeFrame.executeJavaScript(expression);
@@ -193,11 +331,18 @@ export class PreviewWindowManager {
   }
 
   async getAccessibilityTree(): Promise<any> {
-    this.ensurePreviewWindow();
-    this.ensureDebugger();
+    const wc = this.cdpWebContents;
+    if (!wc) throw new Error('No CDP target available.');
 
+    if (this.isDockedMode) {
+      // Docked: target the webview directly
+      const result = await wc.debugger.sendCommand('Accessibility.getFullAXTree', {});
+      return this.formatAccessibilityTree(result.nodes);
+    }
+
+    // Undocked: try to target the iframe
     const sessionId = await this.getIframeSessionId();
-    const result = await this.previewWindow!.webContents.debugger.sendCommand(
+    const result = await wc.debugger.sendCommand(
       'Accessibility.getFullAXTree',
       {},
       sessionId || undefined
@@ -213,30 +358,37 @@ export class PreviewWindowManager {
 
   async navigateCDP(url: string): Promise<void> {
     this.currentPreviewUrl = url;
-    this.ensurePreviewWindow();
-    this.navigateIframe(url);
+
+    if (this.isDockedMode) {
+      // Docked webview: navigate directly
+      this.dockedWebContents!.loadURL(url);
+    } else {
+      this.ensurePreviewWindow();
+      this.navigateIframe(url);
+    }
 
     // Wait a bit for navigation to complete
     await new Promise<void>((resolve) => setTimeout(resolve, 2000));
   }
 
   async click(x: number, y: number): Promise<void> {
-    this.ensurePreviewWindow();
-    this.ensureDebugger();
+    const wc = this.cdpWebContents;
+    if (!wc) throw new Error('No CDP target available.');
 
-    // Offset y by the toolbar height (~37px) to map to the iframe content
-    const toolbarHeight = 37;
-    const adjustedY = y + toolbarHeight;
+    let adjustedY = y;
+    if (!this.isDockedMode) {
+      // Undocked: offset y by the toolbar height (~37px) to map to the iframe content
+      adjustedY = y + 37;
+    }
 
-    const debugger_ = this.previewWindow!.webContents.debugger;
-    await debugger_.sendCommand('Input.dispatchMouseEvent', {
+    await wc.debugger.sendCommand('Input.dispatchMouseEvent', {
       type: 'mousePressed',
       x,
       y: adjustedY,
       button: 'left',
       clickCount: 1,
     });
-    await debugger_.sendCommand('Input.dispatchMouseEvent', {
+    await wc.debugger.sendCommand('Input.dispatchMouseEvent', {
       type: 'mouseReleased',
       x,
       y: adjustedY,
@@ -265,6 +417,14 @@ export class PreviewWindowManager {
     // If already undocked and debugger attached, inject immediately
     if (code && this.isDebuggerAttached) {
       this.injectRuntimeScripts();
+    }
+    // Also inject into docked webview if attached
+    if (code && this.isDockedDebuggerAttached && this.dockedWebContents) {
+      this.dockedWebContents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', {
+        source: code,
+      }).catch((err) => {
+        console.warn('[PreviewWindow] Failed to inject runtime scripts into docked webview:', err);
+      });
     }
   }
 
@@ -299,6 +459,7 @@ export class PreviewWindowManager {
   }
 
   destroy(): void {
+    this.detachFromDockedWebview();
     if (this.previewWindow) {
       this.detachDebugger();
       this.previewWindow.destroy();
@@ -332,6 +493,7 @@ export class PreviewWindowManager {
   /**
    * Find the CDP session ID for the iframe target, so CDP commands
    * can be sent directly to the iframe's page context.
+   * Only used in undocked mode.
    */
   private async getIframeSessionId(): Promise<string | null> {
     if (!this.isDebuggerAttached || !this.previewWindow) return null;
@@ -427,16 +589,6 @@ export class PreviewWindowManager {
   private ensurePreviewWindow(): void {
     if (!this.previewWindow) {
       throw new Error('Preview window is not open. Undock the preview first.');
-    }
-  }
-
-  private ensureDebugger(): void {
-    this.ensurePreviewWindow();
-    if (!this.isDebuggerAttached) {
-      this.attachDebugger();
-      if (!this.isDebuggerAttached) {
-        throw new Error('CDP debugger is not attached to the preview window.');
-      }
     }
   }
 

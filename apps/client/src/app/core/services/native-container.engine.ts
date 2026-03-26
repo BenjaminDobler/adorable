@@ -431,16 +431,26 @@ export class NativeContainerEngine extends ContainerEngine {
 
   // --- Storage Settings ---
 
-  async getStorageSettings(): Promise<{ localStorage: Record<string, string>; cookies: Record<string, string> }> {
-    const res = await fetch(`${this.apiUrl}/storage-settings`);
+  async getStorageSettings(appName?: string): Promise<{ localStorage: Record<string, string>; cookies: Record<string, string> }> {
+    const params = appName ? `?app=${encodeURIComponent(appName)}` : '';
+    const res = await fetch(`${this.apiUrl}/storage-settings${params}`);
     return res.json();
   }
 
-  async saveStorageSettings(settings: { localStorage: Record<string, string>; cookies: Record<string, string> }): Promise<void> {
-    await fetch(`${this.apiUrl}/storage-settings`, {
+  async saveStorageSettings(settings: { localStorage: Record<string, string>; cookies: Record<string, string> }, appName?: string): Promise<void> {
+    const params = appName ? `?app=${encodeURIComponent(appName)}` : '';
+    await fetch(`${this.apiUrl}/storage-settings${params}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings),
+    });
+  }
+
+  async setSelectedApp(appName: string | null): Promise<void> {
+    await fetch(`${this.apiUrl}/selected-app`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selectedApp: appName }),
     });
   }
 

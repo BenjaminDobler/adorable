@@ -263,11 +263,15 @@ export class ProjectSettingsComponent {
     this.load();
   }
 
+  private getSelectedApp(): string | undefined {
+    return this.projectService.detectedConfig()?.selectedApp || undefined;
+  }
+
   async load() {
     try {
       const engine = this.getNativeEngine();
       if (!engine) return;
-      const settings = await engine.getStorageSettings();
+      const settings = await engine.getStorageSettings(this.getSelectedApp());
       this.localStorageEntries.set(
         Object.entries(settings.localStorage || {}).map(([key, value]) => ({ key, value }))
       );
@@ -326,7 +330,7 @@ export class ProjectSettingsComponent {
       for (const e of this.cookieEntries()) {
         if (e.key.trim()) cookies[e.key.trim()] = e.value;
       }
-      await engine.saveStorageSettings({ localStorage, cookies });
+      await engine.saveStorageSettings({ localStorage, cookies }, this.getSelectedApp());
 
       const portChanged = engine.fixedPort() !== this.fixedPort();
       engine.fixedPort.set(this.fixedPort());

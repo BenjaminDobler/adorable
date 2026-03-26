@@ -314,8 +314,8 @@ export const TOOLS = [
 
 /**
  * CDP (Chrome DevTools Protocol) tools — available when running in desktop mode
- * with the preview window undocked. These give the AI agent direct access to
- * inspect, interact with, and debug the running application preview.
+ * with a preview running (docked webview or undocked window). These give the AI
+ * agent direct access to inspect, interact with, and debug the running application.
  */
 export const CDP_TOOLS = [
   {
