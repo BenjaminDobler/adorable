@@ -183,6 +183,14 @@ export class TemplateService {
           const insertPos = match.sourceSpan.start.offset + match.name.length + 1;
           modifiedTemplate = this.insertAt(templateContent, insertPos, ` style="${styleDecl}"`);
        }
+    } else if (modification.type === 'class') {
+      const classAttr = match.attrs?.find((a: any) => a.name === 'class');
+      if (classAttr) {
+        modifiedTemplate = this.replaceRange(templateContent, classAttr.sourceSpan.start.offset, classAttr.sourceSpan.end.offset, `class="${modification.value}"`);
+      } else {
+        const insertPos = match.sourceSpan.start.offset + match.name.length + 1;
+        modifiedTemplate = this.insertAt(templateContent, insertPos, ` class="${modification.value}"`);
+      }
     }
 
     // 5. Finalize content
@@ -383,6 +391,14 @@ export class TemplateService {
       } else {
         const insertPos = match.sourceSpan.start.offset + match.name.length + 1;
         modifiedTemplate = this.insertAt(templateContent, insertPos, ` style="${styleDecl}"`);
+      }
+    } else if (modification.type === 'class') {
+      const classAttr = match.attrs?.find((a: any) => a.name === 'class');
+      if (classAttr) {
+        modifiedTemplate = this.replaceRange(templateContent, classAttr.sourceSpan.start.offset, classAttr.sourceSpan.end.offset, `class="${modification.value}"`);
+      } else {
+        const insertPos = match.sourceSpan.start.offset + match.name.length + 1;
+        modifiedTemplate = this.insertAt(templateContent, insertPos, ` class="${modification.value}"`);
       }
     }
 
@@ -628,6 +644,14 @@ export class TemplateService {
             } else {
               const insertPos = match.sourceSpan.start.offset + match.name.length + 1;
               modifiedTemplate = this.insertAt(template.content, insertPos, ` style="${styleDecl}"`);
+            }
+          } else if (modification.type === 'class') {
+            const classAttr = match.attrs?.find((a: any) => a.name === 'class');
+            if (classAttr) {
+              modifiedTemplate = this.replaceRange(template.content, classAttr.sourceSpan.start.offset, classAttr.sourceSpan.end.offset, `class="${modification.value}"`);
+            } else {
+              const insertPos = match.sourceSpan.start.offset + match.name.length + 1;
+              modifiedTemplate = this.insertAt(template.content, insertPos, ` class="${modification.value}"`);
             }
           }
 
