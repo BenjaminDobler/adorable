@@ -16,11 +16,15 @@ export class McpTabComponent {
   mcpServers = input<MCPServerConfig[]>([]);
   angularMcpEnabled = input(true);
   kitLessonsEnabled = input(true);
+  researchAgentEnabled = input(true);
+  reviewAgentEnabled = input(true);
   isDesktopMode = input(false);
 
   serversChange = output<MCPServerConfig[]>();
   angularMcpToggle = output<boolean>();
   kitLessonsToggle = output<boolean>();
+  researchAgentToggle = output<boolean>();
+  reviewAgentToggle = output<boolean>();
 
   editingMcpServer = signal<MCPServerConfig | null>(null);
   testingConnection = signal(false);

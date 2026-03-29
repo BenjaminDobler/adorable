@@ -125,7 +125,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
     };
 
     // Research phase: LLM-based agent reads relevant files before main loop
-    if (options.previousFiles) {
+    if (options.previousFiles && options.researchAgentEnabled !== false) {
       const researchContext = await this.runResearchPhase(ctx, options.prompt, userMessage,
         async (researchPrompt, researchTools) => {
           const MAX_RESEARCH_TURNS = 3;
@@ -318,7 +318,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       }
 
       return { toolCalls, text: '' };
-    }, undefined, async (reviewPrompt) => {
+    }, undefined, options.reviewAgentEnabled !== false ? async (reviewPrompt) => {
       // Review agent: separate Gemini call with review-focused system prompt
       console.log('[Review] Calling Gemini review agent...');
       try {
@@ -335,7 +335,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
         console.error('[Review] Gemini review agent failed:', err.message);
         return '';
       }
-    });
+    } : undefined);
 
     return { explanation: ctx.fullExplanation, files: fs.getAccumulatedFiles(), model: modelName };
   }

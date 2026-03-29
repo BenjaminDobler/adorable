@@ -388,6 +388,8 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
           buildCommand: isExternalProject
             ? (selectedApp ? `npx @richapps/ong build --project ${selectedApp}` : 'npx @richapps/ong build')
             : 'npm run build',
+          researchAgentEnabled: userSettings.researchAgentEnabled !== false, // default: on
+          reviewAgentEnabled: userSettings.reviewAgentEnabled !== false, // default: on
       }, {
           onText: (text) => {
               res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);

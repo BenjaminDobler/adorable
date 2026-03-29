@@ -139,7 +139,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     const effort = options.reasoningEffort || 'high';
 
     // Research phase: LLM-based agent reads relevant files before main loop
-    if (options.previousFiles) {
+    if (options.previousFiles && options.researchAgentEnabled !== false) {
       const researchContext = await this.runResearchPhase(ctx, options.prompt, userMessage,
         async (researchPrompt, researchTools) => {
           const MAX_RESEARCH_TURNS = 3;
@@ -543,9 +543,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         return { type: 'tool_result', tool_use_id: r.tool_use_id, content: r.content, is_error: r.is_error };
       });
       messages.push({ role: 'user', content: toolResultBlocks });
-    }, async (reviewPrompt) => {
+    }, options.reviewAgentEnabled !== false ? async (reviewPrompt) => {
       // Review agent: separate LLM call with a review-focused system prompt.
-      // Uses the same model but with a smaller thinking budget for speed.
       console.log('[Review] Calling review agent...');
       try {
         const reviewResponse = await anthropic.messages.create({
@@ -560,7 +559,6 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
           ],
         });
 
-        // Extract text from the review response
         let reviewText = '';
         for (const block of (reviewResponse as any).content || []) {
           if (block.type === 'text') {
@@ -572,7 +570,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         console.error('[Review] Review agent call failed:', err.message);
         return '';
       }
-    });
+    } : undefined);
 
     return { explanation: ctx.fullExplanation, files: fs.getAccumulatedFiles(), model: modelToUse };
   }

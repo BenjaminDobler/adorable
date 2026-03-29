@@ -50,4 +50,6 @@ export interface AppSettings {
   mcpServers?: MCPServerConfig[];
   angularMcpEnabled?: boolean;
   kitLessonsEnabled?: boolean;
+  researchAgentEnabled?: boolean;
+  reviewAgentEnabled?: boolean;
 }

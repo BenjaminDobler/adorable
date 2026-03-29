@@ -112,10 +112,14 @@
         [mcpServers]="mcpServers()"
         [angularMcpEnabled]="settings().angularMcpEnabled !== false"
         [kitLessonsEnabled]="settings().kitLessonsEnabled !== false"
+        [researchAgentEnabled]="settings().researchAgentEnabled !== false"
+        [reviewAgentEnabled]="settings().reviewAgentEnabled !== false"
         [isDesktopMode]="isDesktopMode()"
         (serversChange)="onMcpServersChange($event)"
         (angularMcpToggle)="onAngularMcpToggle($event)"
         (kitLessonsToggle)="onKitLessonsToggle($event)"
+        (researchAgentToggle)="onResearchAgentToggle($event)"
+        (reviewAgentToggle)="onReviewAgentToggle($event)"
       />
     }
 

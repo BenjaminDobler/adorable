@@ -37,6 +37,34 @@
         <span class="slider round"></span>
       </label>
     </div>
+    <div class="header-with-toggle" style="margin-bottom: 16px;">
+      <div>
+        <label>Research Agent</label>
+        <small class="help-text">Before generating code, an AI agent reads relevant files and provides context to the main agent. Saves exploration turns but adds one LLM call.</small>
+      </div>
+      <label class="switch">
+        <input
+          type="checkbox"
+          [ngModel]="researchAgentEnabled()"
+          (ngModelChange)="researchAgentToggle.emit($event)"
+        >
+        <span class="slider round"></span>
+      </label>
+    </div>
+    <div class="header-with-toggle" style="margin-bottom: 16px;">
+      <div>
+        <label>Review Agent</label>
+        <small class="help-text">After code generation, a review agent checks for common issues (unused imports, missing error handling, accessibility). Adds one LLM call.</small>
+      </div>
+      <label class="switch">
+        <input
+          type="checkbox"
+          [ngModel]="reviewAgentEnabled()"
+          (ngModelChange)="reviewAgentToggle.emit($event)"
+        >
+        <span class="slider round"></span>
+      </label>
+    </div>
     @if (mcpServers().length === 0) {
       <div class="mcp-empty">
         <div class="mcp-empty-icon">&#128268;</div>

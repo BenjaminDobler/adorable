@@ -46,6 +46,8 @@ export interface GenerateOptions {
   selectedApp?: string; // Selected Nx app root (e.g. "apps/my-app") — workspace-scoped context for AI
   previewRoute?: string; // Current route path visible in the preview (e.g. "/dashboard")
   buildCommand?: string; // Override build command (e.g. "npx @richapps/ong build --project apps/my-app")
+  researchAgentEnabled?: boolean; // Enable pre-generation research agent (default: true)
+  reviewAgentEnabled?: boolean; // Enable post-generation code review agent (default: true)
 }
 
 export interface TokenUsage {

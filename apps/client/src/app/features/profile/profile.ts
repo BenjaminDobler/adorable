@@ -257,6 +257,16 @@ export class ProfileComponent implements OnInit {
     this.save();
   }
 
+  onResearchAgentToggle(enabled: boolean) {
+    this.settings.update(s => ({ ...s, researchAgentEnabled: enabled }));
+    this.save();
+  }
+
+  onReviewAgentToggle(enabled: boolean) {
+    this.settings.update(s => ({ ...s, reviewAgentEnabled: enabled }));
+    this.save();
+  }
+
   save() {
     this.loading.set(true);
 
