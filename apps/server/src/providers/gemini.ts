@@ -1,6 +1,6 @@
 import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
 import { GoogleGenAI, createPartFromFunctionResponse } from '@google/genai';
-import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, AgentLoopContext } from './base';
+import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, REVIEW_SYSTEM_PROMPT, AgentLoopContext } from './base';
 import { sanitizeCommandOutput } from './sanitize-output';
 
 /** Extract text from a Gemini response chunk without triggering the SDK's
@@ -110,7 +110,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
 
     const ctx: AgentLoopContext = {
       fs, callbacks, skillRegistry, availableTools, logger,
-      hasRunBuild: false, hasWrittenFiles: false, buildNudgeSent: false, fullExplanation: '',
+      hasRunBuild: false, hasWrittenFiles: false, modifiedFiles: [], buildNudgeSent: false, fullExplanation: '',
       mcpManager,
       failedBuildCount: 0, lastBuildOutput: '',
       activeKitName,
@@ -256,6 +256,23 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       }
 
       return { toolCalls, text: '' };
+    }, undefined, async (reviewPrompt) => {
+      // Review agent: separate Gemini call with review-focused system prompt
+      console.log('[Review] Calling Gemini review agent...');
+      try {
+        const reviewResponse = await ai.models.generateContent({
+          model: modelName,
+          contents: reviewPrompt,
+          config: {
+            systemInstruction: REVIEW_SYSTEM_PROMPT,
+            maxOutputTokens: 4096,
+          },
+        });
+        return reviewResponse.text || '';
+      } catch (err: any) {
+        console.error('[Review] Gemini review agent failed:', err.message);
+        return '';
+      }
     });
 
     return { explanation: ctx.fullExplanation, files: fs.getAccumulatedFiles(), model: modelName };

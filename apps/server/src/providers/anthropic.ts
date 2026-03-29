@@ -1,6 +1,6 @@
 import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
 import Anthropic from '@anthropic-ai/sdk';
-import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, AgentLoopContext } from './base';
+import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, REVIEW_SYSTEM_PROMPT, AgentLoopContext } from './base';
 import { sanitizeCommandOutput } from './sanitize-output';
 import { createSapFetch } from './sap-ai-core';
 
@@ -124,7 +124,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
 
     const ctx: AgentLoopContext = {
       fs, callbacks, skillRegistry, availableTools, logger,
-      hasRunBuild: false, hasWrittenFiles: false, buildNudgeSent: false, fullExplanation: '',
+      hasRunBuild: false, hasWrittenFiles: false, modifiedFiles: [], buildNudgeSent: false, fullExplanation: '',
       mcpManager,
       failedBuildCount: 0, lastBuildOutput: '',
       activeKitName,
@@ -444,6 +444,35 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         return { type: 'tool_result', tool_use_id: r.tool_use_id, content: r.content, is_error: r.is_error };
       });
       messages.push({ role: 'user', content: toolResultBlocks });
+    }, async (reviewPrompt) => {
+      // Review agent: separate LLM call with a review-focused system prompt.
+      // Uses the same model but with a smaller thinking budget for speed.
+      console.log('[Review] Calling review agent...');
+      try {
+        const reviewResponse = await anthropic.messages.create({
+          model: modelToUse,
+          max_tokens: 4096,
+          thinking: { type: 'enabled', budget_tokens: 1024 } as any,
+          system: [
+            { type: 'text', text: REVIEW_SYSTEM_PROMPT },
+          ] as any,
+          messages: [
+            { role: 'user', content: reviewPrompt },
+          ],
+        });
+
+        // Extract text from the review response
+        let reviewText = '';
+        for (const block of (reviewResponse as any).content || []) {
+          if (block.type === 'text') {
+            reviewText += block.text;
+          }
+        }
+        return reviewText;
+      } catch (err: any) {
+        console.error('[Review] Review agent call failed:', err.message);
+        return '';
+      }
     });
 
     return { explanation: ctx.fullExplanation, files: fs.getAccumulatedFiles(), model: modelToUse };

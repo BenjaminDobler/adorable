@@ -28,6 +28,33 @@ export const PARALLELIZABLE_TOOLS = new Set([
   'inspect_dom', 'measure_element', 'inspect_errors', 'get_bundle_stats', 'get_container_logs',
 ]);
 
+/**
+ * System prompt for the post-generation review agent.
+ * This agent checks generated code for common issues using a lightweight, fast model.
+ */
+export const REVIEW_SYSTEM_PROMPT =
+"You are an expert Angular code reviewer. Your job is to review recently generated/modified code and report issues.\n\n"
++"**Review the provided files for these categories:**\n"
++"1. **Unused imports** — imports that are declared but never used in the template or component logic\n"
++"2. **Missing error handling** — HTTP calls without error handling, missing try/catch for async operations\n"
++"3. **Accessibility** — missing ARIA labels, non-semantic HTML where semantic elements should be used, images without alt text\n"
++"4. **Angular best practices** — missing trackBy in @for loops, missing OnPush change detection strategy, using plain properties instead of signals for reactive state\n"
++"5. **Type safety** — use of `any` type where a specific type should be used, missing return types on public methods\n"
++"6. **Code consistency** — inconsistent naming conventions, mixed styles within the same file\n\n"
++"**Output format:**\n"
++"For each issue found, report it as:\n"
++"- **File**: `path/to/file.ts`\n"
++"- **Line** (approximate): the relevant code snippet\n"
++"- **Severity**: `error` | `warning` | `info`\n"
++"- **Issue**: brief description of the problem\n"
++"- **Fix**: how to fix it (one sentence)\n\n"
++"**Rules:**\n"
++"- Only report genuine issues, not style preferences\n"
++"- Be concise — one line per issue\n"
++"- If no issues are found, say 'No issues found.'\n"
++"- Do NOT suggest refactoring or restructuring — only report bugs, mistakes, and best practice violations\n"
++"- Do NOT modify any files — you are read-only\n";
+
 export const SYSTEM_PROMPT =
 "You are an expert Angular developer.\n"
 +"Your task is to generate or modify the SOURCE CODE for an Angular application.\n\n"
@@ -111,6 +138,7 @@ export interface AgentLoopContext {
   logger: DebugLogger;
   hasRunBuild: boolean;
   hasWrittenFiles: boolean;
+  modifiedFiles: string[]; // tracks all files written/edited during generation
   buildNudgeSent: boolean;
   fullExplanation: string;
   mcpManager?: MCPManager;
@@ -591,6 +619,7 @@ Only proceed with implementation after receiving the user's answers.`;
           await fs.writeFile(toolArgs.path, toolArgs.content);
           callbacks.onFileWritten?.(toolArgs.path, toolArgs.content);
           ctx.hasWrittenFiles = true;
+          if (!ctx.modifiedFiles.includes(toolArgs.path)) ctx.modifiedFiles.push(toolArgs.path);
           content = 'File created successfully.';
           break;
         case 'write_files':
@@ -628,6 +657,9 @@ Only proceed with implementation after receiving the user's answers.`;
               written++;
             }
             ctx.hasWrittenFiles = true;
+            for (const f of toolArgs.files) {
+              if (f.path && f.content && !ctx.modifiedFiles.includes(f.path)) ctx.modifiedFiles.push(f.path);
+            }
             if (corrupted.length > 0) {
               content = `${written} of ${toolArgs.files.length} files written. ${corrupted.length} files had corrupted content (no newlines detected, likely a serialization error) and were NOT written: ${corrupted.join(', ')}. Please re-write these files individually using write_file.`;
               isError = corrupted.length > 0 && written === 0;
@@ -649,6 +681,7 @@ Only proceed with implementation after receiving the user's answers.`;
           {
             const updatedContent = await fs.readFile(toolArgs.path);
             callbacks.onFileWritten?.(toolArgs.path, updatedContent);
+            if (!ctx.modifiedFiles.includes(toolArgs.path)) ctx.modifiedFiles.push(toolArgs.path);
           }
           content = 'File edited successfully.';
           break;
@@ -1212,6 +1245,7 @@ Only proceed with implementation after receiving the user's answers.`;
     ctx: AgentLoopContext,
     sendMessageAndGetToolCalls: (userMessage: string) => Promise<{ toolCalls: { name: string; args: any; id: string }[]; text: string }>,
     pushToolResults?: (results: { tool_use_id: string; content: string; is_error: boolean }[]) => void,
+    runReviewAgent?: (reviewPrompt: string) => Promise<string>,
   ): Promise<void> {
     const { fs, callbacks } = ctx;
 
@@ -1297,6 +1331,40 @@ Only proceed with implementation after receiving the user's answers.`;
         pushToolResults?.(toolResultsForHistory);
 
         currentVerifyMsg = 'Analyze the results. If there are issues, fix them. If everything looks correct, you are done.';
+      }
+    }
+
+    // Post-generation review: if build succeeded and files were modified, run a review agent
+    if (ctx.hasRunBuild && ctx.modifiedFiles.length > 0 && runReviewAgent) {
+      console.log(`[Review] Running review agent on ${ctx.modifiedFiles.length} modified files...`);
+      callbacks.onText?.('\n\nReviewing generated code...\n');
+
+      try {
+        // Read modified files to provide context to the reviewer
+        const fileContents: string[] = [];
+        for (const filePath of ctx.modifiedFiles) {
+          try {
+            const fileContent = await fs.readFile(filePath);
+            fileContents.push(`### ${filePath}\n\`\`\`\n${fileContent}\n\`\`\``);
+          } catch {
+            // File may have been deleted or renamed — skip
+          }
+        }
+
+        if (fileContents.length > 0) {
+          const reviewPrompt = 'Review the following files that were just generated/modified. Report any issues:\n\n'
+            + fileContents.join('\n\n');
+
+          const reviewResult = await runReviewAgent(reviewPrompt);
+          if (reviewResult && reviewResult.trim() && reviewResult.trim() !== 'No issues found.') {
+            callbacks.onText?.('\n**Code Review Results:**\n' + reviewResult + '\n');
+          } else {
+            callbacks.onText?.('No issues found.\n');
+          }
+        }
+      } catch (err: any) {
+        console.error('[Review] Review agent failed:', err.message);
+        // Don't fail the whole generation if review fails
       }
     }
 
