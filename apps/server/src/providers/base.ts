@@ -101,6 +101,7 @@ export interface AgentLoopContext {
   fullExplanation: string;
   mcpManager?: MCPManager;
   failedBuildCount: number;
+  lastBuildOutput: string;
   activeKitName?: string;
   activeKitId?: string;
   userId?: string;
@@ -363,7 +364,21 @@ Only proceed with implementation after receiving the user's answers.`;
         + `- \`browse_evaluate\` — Execute JavaScript in the preview to inspect DOM, check state, or debug\n`
         + `- \`browse_accessibility\` — Get the accessibility tree for structure analysis\n`
         + `- \`browse_navigate\` — Navigate to different routes to test them\n`
-        + `- \`browse_click\` — Click elements to test interactivity\n\n`
+        + `- \`browse_click\` — Click elements to test interactivity\n`
+        + `- \`inspect_component\` — Get the Angular component tree or details for a specific element\n`
+        + `- \`inspect_performance\` — Start/stop profiling change detection cycles\n`
+        + `- \`inspect_routes\` — Get route configuration and active route\n`
+        + `- \`inspect_signals\` — Get the signal dependency graph (Angular 19+)\n`
+        + `- \`inspect_errors\` — Parse build output into structured error objects (file, line, code, message)\n`
+        + `- \`inspect_styles\` — Get computed CSS styles for an element (debug visibility, layout, sizing)\n`
+        + `- \`inspect_network\` — Monitor HTTP requests (start/get/clear) to debug API calls\n`
+        + `- \`inspect_dom\` — Get HTML subtree for a CSS selector\n`
+        + `- \`measure_element\` — Get position, dimensions, and visibility of an element\n`
+        + `- \`type_text\` — Type text into focused input fields (use after browse_click)\n`
+        + `- \`inject_css\` — Inject temporary CSS for rapid visual testing\n`
+        + `- \`clear_build_cache\` — Clear Angular/Nx build caches when phantom errors persist\n`
+        + `- \`get_bundle_stats\` — Get bundle size breakdown\n`
+        + `- \`get_container_logs\` — Get recent dev server logs\n\n`
         + `**VERIFICATION WORKFLOW:** After a successful build, you SHOULD:\n`
         + `1. Wait a few seconds for the dev server to reload, then use \`browse_screenshot\` to see the current state\n`
         + `2. Use \`browse_console\` to check for runtime errors\n`
@@ -718,6 +733,7 @@ Only proceed with implementation after receiving the user's answers.`;
             console.log(`[VerifyBuild] Running: ${buildCmd}`);
             const res = await fs.exec(buildCmd);
             content = sanitizeCommandOutput(buildCmd, res.stdout, res.stderr, res.exitCode);
+            ctx.lastBuildOutput = content;
             if (res.exitCode !== 0) isError = true;
             ctx.hasRunBuild = true;
             if (res.exitCode !== 0) {
@@ -850,6 +866,10 @@ Only proceed with implementation after receiving the user's answers.`;
                 if (toolName === 'browse_console') body.clear = toolArgs.clear ?? true;
                 if (toolName === 'browse_navigate') body.url = toolArgs.url;
                 if (toolName === 'browse_click') { body.x = toolArgs.x; body.y = toolArgs.y; }
+                if (toolName === 'browse_screenshot') {
+                  if (toolArgs.fullResolution) body.fullResolution = true;
+                  if (toolArgs.quality) body.quality = toolArgs.quality;
+                }
 
                 const resp = await fetch(`${agentUrl}/api/native/cdp/${cdpEndpoint}`, {
                   method: 'POST',
@@ -862,7 +882,7 @@ Only proceed with implementation after receiving the user's answers.`;
                   content = `CDP ${cdpEndpoint} failed: ${data.error}`;
                   isError = true;
                 } else if (toolName === 'browse_screenshot') {
-                  content = `[SCREENSHOT:data:image/png;base64,${data.image}]`;
+                  content = `[SCREENSHOT:data:image/jpeg;base64,${data.image}]`;
                 } else {
                   content = JSON.stringify(data, null, 2);
                 }
@@ -870,6 +890,230 @@ Only proceed with implementation after receiving the user's answers.`;
                 content = `CDP request failed: ${err.message}`;
                 isError = true;
               }
+            }
+          }
+          break;
+        // --- Angular Inspection Tools (syntactic sugar over CDP evaluate) ---
+        case 'inspect_component':
+        case 'inspect_performance':
+        case 'inspect_routes':
+        case 'inspect_signals':
+          {
+            const agentPort = process.env['ADORABLE_AGENT_PORT'] || '3334';
+            const agentUrl = `http://localhost:${agentPort}`;
+
+            if (process.env['ADORABLE_DESKTOP_MODE'] !== 'true') {
+              content = 'Inspect tools are only available in desktop mode with the preview running.';
+              isError = true;
+            } else {
+              try {
+                let expression = '';
+
+                if (toolName === 'inspect_component') {
+                  const selector = toolArgs.selector;
+                  if (selector) {
+                    expression = `(function(){var el=document.querySelector('${selector.replace(/'/g, "\\'")}');if(!el){var ongEl=document.querySelector('[_ong="${selector.replace(/"/g, '\\"')}"]');if(ongEl)el=ongEl;}if(!el)return{error:'Element not found'};var ann=(window.__ong_annotations||{})[el.getAttribute('_ong')]||{};var comp=window.ng&&window.ng.getComponent(el);var props={};if(comp){Object.keys(comp).forEach(function(k){if(!k.startsWith('_'))try{var v=comp[k];if(typeof v!=='function')props[k]=JSON.stringify(v)}catch(e){props[k]='<error>'}});}var dirs=[];try{var d=window.ng&&window.ng.getDirectives(el);if(d)d.forEach(function(x){dirs.push(x.constructor.name)});}catch(e){}return{tag:el.tagName.toLowerCase(),component:comp?comp.constructor.name:ann.component||'',file:ann.file||'',line:ann.line||0,properties:props,inputs:ann.bindings?.inputs||{},outputs:ann.bindings?.outputs?Object.keys(ann.bindings.outputs):[],directives:dirs,inLoop:!!ann.inLoop,conditional:!!ann.conditional};})()`;
+                  } else {
+                    expression = `(function(){var els=document.querySelectorAll('[_ong]');var anns=window.__ong_annotations||{};var nodes={};var roots=[];for(var i=0;i<els.length;i++){var el=els[i];var id=el.getAttribute('_ong');if(!id)continue;var ann=anns[id]||{};var cn='';try{var c=window.ng&&window.ng.getComponent(el);if(c)cn=c.constructor.name;}catch(e){}nodes[id]={ongId:id,tag:el.tagName.toLowerCase(),component:cn||ann.component||'',selector:ann.selector||'',file:ann.file||'',line:ann.line||0,parent:ann.parent||null,children:[]};}Object.keys(nodes).forEach(function(id){var n=nodes[id];if(n.parent&&nodes[n.parent])nodes[n.parent].children.push(n);else roots.push(n);});function clean(n){delete n.parent;n.children.forEach(clean);return n;}return roots.map(clean);})()`;
+                  }
+                } else if (toolName === 'inspect_performance') {
+                  if (toolArgs.action === 'start') {
+                    expression = `(function(){window.__adorable_profiler_data=[];window.__adorable_profiler_cycle=0;if(window.ng&&window.ng.ɵsetProfiler){window.ng.ɵsetProfiler(function(event,context){if(event===0){window.__adorable_profiler_start=performance.now();window.__adorable_profiler_current=context?.constructor?.name||'Unknown';}if(event===1){var dur=performance.now()-(window.__adorable_profiler_start||0);var name=window.__adorable_profiler_current||'Unknown';var data=window.__adorable_profiler_data;var last=data.length>0?data[data.length-1]:null;if(!last||(performance.now()-last.timestamp)>16){window.__adorable_profiler_cycle++;data.push({id:window.__adorable_profiler_cycle,timestamp:performance.now(),duration:0,components:[]});last=data[data.length-1];}last.duration+=dur;var ex=last.components.find(function(c){return c.name===name;});if(ex)ex.duration+=dur;else last.components.push({name:name,duration:dur});}});return{status:'recording'};}return{error:'Profiler API not available'};})()`;
+                  } else {
+                    expression = `(function(){if(window.ng&&window.ng.ɵsetProfiler)window.ng.ɵsetProfiler(null);return window.__adorable_profiler_data||[];})()`;
+                  }
+                } else if (toolName === 'inspect_routes') {
+                  expression = `(function(){try{if(!window.ng)return{routes:[],activeRoute:'',debug:'no ng'};var appRoot=document.querySelector('[ng-version]')||document.querySelector('app-root')||document.querySelector('[_ong]');if(!appRoot)return{routes:[],activeRoute:'',debug:'no root'};var inj=window.ng.getInjector(appRoot);if(!inj)return{routes:[],activeRoute:'',debug:'no injector'};var router=null;if(window.ng.ɵgetRouterInstance)router=window.ng.ɵgetRouterInstance(inj);if(!router||!router.config)return{routes:[],activeRoute:'',debug:'router not found'};var url='';try{url=router.url||'';}catch(e){}var glr=window.ng.ɵgetLoadedRoutes||function(){return undefined;};function map(cfgs){var res=[];for(var i=0;i<cfgs.length;i++){var r=cfgs[i];var path=r.path;if(path===undefined||path===null)path='';var comp='';if(r.component)comp=r.component.name||'';var guards=[];if(r.canActivate)for(var g=0;g<r.canActivate.length;g++){var gd=r.canActivate[g];guards.push(typeof gd==='function'?(gd.name||'guard'):'guard');}var lazy=!!r.loadComponent||!!r.loadChildren;var children=r.children?map(r.children):[];var lc=glr(r);if(lc&&lc.length>0)children=children.concat(map(lc));var fp='/'+path;var isActive=url===fp||(path&&url.startsWith(fp+'/'))||(path===''&&url==='/');res.push({path:path===''?'(root)':path,component:comp,active:isActive,guards:guards,lazy:lazy,children:children});}return res;}return{routes:map(router.config),activeRoute:url};}catch(e){return{routes:[],activeRoute:'',debug:'error:'+e.message};}})()`;
+                } else if (toolName === 'inspect_signals') {
+                  expression = `(function(){if(!window.ng||!window.ng.ɵgetSignalGraph)return{available:false};try{var root=document.querySelector('app-root')||document.querySelector('[_ong]');if(!root)return{available:false};var inj=window.ng.getInjector(root);var graph=window.ng.ɵgetSignalGraph(inj);if(!graph)return{available:true,nodes:[],edges:[]};var nodes=[];var edges=[];if(graph.nodes)graph.nodes.forEach(function(n,i){var val='';try{val=JSON.stringify(n.value).substring(0,100);}catch(e){}nodes.push({id:String(n.id||i),label:n.label||n.name||'node-'+i,type:n.type||'signal',value:val});});if(graph.edges)graph.edges.forEach(function(e){edges.push({from:String(e.source||e.from),to:String(e.target||e.to)});});return{available:true,nodes:nodes,edges:edges};}catch(e){return{available:false,error:e.message};}})()`;
+                }
+
+                const resp = await fetch(`${agentUrl}/api/native/cdp/evaluate`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ expression }),
+                });
+                const data = await resp.json();
+
+                if (!resp.ok) {
+                  content = `${toolName} failed: ${data.error}`;
+                  isError = true;
+                } else {
+                  content = JSON.stringify(data.result?.value ?? data.result ?? data, null, 2);
+                }
+              } catch (err: any) {
+                content = `${toolName} failed: ${err.message}`;
+                isError = true;
+              }
+            }
+          }
+          break;
+        // --- Additional CDP-based tools ---
+        case 'inspect_errors':
+          {
+            // Parse the last build output into structured errors
+            const lastOutput = ctx.lastBuildOutput || '';
+            const errors: any[] = [];
+            // Match Angular/TypeScript error patterns: file:line:col - error TSxxxx: message
+            const errorRegex = /([^\s]+\.(?:ts|html|scss|css)):(\d+):(\d+)\s*-\s*(error|warning)\s*(TS\d+|NG\d+)?:?\s*(.*)/g;
+            let match;
+            while ((match = errorRegex.exec(lastOutput)) !== null) {
+              errors.push({
+                file: match[1],
+                line: parseInt(match[2]),
+                column: parseInt(match[3]),
+                severity: match[4],
+                code: match[5] || '',
+                message: match[6].trim(),
+              });
+            }
+            if (errors.length > 0) {
+              content = JSON.stringify(errors, null, 2);
+            } else {
+              content = lastOutput ? 'No structured errors found in build output. Raw output:\n' + lastOutput.substring(0, 2000) : 'No build output available. Run verify_build first.';
+            }
+          }
+          break;
+        case 'inspect_styles':
+        case 'inspect_dom':
+        case 'measure_element':
+        case 'inject_css':
+        case 'get_bundle_stats':
+          {
+            const agentPort = process.env['ADORABLE_AGENT_PORT'] || '3334';
+            const agentUrl = `http://localhost:${agentPort}`;
+
+            if (process.env['ADORABLE_DESKTOP_MODE'] !== 'true') {
+              content = `${toolName} is only available in desktop mode.`;
+              isError = true;
+            } else {
+              try {
+                let expression = '';
+
+                if (toolName === 'inspect_styles') {
+                  const sel = String(toolArgs.selector || '').replace(/'/g, "\\'");
+                  expression = `(function(){var el=document.querySelector('${sel}');if(!el)return{error:'Element not found: ${sel}'};var cs=getComputedStyle(el);var props=['display','position','width','height','minWidth','minHeight','maxWidth','maxHeight','margin','marginTop','marginRight','marginBottom','marginLeft','padding','paddingTop','paddingRight','paddingBottom','paddingLeft','color','backgroundColor','opacity','visibility','overflow','overflowX','overflowY','zIndex','flexDirection','flexWrap','justifyContent','alignItems','gap','gridTemplateColumns','gridTemplateRows','fontSize','fontWeight','lineHeight','textAlign','border','borderRadius','boxShadow','transform','transition'];var result={};for(var i=0;i<props.length;i++){var v=cs.getPropertyValue(props[i].replace(/([A-Z])/g,'-$1').toLowerCase());if(v&&v!=='none'&&v!=='normal'&&v!=='auto'&&v!=='0px'&&v!=='rgba(0, 0, 0, 0)'&&v!=='transparent')result[props[i]]=v;}return{selector:'${sel}',tag:el.tagName.toLowerCase(),styles:result};})()`;
+                } else if (toolName === 'inspect_dom') {
+                  const sel = String(toolArgs.selector || '').replace(/'/g, "\\'");
+                  const depth = toolArgs.depth ?? 3;
+                  expression = `(function(){var el=document.querySelector('${sel}');if(!el)return{error:'Element not found: ${sel}'};function trim(node,d){if(d===0)return '';var clone=node.cloneNode(true);if(d>0){var children=Array.from(clone.children);for(var i=0;i<children.length;i++){var inner=trim(node.children[i],d-1);if(!inner){clone.removeChild(children[i]);}else{children[i].innerHTML=inner;}}}return clone.outerHTML;}return{selector:'${sel}',html:${depth < 0 ? 'el.outerHTML' : 'trim(el,' + depth + ')'}};})()`;
+                } else if (toolName === 'measure_element') {
+                  const sel = String(toolArgs.selector || '').replace(/'/g, "\\'");
+                  expression = `(function(){var el=document.querySelector('${sel}');if(!el)return{error:'Element not found: ${sel}'};var rect=el.getBoundingClientRect();var cs=getComputedStyle(el);return{selector:'${sel}',tag:el.tagName.toLowerCase(),x:Math.round(rect.x),y:Math.round(rect.y),width:Math.round(rect.width),height:Math.round(rect.height),visible:rect.width>0&&rect.height>0&&cs.display!=='none'&&cs.visibility!=='hidden'&&cs.opacity!=='0',display:cs.display,visibility:cs.visibility,opacity:cs.opacity,scrollTop:el.scrollTop,scrollLeft:el.scrollLeft,scrollHeight:el.scrollHeight,scrollWidth:el.scrollWidth,viewportWidth:window.innerWidth,viewportHeight:window.innerHeight,inViewport:rect.top<window.innerHeight&&rect.bottom>0&&rect.left<window.innerWidth&&rect.right>0};})()`;
+                } else if (toolName === 'inject_css') {
+                  if (toolArgs.action === 'clear') {
+                    expression = `(function(){var el=document.getElementById('__adorable_injected_css');if(el)el.remove();return{status:'cleared'};})()`;
+                  } else {
+                    const css = String(toolArgs.css || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+                    expression = `(function(){var el=document.getElementById('__adorable_injected_css');if(!el){el=document.createElement('style');el.id='__adorable_injected_css';document.head.appendChild(el);}el.textContent+='\n${css}';return{status:'injected',totalRules:el.sheet?el.sheet.cssRules.length:0};})()`;
+                  }
+                } else if (toolName === 'get_bundle_stats') {
+                  // Parse performance entries for loaded scripts
+                  expression = `(function(){var entries=performance.getEntriesByType('resource').filter(function(e){return e.name.endsWith('.js');});var chunks=entries.map(function(e){var name=e.name.split('/').pop();return{name:name,size:e.transferSize||0,duration:Math.round(e.duration)};});chunks.sort(function(a,b){return b.size-a.size;});var total=chunks.reduce(function(s,c){return s+c.size;},0);return{totalSize:total,totalSizeKB:Math.round(total/1024),chunks:chunks};})()`;
+                }
+
+                const resp = await fetch(`${agentUrl}/api/native/cdp/evaluate`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ expression }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) {
+                  content = `${toolName} failed: ${data.error}`;
+                  isError = true;
+                } else {
+                  content = JSON.stringify(data.result?.value ?? data.result ?? data, null, 2);
+                }
+              } catch (err: any) {
+                content = `${toolName} failed: ${err.message}`;
+                isError = true;
+              }
+            }
+          }
+          break;
+        case 'inspect_network':
+          {
+            const agentPort = process.env['ADORABLE_AGENT_PORT'] || '3334';
+            const agentUrl = `http://localhost:${agentPort}`;
+            if (process.env['ADORABLE_DESKTOP_MODE'] !== 'true') {
+              content = 'inspect_network is only available in desktop mode.';
+              isError = true;
+            } else {
+              try {
+                const resp = await fetch(`${agentUrl}/api/native/cdp/network`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: toolArgs.action || 'get' }),
+                });
+                const data = await resp.json();
+                content = JSON.stringify(data, null, 2);
+                isError = !resp.ok;
+              } catch (err: any) {
+                content = `inspect_network failed: ${err.message}`;
+                isError = true;
+              }
+            }
+          }
+          break;
+        case 'type_text':
+          {
+            const agentPort = process.env['ADORABLE_AGENT_PORT'] || '3334';
+            const agentUrl = `http://localhost:${agentPort}`;
+            if (process.env['ADORABLE_DESKTOP_MODE'] !== 'true') {
+              content = 'type_text is only available in desktop mode.';
+              isError = true;
+            } else {
+              try {
+                const resp = await fetch(`${agentUrl}/api/native/cdp/type`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ text: toolArgs.text || '' }),
+                });
+                const data = await resp.json();
+                content = JSON.stringify(data, null, 2);
+                isError = !resp.ok;
+              } catch (err: any) {
+                content = `type_text failed: ${err.message}`;
+                isError = true;
+              }
+            }
+          }
+          break;
+        case 'clear_build_cache':
+          {
+            const agentPort = process.env['ADORABLE_AGENT_PORT'] || '3334';
+            const agentUrl = `http://localhost:${agentPort}`;
+            try {
+              const resp = await fetch(`${agentUrl}/api/native/exec`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: 'rm -rf .angular/cache .nx/cache node_modules/.cache 2>/dev/null; echo "Build caches cleared"' }),
+              });
+              const data = await resp.json();
+              content = data.stdout || data.output || 'Build caches cleared';
+            } catch (err: any) {
+              content = `clear_build_cache failed: ${err.message}`;
+              isError = true;
+            }
+          }
+          break;
+        case 'get_container_logs':
+          {
+            const agentPort = process.env['ADORABLE_AGENT_PORT'] || '3334';
+            const agentUrl = `http://localhost:${agentPort}`;
+            const lines = toolArgs.lines || 50;
+            try {
+              // Read the dev server output from the exec-stream buffer or container logs
+              const resp = await fetch(`${agentUrl}/api/native/exec`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: `tail -n ${lines} /tmp/adorable-dev-server.log 2>/dev/null || echo "No dev server log found. Try checking the terminal output."` }),
+              });
+              const data = await resp.json();
+              content = data.stdout || data.output || 'No logs available';
+            } catch (err: any) {
+              content = `get_container_logs failed: ${err.message}`;
+              isError = true;
             }
           }
           break;
@@ -887,7 +1131,8 @@ Only proceed with implementation after receiving the user's answers.`;
 
   protected async postLoopBuildCheck(
     ctx: AgentLoopContext,
-    sendMessageAndGetToolCalls: (userMessage: string) => Promise<{ toolCalls: { name: string; args: any; id: string }[]; text: string }>
+    sendMessageAndGetToolCalls: (userMessage: string) => Promise<{ toolCalls: { name: string; args: any; id: string }[]; text: string }>,
+    pushToolResults?: (results: { tool_use_id: string; content: string; is_error: boolean }[]) => void,
   ): Promise<void> {
     const { fs, callbacks } = ctx;
 
@@ -913,16 +1158,21 @@ Only proceed with implementation after receiving the user's answers.`;
 
           if (result.toolCalls.length === 0) break;
 
+          const fixToolResults: { tool_use_id: string; content: string; is_error: boolean }[] = [];
           for (const call of result.toolCalls) {
             callbacks.onToolCall?.(0, call.name, call.args);
             const { content, isError } = await this.executeTool(call.name, call.args, ctx);
             callbacks.onToolResult?.(call.id, content, call.name);
+            fixToolResults.push({ tool_use_id: call.id, content, is_error: isError });
 
             if ((call.name === 'verify_build' || (call.name === 'run_command' && call.args?.command?.includes('build'))) && !isError) {
               console.log(`[AutoBuild] Fix build succeeded on fix turn ${fixTurn}`);
               ctx.hasRunBuild = true;
             }
           }
+
+          // Push tool_result blocks to maintain proper message pairing
+          pushToolResults?.(fixToolResults);
 
           if (ctx.hasRunBuild) break;
           currentFixMessage = 'Continue fixing the build errors.';
@@ -956,24 +1206,18 @@ Only proceed with implementation after receiving the user's answers.`;
 
         if (result.toolCalls.length === 0) break;
 
-        // Execute tools and collect results as a text summary for the next turn
-        const resultSummaries: string[] = [];
+        const toolResultsForHistory: { tool_use_id: string; content: string; is_error: boolean }[] = [];
         for (const call of result.toolCalls) {
           callbacks.onToolCall?.(0, call.name, call.args);
           const { content, isError } = await this.executeTool(call.name, call.args, ctx);
           callbacks.onToolResult?.(call.id, content, call.name);
-
-          // For screenshot results, tell the model an image was captured
-          // (the actual image is sent via the provider's message handling)
-          const screenshotMatch = content.match(/^\[SCREENSHOT:/);
-          if (screenshotMatch && !isError) {
-            resultSummaries.push(`${call.name}: Screenshot captured successfully. Check the image above to verify the UI.`);
-          } else {
-            resultSummaries.push(`${call.name}: ${isError ? 'ERROR: ' : ''}${content.substring(0, 500)}`);
-          }
+          toolResultsForHistory.push({ tool_use_id: call.id, content, is_error: isError });
         }
 
-        currentVerifyMsg = 'Tool results:\n' + resultSummaries.join('\n') + '\n\nAnalyze the results. If there are issues, fix them. If everything looks correct, you are done.';
+        // Push tool_result blocks to maintain proper message pairing for the API
+        pushToolResults?.(toolResultsForHistory);
+
+        currentVerifyMsg = 'Analyze the results. If there are issues, fix them. If everything looks correct, you are done.';
       }
     }
 

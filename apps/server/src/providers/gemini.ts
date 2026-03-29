@@ -112,7 +112,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       fs, callbacks, skillRegistry, availableTools, logger,
       hasRunBuild: false, hasWrittenFiles: false, buildNudgeSent: false, fullExplanation: '',
       mcpManager,
-      failedBuildCount: 0,
+      failedBuildCount: 0, lastBuildOutput: '',
       activeKitName,
       activeKitId,
       userId,

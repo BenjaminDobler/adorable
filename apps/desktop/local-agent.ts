@@ -648,12 +648,19 @@ app.post('/api/native/preview-shell/event', (req, res) => {
 
 // --- CDP Bridge Routes ---
 
-app.post('/api/native/cdp/screenshot', async (_req, res) => {
+app.post('/api/native/cdp/screenshot', async (req, res) => {
   if (!previewManagerRef?.isCdpAvailable()) {
     return res.status(400).json({ error: 'CDP tools are not available. The preview must be running.' });
   }
   try {
-    const image = await previewManagerRef.captureScreenshot();
+    // Callers can override screenshot settings:
+    //   maxWidth/maxHeight: max dimensions (default 1280x800)
+    //   quality: JPEG quality 0-100 (default 80)
+    //   fullResolution: skip resizing (for Figma comparisons etc.)
+    const { maxWidth, maxHeight, quality, fullResolution } = req.body || {};
+    const image = await previewManagerRef.captureScreenshot({
+      maxWidth, maxHeight, quality, fullResolution,
+    });
     res.json({ image });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -701,8 +708,35 @@ app.post('/api/native/cdp/navigate', async (req, res) => {
     return res.status(400).json({ error: 'CDP tools are not available. The preview must be running.' });
   }
   try {
-    await previewManagerRef.navigateCDP(req.body.url);
-    res.json({ success: true });
+    let url = req.body.url || '';
+
+    // For relative paths (e.g. "/dashboard", "/about"), use Angular router
+    // via CDP evaluate instead of full page navigation
+    if (url.startsWith('/') && !url.startsWith('//')) {
+      const result = await previewManagerRef.evaluate(
+        `(function(){` +
+        `if(window.ng && window.ng.ɵgetRouterInstance){` +
+          `var root=document.querySelector('[ng-version]')||document.querySelector('app-root');` +
+          `if(root){var inj=window.ng.getInjector(root);var r=window.ng.ɵgetRouterInstance(inj);` +
+          `if(r){r.navigateByUrl('${url.replace(/'/g, "\\'")}');return{navigated:true,url:'${url}'};}}` +
+        `}` +
+        `window.location.href='${url}';return{navigated:true,url:'${url}',method:'location'};` +
+        `})()`
+      );
+      res.json({ success: true, ...(result?.value || result || {}) });
+    } else {
+      // Full URL — do actual navigation
+      if (!url.startsWith('http')) {
+        // Resolve against current preview URL
+        const currentUrl = (previewManagerRef as any).currentPreviewUrl || '';
+        if (currentUrl) {
+          const base = new URL(currentUrl);
+          url = new URL(url, base.origin).href;
+        }
+      }
+      await previewManagerRef.navigateCDP(url);
+      res.json({ success: true });
+    }
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -715,6 +749,108 @@ app.post('/api/native/cdp/click', async (req, res) => {
   try {
     await previewManagerRef.click(req.body.x, req.body.y);
     res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Network monitoring buffer
+let networkRequests: any[] = [];
+let networkMonitoringActive = false;
+
+app.post('/api/native/cdp/network', async (req, res) => {
+  if (!previewManagerRef?.isCdpAvailable()) {
+    return res.status(400).json({ error: 'CDP tools are not available.' });
+  }
+  const { action } = req.body;
+  try {
+    if (action === 'start') {
+      networkRequests = [];
+      networkMonitoringActive = true;
+      const wc = (previewManagerRef as any).cdpWebContents;
+      if (wc) {
+        await wc.debugger.sendCommand('Network.enable');
+        // Remove old listeners if any
+        wc.debugger.removeAllListeners('message');
+        wc.debugger.on('message', (_event: any, method: string, params: any) => {
+          if (!networkMonitoringActive) return;
+          if (method === 'Network.responseReceived') {
+            const r = params.response;
+            networkRequests.push({
+              url: r.url,
+              method: params.type === 'XHR' || params.type === 'Fetch' ? 'XHR' : params.type,
+              status: r.status,
+              statusText: r.statusText,
+              mimeType: r.mimeType,
+              size: r.encodedDataLength || 0,
+              timing: r.timing ? Math.round((r.timing.receiveHeadersEnd || 0) - (r.timing.sendStart || 0)) : 0,
+              timestamp: Date.now(),
+            });
+            // Keep buffer capped
+            if (networkRequests.length > 200) networkRequests.shift();
+          }
+        });
+      }
+      res.json({ status: 'monitoring' });
+    } else if (action === 'get') {
+      res.json({ requests: networkRequests });
+    } else if (action === 'clear') {
+      networkRequests = [];
+      res.json({ status: 'cleared' });
+    } else {
+      res.status(400).json({ error: 'Invalid action. Use "start", "get", or "clear".' });
+    }
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/native/cdp/type', async (req, res) => {
+  if (!previewManagerRef?.isCdpAvailable()) {
+    return res.status(400).json({ error: 'CDP tools are not available.' });
+  }
+  try {
+    const { text } = req.body;
+    const wc = (previewManagerRef as any).cdpWebContents;
+    if (!wc) throw new Error('No CDP target');
+
+    // Parse special keys
+    const specialKeys: Record<string, { key: string; code: string; keyCode: number }> = {
+      '{Enter}': { key: 'Enter', code: 'Enter', keyCode: 13 },
+      '{Tab}': { key: 'Tab', code: 'Tab', keyCode: 9 },
+      '{Escape}': { key: 'Escape', code: 'Escape', keyCode: 27 },
+      '{Backspace}': { key: 'Backspace', code: 'Backspace', keyCode: 8 },
+      '{ArrowUp}': { key: 'ArrowUp', code: 'ArrowUp', keyCode: 38 },
+      '{ArrowDown}': { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40 },
+      '{ArrowLeft}': { key: 'ArrowLeft', code: 'ArrowLeft', keyCode: 37 },
+      '{ArrowRight}': { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39 },
+    };
+
+    // Split text into segments: regular chars and {SpecialKey} tokens
+    const segments = text.match(/\{[^}]+\}|[^{]+/g) || [];
+
+    for (const segment of segments) {
+      if (specialKeys[segment]) {
+        const sk = specialKeys[segment];
+        await wc.debugger.sendCommand('Input.dispatchKeyEvent', {
+          type: 'keyDown', key: sk.key, code: sk.code, windowsVirtualKeyCode: sk.keyCode, nativeVirtualKeyCode: sk.keyCode,
+        });
+        await wc.debugger.sendCommand('Input.dispatchKeyEvent', {
+          type: 'keyUp', key: sk.key, code: sk.code, windowsVirtualKeyCode: sk.keyCode, nativeVirtualKeyCode: sk.keyCode,
+        });
+      } else {
+        // Type each character
+        for (const char of segment) {
+          await wc.debugger.sendCommand('Input.dispatchKeyEvent', {
+            type: 'keyDown', key: char, text: char,
+          });
+          await wc.debugger.sendCommand('Input.dispatchKeyEvent', {
+            type: 'keyUp', key: char,
+          });
+        }
+      }
+    }
+    res.json({ success: true, typed: text });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

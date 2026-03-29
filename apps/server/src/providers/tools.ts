@@ -320,10 +320,19 @@ export const TOOLS = [
 export const CDP_TOOLS = [
   {
     name: 'browse_screenshot',
-    description: 'Capture a screenshot of the running application preview via Chrome DevTools Protocol. More reliable than take_screenshot — gives a direct capture of the preview window. Returns a base64 PNG image.',
+    description: 'Capture a screenshot of the running application preview via Chrome DevTools Protocol. Returns a base64 JPEG image. By default, screenshots are resized to max 1280x800 to save tokens. For high-fidelity comparisons (e.g. Figma designs), set fullResolution to true.',
     input_schema: {
       type: 'object',
-      properties: {},
+      properties: {
+        fullResolution: {
+          type: 'boolean',
+          description: 'If true, return the screenshot at native display resolution without resizing. Use for pixel-perfect comparisons with design mockups. Default false.'
+        },
+        quality: {
+          type: 'number',
+          description: 'JPEG quality (1-100). Higher = better quality but larger image. Default 80.'
+        }
+      },
       required: []
     }
   },
@@ -388,6 +397,188 @@ export const CDP_TOOLS = [
         y: { type: 'number', description: 'Y coordinate in pixels from the top edge.' }
       },
       required: ['x', 'y']
+    }
+  },
+  {
+    name: 'inspect_component',
+    description: 'Inspect the Angular component tree or get details for a specific component. Without a selector, returns the full component tree built from ONG annotations. With a selector, returns detailed info including inputs, outputs, properties, directives, and source location.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        selector: {
+          type: 'string',
+          description: 'Optional CSS selector or _ong ID to get details for a specific component. If omitted, returns the full component tree.'
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'inspect_performance',
+    description: 'Profile Angular change detection performance. Use action "start" to begin recording, "stop" to stop and return collected data. Returns timing data for each change detection cycle and per-component breakdown.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['start', 'stop'],
+          description: 'Whether to start or stop profiling.'
+        }
+      },
+      required: ['action']
+    }
+  },
+  {
+    name: 'inspect_routes',
+    description: 'Get the current Angular route configuration and active route. Returns the route tree with paths, components, guards, lazy-loading indicators, and which route is currently active.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'inspect_signals',
+    description: 'Get the Angular signal dependency graph. Returns signal, computed, and effect nodes with their dependency edges. Requires Angular 19+ with signal graph debug APIs.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'inspect_errors',
+    description: 'Parse the last build output into structured error objects. Returns an array of { file, line, column, code, message, severity } for each error/warning. Much easier to work with than raw build output.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'inspect_styles',
+    description: 'Get computed CSS styles for an element in the preview. Returns key layout and visual properties (display, position, width, height, margin, padding, color, background, opacity, visibility, overflow, z-index, flex, grid). Use to debug why elements are invisible, misaligned, or incorrectly sized.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        selector: {
+          type: 'string',
+          description: 'CSS selector for the element to inspect (e.g., ".header", "#main", "app-navbar").'
+        }
+      },
+      required: ['selector']
+    }
+  },
+  {
+    name: 'inspect_network',
+    description: 'Get recent network requests from the preview. Returns requests with URL, method, status, duration, and response size. Use action "start" to begin capturing, "get" to retrieve captured requests, "clear" to reset.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['start', 'get', 'clear'],
+          description: 'Action to perform: "start" enables network monitoring, "get" returns captured requests, "clear" resets the buffer.'
+        }
+      },
+      required: ['action']
+    }
+  },
+  {
+    name: 'type_text',
+    description: 'Type text into the currently focused element in the preview. Use after browse_click to focus an input field, then type_text to enter content. Supports special keys like Enter, Tab, Escape, Backspace.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        text: {
+          type: 'string',
+          description: 'The text to type. For special keys use: {Enter}, {Tab}, {Escape}, {Backspace}, {ArrowUp}, {ArrowDown}, {ArrowLeft}, {ArrowRight}.'
+        }
+      },
+      required: ['text']
+    }
+  },
+  {
+    name: 'inspect_dom',
+    description: 'Get the HTML content of a specific element in the preview. Returns the outer HTML of the matched element, useful for understanding DOM structure without writing JS.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        selector: {
+          type: 'string',
+          description: 'CSS selector for the element (e.g., "main", ".content", "app-root").'
+        },
+        depth: {
+          type: 'number',
+          description: 'Maximum depth of child elements to include. Default 3. Use 0 for just the element itself, -1 for full depth.'
+        }
+      },
+      required: ['selector']
+    }
+  },
+  {
+    name: 'measure_element',
+    description: 'Get the position, dimensions, and visibility of an element in the preview. Returns bounding box (x, y, width, height), whether it is visible, and scroll position. Use for debugging layout issues.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        selector: {
+          type: 'string',
+          description: 'CSS selector for the element to measure.'
+        }
+      },
+      required: ['selector']
+    }
+  },
+  {
+    name: 'clear_build_cache',
+    description: 'Clear Angular and Nx build caches (.angular/cache, .nx/cache, node_modules/.cache). Use when encountering phantom build errors that persist despite correct code.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'get_container_logs',
+    description: 'Get recent dev server logs from the container/native process. Returns the last N lines of build output, HMR status, and server messages. Useful for debugging dev server crashes or configuration issues.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        lines: {
+          type: 'number',
+          description: 'Number of recent log lines to return. Default 50.'
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'inject_css',
+    description: 'Inject temporary CSS into the preview for rapid visual prototyping. The CSS is not persisted to files — it only affects the current preview session. Use to test style changes before committing them. Use action "add" to inject, "clear" to remove all injected styles.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['add', 'clear'],
+          description: 'Action: "add" to inject CSS, "clear" to remove all injected styles.'
+        },
+        css: {
+          type: 'string',
+          description: 'The CSS rules to inject (only for "add" action).'
+        }
+      },
+      required: ['action']
+    }
+  },
+  {
+    name: 'get_bundle_stats',
+    description: 'Get the bundle size breakdown from the last build. Returns initial and lazy chunk sizes. Use to identify large bundles, check if lazy loading is working, or verify tree-shaking.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: []
     }
   }
 ];

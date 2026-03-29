@@ -126,7 +126,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       fs, callbacks, skillRegistry, availableTools, logger,
       hasRunBuild: false, hasWrittenFiles: false, buildNudgeSent: false, fullExplanation: '',
       mcpManager,
-      failedBuildCount: 0,
+      failedBuildCount: 0, lastBuildOutput: '',
       activeKitName,
       activeKitId,
       userId,
@@ -417,6 +417,25 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       }
 
       return { toolCalls, text: '' };
+    }, (toolResults) => {
+      // Push tool_result blocks to messages to maintain proper tool_use/tool_result pairing
+      const toolResultBlocks = toolResults.map((r: any) => {
+        // Handle screenshot results with image content
+        const screenshotMatch = r.content.match(/^\[SCREENSHOT:data:image\/([^;]+);base64,(.+)\]$/);
+        if (screenshotMatch && !r.is_error) {
+          return {
+            type: 'tool_result',
+            tool_use_id: r.tool_use_id,
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: `image/${screenshotMatch[1]}`, data: screenshotMatch[2] } },
+              { type: 'text', text: 'Screenshot captured. Analyze it to verify the UI.' }
+            ],
+            is_error: false,
+          };
+        }
+        return { type: 'tool_result', tool_use_id: r.tool_use_id, content: r.content, is_error: r.is_error };
+      });
+      messages.push({ role: 'user', content: toolResultBlocks });
     });
 
     return { explanation: ctx.fullExplanation, files: fs.getAccumulatedFiles(), model: modelToUse };

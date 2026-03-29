@@ -261,19 +261,36 @@ export class PreviewWindowManager {
 
   // --- CDP Operations ---
 
-  async captureScreenshot(): Promise<string> {
+  // Default screenshot settings — optimized to reduce token usage.
+  // 1280x800 JPEG at quality 80 is plenty for the AI to analyze layout and visual issues.
+  // For Figma-level precision (pixel-perfect comparisons), callers can override these.
+  private static readonly DEFAULT_SCREENSHOT_MAX_WIDTH = 1280;
+  private static readonly DEFAULT_SCREENSHOT_MAX_HEIGHT = 800;
+  private static readonly DEFAULT_SCREENSHOT_QUALITY = 80; // JPEG quality (0-100)
+
+  async captureScreenshot(options?: {
+    maxWidth?: number;
+    maxHeight?: number;
+    quality?: number;
+    fullResolution?: boolean; // skip resizing entirely — use for Figma comparisons etc.
+  }): Promise<string> {
     const wc = this.cdpWebContents;
     if (!wc) throw new Error('No CDP target available.');
+
+    const quality = options?.quality ?? PreviewWindowManager.DEFAULT_SCREENSHOT_QUALITY;
 
     if (this.isDockedMode) {
       // Docked webview: capture directly (no iframe targeting)
       try {
-        const result = await wc.debugger.sendCommand('Page.captureScreenshot', { format: 'png' });
-        return result.data;
+        const result = await wc.debugger.sendCommand('Page.captureScreenshot', {
+          format: 'jpeg',
+          quality,
+        });
+        return this.processScreenshot(result.data, options);
       } catch {
         // Fallback to Electron capture
         const image = await wc.capturePage();
-        return image.toPNG().toString('base64');
+        return this.processNativeImage(image, options);
       }
     }
 
@@ -283,10 +300,10 @@ export class PreviewWindowManager {
       try {
         const result = await wc.debugger.sendCommand(
           'Page.captureScreenshot',
-          { format: 'png' },
+          { format: 'jpeg', quality },
           sessionId
         );
-        return result.data;
+        return this.processScreenshot(result.data, options);
       } catch {
         // Fall through to whole-window capture
       }
@@ -294,14 +311,58 @@ export class PreviewWindowManager {
 
     // Fallback: capture the entire preview window (includes toolbar)
     try {
-      const result = await wc.debugger.sendCommand('Page.captureScreenshot', { format: 'png' });
-      return result.data;
+      const result = await wc.debugger.sendCommand('Page.captureScreenshot', {
+        format: 'jpeg',
+        quality,
+      });
+      return this.processScreenshot(result.data, options);
     } catch {
       // Fall through
     }
 
     const image = await this.previewWindow!.webContents.capturePage();
-    return image.toPNG().toString('base64');
+    return this.processNativeImage(image, options);
+  }
+
+  /**
+   * Process a base64-encoded screenshot — resize if needed to save tokens.
+   */
+  private processScreenshot(base64Data: string, options?: {
+    maxWidth?: number; maxHeight?: number; quality?: number; fullResolution?: boolean;
+  }): string {
+    if (options?.fullResolution) return base64Data;
+    const { nativeImage } = require('electron');
+    const img = nativeImage.createFromBuffer(Buffer.from(base64Data, 'base64'));
+    return this.processNativeImage(img, options);
+  }
+
+  /**
+   * Resize an Electron NativeImage to fit within max dimensions, then return as base64 JPEG.
+   * If fullResolution is true, returns the image as-is (still JPEG-compressed).
+   */
+  private processNativeImage(img: any, options?: {
+    maxWidth?: number; maxHeight?: number; quality?: number; fullResolution?: boolean;
+  }): string {
+    const quality = options?.quality ?? PreviewWindowManager.DEFAULT_SCREENSHOT_QUALITY;
+
+    if (options?.fullResolution) {
+      return img.toJPEG(quality).toString('base64');
+    }
+
+    const size = img.getSize();
+    const maxW = options?.maxWidth ?? PreviewWindowManager.DEFAULT_SCREENSHOT_MAX_WIDTH;
+    const maxH = options?.maxHeight ?? PreviewWindowManager.DEFAULT_SCREENSHOT_MAX_HEIGHT;
+
+    if (size.width > maxW || size.height > maxH) {
+      const scale = Math.min(maxW / size.width, maxH / size.height);
+      const newWidth = Math.round(size.width * scale);
+      const newHeight = Math.round(size.height * scale);
+      const resized = img.resize({ width: newWidth, height: newHeight, quality: 'good' });
+      return resized.toJPEG(quality).toString('base64');
+    }
+
+    // Even if not resizing, convert to JPEG to save space
+    return img.toJPEG(quality).toString('base64');
   }
 
   async evaluate(expression: string): Promise<any> {

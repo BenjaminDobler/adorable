@@ -59,11 +59,10 @@ export const RUNTIME_SCRIPTS = `
         if (p !== lastPath) {
           lastPath = p;
           var msg = { type: 'PREVIEW_ROUTE_CHANGE', route: p };
-          if (window.parent !== window) {
-            window.parent.postMessage(msg, '*');
-          } else if (window.__adorable_ipc) {
-            window.__adorable_ipc('__ADORABLE_IPC__' + JSON.stringify(msg));
-          }
+          // Always use postMessage — in an iframe window.parent is the host,
+          // in a webview window.parent === window so this dispatches locally
+          // and the bridge listener forwards it via console.debug IPC.
+          window.parent.postMessage(msg, '*');
         }
       }
       // Patch pushState/replaceState to detect programmatic navigation

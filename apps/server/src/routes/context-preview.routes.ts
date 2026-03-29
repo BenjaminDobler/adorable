@@ -104,8 +104,32 @@ router.post('/', requireCloudEditorAccess, async (req: any, res) => {
       skipVisualEditingIds: userSettings.skipVisualEditingIds,
     }, 'anthropic');
 
+    // Discover and add skills (same as anthropic.ts/gemini.ts do)
+    const skills = await (providerInstance as any).addSkillTools(
+      ctx.availableTools, ctx.skillRegistry, fileSystem, user.id
+    );
+    const skillList = (skills || []).map((s: any) => ({
+      name: s.name,
+      description: s.description,
+    }));
+
     const knowledgeBase = ANGULAR_KNOWLEDGE_BASE;
     const historyText = JSON.stringify(ctx.history || []);
+
+    // Extract tool information (now includes activate_skill if skills were found)
+    const tools = (ctx.availableTools || []).map((t: any) => ({
+      name: t.name,
+      description: t.description,
+      parameters: t.input_schema?.properties
+        ? Object.keys(t.input_schema.properties).map(k => ({
+            name: k,
+            type: t.input_schema.properties[k].type || 'string',
+            description: t.input_schema.properties[k].description || '',
+            required: (t.input_schema.required || []).includes(k),
+          }))
+        : [],
+    }));
+    const toolsText = JSON.stringify(tools);
 
     const result = {
       systemPrompt: ctx.effectiveSystemPrompt,
@@ -113,17 +137,21 @@ router.post('/', requireCloudEditorAccess, async (req: any, res) => {
       userMessage: ctx.userMessage,
       history: ctx.history || [],
       contextSummary: ctx.contextSummary || null,
+      tools,
+      skills: skillList,
       estimatedTokens: {
         systemPrompt: estimateTokens(ctx.effectiveSystemPrompt),
         knowledgeBase: estimateTokens(knowledgeBase),
         userMessage: estimateTokens(ctx.userMessage),
         history: estimateTokens(historyText),
         contextSummary: estimateTokens(ctx.contextSummary || ''),
+        tools: estimateTokens(toolsText),
         total: estimateTokens(ctx.effectiveSystemPrompt)
           + estimateTokens(knowledgeBase)
           + estimateTokens(ctx.userMessage)
           + estimateTokens(historyText)
-          + estimateTokens(ctx.contextSummary || ''),
+          + estimateTokens(ctx.contextSummary || '')
+          + estimateTokens(toolsText),
       }
     };
 

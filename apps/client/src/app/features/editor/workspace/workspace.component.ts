@@ -44,6 +44,9 @@ import { DebugOverlayComponent } from './debug-overlay/debug-overlay.component';
 import { ProjectSettingsComponent } from '../project-settings/project-settings.component';
 import { TranslationsPanelComponent } from '../translations/translations-panel.component';
 import { HMRTriggerService } from '../../../core/services/hmr-trigger.service';
+import { DevtoolsPanelComponent } from '../devtools/devtools-panel.component';
+import { DevtoolsService } from '../../../core/services/devtools.service';
+import { ToolsTesterPanelComponent } from '../tools-tester/tools-tester-panel.component';
 
 @Component({
   standalone: true,
@@ -65,6 +68,8 @@ import { HMRTriggerService } from '../../../core/services/hmr-trigger.service';
     DebugOverlayComponent,
     ProjectSettingsComponent,
     TranslationsPanelComponent,
+    DevtoolsPanelComponent,
+    ToolsTesterPanelComponent,
   ],
   selector: 'app-workspace',
   templateUrl: './workspace.component.html',
@@ -80,6 +85,7 @@ export class WorkspaceComponent implements AfterViewChecked {
   private screenshotService = inject(ScreenshotService);
   private templateService = inject(TemplateService);
   private hmrTriggerService = inject(HMRTriggerService);
+  public devtoolsService = inject(DevtoolsService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
 
@@ -115,7 +121,7 @@ export class WorkspaceComponent implements AfterViewChecked {
   @ViewChild(FigmaPanelComponent) figmaPanel?: FigmaPanelComponent;
   @ViewChild(MultiAnnotationPanelComponent) multiAnnotationPanel?: MultiAnnotationPanelComponent;
 
-  activeTab = signal<'chat' | 'terminal' | 'files' | 'figma' | 'versions' | 'insights' | 'translations' | 'settings'>(
+  activeTab = signal<'chat' | 'terminal' | 'files' | 'figma' | 'versions' | 'insights' | 'translations' | 'devtools' | 'tools' | 'settings'>(
     'chat',
   );
 
@@ -186,6 +192,11 @@ export class WorkspaceComponent implements AfterViewChecked {
 
   constructor() {
     this.fetchSettings();
+
+    // Track devtools panel visibility for DOM observer
+    effect(() => {
+      this.devtoolsService.setPanelVisible(this.activeTab() === 'devtools');
+    });
 
     // Reload preview (webview/undocked) on demand from HMRTriggerService
     this.hmrTriggerService.reloadPreview$.subscribe(() => this.reloadIframe());
@@ -282,7 +293,14 @@ export class WorkspaceComponent implements AfterViewChecked {
     if (electronAPI?.onPreviewEvent) {
       electronAPI.onPreviewEvent(async (event: any) => {
         if (event.type === 'element-selected') {
-          this.visualEditorData.set(event.payload);
+          if (this.activeTab() === 'devtools') {
+            const ongId = event.payload?.ongAnnotation?.id || event.payload?.elementId?.replace('_ong:', '');
+            if (ongId) {
+              this.devtoolsService.selectByOngId(ongId);
+            }
+          } else {
+            this.visualEditorData.set(event.payload);
+          }
         }
         if (event.type === 'inline-text-edit') {
           const payload = event.payload;
@@ -360,6 +378,9 @@ export class WorkspaceComponent implements AfterViewChecked {
       console.log('[WorkspaceComponent] Webview dom-ready');
       this._webviewElement = webview;
 
+      // Notify devtools that the preview reloaded (route config may have changed)
+      this.devtoolsService.onPreviewReloaded();
+
       // Inject a listener that forwards page messages to the host via console.debug.
       // Runtime scripts call window.parent.postMessage(data, '*'). In a webview,
       // window.parent === window, so this dispatches a message event on the same window.
@@ -403,10 +424,22 @@ export class WorkspaceComponent implements AfterViewChecked {
   private async handlePreviewMessage(data: any) {
     if (data.type === 'PREVIEW_ROUTE_CHANGE') {
       this.containerEngine.previewRoute.set(data.route || null);
+      // Update devtools route inspector in real time
+      if (data.route) {
+        this.devtoolsService.updateActiveRoute(data.route);
+      }
     }
 
     if (data.type === 'ELEMENT_SELECTED') {
-      this.visualEditorData.set(data.payload);
+      if (this.activeTab() === 'devtools') {
+        // Route to devtools service instead of visual editor
+        const ongId = data.payload?.ongAnnotation?.id || data.payload?.elementId?.replace('_ong:', '');
+        if (ongId) {
+          this.devtoolsService.selectByOngId(ongId);
+        }
+      } else {
+        this.visualEditorData.set(data.payload);
+      }
     }
 
     if (data.type === 'MULTI_ELEMENT_ADDED') {

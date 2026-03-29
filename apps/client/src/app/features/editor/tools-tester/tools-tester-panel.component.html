@@ -1,0 +1,115 @@
+<div class="tools-panel">
+  <div class="tools-sidebar">
+    <div class="tools-sidebar-header">
+      <h3>AI Tools</h3>
+      <span class="tool-count">{{ toolDefinitions.length }}</span>
+    </div>
+    @for (cat of categories; track cat) {
+      <div class="tool-category">{{ cat }}</div>
+      @for (tool of getToolsByCategory(cat); track tool.name) {
+        <div
+          class="tool-item"
+          [class.selected]="selectedTool().name === tool.name"
+          (click)="selectTool(tool)"
+        >
+          <span class="tool-name">{{ tool.name }}</span>
+        </div>
+      }
+    }
+  </div>
+
+  <div class="tools-main">
+    <div class="tool-header">
+      <span class="tool-selected-name">{{ selectedTool().name }}</span>
+      <span class="tool-selected-desc">{{ selectedTool().description }}</span>
+    </div>
+
+    @if (selectedTool().params.length > 0) {
+      <div class="tool-params">
+        @for (param of selectedTool().params; track param.name) {
+          <div class="tool-param-row">
+            <label class="param-label">
+              {{ param.name }}
+              @if (param.required) { <span class="param-required">*</span> }
+            </label>
+            @if (param.type === 'select') {
+              <select [(ngModel)]="toolArgs[param.name]" class="param-input">
+                @for (opt of $any(param).options; track opt) {
+                  <option [value]="opt">{{ opt }}</option>
+                }
+              </select>
+            } @else if (param.type === 'boolean') {
+              <label class="param-checkbox">
+                <input type="checkbox" [(ngModel)]="toolArgs[param.name]" />
+                {{ param.name }}
+              </label>
+            } @else if (param.type === 'text') {
+              <textarea
+                [(ngModel)]="toolArgs[param.name]"
+                [placeholder]="$any(param).placeholder"
+                class="param-textarea"
+                rows="3"
+              ></textarea>
+            } @else {
+              <input
+                [(ngModel)]="toolArgs[param.name]"
+                [placeholder]="$any(param).placeholder"
+                [type]="param.type === 'number' ? 'number' : 'text'"
+                class="param-input"
+              />
+            }
+          </div>
+        }
+      </div>
+    }
+
+    <div class="tool-actions">
+      <button class="tool-run-btn" (click)="runTool()" [disabled]="devtools.toolRunning()">
+        @if (devtools.toolRunning()) {
+          <div class="spinner small"></div> Running... {{ elapsedTime() }}
+        } @else {
+          Run Tool
+        }
+      </button>
+    </div>
+
+    @if (devtools.toolResult()) {
+      <div class="tool-result">
+        <div class="result-header">
+          <span>Result</span>
+          <button class="btn-icon" (click)="devtools.toolResult.set('')" title="Clear">
+            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <pre class="result-body">{{ devtools.toolResult() }}</pre>
+      </div>
+    }
+
+    @if (devtools.toolHistory().length > 0) {
+      <div class="tool-history">
+        <div class="history-header">
+          <span>History</span>
+          <button class="btn-icon" (click)="devtools.clearToolHistory()" title="Clear history">
+            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+          </button>
+        </div>
+        @for (entry of devtools.toolHistory(); track entry.timestamp) {
+          <div class="history-entry" [class.error]="entry.isError">
+            <div class="history-entry-header">
+              <span class="history-tool-name">{{ entry.tool }}</span>
+              <span class="history-time">{{ formatTime(entry.timestamp) }}</span>
+            </div>
+            <div class="history-args">{{ entry.args | json }}</div>
+            <pre class="history-result">{{ entry.result }}</pre>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>

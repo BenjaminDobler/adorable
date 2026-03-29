@@ -70,6 +70,76 @@
         </div>
       }
 
+      <!-- Tools -->
+      @if (data().tools && data().tools.length > 0) {
+        <div class="section">
+          <div class="section-header" (click)="toggle('tools')">
+            <span class="section-toggle">{{ isCollapsed('tools') ? '▶' : '▼' }}</span>
+            <span class="section-title">
+              Tools ({{ data().tools.length }})
+            </span>
+            <span class="section-tokens">{{ formatTokens(data().estimatedTokens.tools) }} tokens</span>
+            <button class="btn-copy-section" (click)="copySection(toolsText()); $event.stopPropagation()">Copy</button>
+          </div>
+          @if (!isCollapsed('tools')) {
+            <div class="tools-list">
+              @for (tool of data().tools; track tool.name) {
+                <div class="tool-entry">
+                  <div class="tool-entry-header" (click)="toggleTool(tool.name)">
+                    <span class="tool-toggle">{{ isToolExpanded(tool.name) ? '▼' : '▶' }}</span>
+                    <span class="tool-entry-name">{{ tool.name }}</span>
+                    @if (tool.parameters.length > 0) {
+                      <span class="tool-param-count">({{ tool.parameters.length }} params)</span>
+                    }
+                  </div>
+                  @if (isToolExpanded(tool.name)) {
+                    <div class="tool-entry-body">
+                      <div class="tool-entry-desc">{{ tool.description }}</div>
+                      @if (tool.parameters.length > 0) {
+                        <div class="tool-params-list">
+                          @for (param of tool.parameters; track param.name) {
+                            <div class="tool-param">
+                              <span class="param-name">{{ param.name }}{{ param.required ? '*' : '' }}</span>
+                              <span class="param-type">{{ param.type }}</span>
+                              @if (param.description) {
+                                <span class="param-desc">{{ param.description }}</span>
+                              }
+                            </div>
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Skills -->
+      @if (data().skills && data().skills.length > 0) {
+        <div class="section">
+          <div class="section-header" (click)="toggle('skills')">
+            <span class="section-toggle">{{ isCollapsed('skills') ? '▶' : '▼' }}</span>
+            <span class="section-title">
+              Skills ({{ data().skills.length }})
+            </span>
+            <button class="btn-copy-section" (click)="copySection(skillsText()); $event.stopPropagation()">Copy</button>
+          </div>
+          @if (!isCollapsed('skills')) {
+            <div class="skills-list">
+              @for (skill of data().skills; track skill.name) {
+                <div class="skill-entry">
+                  <span class="skill-name">{{ skill.name }}</span>
+                  <span class="skill-desc">{{ skill.description }}</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+
     </div>
   </div>
 </div>
