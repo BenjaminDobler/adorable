@@ -288,27 +288,35 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         break;
       }
 
-      // Execute tools
+      // Execute tools — parallel for read-only, sequential for mutations
+      const parsedToolCalls = toolUses.map(t => ({
+        name: t.name,
+        args: this.parseToolInput(t.input),
+        id: t.id,
+      }));
+
+      const batchedResults = await this.executeToolsBatched(parsedToolCalls, ctx, {
+        onToolCall: (name, args) => {
+          callbacks.onToolCall?.(0, name, args);
+          logger.log('EXECUTING_TOOL', { name, args });
+        },
+        onToolResult: (id, content, name, isError) => {
+          logger.logText('TOOL_RESULT', content, { id, isError });
+        },
+      });
+
+      // Build tool_result blocks for message history
       const toolResults: any[] = [];
-      for (const tool of toolUses) {
-        const toolArgs = this.parseToolInput(tool.input);
-        callbacks.onToolCall?.(0, tool.name, toolArgs);
-        logger.log('EXECUTING_TOOL', { name: tool.name, args: toolArgs });
-
-        const { content, isError } = await this.executeTool(tool.name, toolArgs, ctx);
-
-        logger.logText('TOOL_RESULT', content, { id: tool.id, isError });
-
+      for (const result of batchedResults) {
         // Check if this is a screenshot result with embedded image data
-        const screenshotMatch = content.match(/^\[SCREENSHOT:(data:image\/[^;]+;base64,(.+))\]$/);
-        if (screenshotMatch && !isError) {
+        const screenshotMatch = result.content.match(/^\[SCREENSHOT:(data:image\/[^;]+;base64,(.+))\]$/);
+        if (screenshotMatch && !result.isError) {
           const dataUri = screenshotMatch[1];
           const mimeMatch = dataUri.match(/^data:image\/([^;]+);base64,(.+)$/);
           if (mimeMatch) {
-            // Return image content for the AI to analyze
             toolResults.push({
               type: 'tool_result',
-              tool_use_id: tool.id,
+              tool_use_id: result.id,
               content: [
                 {
                   type: 'image',
@@ -325,13 +333,13 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
               ],
               is_error: false
             });
-            callbacks.onToolResult?.(tool.id, 'Screenshot captured (image attached)', tool.name);
+            callbacks.onToolResult?.(result.id, 'Screenshot captured (image attached)', result.name);
             continue;
           }
         }
 
-        toolResults.push({ type: 'tool_result', tool_use_id: tool.id, content, is_error: isError });
-        callbacks.onToolResult?.(tool.id, content, tool.name);
+        toolResults.push({ type: 'tool_result', tool_use_id: result.id, content: result.content, is_error: result.isError });
+        callbacks.onToolResult?.(result.id, result.content, result.name);
       }
 
       messages.push({ role: 'user', content: toolResults });

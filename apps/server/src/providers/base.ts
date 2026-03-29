@@ -14,6 +14,20 @@ import { kitFsService } from '../services/kit-fs.service';
 import { kitLessonService } from '../services/kit-lesson.service';
 import { sanitizeCommandOutput } from './sanitize-output';
 
+/**
+ * Tools that are safe to execute in parallel (read-only, no side effects).
+ * All other tools must be executed sequentially to preserve ordering guarantees.
+ */
+export const PARALLELIZABLE_TOOLS = new Set([
+  // File system reads
+  'read_file', 'read_files', 'list_dir', 'glob', 'grep',
+  // CDP browser reads
+  'browse_screenshot', 'browse_console', 'browse_evaluate', 'browse_accessibility',
+  // Angular inspection (read-only)
+  'inspect_component', 'inspect_routes', 'inspect_signals', 'inspect_styles',
+  'inspect_dom', 'measure_element', 'inspect_errors', 'get_bundle_stats', 'get_container_logs',
+]);
+
 export const SYSTEM_PROMPT =
 "You are an expert Angular developer.\n"
 +"Your task is to generate or modify the SOURCE CODE for an Angular application.\n\n"
@@ -112,6 +126,71 @@ export interface AgentLoopContext {
 }
 
 export abstract class BaseLLMProvider {
+
+  /**
+   * Execute a list of tool calls with parallelization where safe.
+   * Groups consecutive parallelizable (read-only) tools and runs them concurrently,
+   * while sequential (mutation) tools run one at a time in order.
+   *
+   * Returns results in the same order as the input tool calls.
+   */
+  protected async executeToolsBatched(
+    toolCalls: { name: string; args: any; id: string }[],
+    ctx: AgentLoopContext,
+    options?: {
+      onToolCall?: (name: string, args: any) => void;
+      onToolResult?: (id: string, content: string, name: string, isError: boolean) => void;
+    }
+  ): Promise<{ id: string; name: string; content: string; isError: boolean }[]> {
+    const results: { id: string; name: string; content: string; isError: boolean }[] = [];
+
+    // Group consecutive parallelizable tools into batches
+    type Batch = { parallel: boolean; tools: typeof toolCalls };
+    const batches: Batch[] = [];
+
+    for (const tool of toolCalls) {
+      const isParallel = PARALLELIZABLE_TOOLS.has(tool.name);
+      const lastBatch = batches[batches.length - 1];
+
+      if (lastBatch && lastBatch.parallel === isParallel) {
+        // Same type as current batch — add to it
+        lastBatch.tools.push(tool);
+      } else {
+        // Start a new batch
+        batches.push({ parallel: isParallel, tools: [tool] });
+      }
+    }
+
+    // Execute each batch
+    for (const batch of batches) {
+      if (batch.parallel && batch.tools.length > 1) {
+        // Fire all onToolCall callbacks immediately
+        for (const tool of batch.tools) {
+          options?.onToolCall?.(tool.name, tool.args);
+        }
+
+        // Execute in parallel
+        const batchResults = await Promise.all(
+          batch.tools.map(async (tool) => {
+            const { content, isError } = await this.executeTool(tool.name, tool.args, ctx);
+            options?.onToolResult?.(tool.id, content, tool.name, isError);
+            return { id: tool.id, name: tool.name, content, isError };
+          })
+        );
+        results.push(...batchResults);
+      } else {
+        // Execute sequentially (mutations or single-item batches)
+        for (const tool of batch.tools) {
+          options?.onToolCall?.(tool.name, tool.args);
+          const { content, isError } = await this.executeTool(tool.name, tool.args, ctx);
+          options?.onToolResult?.(tool.id, content, tool.name, isError);
+          results.push({ id: tool.id, name: tool.name, content, isError });
+        }
+      }
+    }
+
+    return results;
+  }
 
   protected async prepareAgentContext(options: GenerateOptions, providerName: string): Promise<{
     fs: FileSystemInterface;

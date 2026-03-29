@@ -208,22 +208,28 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
         break;
       }
 
-      // Execute tools and build response parts
-      const toolResponseParts: any[] = [];
-      for (const call of functionCalls) {
-        const toolArgs = call.args || {};
-        callbacks.onToolCall?.(0, call.name, toolArgs);
-        logger.log('EXECUTING_TOOL', { name: call.name, args: toolArgs });
+      // Execute tools — parallel for read-only, sequential for mutations
+      const parsedToolCalls = functionCalls.map(c => ({
+        name: c.name,
+        args: c.args || {},
+        id: c.id || c.name,
+      }));
 
-        const { content, isError } = await this.executeTool(call.name, toolArgs, ctx);
+      const batchedResults = await this.executeToolsBatched(parsedToolCalls, ctx, {
+        onToolCall: (name, args) => {
+          callbacks.onToolCall?.(0, name, args);
+          logger.log('EXECUTING_TOOL', { name, args });
+        },
+        onToolResult: (id, content, name, isError) => {
+          logger.log('TOOL_RESULT', { name, result: content, isError });
+          callbacks.onToolResult?.(name, content, name);
+        },
+      });
 
-        logger.log('TOOL_RESULT', { name: call.name, result: content, isError });
-        callbacks.onToolResult?.(call.name, content, call.name);
-
-        toolResponseParts.push(
-          createPartFromFunctionResponse(call.id || call.name, call.name, { result: content })
-        );
-      }
+      // Build Gemini function response parts
+      const toolResponseParts: any[] = batchedResults.map(r =>
+        createPartFromFunctionResponse(r.id, r.name, { result: r.content })
+      );
 
       currentMessage = toolResponseParts;
       turnCount++;
