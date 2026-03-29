@@ -1,6 +1,6 @@
 import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
 import { GoogleGenAI, createPartFromFunctionResponse } from '@google/genai';
-import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, REVIEW_SYSTEM_PROMPT, AgentLoopContext } from './base';
+import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, REVIEW_SYSTEM_PROMPT, RESEARCH_SYSTEM_PROMPT, AgentLoopContext } from './base';
 import { sanitizeCommandOutput } from './sanitize-output';
 
 /** Extract text from a Gemini response chunk without triggering the SDK's
@@ -39,15 +39,17 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       parameters: tool.input_schema
     }));
 
-    logger.log('START', { model: modelName, promptLength: options.prompt.length, totalMessageLength: userMessage.length });
+    let enrichedUserMessage = userMessage;
+
+    logger.log('START', { model: modelName, promptLength: options.prompt.length, totalMessageLength: enrichedUserMessage.length });
 
     // Log the full prompts for debugging
     logger.logText('SYSTEM_PROMPT', effectiveSystemPrompt);
     logger.logText('KNOWLEDGE_BASE', ANGULAR_KNOWLEDGE_BASE);
-    logger.logText('USER_MESSAGE', userMessage);
+    logger.logText('USER_MESSAGE', enrichedUserMessage);
 
     // Build initial parts
-    const initialParts: any[] = [{ text: userMessage }];
+    const initialParts: any[] = [{ text: enrichedUserMessage }];
     if (options.images && options.images.length > 0) {
       options.images.forEach(dataUri => {
         const match = dataUri.match(/^data:([^;]+);base64,(.+)$/);
@@ -121,6 +123,66 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       hasVerifiedWithBrowser: false,
       buildCommand,
     };
+
+    // Research phase: LLM-based agent reads relevant files before main loop
+    if (options.previousFiles) {
+      const researchContext = await this.runResearchPhase(ctx, options.prompt, userMessage,
+        async (researchPrompt, researchTools) => {
+          const MAX_RESEARCH_TURNS = 3;
+          const geminiResearchTools = researchTools.map((t: any) => ({
+            name: t.name, description: t.description, parameters: t.input_schema,
+          }));
+
+          const researchChat = ai.chats.create({
+            model: modelName,
+            config: {
+              tools: [{ functionDeclarations: geminiResearchTools }],
+              systemInstruction: RESEARCH_SYSTEM_PROMPT,
+              thinkingConfig: { thinkingBudget: 1024 },
+            },
+          });
+
+          let researchText = '';
+          let researchMessage: any[] = [{ text: researchPrompt }];
+
+          for (let turn = 0; turn < MAX_RESEARCH_TURNS; turn++) {
+            const researchStream = await researchChat.sendMessageStream({ message: researchMessage });
+            const researchCalls: { name: string; args: any; id: string }[] = [];
+
+            for await (const chunk of researchStream) {
+              const chunkText = extractText(chunk);
+              if (chunkText) researchText += chunkText;
+              const calls = chunk.functionCalls;
+              if (calls && calls.length > 0) {
+                calls.forEach(call => {
+                  researchCalls.push({ name: call.name, args: call.args || {}, id: call.id || call.name });
+                });
+              }
+            }
+
+            if (researchCalls.length === 0) break;
+
+            const responseParts: any[] = [];
+            for (const call of researchCalls) {
+              try {
+                const { content } = await this.executeTool(call.name, call.args, ctx);
+                responseParts.push(createPartFromFunctionResponse(call.id, call.name, { result: content }));
+              } catch (err: any) {
+                responseParts.push(createPartFromFunctionResponse(call.id, call.name, { result: `Error: ${err.message}` }));
+              }
+            }
+            researchMessage = responseParts;
+          }
+
+          return researchText;
+        }
+      );
+      if (researchContext) {
+        enrichedUserMessage = userMessage + researchContext;
+        // Update initial parts with enriched message
+        if (initialParts[0]?.text) initialParts[0].text = enrichedUserMessage;
+      }
+    }
 
     let turnCount = 0;
     let currentMessage: any = initialParts;

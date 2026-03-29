@@ -29,6 +29,27 @@ export const PARALLELIZABLE_TOOLS = new Set([
 ]);
 
 /**
+ * System prompt for the pre-generation research agent.
+ * Reads relevant files in parallel and returns a concise summary for the main agent.
+ */
+export const RESEARCH_SYSTEM_PROMPT =
+"You are a code researcher assistant. Your job is to read the specified files and provide a concise summary of their contents.\n\n"
++"**Instructions:**\n"
++"1. Read the files using the `read_files` tool (batch read is preferred for speed)\n"
++"2. After reading, provide a structured summary:\n"
++"   - **Key patterns**: What architectural patterns, conventions, and styles are used\n"
++"   - **Relevant code**: Important types, interfaces, services, and their public APIs\n"
++"   - **Dependencies**: What imports/uses what\n"
++"   - **Modification points**: Where changes would need to be made for the user's request\n\n"
++"**Rules:**\n"
++"- Be concise — aim for under 2000 tokens total\n"
++"- Focus on information relevant to the user's request\n"
++"- Include actual code snippets for key interfaces and types (not full files)\n"
++"- Do NOT suggest changes — just report what you find\n"
++"- Do NOT read more files than necessary — stick to the ones specified\n"
++"- Maximum 2 tool-use turns, then return your summary\n";
+
+/**
  * System prompt for the post-generation review agent.
  * This agent checks generated code for common issues using a lightweight, fast model.
  */
@@ -218,6 +239,93 @@ export abstract class BaseLLMProvider {
     }
 
     return results;
+  }
+
+  /**
+   * Run a proper LLM-based research phase before the main generation loop.
+   *
+   * Uses a lightweight LLM call with the RESEARCH_SYSTEM_PROMPT to:
+   * 1. Analyze the user's request + file structure
+   * 2. Identify which files are relevant (using read_file/read_files tools)
+   * 3. Summarize findings: key patterns, interfaces, dependencies, modification points
+   *
+   * The summary is injected into the main agent's first message so it can
+   * start writing code immediately without spending turns on exploration.
+   *
+   * @param researchLLMCall Provider-specific callback that makes the actual LLM call.
+   *   It receives a prompt, has access to read-only tools, and runs a mini agentic loop
+   *   (max 3 turns) before returning the final text summary.
+   */
+  protected async runResearchPhase(
+    ctx: AgentLoopContext,
+    userPrompt: string,
+    fileStructure: string,
+    researchLLMCall: (prompt: string, tools: any[], fs: FileSystemInterface) => Promise<string>,
+  ): Promise<string> {
+    const { callbacks, logger, fs } = ctx;
+
+    // Only run research if there's a non-trivial file structure to explore
+    if (!fileStructure || fileStructure.length < 50) return '';
+
+    console.log('[Research] Starting LLM-based research phase...');
+    callbacks.onText?.('\nResearching codebase...\n');
+
+    // Read-only tools for the research agent
+    const researchTools = [
+      {
+        name: 'read_file',
+        description: 'Read a single file from the project.',
+        input_schema: { type: 'object', properties: { path: { type: 'string', description: 'File path to read' } }, required: ['path'] }
+      },
+      {
+        name: 'read_files',
+        description: 'Read multiple files at once. Much faster than individual reads.',
+        input_schema: { type: 'object', properties: { paths: { type: 'array', items: { type: 'string' }, description: 'Array of file paths to read' } }, required: ['paths'] }
+      },
+      {
+        name: 'list_dir',
+        description: 'List files in a directory.',
+        input_schema: { type: 'object', properties: { path: { type: 'string', description: 'Directory path' } }, required: ['path'] }
+      },
+      {
+        name: 'glob',
+        description: 'Find files matching a pattern.',
+        input_schema: { type: 'object', properties: { pattern: { type: 'string', description: 'Glob pattern (e.g., "**/*.ts")' } }, required: ['pattern'] }
+      },
+      {
+        name: 'grep',
+        description: 'Search for a string in files.',
+        input_schema: { type: 'object', properties: { pattern: { type: 'string', description: 'Search pattern' }, path: { type: 'string', description: 'Directory to search in' } }, required: ['pattern'] }
+      },
+    ];
+
+    const researchPrompt =
+      `The user wants to: ${userPrompt}\n\n`
+      + `Here is the project file structure:\n${fileStructure}\n\n`
+      + `Your task:\n`
+      + `1. Use the read_files tool to read the files most relevant to the user's request (batch them in one call for speed)\n`
+      + `2. Focus on: route definitions, component code, services, models/interfaces, and config files that the user's request would touch\n`
+      + `3. After reading, provide a concise summary of what you found\n\n`
+      + `Important: Read at most 15 files. Prefer .ts files over .html/.scss. Always include app.routes.ts and app.config.ts if they exist.`;
+
+    try {
+      const summary = await researchLLMCall(researchPrompt, researchTools, fs);
+
+      if (summary && summary.trim()) {
+        logger.log('RESEARCH_PHASE_COMPLETE', { summaryLength: summary.length });
+
+        let context = '\n\n**Research Phase Results:**\n';
+        context += 'A research agent analyzed the codebase before you. Here is what it found. ';
+        context += 'Use this context to avoid re-reading these files. Start implementing immediately.\n\n';
+        context += summary;
+        return context;
+      }
+    } catch (err: any) {
+      console.error('[Research] Research phase failed:', err.message);
+      // Non-fatal — main agent proceeds without research context
+    }
+
+    return '';
   }
 
   protected async prepareAgentContext(options: GenerateOptions, providerName: string): Promise<{

@@ -1,6 +1,6 @@
 import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
 import Anthropic from '@anthropic-ai/sdk';
-import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, REVIEW_SYSTEM_PROMPT, AgentLoopContext } from './base';
+import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, REVIEW_SYSTEM_PROMPT, RESEARCH_SYSTEM_PROMPT, AgentLoopContext } from './base';
 import { sanitizeCommandOutput } from './sanitize-output';
 import { createSapFetch } from './sap-ai-core';
 
@@ -39,12 +39,12 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       console.log('[Anthropic] Web search tool enabled');
     }
 
-    logger.log('START', { model: modelToUse, promptLength: options.prompt.length, totalMessageLength: userMessage.length });
+    let enrichedUserMessage = userMessage;
 
     // Log the full prompts for debugging
     logger.logText('SYSTEM_PROMPT', effectiveSystemPrompt);
     logger.logText('KNOWLEDGE_BASE', ANGULAR_KNOWLEDGE_BASE);
-    logger.logText('USER_MESSAGE', userMessage);
+    logger.logText('USER_MESSAGE', enrichedUserMessage);
 
     // Build initial messages with conversation history
     const messages: any[] = [];
@@ -79,10 +79,10 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       logger.log('HISTORY_INJECTED', { messageCount: historyCount, hasSummary: !!contextSummary, totalChars: messages.reduce((sum: number, m: any) => sum + (m.content?.[0]?.text?.length || 0), 0) });
     }
 
-    // 3. Current enriched user message
+    // 3. Current enriched user message (with pre-read file contents from research phase)
     const currentUserContent: any[] = [{
       type: 'text',
-      text: userMessage,
+      text: enrichedUserMessage,
       cache_control: { type: 'ephemeral' }
     }];
     messages.push({ role: 'user', content: currentUserContent });
@@ -136,9 +136,108 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       buildCommand,
     };
 
-    let turnCount = 0;
-
     const effort = options.reasoningEffort || 'high';
+
+    // Research phase: LLM-based agent reads relevant files before main loop
+    if (options.previousFiles) {
+      const researchContext = await this.runResearchPhase(ctx, options.prompt, userMessage,
+        async (researchPrompt, researchTools) => {
+          const MAX_RESEARCH_TURNS = 3;
+          const researchMessages: any[] = [
+            { role: 'user', content: researchPrompt },
+          ];
+
+          for (let turn = 0; turn < MAX_RESEARCH_TURNS; turn++) {
+            const researchStream = await anthropic.messages.create({
+              model: modelToUse,
+              max_tokens: 8192,
+              thinking: { type: 'enabled', budget_tokens: 1024 } as any,
+              system: [{ type: 'text', text: RESEARCH_SYSTEM_PROMPT }] as any,
+              messages: researchMessages as any,
+              tools: researchTools as any,
+              stream: true,
+            });
+
+            const researchContent: any[] = [];
+            const researchToolUses: { id: string; name: string; input: string }[] = [];
+            let currentResearchTool: { id: string; name: string; input: string } | null = null;
+            let researchText = '';
+
+            for await (const event of researchStream) {
+              if (event.type === 'content_block_start') {
+                if (event.content_block.type === 'thinking') {
+                  researchContent.push({ type: 'thinking', thinking: '' });
+                } else if (event.content_block.type === 'tool_use') {
+                  currentResearchTool = { id: event.content_block.id, name: event.content_block.name, input: '' };
+                  researchToolUses.push(currentResearchTool);
+                  researchContent.push(event.content_block);
+                } else if (event.content_block.type === 'text') {
+                  researchContent.push({ type: 'text', text: '' });
+                }
+              }
+              if (event.type === 'content_block_delta') {
+                if (event.delta.type === 'thinking_delta') {
+                  const lastBlock = researchContent[researchContent.length - 1];
+                  if (lastBlock?.type === 'thinking') lastBlock.thinking += (event.delta as any).thinking;
+                } else if ((event.delta as any).type === 'signature_delta') {
+                  const lastBlock = researchContent[researchContent.length - 1];
+                  if (lastBlock?.type === 'thinking') lastBlock.signature = (event.delta as any).signature;
+                } else if (event.delta.type === 'text_delta') {
+                  researchText += event.delta.text;
+                  const lastBlock = researchContent[researchContent.length - 1];
+                  if (lastBlock?.type === 'text') lastBlock.text += event.delta.text;
+                } else if (event.delta.type === 'input_json_delta') {
+                  if (currentResearchTool) currentResearchTool.input += event.delta.partial_json;
+                }
+              }
+            }
+
+            for (const block of researchContent) {
+              if (block.type === 'tool_use') {
+                const t = researchToolUses.find(r => r.id === block.id);
+                if (t) block.input = this.parseToolInput(t.input);
+              }
+            }
+            researchMessages.push({ role: 'assistant', content: researchContent });
+
+            if (researchToolUses.length === 0) return researchText;
+
+            // Execute research tools
+            const toolResultsArr: any[] = [];
+            for (const t of researchToolUses) {
+              const args = this.parseToolInput(t.input);
+              try {
+                const { content } = await this.executeTool(t.name, args, ctx);
+                toolResultsArr.push({ type: 'tool_result', tool_use_id: t.id, content, is_error: false });
+              } catch (err: any) {
+                toolResultsArr.push({ type: 'tool_result', tool_use_id: t.id, content: `Error: ${err.message}`, is_error: true });
+              }
+            }
+            researchMessages.push({ role: 'user', content: toolResultsArr });
+          }
+
+          // Extract text from final assistant message
+          for (const msg of researchMessages) {
+            if (msg.role === 'assistant' && Array.isArray(msg.content)) {
+              for (const block of msg.content) {
+                if (block.type === 'text' && block.text) return block.text;
+              }
+            }
+          }
+          return '';
+        }
+      );
+      if (researchContext) {
+        enrichedUserMessage = userMessage + researchContext;
+        // Update the user message in the messages array
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg?.role === 'user' && lastMsg.content?.[0]?.type === 'text') {
+          lastMsg.content[0].text = enrichedUserMessage;
+        }
+      }
+    }
+
+    let turnCount = 0;
 
     while (turnCount < maxTurns) {
       logger.log('TURN_START', { turn: turnCount });
