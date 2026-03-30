@@ -824,12 +824,17 @@ export class WorkspaceComponent implements AfterViewChecked {
     width: number;
     height: number;
   }) {
+    // Hide the selection overlay before capturing so it doesn't appear in the screenshot
+    this.isSelecting = false;
+    this.selectionRect = null;
+
+    // Wait one frame for the DOM to remove the overlay before capturing
+    await new Promise(resolve => setTimeout(resolve, 50));
+
     const image = await this.screenshotService.captureRegion(rect);
     if (image && this.chatComponent) {
       this.chatComponent.setImage(image);
     }
-    this.isSelecting = false;
-    this.selectionRect = null;
   }
 
   reloadIframe() {
