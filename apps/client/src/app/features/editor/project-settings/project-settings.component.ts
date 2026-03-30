@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ContainerEngine } from '../../../core/services/container-engine';
@@ -36,6 +36,29 @@ import { ToastService } from '../../../core/services/toast';
             <span class="port-hint">{{ fixedPort() === 0 ? 'Auto' : 'Port ' + fixedPort() }}</span>
           </div>
         </section>
+
+        @if (hasTailwind()) {
+        <section>
+          <h4>
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+            Tailwind CSS Prefix
+          </h4>
+          <p class="hint">If your Tailwind config uses a prefix (e.g. <code>tw-</code>), set it here. Auto-detected: <strong>{{ autoDetectedPrefix() || 'none' }}</strong></p>
+          <div class="port-row">
+            <input
+              type="text"
+              [value]="tailwindPrefix()"
+              (input)="tailwindPrefix.set($any($event.target).value)"
+              placeholder="e.g. tw-"
+              class="port-input"
+              style="width: 160px"
+            />
+            <span class="port-hint">{{ tailwindPrefix() ? 'Prefix: ' + tailwindPrefix() : 'No prefix' }}</span>
+          </div>
+        </section>
+        }
 
         <section>
           <h4>
@@ -257,6 +280,9 @@ export class ProjectSettingsComponent {
   localStorageEntries = signal<{ key: string; value: string }[]>([]);
   cookieEntries = signal<{ key: string; value: string }[]>([]);
   fixedPort = signal(0);
+  tailwindPrefix = signal('');
+  hasTailwind = computed(() => this.projectService.detectedConfig()?.hasTailwind === true);
+  autoDetectedPrefix = computed(() => this.projectService.detectedConfig()?.tailwindPrefix || '');
   saving = signal(false);
 
   constructor() {
@@ -278,6 +304,8 @@ export class ProjectSettingsComponent {
       this.cookieEntries.set(
         Object.entries(settings.cookies || {}).map(([key, value]) => ({ key, value }))
       );
+      this.tailwindPrefix.set(settings.tailwindPrefix || this.autoDetectedPrefix());
+      this.projectService.tailwindPrefixOverride.set(settings.tailwindPrefix || '');
       this.fixedPort.set(engine.fixedPort());
     } catch {
       // No settings yet
@@ -330,7 +358,9 @@ export class ProjectSettingsComponent {
       for (const e of this.cookieEntries()) {
         if (e.key.trim()) cookies[e.key.trim()] = e.value;
       }
-      await engine.saveStorageSettings({ localStorage, cookies }, this.getSelectedApp());
+      const tailwindPrefix = this.tailwindPrefix().trim() || undefined;
+      this.projectService.tailwindPrefixOverride.set(tailwindPrefix || '');
+      await engine.saveStorageSettings({ localStorage, cookies, tailwindPrefix }, this.getSelectedApp());
 
       const portChanged = engine.fixedPort() !== this.fixedPort();
       engine.fixedPort.set(this.fixedPort());

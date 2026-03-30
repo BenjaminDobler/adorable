@@ -110,6 +110,8 @@ export class ProjectService {
   externalPath = signal<string | null>(null);
   /** Auto-detected config for external projects (commands, preset, etc.). */
   detectedConfig = signal<any>(null);
+  /** User-provided Tailwind prefix override (from project settings). */
+  tailwindPrefixOverride = signal<string>('');
   currentKit = signal<Kit | null>(null);
   currentKitTemplate = signal<KitFileTree | null>(null);
 
@@ -556,6 +558,17 @@ export class ProjectService {
         if (nativeEngine.setSelectedApp) {
           const selectedApp = this.detectedConfig()?.selectedApp || null;
           nativeEngine.setSelectedApp(selectedApp).catch(() => {});
+        }
+
+        // Load tailwind prefix override from project settings (if any)
+        if (nativeEngine.getStorageSettings) {
+          try {
+            const selectedApp = this.detectedConfig()?.selectedApp || undefined;
+            const settings = await nativeEngine.getStorageSettings(selectedApp);
+            if (settings.tailwindPrefix) {
+              this.tailwindPrefixOverride.set(settings.tailwindPrefix);
+            }
+          } catch { /* ignore */ }
         }
 
         // Use detected config commands for external projects, fall back to kit commands

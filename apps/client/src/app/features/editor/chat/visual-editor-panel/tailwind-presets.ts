@@ -265,6 +265,32 @@ export const TAILWIND_CATEGORIES: TailwindCategory[] = [
   },
 ];
 
+/**
+ * Returns a copy of TAILWIND_CATEGORIES with all class names prefixed.
+ * E.g. with prefix 'tw-', 'flex' becomes 'tw-flex', 'text-lg' becomes 'tw-text-lg'.
+ */
+export function getPrefixedCategories(prefix: string): TailwindCategory[] {
+  if (!prefix) return TAILWIND_CATEGORIES;
+  return TAILWIND_CATEGORIES.map(cat => ({
+    ...cat,
+    groups: cat.groups.map(group => ({
+      ...group,
+      presets: group.presets.map(preset => ({
+        ...preset,
+        class: prefix + preset.class,
+      })),
+    })),
+  }));
+}
+
+/**
+ * Strips the Tailwind prefix from a class name for conflict detection.
+ */
+export function stripPrefix(cls: string, prefix: string): string {
+  if (prefix && cls.startsWith(prefix)) return cls.slice(prefix.length);
+  return cls;
+}
+
 // Known text-size classes to distinguish from text-{color}
 const TEXT_SIZES = new Set(['text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl', 'text-3xl', 'text-4xl', 'text-5xl', 'text-6xl', 'text-7xl', 'text-8xl', 'text-9xl']);
 const TEXT_ALIGNS = new Set(['text-left', 'text-center', 'text-right', 'text-justify']);

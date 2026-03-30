@@ -297,7 +297,7 @@
     </div>
 
     <!-- Preset Categories -->
-    @for (category of tailwindCategories; track category.name; let catIdx = $index) {
+    @for (category of tailwindCategories(); track category.name; let catIdx = $index) {
       <div class="tw-category">
         <button class="tw-category-header" (click)="toggleCategory(catIdx)" [class.open]="activeTailwindCategory() === catIdx">
           <span class="section-icon" [innerHTML]="category.icon"></span>

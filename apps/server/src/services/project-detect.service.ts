@@ -28,6 +28,8 @@ export interface DetectedProjectConfig {
   selectedConfiguration?: string;
   /** Whether the project uses Tailwind CSS */
   hasTailwind?: boolean;
+  /** Tailwind CSS class prefix (e.g. 'tw-') auto-detected from config */
+  tailwindPrefix?: string;
 }
 
 /**
@@ -55,7 +57,9 @@ export async function detectProjectConfig(projectPath: string, selectedNxApp?: s
       config.name = pkgJson.name;
     }
   } catch {
-    config.hasTailwind = await detectTailwind(projectPath);
+    const tw = await detectTailwind(projectPath);
+    config.hasTailwind = tw.found;
+    config.tailwindPrefix = tw.prefix;
     return config;
   }
 
@@ -101,7 +105,9 @@ export async function detectProjectConfig(projectPath: string, selectedNxApp?: s
         : selected.name;
     }
 
-    config.hasTailwind = await detectTailwind(projectPath);
+    const tw = await detectTailwind(projectPath);
+    config.hasTailwind = tw.found;
+    config.tailwindPrefix = tw.prefix;
     return config;
   }
 
@@ -153,7 +159,9 @@ export async function detectProjectConfig(projectPath: string, selectedNxApp?: s
     applyOngCommands(config, undefined, selectedConfiguration);
   }
 
-  config.hasTailwind = await detectTailwind(projectPath);
+  const tw = await detectTailwind(projectPath);
+  config.hasTailwind = tw.found;
+  config.tailwindPrefix = tw.prefix;
   return config;
 }
 
@@ -261,7 +269,7 @@ function applyOngCommands(config: DetectedProjectConfig, projectPath?: string, c
   config.commands.build = { cmd: 'npx', args: buildArgs };
 }
 
-async function detectTailwind(projectPath: string): Promise<boolean> {
+async function detectTailwind(projectPath: string): Promise<{ found: boolean; prefix?: string }> {
   const tailwindFiles = [
     'tailwind.config.js',
     'tailwind.config.ts',
@@ -269,9 +277,20 @@ async function detectTailwind(projectPath: string): Promise<boolean> {
     'tailwind.config.mjs',
   ];
   for (const file of tailwindFiles) {
-    if (await fileExists(path.join(projectPath, file))) return true;
+    const filePath = path.join(projectPath, file);
+    if (await fileExists(filePath)) {
+      // Try to extract prefix from config file
+      try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        // Match prefix: 'tw-' or prefix: "tw-" in various config formats
+        const prefixMatch = content.match(/prefix\s*[:=]\s*['"]([^'"]+)['"]/);
+        return { found: true, prefix: prefixMatch?.[1] || undefined };
+      } catch {
+        return { found: true };
+      }
+    }
   }
-  return false;
+  return { found: false };
 }
 
 async function fileExists(filePath: string): Promise<boolean> {

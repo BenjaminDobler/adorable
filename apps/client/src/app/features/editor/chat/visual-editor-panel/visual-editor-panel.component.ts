@@ -6,7 +6,7 @@ import { ProjectService } from '../../../../core/services/project';
 import { ContainerEngine } from '../../../../core/services/container-engine';
 import { ToastService } from '../../../../core/services/toast';
 import { HMRTriggerService } from '../../../../core/services/hmr-trigger.service';
-import { TAILWIND_CATEGORIES, TailwindCategory, getConflictPrefix } from './tailwind-presets';
+import { getConflictPrefix, getPrefixedCategories, stripPrefix } from './tailwind-presets';
 
 @Component({
   selector: 'app-visual-editor-panel',
@@ -60,7 +60,8 @@ export class VisualEditorPanelComponent {
     return new Set<string>(cls?.split(/\s+/).filter(Boolean) || []);
   });
   activeTailwindCategory = signal<number>(0);
-  tailwindCategories = TAILWIND_CATEGORIES;
+  tailwindPrefix = computed(() => this.projectService.tailwindPrefixOverride() || this.projectService.detectedConfig()?.tailwindPrefix || '');
+  tailwindCategories = computed(() => getPrefixedCategories(this.tailwindPrefix()));
   freeTextClass = '';
   hasDynamicClassBinding = computed(() => {
     const ann = this.visualEditorData()?.ongAnnotation;
@@ -265,14 +266,15 @@ export class VisualEditorPanelComponent {
 
   toggleTailwindClass(cls: string) {
     const classes = new Set(this.currentClasses());
+    const twPrefix = this.tailwindPrefix();
     if (classes.has(cls)) {
       classes.delete(cls);
     } else {
-      // Remove conflicting classes in the same group
-      const prefix = getConflictPrefix(cls);
-      if (prefix) {
+      // Remove conflicting classes in the same group (strip prefix for comparison)
+      const conflictGroup = getConflictPrefix(stripPrefix(cls, twPrefix));
+      if (conflictGroup) {
         for (const existing of classes) {
-          if (getConflictPrefix(existing) === prefix) {
+          if (getConflictPrefix(stripPrefix(existing, twPrefix)) === conflictGroup) {
             classes.delete(existing);
           }
         }
