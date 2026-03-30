@@ -58,6 +58,15 @@ export class ScreenshotService {
    * Same tiered approach: Electron → WebExtension → iframe html2canvas fallback.
    */
   async captureRegion(viewportRect: CaptureRect): Promise<string | null> {
+    // Tier 1: Electron capturePage — works in desktop mode without an iframe
+    const electronResult = await this.tryElectron(viewportRect);
+    if (electronResult) return electronResult;
+
+    // Tier 2: WebExtension
+    const extensionResult = await this.tryExtension(viewportRect);
+    if (extensionResult) return extensionResult;
+
+    // Tier 3: iframe html2canvas fallback (web-only)
     const iframe = this.iframe;
     if (!iframe || !iframe.contentWindow) {
       console.warn('[ScreenshotService] No active iframe to capture');
@@ -65,14 +74,11 @@ export class ScreenshotService {
     }
 
     const iframeRect = iframe.getBoundingClientRect();
-    return this.capture({
-      viewportRect,
-      iframeFallbackRect: {
-        x: viewportRect.x - iframeRect.left,
-        y: viewportRect.y - iframeRect.top,
-        width: viewportRect.width,
-        height: viewportRect.height
-      }
+    return this.tryIframeFallback(iframe, {
+      x: viewportRect.x - iframeRect.left,
+      y: viewportRect.y - iframeRect.top,
+      width: viewportRect.width,
+      height: viewportRect.height
     });
   }
 
@@ -80,9 +86,6 @@ export class ScreenshotService {
     viewportRect: CaptureRect;
     iframeFallbackRect: CaptureRect;
   }): Promise<string | null> {
-    const iframe = this.iframe;
-    if (!iframe?.contentWindow) return null;
-
     // Tier 1: Electron capturePage (~10ms)
     const electronResult = await this.tryElectron(opts.viewportRect);
     if (electronResult) return electronResult;
@@ -92,6 +95,8 @@ export class ScreenshotService {
     if (extensionResult) return extensionResult;
 
     // Tier 3: iframe html2canvas fallback (~1-5s)
+    const iframe = this.iframe;
+    if (!iframe?.contentWindow) return null;
     return this.tryIframeFallback(iframe, opts.iframeFallbackRect);
   }
 
