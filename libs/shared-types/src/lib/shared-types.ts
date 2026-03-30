@@ -65,6 +65,7 @@ export interface FigmaImportPayload {
   selection: FigmaSelection[];
   jsonStructure: any;
   imageDataUris: string[];
+  sourceNodeId?: string;
 }
 
 // GitHub Integration Types
