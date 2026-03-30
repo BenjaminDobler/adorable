@@ -1009,7 +1009,7 @@ export class DevtoolsService {
         }
         return `(function(){if(window.ng&&window.ng.ɵsetProfiler)window.ng.ɵsetProfiler(null);return window.__adorable_profiler_data||[];})()`;
       case 'inspect_routes':
-        return `(function(){if(!window.ng)return{error:'router API unavailable'};var root=document.querySelector('[ng-version]')||document.querySelector('app-root');if(!root)return{error:'no root'};var inj=window.ng.getInjector(root);if(!inj)return{error:'no injector'};var r=null;if(window.ng.ɵgetRouterInstance){r=window.ng.ɵgetRouterInstance(inj);}if(!r&&window.ng.ɵgetInjectorProviders){try{var providers=window.ng.ɵgetInjectorProviders(inj);var rp=providers.find(function(p){return p.token&&p.token.name==='Router';});if(rp)r=inj.get(rp.token);}catch(e){}}if(!r)return{error:'no router'};return{url:r.url,routes:r.config.map(function(c){return{path:c.path,component:c.component?c.component.name:'',lazy:!!c.loadComponent||!!c.loadChildren};})};})()`;
+        return `(function(){if(!window.ng)return{error:'router API unavailable'};var root=document.querySelector('[ng-version]')||document.querySelector('app-root');if(!root&&window.ng.getRootComponents){try{var rc=window.ng.getRootComponents();if(rc&&rc.length>0&&window.ng.getHostElement)root=window.ng.getHostElement(rc[0]);}catch(e){}}if(!root){var els=document.querySelectorAll('*');for(var i=0;i<els.length;i++){try{var ti=window.ng.getInjector(els[i]);if(ti){root=els[i];break;}}catch(e){}}}if(!root)return{error:'no root'};var inj=window.ng.getInjector(root);if(!inj)return{error:'no injector'};var r=null;var injList=[inj];if(window.ng.ɵgetInjectorResolutionPath){try{var path=window.ng.ɵgetInjectorResolutionPath(inj);if(path)for(var ri=0;ri<path.length;ri++){if(path[ri]!==inj)injList.push(path[ri]);}}catch(e){}}for(var ii=0;ii<injList.length&&!r;ii++){var si=injList[ii];if(window.ng.ɵgetRouterInstance){try{r=window.ng.ɵgetRouterInstance(si);if(r)break;}catch(e){}}if(window.ng.ɵgetInjectorProviders){try{var pp=window.ng.ɵgetInjectorProviders(si);for(var pi=0;pi<pp.length;pi++){try{var v=si.get(pp[pi].token);if(v&&v.config&&typeof v.url!=='undefined'){r=v;break;}}catch(e){}}}catch(e){}}}if(!r)return{error:'no router'};return{url:r.url,routes:r.config.map(function(c){return{path:c.path,component:c.component?c.component.name:'',lazy:!!c.loadComponent||!!c.loadChildren};})};})()`;
       case 'inspect_signals':
         return `(function(){if(!window.ng||!window.ng.ɵgetSignalGraph)return{available:false};var root=document.querySelector('[ng-version]')||document.querySelector('app-root');if(!root)return{available:false};var inj=window.ng.getInjector(root);var g=window.ng.ɵgetSignalGraph(inj);return g||{available:true,nodes:[],edges:[]};})()`;
       default:
@@ -1182,27 +1182,93 @@ export class DevtoolsService {
         try {
           if (!window.ng) return { routes: [], activeRoute: '', debug: 'no window.ng' };
 
-          // Use the same approach as Angular DevTools:
-          // 1. Find root element via [ng-version] attribute
+          // 1. Find root element — try standard selectors first, then getRootComponents(),
+          //    then scan all elements. Handles createApplication() + custom elements apps
+          //    (which have no [ng-version] attribute and non-standard root selectors).
           var appRoot = document.querySelector('[ng-version]')
             || document.querySelector('app-root')
             || document.querySelector('[_ong]');
+
+          // Fallback: use getRootComponents() — works for createApplication() apps
+          if (!appRoot && window.ng.getRootComponents) {
+            try {
+              var roots = window.ng.getRootComponents();
+              if (roots && roots.length > 0) {
+                var hostEl = window.ng.getHostElement ? window.ng.getHostElement(roots[0]) : null;
+                if (hostEl) appRoot = hostEl;
+              }
+            } catch(e) {}
+          }
+
+          // Last resort: scan all elements for one with an Angular injector
+          if (!appRoot) {
+            var allEls = document.querySelectorAll('*');
+            for (var i = 0; i < allEls.length; i++) {
+              try {
+                var inj = window.ng.getInjector(allEls[i]);
+                if (inj) { appRoot = allEls[i]; break; }
+              } catch(e) {}
+            }
+          }
           if (!appRoot) return { routes: [], activeRoute: '', debug: 'no root element' };
 
           // 2. Get injector from root element
           var injector = window.ng.getInjector(appRoot);
           if (!injector) return { routes: [], activeRoute: '', debug: 'no injector' };
 
-          // 3. Use Angular's published ɵgetRouterInstance (same API Angular DevTools uses)
-          //    This is published by provideRouter() in dev mode and does injector.get(Router)
-          //    with the actual Router DI token.
+          // 3. Get router — for createApplication() apps, the Router lives in the environment
+          //    injector, not the element injector. Use ɵgetInjectorResolutionPath to walk
+          //    up to the root environment injector.
           var router = null;
-          if (window.ng.ɵgetRouterInstance) {
-            router = window.ng.ɵgetRouterInstance(injector);
+
+          // Collect all injectors to search: element injector + its resolution path
+          var injectorsToSearch = [injector];
+          if (window.ng.ɵgetInjectorResolutionPath) {
+            try {
+              var path = window.ng.ɵgetInjectorResolutionPath(injector);
+              if (path && path.length) {
+                for (var ri = 0; ri < path.length; ri++) {
+                  if (path[ri] !== injector) injectorsToSearch.push(path[ri]);
+                }
+              }
+            } catch(e) {}
+          }
+
+          for (var ii = 0; ii < injectorsToSearch.length && !router; ii++) {
+            var searchInj = injectorsToSearch[ii];
+            if (window.ng.ɵgetRouterInstance) {
+              try { router = window.ng.ɵgetRouterInstance(searchInj); if (router) break; } catch(e) {}
+            }
+            if (window.ng.ɵgetInjectorProviders) {
+              try {
+                var providers = window.ng.ɵgetInjectorProviders(searchInj);
+                for (var pi = 0; pi < providers.length; pi++) {
+                  try {
+                    var val = searchInj.get(providers[pi].token);
+                    if (val && val.config && typeof val.url !== 'undefined') { router = val; break; }
+                  } catch(e) {}
+                }
+              } catch(e) {}
+            }
           }
 
           if (!router || !router.config) {
-            return { routes: [], activeRoute: '', debug: 'router not found (ɵgetRouterInstance=' + !!window.ng.ɵgetRouterInstance + ')' };
+            var pathLen = 0;
+            var pathProviders = '';
+            if (window.ng.ɵgetInjectorResolutionPath) {
+              try {
+                var dbgPath = window.ng.ɵgetInjectorResolutionPath(injector);
+                pathLen = dbgPath ? dbgPath.length : 0;
+                if (dbgPath && dbgPath.length > 0) {
+                  var lastInj = dbgPath[dbgPath.length - 1];
+                  var pp2 = window.ng.ɵgetInjectorProviders(lastInj);
+                  pathProviders = pp2.slice(0, 10).map(function(p) {
+                    return p.token ? (p.token.name || p.token._desc || '?') : '?';
+                  }).join(',');
+                }
+              } catch(e) {}
+            }
+            return { routes: [], activeRoute: '', debug: 'router not found. path length=' + pathLen + ' root providers: ' + pathProviders };
           }
 
           var activeUrl = '';
@@ -1262,6 +1328,7 @@ export class DevtoolsService {
     try {
       const result = await this.cdpEvaluate(expression);
       if (result) {
+        if (result.debug) console.warn('[DevtoolsService] fetchRouteTree debug:', result.debug);
         this.routeTree.set(result.routes || []);
         this.activeRoute.set(result.activeRoute || '');
       }
