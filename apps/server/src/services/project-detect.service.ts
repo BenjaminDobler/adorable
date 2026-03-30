@@ -105,7 +105,7 @@ export async function detectProjectConfig(projectPath: string, selectedNxApp?: s
         : selected.name;
     }
 
-    const tw = await detectTailwind(projectPath);
+    const tw = await detectTailwind(projectPath, appToServe || undefined);
     config.hasTailwind = tw.found;
     config.tailwindPrefix = tw.prefix;
     return config;
@@ -269,24 +269,46 @@ function applyOngCommands(config: DetectedProjectConfig, projectPath?: string, c
   config.commands.build = { cmd: 'npx', args: buildArgs };
 }
 
-async function detectTailwind(projectPath: string): Promise<{ found: boolean; prefix?: string }> {
+async function detectTailwind(projectPath: string, appPath?: string): Promise<{ found: boolean; prefix?: string }> {
   const tailwindFiles = [
     'tailwind.config.js',
     'tailwind.config.ts',
     'tailwind.config.cjs',
     'tailwind.config.mjs',
   ];
-  for (const file of tailwindFiles) {
-    const filePath = path.join(projectPath, file);
-    if (await fileExists(filePath)) {
-      // Try to extract prefix from config file
-      try {
-        const content = await fs.readFile(filePath, 'utf-8');
-        // Match prefix: 'tw-' or prefix: "tw-" in various config formats
-        const prefixMatch = content.match(/prefix\s*[:=]\s*['"]([^'"]+)['"]/);
-        return { found: true, prefix: prefixMatch?.[1] || undefined };
-      } catch {
-        return { found: true };
+
+  // Search paths: app directory first (more specific), then workspace root
+  const searchPaths = appPath
+    ? [path.join(projectPath, appPath), projectPath]
+    : [projectPath];
+
+  for (const searchPath of searchPaths) {
+    for (const file of tailwindFiles) {
+      const filePath = path.join(searchPath, file);
+      if (await fileExists(filePath)) {
+        try {
+          const content = await fs.readFile(filePath, 'utf-8');
+          // Match prefix: 'tw-' or prefix: "tw-" in various config formats
+          const prefixMatch = content.match(/prefix\s*[:=]\s*['"]([^'"]+)['"]/);
+          if (prefixMatch?.[1]) {
+            return { found: true, prefix: prefixMatch[1] };
+          }
+          // No prefix in this file — try to follow a relative preset/require reference one level deep
+          const requireMatch = content.match(/require\(['"](\.[^'"]+)['"]\)/);
+          if (requireMatch) {
+            try {
+              const requiredPath = path.resolve(searchPath, requireMatch[1] + '.js');
+              const requiredContent = await fs.readFile(requiredPath, 'utf-8');
+              const nestedPrefixMatch = requiredContent.match(/prefix\s*[:=]\s*['"]([^'"]+)['"]/);
+              return { found: true, prefix: nestedPrefixMatch?.[1] || undefined };
+            } catch {
+              // Can't resolve — return found without prefix
+            }
+          }
+          return { found: true };
+        } catch {
+          return { found: true };
+        }
       }
     }
   }
