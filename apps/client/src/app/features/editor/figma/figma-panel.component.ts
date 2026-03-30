@@ -39,18 +39,25 @@ export class FigmaPanelComponent {
   importing = signal(false);
   isDragging = signal(false);
 
+  // Node-URL import flow
+  pendingNode = signal<{ fileKey: string; nodeId: string; name: string; type: string } | null>(null);
+  pendingNodeLoading = signal(false);
+
   // Keep track of imported Figma data
   importedPayloads = signal<FigmaImportPayload[]>([]);
   selectedImportIndex = signal<number | null>(null);
   expandedImportNodes = signal<Set<string>>(new Set());
   hoveredNode = signal<any | null>(null);
 
-  view = computed<'setup' | 'input' | 'tree' | 'imports'>(() => {
+  view = computed<'setup' | 'input' | 'tree' | 'imports' | 'node-preview'>(() => {
     if (this.selectedImportIndex() !== null) {
       return 'imports';
     }
     if (!this.figmaService.status().configured && this.importedPayloads().length === 0) {
       return 'setup';
+    }
+    if (this.pendingNode() !== null) {
+      return 'node-preview';
     }
     if (!this.figmaService.currentFile()) {
       return 'input';
@@ -64,15 +71,74 @@ export class FigmaPanelComponent {
 
     this.error.set(null);
 
-    // Parse URL to get file key
+    // Extract node-id from URL if present (Figma uses "-" separator, API uses ":")
+    const nodeIdMatch = url.match(/[?&]node-id=([^&]+)/);
+    const nodeId = nodeIdMatch ? nodeIdMatch[1].replace(/-/g, ':') : null;
+
     this.figmaService.parseUrl(url).subscribe({
       next: ({ fileKey }) => {
         this.currentFileKey.set(fileKey);
-        this.figmaService.getFile(fileKey).subscribe({
-          error: (err) => this.error.set(err.error?.error || 'Failed to load file')
-        });
+
+        if (nodeId) {
+          // Node-URL flow: fetch just this node's metadata
+          this.pendingNodeLoading.set(true);
+          this.figmaService.getNodes(fileKey, [nodeId]).subscribe({
+            next: (result: any) => {
+              this.pendingNodeLoading.set(false);
+              // Figma nodes response: { nodes: { [nodeId]: { document: { name, type, ... } } } }
+              const nodeData = result?.nodes?.[nodeId]?.document;
+              this.pendingNode.set({
+                fileKey,
+                nodeId,
+                name: nodeData?.name || nodeId,
+                type: nodeData?.type || 'UNKNOWN'
+              });
+            },
+            error: (err) => {
+              this.pendingNodeLoading.set(false);
+              this.error.set(err.error?.error || 'Node not found in this file');
+            }
+          });
+        } else {
+          // Normal flow: load full file tree
+          this.figmaService.getFile(fileKey).subscribe({
+            error: (err) => this.error.set(err.error?.error || 'Failed to load file')
+          });
+        }
       },
       error: (err) => this.error.set(err.error?.error || 'Invalid Figma URL')
+    });
+  }
+
+  importPendingNode() {
+    const node = this.pendingNode();
+    if (!node) return;
+
+    this.importing.set(true);
+    this.error.set(null);
+
+    this.figmaService.importSelection(node.fileKey, [node.nodeId]).subscribe({
+      next: (payload) => {
+        this.importing.set(false);
+        this.pendingNode.set(null);
+        // Tag the payload with its source node ID
+        const taggedPayload = { ...payload, sourceNodeId: node.nodeId };
+        this.storePayload(taggedPayload);
+      },
+      error: (err) => {
+        this.importing.set(false);
+        this.error.set(err.error?.error || 'Failed to import node');
+      }
+    });
+  }
+
+  showFullTree() {
+    const node = this.pendingNode();
+    if (!node) return;
+    this.pendingNode.set(null);
+    this.error.set(null);
+    this.figmaService.getFile(node.fileKey).subscribe({
+      error: (err) => this.error.set(err.error?.error || 'Failed to load file')
     });
   }
 
