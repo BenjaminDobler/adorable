@@ -177,6 +177,48 @@
     </div>
   }
 
+  <!-- Node Preview View - Single node detected from URL -->
+  @if (view() === 'node-preview') {
+    <div class="node-preview-view">
+      <div class="tree-header">
+        <button class="btn-back" (click)="pendingNode.set(null); error.set(null)">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          Back
+        </button>
+        <div class="file-name">Frame detected</div>
+      </div>
+
+      <div class="node-preview-card">
+        <div class="node-preview-icon" [innerHTML]="getNodeIcon(pendingNode()!.type)"></div>
+        <div class="node-preview-name">{{ pendingNode()!.name }}</div>
+        <div class="node-preview-type">{{ pendingNode()!.type }}</div>
+
+        @if (error()) {
+          <div class="error-message">{{ error() }}</div>
+        }
+      </div>
+
+      <div class="node-preview-actions">
+        <button
+          class="btn-import"
+          [disabled]="importing() || pendingNodeLoading()"
+          (click)="importPendingNode()"
+        >
+          @if (importing() || pendingNodeLoading()) {
+            Importing...
+          } @else {
+            Import to Chat
+          }
+        </button>
+        <button class="btn-link" (click)="showFullTree()">
+          Show all frames
+        </button>
+      </div>
+    </div>
+  }
+
   <!-- Imports Detail View - Show layers with thumbnails -->
   @if (view() === 'imports') {
     <div class="imports-view">
