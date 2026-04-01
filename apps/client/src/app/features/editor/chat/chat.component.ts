@@ -8,6 +8,7 @@ import { ApiService } from '../../../core/services/api';
 import { ToastService } from '../../../core/services/toast';
 import { ConfirmService } from '../../../core/services/confirm';
 import { SkillsService, Skill } from '../../../core/services/skills';
+import { SlashCommandService, SlashCommandItem, ProjectCommand } from '../../../core/services/slash-commands';
 import { HMRTriggerService } from '../../../core/services/hmr-trigger.service';
 import { ProgressiveEditorStore } from '../services/progressive-editor.store';
 import { ScreenshotService } from '../../../core/services/screenshot';
@@ -48,6 +49,7 @@ export class ChatComponent {
   private toastService = inject(ToastService);
   private confirmService = inject(ConfirmService);
   private skillsService = inject(SkillsService);
+  private slashCommandService = inject(SlashCommandService);
   private hmrTrigger = inject(HMRTriggerService);
   private progressiveStore = inject(ProgressiveEditorStore);
   private screenshotService = inject(ScreenshotService);
@@ -89,6 +91,12 @@ export class ChatComponent {
   mcpToolsLoading = signal(false);
   mcpServers = signal<{ id: string; name: string; url: string; enabled: boolean }[]>([]);
   mcpTools = signal<{ name: string; originalName: string; description: string; serverId: string }[]>([]);
+
+  // Project Commands (slash commands)
+  projectCommands = signal<ProjectCommand[]>([]);
+  allSlashCommands = computed(() =>
+    this.slashCommandService.buildCommandList(this.availableSkills(), this.projectCommands())
+  );
 
   // Component Kits
   availableKits = signal<{ id: string; name: string; npmPackage?: string }[]>([]);
@@ -150,6 +158,7 @@ export class ChatComponent {
   constructor() {
     this.loadSkills();
     this.loadKits();
+    this.loadProjectCommands();
 
     // Cancel any active generation when the project is being switched
     this.projectService.projectSwitching$.pipe(
@@ -232,6 +241,56 @@ export class ChatComponent {
       next: (result) => this.availableKits.set(result.kits || []),
       error: () => console.warn('Failed to load kits for chat')
     });
+  }
+
+  loadProjectCommands() {
+    const projectId = this.projectService.projectId();
+    if (!projectId) return;
+    this.apiService.getProjectCommands(projectId).subscribe({
+      next: (result) => this.projectCommands.set(result.commands || []),
+      error: () => console.warn('Failed to load project commands')
+    });
+  }
+
+  handleSlashCommand(item: SlashCommandItem) {
+    switch (item.type) {
+      case 'action':
+        if (item.id === 'plan') {
+          this.planMode.set(!this.planMode());
+          this.toastService.show(this.planMode() ? 'Plan mode ON' : 'Plan mode OFF', 'info');
+        } else if (item.id === 'compact') {
+          this.compactMode.set(!this.compactMode());
+          this.toastService.show(this.compactMode() ? 'Compact mode ON' : 'Compact mode OFF', 'info');
+        } else if (item.id === 'clear') {
+          this.clearContext();
+          this.toastService.show('Context cleared', 'info');
+        } else if (item.id === 'debug:context') {
+          this.previewContext();
+        }
+        break;
+      case 'skill':
+        this.selectedSkill.set(item.data);
+        this.toastService.show(`Skill: ${item.data.name}`, 'info');
+        break;
+      case 'project': {
+        const cmd = item.data as ProjectCommand;
+        if (cmd.hasArguments) {
+          // Set prompt to command prefix so user can type arguments
+          this.prompt.set(`/${item.label.substring(1)} `);
+          this.chatInput()?.focusAndResize();
+        } else {
+          // Inject content as prompt and auto-send
+          this.prompt.set(cmd.content);
+          this.generate();
+        }
+        break;
+      }
+    }
+  }
+
+  handleModelSelected(model: any) {
+    this.selectedModel.set(model);
+    this.toastService.show(`Model: ${model.name || model.id}`, 'info');
   }
 
   loadMcpTools() {
@@ -1049,7 +1108,7 @@ Analyze the attached design images carefully and create matching Angular compone
 
   async previewContext() {
     if (this.contextPreviewLoading()) return;
-    const currentPrompt = this.prompt();
+    const currentPrompt = this.prompt() || '(debug preview)';
     if (!currentPrompt.trim()) return;
 
     let provider = 'anthropic';

@@ -3,6 +3,41 @@ import * as yaml from 'js-yaml';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
+export interface ClaudeCommand {
+  name: string;
+  content: string;
+  hasArguments: boolean;
+}
+
+/**
+ * Discover .claude/commands/*.md files and return them as structured commands.
+ */
+export async function discoverClaudeCommands(targetFs: FileSystemInterface, baseDir: string): Promise<ClaudeCommand[]> {
+  const commands: ClaudeCommand[] = [];
+  try {
+    const entries = await targetFs.listDir(baseDir);
+    for (const entry of entries) {
+      if (entry.endsWith('/') || !entry.endsWith('.md')) continue;
+      const filePath = `${baseDir}/${entry}`;
+      try {
+        const content = await targetFs.readFile(filePath);
+        if (!content?.trim()) continue;
+        const name = entry.replace(/\.md$/, '');
+        commands.push({
+          name,
+          content: content.trim(),
+          hasArguments: content.includes('$ARGUMENTS')
+        });
+      } catch {
+        // Skip unreadable files
+      }
+    }
+  } catch {
+    // Directory doesn't exist — ignore
+  }
+  return commands;
+}
+
 export class SkillRegistry {
   private skills: Map<string, Skill> = new Map();
 
@@ -55,6 +90,48 @@ export class SkillRegistry {
       }
     } catch (e) {
       // Ignore if dir doesn't exist
+    }
+  }
+
+  /**
+   * Import Claude Code commands (.claude/commands/*.md) as skills.
+   * Each .md file becomes a skill named after the filename (without extension).
+   * Files with frontmatter are parsed normally; plain markdown files get a
+   * generated name and description.
+   */
+  private async scanClaudeCommands(targetFs: FileSystemInterface, baseDir: string) {
+    try {
+      const entries = await targetFs.listDir(baseDir);
+      for (const entry of entries) {
+        if (entry.endsWith('/') || !entry.endsWith('.md')) continue;
+        const filePath = `${baseDir}/${entry}`;
+        try {
+          const content = await targetFs.readFile(filePath);
+          if (!content?.trim()) continue;
+
+          // If the file has frontmatter, parse it as a regular skill
+          if (content.startsWith('---\n')) {
+            this.parseAndRegister(content, filePath);
+          } else {
+            // Plain markdown command — register with filename-derived name
+            const name = entry.replace(/\.md$/, '');
+            if (!this.skills.has(name)) {
+              this.skills.set(name, {
+                name,
+                description: `Claude command: ${name}`,
+                instructions: content.trim(),
+                triggers: [],
+                sourcePath: filePath,
+                references: []
+              });
+            }
+          }
+        } catch {
+          // Skip unreadable files
+        }
+      }
+    } catch {
+      // Directory doesn't exist — ignore
     }
   }
 

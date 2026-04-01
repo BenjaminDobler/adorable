@@ -4,11 +4,18 @@
      (dragover)="onDragOver($event)"
      (dragleave)="onDragLeave($event)">
 
+  <app-slash-command-dropdown
+    [items]="slashCommandItems()"
+    [visible]="slashCommandVisible()"
+    [activeIndex]="slashCommandActiveIndex()"
+    (itemSelected)="selectCommand($event)">
+  </app-slash-command-dropdown>
+
   <textarea
     #promptTextarea
     [ngModel]="prompt()"
     (ngModelChange)="onPromptInput($event)"
-    placeholder="Describe what you want to build..."
+    placeholder="Describe what you want to build... (type / for commands)"
     [disabled]="loading()"
     (keydown)="onTextareaKeydown($event)">
   </textarea>

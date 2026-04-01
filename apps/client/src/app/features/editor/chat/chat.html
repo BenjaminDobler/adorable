@@ -33,6 +33,8 @@
     [aiSettingsOpen]="aiSettingsOpen()"
     [mcpToolsVisible]="mcpToolsVisible()"
     [mcpToolsCount]="mcpTools().length"
+    [allSlashCommands]="allSlashCommands()"
+    [availableModels]="availableModels()"
     (generateRequested)="generate()"
     (previewRequested)="previewContext()"
     (cancelGeneration)="cancelGeneration()"
@@ -46,7 +48,9 @@
     (toggleMcpTools)="toggleMcpTools()"
     (clearContext)="clearContext()"
     (previewImage)="previewImageUrl.set($event)"
-    (shouldAddToAssetsChange)="shouldAddToAssets.set($event)">
+    (shouldAddToAssetsChange)="shouldAddToAssets.set($event)"
+    (slashCommandSelected)="handleSlashCommand($event)"
+    (modelSelected)="handleModelSelected($event)">
   </app-chat-input>
 
 <!-- AI Settings Popover (fixed position to escape stacking contexts) -->

@@ -1,11 +1,13 @@
-import { Component, input, output, signal, viewChild, ElementRef } from '@angular/core';
+import { Component, input, output, signal, viewChild, ElementRef, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SafeUrlPipe } from '../../../../shared/pipes/safe-url.pipe';
+import { SlashCommandDropdownComponent } from './slash-command-dropdown.component';
+import { SlashCommandItem } from '../../../../core/services/slash-commands';
 
 @Component({
   selector: 'app-chat-input',
   standalone: true,
-  imports: [FormsModule, SafeUrlPipe],
+  imports: [FormsModule, SafeUrlPipe, SlashCommandDropdownComponent],
   templateUrl: './chat-input.html',
   styleUrls: ['./chat-input.scss']
 })
@@ -27,6 +29,8 @@ export class ChatInputComponent {
   aiSettingsOpen = input(false);
   mcpToolsVisible = input(false);
   mcpToolsCount = input(0);
+  allSlashCommands = input<SlashCommandItem[]>([]);
+  availableModels = input<any[]>([]);
 
   generateRequested = output<void>();
   previewRequested = output<void>();
@@ -42,10 +46,57 @@ export class ChatInputComponent {
   clearContext = output<void>();
   previewImage = output<string>();
   shouldAddToAssetsChange = output<boolean>();
+  slashCommandSelected = output<SlashCommandItem>();
+  modelSelected = output<any>();
 
   isDragging = signal(false);
 
+  // Slash command dropdown state
+  slashCommandVisible = signal(false);
+  slashCommandActiveIndex = signal(0);
+  dropdownMode = signal<'commands' | 'models'>('commands');
+
+  slashCommandItems = computed(() => {
+    if (this.dropdownMode() === 'models') {
+      return this.availableModels().map((m: any) => ({
+        id: `model:${m.id}`,
+        type: 'model' as const,
+        label: m.name || m.id,
+        description: m.provider || '',
+        data: m
+      }));
+    }
+    return this._filteredCommands();
+  });
+
+  private _filteredCommands = signal<SlashCommandItem[]>([]);
+
   onTextareaKeydown(event: KeyboardEvent): void {
+    if (this.slashCommandVisible()) {
+      const items = this.slashCommandItems();
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        this.slashCommandActiveIndex.update(i => (i + 1) % Math.max(items.length, 1));
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        this.slashCommandActiveIndex.update(i => (i - 1 + items.length) % Math.max(items.length, 1));
+        return;
+      }
+      if (event.key === 'Enter' || event.key === 'Tab') {
+        event.preventDefault();
+        const selected = items[this.slashCommandActiveIndex()];
+        if (selected) this.selectCommand(selected);
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.dismissDropdown();
+        return;
+      }
+    }
+
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       this.generateRequested.emit();
@@ -114,5 +165,47 @@ export class ChatInputComponent {
   onPromptInput(value: string) {
     this.promptChange.emit(value);
     this.autoResize();
+
+    // Slash command detection: only trigger when "/" is at position 0
+    if (value.startsWith('/')) {
+      const query = value.substring(1);
+      const filtered = this.allSlashCommands().filter(cmd =>
+        cmd.label.toLowerCase().startsWith('/' + query.toLowerCase())
+      );
+      this._filteredCommands.set(filtered);
+      this.slashCommandActiveIndex.set(0);
+      this.dropdownMode.set('commands');
+      this.slashCommandVisible.set(filtered.length > 0 || query.length === 0);
+    } else {
+      this.dismissDropdown();
+    }
+  }
+
+  selectCommand(item: SlashCommandItem) {
+    if (item.type === 'action' && item.id === 'model') {
+      // Drill down into model list
+      this.dropdownMode.set('models');
+      this.slashCommandActiveIndex.set(0);
+      return;
+    }
+
+    if (this.dropdownMode() === 'models') {
+      this.promptChange.emit('');
+      this.resetTextareaHeight();
+      this.dismissDropdown();
+      this.modelSelected.emit(item.data);
+      return;
+    }
+
+    this.promptChange.emit('');
+    this.resetTextareaHeight();
+    this.dismissDropdown();
+    this.slashCommandSelected.emit(item);
+  }
+
+  dismissDropdown() {
+    this.slashCommandVisible.set(false);
+    this.slashCommandActiveIndex.set(0);
+    this.dropdownMode.set('commands');
   }
 }

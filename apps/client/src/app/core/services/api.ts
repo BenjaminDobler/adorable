@@ -400,6 +400,11 @@ export class ApiService {
     return this.http.post<any>(`${this.apiUrl}/kits/batch-metadata`, { packageName, componentNames });
   }
 
+  // Project commands
+  getProjectCommands(projectId: string): Observable<{ commands: { name: string; content: string; hasArguments: boolean }[] }> {
+    return this.http.get<{ commands: { name: string; content: string; hasArguments: boolean }[] }>(`${this.apiUrl}/skills/commands?projectId=${projectId}`);
+  }
+
   // Session Analyzer methods
   listSessions(projectId: string): Observable<{ sessions: SessionLogEntry[] }> {
     return this.http.get<{ sessions: SessionLogEntry[] }>(`${this.apiUrl}/sessions?projectId=${projectId}`);

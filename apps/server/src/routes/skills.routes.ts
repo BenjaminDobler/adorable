@@ -2,7 +2,7 @@ import express from 'express';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { authenticate } from '../middleware/auth';
-import { SkillRegistry } from '../providers/skills/skill-registry';
+import { SkillRegistry, discoverClaudeCommands } from '../providers/skills/skill-registry';
 import { DiskFileSystem } from '../providers/filesystem/disk-filesystem';
 import { prisma } from '../db/prisma';
 import { projectFsService } from '../services/project-fs.service';
@@ -99,6 +99,47 @@ router.delete('/:name', async (req: any, res) => {
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }
+});
+
+// List project commands (.claude/commands/*.md)
+router.get('/commands', async (req: any, res) => {
+  const user = req.user;
+  const { projectId } = req.query;
+
+  try {
+    let projectPath: string | undefined;
+
+    if (projectId) {
+      try {
+        const existsOnDisk = await projectFsService.projectExistsOnDisk(projectId as string);
+        if (existsOnDisk) {
+          projectPath = projectFsService.getProjectPath(projectId as string);
+        } else {
+          const project = await prisma.project.findFirst({
+            where: { id: projectId as string, userId: user.id }
+          });
+          if (project && project.files) {
+            const files = JSON.parse(project.files);
+            await projectFsService.writeProjectFiles(projectId as string, files);
+            projectPath = projectFsService.getProjectPath(projectId as string);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to read project files for command discovery', e);
+      }
+    }
+
+    if (!projectPath) {
+      return res.json({ commands: [] });
+    }
+
+    const fileSystem = new DiskFileSystem(projectPath);
+    const commands = await discoverClaudeCommands(fileSystem, '.claude/commands');
+    res.json({ commands });
+  } catch (error: any) {
+    console.error('Failed to list project commands:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 /**
