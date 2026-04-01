@@ -615,14 +615,23 @@ Only proceed with implementation after receiving the user's answers.`;
       effectiveSystemPrompt += VISUAL_EDITING_IDS_INSTRUCTION;
     }
 
-    // Load project-level CLAUDE.md instructions if present
-    try {
-      const claudeMd = await fs.readFile('CLAUDE.md');
-      if (claudeMd) {
-        effectiveSystemPrompt += `\n\n--- Project Instructions (CLAUDE.md) ---\n${claudeMd}`;
+    // Load project instructions from CLAUDE.md files (mirrors Claude Code behavior):
+    // 1. CLAUDE.md at project root (checked into repo)
+    // 2. .claude/CLAUDE.md (project-specific, often gitignored)
+    const claudeMdSources = ['CLAUDE.md', '.claude/CLAUDE.md'];
+    const claudeMdParts: string[] = [];
+    for (const source of claudeMdSources) {
+      try {
+        const content = await fs.readFile(source);
+        if (content?.trim()) {
+          claudeMdParts.push(`<!-- ${source} -->\n${content}`);
+        }
+      } catch {
+        // File doesn't exist — skip
       }
-    } catch {
-      // CLAUDE.md doesn't exist — no action needed
+    }
+    if (claudeMdParts.length > 0) {
+      effectiveSystemPrompt += `\n\n--- Project Instructions (CLAUDE.md) ---\n${claudeMdParts.join('\n\n')}`;
     }
 
     // When a component library kit is active, override the "don't explore" instruction
