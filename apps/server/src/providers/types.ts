@@ -42,6 +42,7 @@ export interface GenerateOptions {
   sapAiCore?: SapAiCoreConfig; // SAP AI Core connection config
   kitLessonsEnabled?: boolean; // Enable save_lesson tool + lesson injection (default: true)
   cdpEnabled?: boolean; // Enable CDP browser tools (desktop mode with preview active)
+  figmaLiveConnected?: boolean; // Enable Figma live bridge tools (plugin WebSocket connected)
   skipVisualEditingIds?: boolean; // Skip data-elements-id instruction (external projects use ong annotations instead)
   selectedApp?: string; // Selected Nx app root (e.g. "apps/my-app") — workspace-scoped context for AI
   previewRoute?: string; // Current route path visible in the preview (e.g. "/dashboard")

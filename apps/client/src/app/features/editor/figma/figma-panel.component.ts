@@ -1,7 +1,8 @@
-import { Component, inject, signal, output, input, effect, computed } from '@angular/core';
+import { Component, inject, signal, output, input, effect, computed, OnInit, OnDestroy } from '@angular/core';
 import { DecimalPipe, NgStyle, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FigmaService, FigmaNodeInfo, FigmaPageInfo } from '../../../core/services/figma.service';
+import { FigmaBridgeService } from '../../../core/services/figma-bridge.service';
 import { FigmaImportPayload } from '@adorable/shared-types';
 
 @Component({
@@ -11,14 +12,18 @@ import { FigmaImportPayload } from '@adorable/shared-types';
   templateUrl: './figma-panel.component.html',
   styleUrls: ['./figma-panel.component.scss']
 })
-export class FigmaPanelComponent {
+export class FigmaPanelComponent implements OnInit, OnDestroy {
   figmaService = inject(FigmaService);
+  figmaBridge = inject(FigmaBridgeService);
 
   importToChat = output<FigmaImportPayload>();
   importsChanged = output<FigmaImportPayload[]>();
 
   // Stored imports (persisted with project)
   storedImports = input<FigmaImportPayload[] | null>(null);
+
+  // Live bridge state
+  grabbingSelection = signal(false);
 
   constructor() {
     effect(() => {
@@ -29,6 +34,48 @@ export class FigmaPanelComponent {
     });
     // Check Figma status on init
     this.figmaService.checkStatus().subscribe();
+  }
+
+  ngOnInit() {
+    this.figmaBridge.checkStatus();
+    this.figmaBridge.startListening();
+  }
+
+  ngOnDestroy() {
+    this.figmaBridge.stopListening();
+  }
+
+  generateBridgeCode() {
+    this.figmaBridge.generateConnectionCode();
+  }
+
+  grabFigmaSelection() {
+    this.grabbingSelection.set(true);
+    this.figmaBridge.grabSelection().subscribe({
+      next: (payload) => {
+        this.storePayload(payload);
+        this.grabbingSelection.set(false);
+      },
+      error: (err) => {
+        this.error.set(err.error?.error || 'Failed to grab Figma selection');
+        this.grabbingSelection.set(false);
+      }
+    });
+  }
+
+  useFigmaSelectionInChat() {
+    this.grabbingSelection.set(true);
+    this.figmaBridge.grabSelection().subscribe({
+      next: (payload) => {
+        this.storePayload(payload);
+        this.importToChat.emit(payload);
+        this.grabbingSelection.set(false);
+      },
+      error: (err) => {
+        this.error.set(err.error?.error || 'Failed to grab Figma selection');
+        this.grabbingSelection.set(false);
+      }
+    });
   }
 
   // Local state

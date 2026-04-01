@@ -2,7 +2,7 @@
 // Exports selected frames as JSON + images for use with Adorable AI App Generator
 
 // Show the UI
-figma.showUI(__html__, { width: 360, height: 480 });
+figma.showUI(__html__, { width: 360, height: 580 });
 
 // Types matching the Adorable app's FigmaImportPayload
 interface ExportPayload {
@@ -156,7 +156,7 @@ async function exportSelection(scale = 2): Promise<ExportPayload | null> {
 }
 
 // Handle messages from UI
-figma.ui.onmessage = async (msg: { type: string; scale?: number }) => {
+figma.ui.onmessage = async (msg: { type: string; scale?: number; requestId?: string; command?: any }) => {
   if (msg.type === 'export') {
     const scale = msg.scale || 2;
     const payload = await exportSelection(scale);
@@ -174,6 +174,111 @@ figma.ui.onmessage = async (msg: { type: string; scale?: number }) => {
       count: selection.length,
       items: selection.map((n) => ({ id: n.id, name: n.name, type: n.type })),
     });
+  } else if (msg.type === 'bridge-command') {
+    // Handle commands from Adorable via WebSocket bridge
+    const { requestId, command } = msg;
+    let responseData: any = null;
+    let error: string | undefined;
+
+    try {
+      switch (command.action) {
+        case 'get_selection': {
+          const sel = figma.currentPage.selection;
+          const nodes = sel.map((n) => extractNodeStructure(n));
+          const jsonStructure: Record<string, NodeWrapper> = {};
+          for (const n of sel) {
+            jsonStructure[n.id] = { document: extractNodeStructure(n) };
+          }
+          responseData = {
+            fileKey: figma.fileKey || 'local-file',
+            fileName: figma.root.name,
+            nodes: sel.map((n) => ({ id: n.id, name: n.name, type: n.type })),
+            jsonStructure,
+          };
+          break;
+        }
+
+        case 'get_node': {
+          const node = figma.getNodeById(command.nodeId);
+          if (node && 'type' in node && node.type !== 'DOCUMENT' && node.type !== 'PAGE') {
+            responseData = {
+              node: extractNodeStructure(node as SceneNode, 0),
+            };
+          } else {
+            error = `Node not found: ${command.nodeId}`;
+          }
+          break;
+        }
+
+        case 'export_node': {
+          const node = figma.getNodeById(command.nodeId);
+          if (node && 'exportAsync' in node) {
+            const image = await exportNodeAsImage(node as SceneNode, command.scale || 2);
+            responseData = { image };
+          } else {
+            error = `Node not found or not exportable: ${command.nodeId}`;
+          }
+          break;
+        }
+
+        case 'select_node': {
+          const node = figma.getNodeById(command.nodeId);
+          if (node && 'type' in node && node.type !== 'DOCUMENT' && node.type !== 'PAGE') {
+            figma.currentPage.selection = [node as SceneNode];
+            figma.viewport.scrollAndZoomIntoView([node as SceneNode]);
+            responseData = { success: true, nodeName: node.name };
+          } else {
+            error = `Node not found: ${command.nodeId}`;
+          }
+          break;
+        }
+
+        case 'scroll_to_node': {
+          const node = figma.getNodeById(command.nodeId);
+          if (node) {
+            figma.viewport.scrollAndZoomIntoView([node]);
+            responseData = { success: true };
+          } else {
+            error = `Node not found: ${command.nodeId}`;
+          }
+          break;
+        }
+
+        case 'search_nodes': {
+          const query = (command.query || '').toLowerCase();
+          const types = command.types as string[] | undefined;
+          const results = figma.currentPage.findAll((n) => {
+            if (types && types.length > 0 && !types.includes(n.type)) return false;
+            return n.name.toLowerCase().includes(query);
+          });
+          responseData = results.slice(0, 50).map((n) => ({
+            id: n.id,
+            name: n.name,
+            type: n.type,
+            bounds:
+              'absoluteBoundingBox' in n && n.absoluteBoundingBox
+                ? {
+                    width: Math.round(n.absoluteBoundingBox.width),
+                    height: Math.round(n.absoluteBoundingBox.height),
+                  }
+                : undefined,
+          }));
+          break;
+        }
+
+        default:
+          error = `Unknown command: ${command.action}`;
+      }
+    } catch (err: any) {
+      error = err.message || 'Command execution failed';
+    }
+
+    figma.ui.postMessage({
+      type: 'bridge-response',
+      requestId,
+      data: responseData,
+      error,
+    });
   }
 };
 
@@ -184,6 +289,13 @@ figma.on('selectionchange', () => {
     type: 'selection-info',
     count: selection.length,
     items: selection.map((n) => ({ id: n.id, name: n.name, type: n.type })),
+  });
+  // Also send to bridge (UI will forward to WebSocket if connected)
+  figma.ui.postMessage({
+    type: 'bridge-selection',
+    selection: selection.map((n) => ({ nodeId: n.id, nodeName: n.name, nodeType: n.type })),
+    pageId: figma.currentPage.id,
+    pageName: figma.currentPage.name,
   });
 });
 

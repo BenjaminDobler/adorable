@@ -9,6 +9,7 @@
   "editorType": ["figma"],
   "documentAccess": "dynamic-page",
   "networkAccess": {
-    "allowedDomains": ["none"]
+    "allowedDomains": ["http://localhost:3333", "ws://localhost:3333"],
+    "reasoning": "Connects to the local Adorable Desktop server via WebSocket for real-time design-to-code synchronization."
   }
 }

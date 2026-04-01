@@ -360,6 +360,10 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
         }
       }
 
+      // Check if Figma live bridge is connected
+      const { figmaBridge } = await import('../services/figma-bridge.service');
+      const figmaLiveConnected = figmaBridge.isConnected(user.id);
+
       const result = await llm.streamGenerate({
           prompt,
           previousFiles, // Still passed for fallback or initial context
@@ -382,6 +386,7 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
           sapAiCore,
           kitLessonsEnabled: userSettings.kitLessonsEnabled !== false,
           cdpEnabled,
+          figmaLiveConnected,
           skipVisualEditingIds: isExternalProject,
           selectedApp: isExternalProject ? selectedApp : undefined,
           previewRoute: previewRoute || undefined,

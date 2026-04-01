@@ -1,4 +1,52 @@
 <div class="figma-panel">
+  <!-- Live Bridge Section -->
+  <div class="live-bridge-section">
+    @if (figmaBridge.connected()) {
+      <div class="bridge-status bridge-connected">
+        <span class="bridge-dot connected"></span>
+        <span class="bridge-label">Live: {{ figmaBridge.fileName() }}</span>
+      </div>
+      @if (figmaBridge.currentSelection().length > 0) {
+        <div class="bridge-selection">
+          <div class="bridge-selection-label">Figma selection:</div>
+          @for (node of figmaBridge.currentSelection(); track node.nodeId) {
+            <div class="bridge-selection-item">
+              <span class="node-type-badge">{{ node.nodeType }}</span>
+              {{ node.nodeName }}
+            </div>
+          }
+          <div class="bridge-actions">
+            <button class="btn-bridge" (click)="grabFigmaSelection()" [disabled]="grabbingSelection()">
+              {{ grabbingSelection() ? 'Grabbing...' : 'Import Selection' }}
+            </button>
+            <button class="btn-bridge btn-bridge-primary" (click)="useFigmaSelectionInChat()" [disabled]="grabbingSelection()">
+              {{ grabbingSelection() ? 'Grabbing...' : 'Use in Chat' }}
+            </button>
+          </div>
+        </div>
+      } @else {
+        <div class="bridge-hint">Select a frame or component in Figma</div>
+      }
+    } @else {
+      <div class="bridge-status bridge-disconnected">
+        <span class="bridge-dot"></span>
+        <span class="bridge-label">Live Bridge</span>
+      </div>
+      <div class="bridge-connect">
+        @if (figmaBridge.connectionCode()) {
+          <div class="bridge-code">
+            <span class="bridge-code-label">Enter this code in the Figma plugin:</span>
+            <span class="bridge-code-value">{{ figmaBridge.connectionCode() }}</span>
+          </div>
+        } @else {
+          <button class="btn-bridge" (click)="generateBridgeCode()" [disabled]="figmaBridge.generatingCode()">
+            {{ figmaBridge.generatingCode() ? 'Generating...' : 'Connect Figma Plugin' }}
+          </button>
+        }
+      </div>
+    }
+  </div>
+
   <!-- Loading Overlay -->
   @if (figmaService.loading() || importing()) {
     <div class="loading-overlay">

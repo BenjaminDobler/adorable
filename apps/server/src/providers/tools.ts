@@ -582,3 +582,84 @@ export const CDP_TOOLS = [
     }
   }
 ];
+
+export const FIGMA_TOOLS = [
+  {
+    name: 'figma_get_selection',
+    description: 'Get the current selection in the connected Figma file. Returns the node structure (names, types, bounding boxes, visual properties) and PNG images for each selected frame/component. Use this to see what the user is looking at in Figma.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'figma_get_node',
+    description: 'Get the structure of a specific Figma node by its ID. Returns the node tree with visual properties (fills, strokes, effects, dimensions). Optionally includes a PNG export.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: {
+          type: 'string',
+          description: 'The Figma node ID (e.g., "1:23").'
+        },
+        includeImage: {
+          type: 'boolean',
+          description: 'Also export the node as a PNG image. Default true.'
+        }
+      },
+      required: ['nodeId']
+    }
+  },
+  {
+    name: 'figma_export_node',
+    description: 'Export a Figma node as a PNG image. Returns a base64 data URI. Use for visual comparison between Figma design and app preview.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: {
+          type: 'string',
+          description: 'The Figma node ID to export.'
+        },
+        scale: {
+          type: 'number',
+          description: 'Export scale (1-4). Default 2.'
+        }
+      },
+      required: ['nodeId']
+    }
+  },
+  {
+    name: 'figma_select_node',
+    description: 'Select a node in Figma and scroll/zoom it into view. Use to highlight matching elements or show the user which design element you are implementing.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: {
+          type: 'string',
+          description: 'The Figma node ID to select.'
+        }
+      },
+      required: ['nodeId']
+    }
+  },
+  {
+    name: 'figma_search_nodes',
+    description: 'Search for nodes in the current Figma page by name. Returns matching node IDs, names, types, and dimensions (up to 50 results). Use to find specific design elements.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Search query to match against node names (case-insensitive partial match).'
+        },
+        types: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional filter by node types (e.g., ["FRAME", "COMPONENT", "TEXT"]).'
+        }
+      },
+      required: ['query']
+    }
+  }
+];

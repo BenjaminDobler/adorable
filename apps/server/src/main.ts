@@ -5,6 +5,8 @@ import 'dotenv/config';
 import * as fs from 'fs/promises';
 import cookieParser from 'cookie-parser';
 
+import { WebSocketServer } from 'ws';
+import jwt from 'jsonwebtoken';
 import { JWT_SECRET, PORT, SITES_DIR } from './config';
 import { containerProxy, getUserId } from './middleware/proxy';
 import { containerRegistry } from './providers/container/container-registry';
@@ -31,6 +33,7 @@ import { sessionAnalyzerRouter } from './routes/session-analyzer.routes';
 import { teamRouter } from './routes/team.routes';
 import { sitesAuthRouter } from './routes/sites-auth.routes';
 import { sitesAccessControl } from './middleware/sites-auth';
+import { figmaBridge } from './services/figma-bridge.service';
 import { socialAuthRouter } from './routes/social-auth.routes';
 // Native routes are handled by the desktop local agent, not the cloud server
 // import { nativeRouter } from './routes/native.routes';
@@ -196,8 +199,47 @@ const server = app.listen(PORT, async () => {
   }
 });
 
-// WebSocket Upgrade Handler for HMR support in multi-user environment
-server.on('upgrade', (req, socket, head) => {
+// WebSocket Upgrade Handler
+const figmaWss = new WebSocketServer({ noServer: true });
+
+server.on('upgrade', async (req, socket, head) => {
+  const url = new URL(req.url!, `http://${req.headers.host}`);
+
+  // Figma Live Bridge WebSocket
+  if (url.pathname === '/ws/figma-bridge') {
+    const token = url.searchParams.get('token');
+    const code = url.searchParams.get('code');
+
+    if (token) {
+      // Auth via JWT token (reconnect)
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+        figmaWss.handleUpgrade(req, socket, head, (ws) => {
+          figmaBridge.handleConnection(ws, decoded.userId);
+        });
+      } catch {
+        socket.destroy();
+      }
+    } else if (code) {
+      // Auth via connection code (first connect) — inline verify
+      const { verifyBridgeCode } = await import('./routes/figma.routes');
+      const result = verifyBridgeCode(code);
+      if (result) {
+        figmaWss.handleUpgrade(req, socket, head, (ws) => {
+          figmaBridge.handleConnection(ws, result.userId);
+          // Send back the JWT so plugin can reconnect later
+          ws.send(JSON.stringify({ type: 'figma:auth', token: result.token }));
+        });
+      } else {
+        socket.destroy();
+      }
+    } else {
+      socket.destroy();
+    }
+    return;
+  }
+
+  // HMR proxy for container preview
   const userId = getUserId(req);
   if (userId) {
      (containerProxy as any).upgrade(req, socket, head);

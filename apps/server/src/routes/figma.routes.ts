@@ -1,11 +1,122 @@
 import express from 'express';
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import { authenticate } from '../middleware/auth';
 import { decrypt } from '../utils/crypto';
 import { prisma } from '../db/prisma';
+import { JWT_SECRET } from '../config';
+import { figmaBridge } from '../services/figma-bridge.service';
 
 const router = express.Router();
 const FIGMA_API_BASE = 'https://api.figma.com/v1';
 
+// Connection codes: code -> { userId, expiresAt }
+const pendingCodes = new Map<string, { userId: string; expiresAt: number }>();
+
+/**
+ * POST /bridge/verify-code - Plugin exchanges connection code for a WebSocket JWT
+ * This endpoint is PUBLIC (no auth) — the code itself proves authorization.
+ */
+router.post('/bridge/verify-code', async (req: any, res) => {
+  const { code } = req.body;
+  if (!code) {
+    return res.status(400).json({ error: 'Code required' });
+  }
+
+  const entry = pendingCodes.get(code.toUpperCase());
+  if (!entry || entry.expiresAt < Date.now()) {
+    pendingCodes.delete(code);
+    return res.status(400).json({ error: 'Invalid or expired code' });
+  }
+
+  pendingCodes.delete(code);
+
+  // Issue a long-lived WebSocket token
+  const wsToken = jwt.sign({ userId: entry.userId }, JWT_SECRET, { expiresIn: '30d' });
+  res.json({ token: wsToken });
+});
+
+/**
+ * GET /bridge/events - SSE stream for bridge events
+ * Pre-auth because EventSource doesn't support custom headers.
+ * Accepts token as query param or Authorization header.
+ */
+router.get('/bridge/events', async (req: any, res) => {
+  // Manual auth: query param token or Authorization header
+  const token = req.query.token || req.headers['authorization']?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  let userId: string;
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    userId = decoded.userId;
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  });
+
+  const send = (data: any) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  // Send initial status
+  const info = figmaBridge.getConnectionInfo(userId);
+  if (info) {
+    send({ type: 'figma:connected', fileKey: info.fileKey, fileName: info.fileName });
+  }
+
+  const onConnected = (connUserId: string, connInfo: { fileKey: string; fileName: string }) => {
+    if (connUserId === userId) {
+      send({ type: 'figma:connected', fileKey: connInfo.fileKey, fileName: connInfo.fileName });
+    }
+  };
+
+  const onDisconnected = (connUserId: string) => {
+    if (connUserId === userId) {
+      send({ type: 'figma:disconnected' });
+    }
+  };
+
+  const onSelectionChanged = (connUserId: string, data: any) => {
+    if (connUserId === userId) {
+      send({ type: 'figma:selection_update', ...data });
+    }
+  };
+
+  figmaBridge.on('connected', onConnected);
+  figmaBridge.on('disconnected', onDisconnected);
+  figmaBridge.on('selection_changed', onSelectionChanged);
+
+  req.on('close', () => {
+    figmaBridge.off('connected', onConnected);
+    figmaBridge.off('disconnected', onDisconnected);
+    figmaBridge.off('selection_changed', onSelectionChanged);
+  });
+});
+
+/**
+ * Verify a bridge connection code and return userId + JWT.
+ * Exported for use by the WebSocket upgrade handler in main.ts.
+ */
+export function verifyBridgeCode(code: string): { userId: string; token: string } | null {
+  const entry = pendingCodes.get(code.toUpperCase());
+  if (!entry || entry.expiresAt < Date.now()) {
+    pendingCodes.delete(code);
+    return null;
+  }
+  pendingCodes.delete(code);
+  const token = jwt.sign({ userId: entry.userId }, JWT_SECRET, { expiresIn: '30d' });
+  return { userId: entry.userId, token };
+}
+
+// All other routes require authentication
 router.use(authenticate);
 
 /**
@@ -326,6 +437,88 @@ router.get('/parse-url', async (req: any, res) => {
   }
 
   res.json({ fileKey: match[2] });
+});
+
+// ============================================================
+// Figma Live Bridge endpoints
+// ============================================================
+
+/**
+ * POST /bridge/token - Generate a short-lived connection code for the Figma plugin
+ */
+router.post('/bridge/token', async (req: any, res) => {
+  const code = crypto.randomBytes(3).toString('hex').toUpperCase(); // 6-char hex
+  pendingCodes.set(code, {
+    userId: req.user.id,
+    expiresAt: Date.now() + 5 * 60 * 1000, // 5 min expiry
+  });
+  res.json({ code });
+});
+
+/**
+ * GET /bridge/status - Check if Figma plugin is live-connected
+ */
+router.get('/bridge/status', async (req: any, res) => {
+  const info = figmaBridge.getConnectionInfo(req.user.id);
+  if (info) {
+    res.json({ connected: true, fileKey: info.fileKey, fileName: info.fileName });
+  } else {
+    res.json({ connected: false });
+  }
+});
+
+/**
+ * POST /bridge/grab-selection - Get current Figma selection with images
+ */
+router.post('/bridge/grab-selection', async (req: any, res) => {
+  const userId = req.user.id;
+
+  if (!figmaBridge.isConnected(userId)) {
+    return res.status(400).json({ error: 'Figma is not connected' });
+  }
+
+  try {
+    // Get current selection with structure
+    const selResult = await figmaBridge.sendCommand(userId, { action: 'get_selection' });
+
+    if (!selResult.nodes || selResult.nodes.length === 0) {
+      return res.status(400).json({ error: 'No frames selected in Figma' });
+    }
+
+    // Export each selected node as image
+    const imageDataUris: string[] = [];
+    for (const node of selResult.nodes) {
+      try {
+        const imgResult = await figmaBridge.sendCommand(userId, {
+          action: 'export_node',
+          nodeId: node.id,
+          scale: 2,
+        });
+        if (imgResult.image) {
+          imageDataUris.push(imgResult.image);
+        }
+      } catch (err) {
+        console.error(`Failed to export Figma node ${node.id}:`, err);
+      }
+    }
+
+    const connInfo = figmaBridge.getConnectionInfo(userId);
+
+    res.json({
+      fileKey: connInfo?.fileKey || 'live',
+      fileName: connInfo?.fileName || 'Figma Live',
+      selection: selResult.nodes.map((n: any) => ({
+        nodeId: n.id,
+        nodeName: n.name,
+        nodeType: n.type,
+      })),
+      jsonStructure: selResult.jsonStructure || {},
+      imageDataUris,
+    });
+  } catch (error: any) {
+    console.error('Figma grab-selection error:', error);
+    res.status(500).json({ error: error.message || 'Failed to grab Figma selection' });
+  }
 });
 
 export const figmaRouter = router;

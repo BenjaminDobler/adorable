@@ -68,6 +68,29 @@ export interface FigmaImportPayload {
   sourceNodeId?: string;
 }
 
+// Figma Live Bridge WebSocket Protocol
+export type FigmaBridgeMessage =
+  // Plugin -> Server
+  | { type: 'figma:hello'; pluginVersion: string; fileKey: string; fileName: string }
+  | { type: 'figma:selection_changed'; selection: FigmaSelection[]; pageId: string; pageName: string }
+  | { type: 'figma:response'; requestId: string; data: any; error?: string }
+  // Server -> Plugin
+  | { type: 'figma:request'; requestId: string; command: FigmaCommand };
+
+export type FigmaCommand =
+  | { action: 'get_selection' }
+  | { action: 'get_node'; nodeId: string; depth?: number }
+  | { action: 'export_node'; nodeId: string; scale?: number; format?: 'PNG' | 'SVG' }
+  | { action: 'select_node'; nodeId: string }
+  | { action: 'scroll_to_node'; nodeId: string }
+  | { action: 'search_nodes'; query: string; types?: string[] };
+
+// Figma bridge SSE events (server -> client)
+export type FigmaBridgeEvent =
+  | { type: 'figma:connected'; fileKey: string; fileName: string }
+  | { type: 'figma:disconnected' }
+  | { type: 'figma:selection_update'; selection: FigmaSelection[]; pageId: string; pageName: string };
+
 // GitHub Integration Types
 export interface GitHubUser {
   id: number;

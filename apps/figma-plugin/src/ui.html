@@ -316,6 +316,34 @@
     Close
   </button>
 
+  <div class="section" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e5e5;">
+    <div class="section-title" style="display: flex; align-items: center; gap: 8px;">
+      Live Bridge
+      <span id="bridge-status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #ccc; display: inline-block;"></span>
+      <span id="bridge-status-label" style="font-weight: 400; color: #666; font-size: 11px;">Disconnected</span>
+    </div>
+    <div id="bridge-connect-section">
+      <div style="margin: 8px 0; font-size: 11px; color: #666;">
+        Enter the connection code from Adorable to enable live bridge:
+      </div>
+      <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+        <input id="bridge-code-input" type="text" placeholder="Enter code" maxlength="6"
+          style="flex: 1; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; text-align: center;" />
+        <button id="bridge-connect-btn" class="btn btn-primary" style="padding: 6px 12px; font-size: 11px; min-width: auto;">
+          Connect
+        </button>
+      </div>
+    </div>
+    <div id="bridge-connected-section" style="display: none;">
+      <div style="margin: 8px 0; font-size: 11px; color: #22c55e;">
+        Connected to Adorable. Selection changes are synced in real-time.
+      </div>
+      <button id="bridge-disconnect-btn" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; min-width: auto;">
+        Disconnect
+      </button>
+    </div>
+  </div>
+
   <div class="footer">
     Export as file or copy to clipboard, then paste into Adorable
   </div>
@@ -505,6 +533,177 @@
 
     // Request initial selection info
     parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
+
+    // ============================================================
+    // Figma Live Bridge — WebSocket relay
+    // ============================================================
+    const bridgeStatusDot = document.getElementById('bridge-status-dot');
+    const bridgeStatusLabel = document.getElementById('bridge-status-label');
+    const bridgeConnectSection = document.getElementById('bridge-connect-section');
+    const bridgeConnectedSection = document.getElementById('bridge-connected-section');
+    const bridgeCodeInput = document.getElementById('bridge-code-input');
+    const bridgeConnectBtn = document.getElementById('bridge-connect-btn');
+    const bridgeDisconnectBtn = document.getElementById('bridge-disconnect-btn');
+
+    let bridgeWs = null;
+    let bridgeToken = null;
+    let reconnectTimer = null;
+    let reconnectAttempts = 0;
+    const BRIDGE_PORT = 3333;
+
+    function setBridgeStatus(status) {
+      if (status === 'connected') {
+        bridgeStatusDot.style.background = '#22c55e';
+        bridgeStatusLabel.textContent = 'Connected';
+        bridgeConnectSection.style.display = 'none';
+        bridgeConnectedSection.style.display = 'block';
+      } else if (status === 'connecting') {
+        bridgeStatusDot.style.background = '#f59e0b';
+        bridgeStatusLabel.textContent = 'Connecting...';
+      } else {
+        bridgeStatusDot.style.background = '#ccc';
+        bridgeStatusLabel.textContent = 'Disconnected';
+        bridgeConnectSection.style.display = 'block';
+        bridgeConnectedSection.style.display = 'none';
+      }
+    }
+
+    function connectBridge(token, code) {
+      if (bridgeWs) {
+        bridgeWs.close();
+        bridgeWs = null;
+      }
+
+      setBridgeStatus('connecting');
+      if (token) bridgeToken = token;
+
+      try {
+        const params = token
+          ? `token=${encodeURIComponent(token)}`
+          : `code=${encodeURIComponent(code)}`;
+        bridgeWs = new WebSocket(`ws://localhost:${BRIDGE_PORT}/ws/figma-bridge?${params}`);
+      } catch (err) {
+        setBridgeStatus('disconnected');
+        showStatus('Failed to create WebSocket connection', 'error');
+        return;
+      }
+
+      bridgeWs.onopen = () => {
+        reconnectAttempts = 0;
+        setBridgeStatus('connected');
+        // Send hello with file info
+        bridgeWs.send(JSON.stringify({
+          type: 'figma:hello',
+          pluginVersion: '1.0.0',
+          fileKey: 'pending', // Will be updated by code.ts
+          fileName: 'pending',
+        }));
+        // Request current selection to send file info
+        parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
+      };
+
+      bridgeWs.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'figma:auth') {
+            // Server sent back a JWT after code-based auth — save for reconnect
+            bridgeToken = msg.token;
+          } else if (msg.type === 'figma:request') {
+            // Forward command to code.ts
+            parent.postMessage({
+              pluginMessage: {
+                type: 'bridge-command',
+                requestId: msg.requestId,
+                command: msg.command,
+              }
+            }, '*');
+          }
+        } catch (err) {
+          console.error('Bridge message parse error:', err);
+        }
+      };
+
+      bridgeWs.onclose = () => {
+        setBridgeStatus('disconnected');
+        bridgeWs = null;
+        // Auto-reconnect if we have a token
+        if (bridgeToken) {
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+          reconnectAttempts++;
+          reconnectTimer = setTimeout(() => connectBridge(bridgeToken), delay);
+        }
+      };
+
+      bridgeWs.onerror = () => {
+        // onclose will fire after this
+      };
+    }
+
+    function disconnectBridge() {
+      bridgeToken = null;
+      reconnectAttempts = 0;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      if (bridgeWs) {
+        bridgeWs.close();
+        bridgeWs = null;
+      }
+      setBridgeStatus('disconnected');
+    }
+
+    // Extend the message handler to relay bridge responses from code.ts
+    const originalOnMessage = window.onmessage;
+    window.onmessage = (event) => {
+      // Call original handler first
+      if (originalOnMessage) originalOnMessage(event);
+
+      const msg = event.data.pluginMessage;
+      if (!msg) return;
+
+      // Relay bridge responses from code.ts to WebSocket
+      if (msg.type === 'bridge-response' && bridgeWs && bridgeWs.readyState === 1) {
+        bridgeWs.send(JSON.stringify({
+          type: 'figma:response',
+          requestId: msg.requestId,
+          data: msg.data,
+          error: msg.error,
+        }));
+      }
+
+      // Relay selection changes to WebSocket
+      if (msg.type === 'bridge-selection' && bridgeWs && bridgeWs.readyState === 1) {
+        bridgeWs.send(JSON.stringify({
+          type: 'figma:selection_changed',
+          selection: msg.selection,
+          pageId: msg.pageId,
+          pageName: msg.pageName,
+        }));
+      }
+    };
+
+    // Connect button: connect via WebSocket with code directly (no fetch needed)
+    bridgeConnectBtn.addEventListener('click', () => {
+      const code = bridgeCodeInput.value.trim();
+      if (!code || code.length < 6) {
+        showStatus('Enter a valid 6-character code', 'error');
+        return;
+      }
+
+      bridgeConnectBtn.disabled = true;
+      bridgeConnectBtn.textContent = 'Connecting...';
+
+      // Pass code directly in WebSocket URL — server verifies during handshake
+      connectBridge(null, code);
+
+      setTimeout(() => {
+        bridgeConnectBtn.disabled = false;
+        bridgeConnectBtn.textContent = 'Connect';
+      }, 3000);
+    });
+
+    bridgeDisconnectBtn.addEventListener('click', disconnectBridge);
   </script>
 </body>
 </html>

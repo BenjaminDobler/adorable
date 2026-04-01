@@ -1,6 +1,7 @@
 import { FileSystemInterface, StreamCallbacks, GenerateOptions, HistoryMessage } from './types';
 import { jsonrepair } from 'jsonrepair';
-import { TOOLS, SAVE_LESSON_TOOL, CDP_TOOLS } from './tools';
+import { TOOLS, SAVE_LESSON_TOOL, CDP_TOOLS, FIGMA_TOOLS } from './tools';
+import { figmaBridge } from '../services/figma-bridge.service';
 import { ANGULAR_KNOWLEDGE_BASE } from './knowledge-base';
 import { SkillRegistry } from './skills/skill-registry';
 import { DebugLogger } from './debug-logger';
@@ -26,6 +27,8 @@ export const PARALLELIZABLE_TOOLS = new Set([
   // Angular inspection (read-only)
   'inspect_component', 'inspect_routes', 'inspect_signals', 'inspect_styles',
   'inspect_dom', 'measure_element', 'inspect_errors', 'get_bundle_stats', 'get_container_logs',
+  // Figma live bridge reads (figma_select_node excluded — it mutates Figma state)
+  'figma_get_selection', 'figma_get_node', 'figma_export_node', 'figma_search_nodes',
 ]);
 
 /**
@@ -458,6 +461,11 @@ Only proceed with implementation after receiving the user's answers.`;
       availableTools.push(...CDP_TOOLS);
     }
 
+    // Add Figma live bridge tools when plugin is connected
+    if (options.figmaLiveConnected) {
+      availableTools.push(...FIGMA_TOOLS);
+    }
+
     // Add save_lesson tool when a kit is active and lessons are enabled
     // Lessons enabled when both the kit author hasn't disabled it AND the user hasn't disabled it
     const lessonsEnabled = (options.activeKit?.lessonsEnabled !== false) && (options.kitLessonsEnabled !== false);
@@ -604,6 +612,28 @@ Only proceed with implementation after receiving the user's answers.`;
         + `3. If the UI doesn't look right or has errors, fix the code and rebuild\n`
         + `4. For interactive features, use \`browse_click\` and \`browse_evaluate\` to test them\n`
         + `This is especially important when making visual/layout changes — always verify with a screenshot.\n`;
+    }
+
+    // Inject Figma live bridge instructions when connected
+    if (options.figmaLiveConnected) {
+      userMessage += `\n\n**FIGMA LIVE BRIDGE:**\n`
+        + `A live connection to the user's Figma Desktop is active. You can directly inspect and interact with the Figma document:\n`
+        + `- \`figma_get_selection\` — Get the current Figma selection with node structure and PNG images\n`
+        + `- \`figma_get_node\` — Get a specific node by ID with its structure and optional PNG export\n`
+        + `- \`figma_export_node\` — Export any node as a PNG image for visual comparison\n`
+        + `- \`figma_select_node\` — Select a node in Figma and scroll it into view (highlights it for the user)\n`
+        + `- \`figma_search_nodes\` — Search for nodes by name in the current Figma page\n\n`
+        + `**DESIGN-TO-CODE WORKFLOW:**\n`
+        + `1. Use \`figma_get_selection\` to see what the user has selected in Figma\n`
+        + `2. Analyze the node structure and PNG image to understand the design\n`
+        + `3. Implement the Angular component to match the design precisely\n`
+        + `4. Use \`browse_screenshot\` (if available) to compare your implementation with the Figma export\n`
+        + `5. Use \`figma_select_node\` to highlight the Figma element you are currently implementing\n\n`
+        + `**FINDING MATCHING ELEMENTS:** When asked to find a matching Figma element for something in the app:\n`
+        + `1. Take a screenshot of the app element with \`browse_screenshot\`\n`
+        + `2. Use \`figma_search_nodes\` to find candidates by name\n`
+        + `3. Use \`figma_export_node\` to visually compare candidates\n`
+        + `4. Use \`figma_select_node\` to highlight the match in Figma\n`;
     }
 
     // Determine effective system prompt: kit override or default
@@ -1399,6 +1429,77 @@ Only proceed with implementation after receiving the user's answers.`;
             } catch (err: any) {
               content = `get_container_logs failed: ${err.message}`;
               isError = true;
+            }
+          }
+          break;
+        // --- Figma Live Bridge Tools ---
+        case 'figma_get_selection':
+        case 'figma_get_node':
+        case 'figma_export_node':
+        case 'figma_select_node':
+        case 'figma_search_nodes':
+          {
+            const userId = ctx.userId || '';
+            if (!figmaBridge.isConnected(userId)) {
+              content = 'Figma is not connected. The user needs to open the Adorable plugin in Figma Desktop and connect via the Live Bridge.';
+              isError = true;
+            } else {
+              try {
+                let command: any;
+                switch (toolName) {
+                  case 'figma_get_selection':
+                    command = { action: 'get_selection' };
+                    break;
+                  case 'figma_get_node':
+                    command = { action: 'get_node', nodeId: toolArgs.nodeId, depth: toolArgs.depth };
+                    break;
+                  case 'figma_export_node':
+                    command = { action: 'export_node', nodeId: toolArgs.nodeId, scale: toolArgs.scale || 2 };
+                    break;
+                  case 'figma_select_node':
+                    command = { action: 'select_node', nodeId: toolArgs.nodeId };
+                    break;
+                  case 'figma_search_nodes':
+                    command = { action: 'search_nodes', query: toolArgs.query, types: toolArgs.types };
+                    break;
+                }
+
+                const result = await figmaBridge.sendCommand(userId, command);
+
+                // For get_selection and get_node with images, also export images
+                if (toolName === 'figma_get_selection' && result.nodes?.length > 0) {
+                  const images: string[] = [];
+                  for (const node of result.nodes.slice(0, 5)) { // Limit to 5 images
+                    try {
+                      const imgResult = await figmaBridge.sendCommand(userId, { action: 'export_node', nodeId: node.id, scale: 2 });
+                      if (imgResult.image) images.push(imgResult.image);
+                    } catch { /* skip failed exports */ }
+                  }
+                  if (images.length > 0) {
+                    content = JSON.stringify(result, null, 2) + '\n\n' + images.map(img => `[SCREENSHOT:${img}]`).join('\n');
+                  } else {
+                    content = JSON.stringify(result, null, 2);
+                  }
+                } else if (toolName === 'figma_get_node' && toolArgs.includeImage !== false) {
+                  try {
+                    const imgResult = await figmaBridge.sendCommand(userId, { action: 'export_node', nodeId: toolArgs.nodeId, scale: 2 });
+                    if (imgResult.image) {
+                      content = JSON.stringify(result, null, 2) + '\n\n' + `[SCREENSHOT:${imgResult.image}]`;
+                    } else {
+                      content = JSON.stringify(result, null, 2);
+                    }
+                  } catch {
+                    content = JSON.stringify(result, null, 2);
+                  }
+                } else if (toolName === 'figma_export_node' && result.image) {
+                  content = `[SCREENSHOT:${result.image}]`;
+                } else {
+                  content = JSON.stringify(result, null, 2);
+                }
+              } catch (err: any) {
+                content = `Figma bridge request failed: ${err.message}`;
+                isError = true;
+              }
             }
           }
           break;
