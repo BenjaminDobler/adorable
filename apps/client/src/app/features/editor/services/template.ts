@@ -81,8 +81,22 @@ export class TemplateService {
 
     // Translation path: if the text comes from a translate pipe, edit the JSON file instead
     if (modification.type === 'text' && fingerprint.ongAnnotation) {
-      const translationResult = this.tryModifyTranslation(files, fingerprint, modification.value);
-      if (translationResult) return translationResult;
+      // Ensure translation JSON files are loaded (external projects use structure-only mode
+      // where file contents are empty until explicitly fetched).
+      const ann = fingerprint.ongAnnotation;
+      const isTranslatePipe = (ann.text.type === 'interpolated' || ann.text.type === 'mixed')
+        && TemplateService.TRANSLATE_PIPE_RE.test(ann.text.content);
+      if (isTranslatePipe) {
+        const translationFiles = this.findTranslationJsonFiles(files);
+        if (translationFiles.length > 0) {
+          await Promise.all(translationFiles.map(tf => this.projectService.getFileContent(tf.path)));
+          files = this.projectService.files()!;
+        }
+        const translationResult = this.tryModifyTranslation(files, fingerprint, modification.value);
+        if (translationResult) return translationResult;
+        // Don't fall through to template modification — that would replace the pipe with static text
+        return { content: '', path: '', success: false, error: 'Could not find translation key in any translation file' };
+      }
     }
 
     // Fast path: ong annotation provides exact source location (file:line:col)
@@ -860,9 +874,12 @@ export class TemplateService {
 
     console.log(`[TemplateService] Found ${jsonFiles.length} translation file(s):`, jsonFiles.map(f => f.path));
 
-    // Find the file whose value for this key matches the original displayed text.
-    // This gives us the currently active locale's file.
+    // Find the correct translation file to update.
+    // Priority: 1) file whose locale matches the active locale from the translations panel,
+    // 2) file whose stored value matches the displayed text (active locale heuristic),
+    // 3) first file that has the key at all (fallback).
     const originalText = (fingerprint.text || '').trim();
+    const activeLocale = this.projectService.activeTranslationLocale();
     let targetFile: { path: string; content: string } | null = null;
 
     for (const jf of jsonFiles) {
@@ -870,6 +887,12 @@ export class TemplateService {
         const json = JSON.parse(jf.content);
         const currentValue = this.getNestedValue(json, translationKey);
         if (currentValue !== undefined) {
+          // Check if this file's path contains the active locale name (e.g. "en.json", "de.json")
+          const fileName = jf.path.split('/').pop()?.replace(/\.jsonc?$/, '') || '';
+          if (activeLocale && fileName === activeLocale) {
+            targetFile = jf;
+            break; // Active locale match is highest priority
+          }
           // Strip interpolation params (e.g., "Hello {{name}}" → compare base text)
           const stripped = String(currentValue).replace(/\{\{[^}]*\}\}/g, '').trim();
           const originalStripped = originalText.replace(/\{\{[^}]*\}\}/g, '').trim();

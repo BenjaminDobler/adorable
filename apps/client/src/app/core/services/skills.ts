@@ -45,6 +45,10 @@ export class SkillsService {
     return this.http.post(`${this.apiUrl}/skills`, skill);
   }
 
+  importSkill(name: string, skillMd: string, references: Record<string, string>): Observable<any> {
+    return this.http.post(`${this.apiUrl}/skills/import`, { name, skillMd, references });
+  }
+
   deleteSkill(name: string): Observable<any> {
     return this.http.delete(`${this.apiUrl}/skills/${name}`);
   }

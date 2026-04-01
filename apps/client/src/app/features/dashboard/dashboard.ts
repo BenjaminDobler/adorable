@@ -280,37 +280,64 @@ export class DashboardComponent {
   }
 
   async onSkillUpload(event: any) {
-    const file = event.target.files[0];
-    if (!file) return;
+    const files: FileList = event.target.files;
+    if (!files || files.length === 0) return;
 
     try {
-      const text = await file.text();
-      // Simple Frontmatter Parser
+      // Find SKILL.md (case-insensitive) in the selected folder
+      let skillFile: File | null = null;
+      const refFiles: File[] = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const parts = file.webkitRelativePath.split('/');
+        const fileName = parts[parts.length - 1].toLowerCase();
+        const inRefsDir = parts.length === 3 && parts[1].toLowerCase() === 'references';
+        const isRoot = parts.length === 2;
+
+        if (isRoot && fileName === 'skill.md') {
+          skillFile = file;
+        } else if (inRefsDir) {
+          refFiles.push(file);
+        }
+      }
+
+      if (!skillFile) throw new Error('No SKILL.md found in the selected folder.');
+
+      const text = await skillFile.text();
       const match = text.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
       if (!match) throw new Error('Invalid SKILL.md format. Missing YAML frontmatter (--- ... ---).');
-      
+
       const yamlStr = match[1];
       const instructions = match[2].trim();
-      
+
       const meta: any = {};
       const nameMatch = yamlStr.match(/^name:\s*(.*)$/m);
       if (nameMatch) meta.name = nameMatch[1].trim();
-      
+
       const descMatch = yamlStr.match(/^description:\s*(.*)$/m);
       if (descMatch) meta.description = descMatch[1].trim();
-      
+
       const triggersMatch = yamlStr.match(/^triggers:\s*\[(.*)\]/m);
       if (triggersMatch) {
-         meta.triggers = triggersMatch[1].split(',').map((t: string) => t.trim().replace(/['"]/g, ''));
+        meta.triggers = triggersMatch[1].split(',').map((t: string) => t.trim().replace(/['"]/g, ''));
       }
 
       if (!meta.name) throw new Error('Skill name is required in frontmatter.');
+
+      // Read reference files
+      const references: Record<string, string> = {};
+      for (const refFile of refFiles) {
+        const fileName = refFile.name;
+        references[fileName] = await refFile.text();
+      }
 
       const skill = {
         name: meta.name,
         description: meta.description,
         triggers: meta.triggers,
-        instructions
+        instructions,
+        references
       };
 
       this.onSaveSkill(skill);
@@ -318,13 +345,32 @@ export class DashboardComponent {
       console.error(e);
       this.toastService.show(e.message || 'Failed to parse skill file', 'error');
     }
-    
+
     // Reset input
     event.target.value = '';
   }
 
   onSaveSkill(skillData: any) {
-    this.skillsService.saveSkill(skillData).subscribe({
+    const refs: Record<string, string> = skillData.references;
+    const hasRefs = refs && Object.keys(refs).length > 0;
+
+    let save$;
+    if (hasRefs) {
+      // Build SKILL.md text and use the import endpoint which persists references/
+      const frontmatter = [
+        '---',
+        `name: ${skillData.name}`,
+        skillData.description ? `description: ${skillData.description}` : null,
+        skillData.triggers?.length ? `triggers: [${skillData.triggers.join(', ')}]` : null,
+        '---',
+      ].filter(Boolean).join('\n');
+      const skillMd = `${frontmatter}\n${skillData.instructions}`;
+      save$ = this.skillsService.importSkill(skillData.name, skillMd, refs);
+    } else {
+      save$ = this.skillsService.saveSkill(skillData);
+    }
+
+    save$.subscribe({
       next: () => {
         this.toastService.show('Skill saved successfully!', 'success');
         this.showSkillDialog.set(false);

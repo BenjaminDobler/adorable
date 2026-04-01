@@ -449,7 +449,8 @@ class SessionAnalyzerService {
     apiKey: string,
     model?: string,
     provider?: string,
-    sapAiCore?: SapAiCoreConfig
+    sapAiCore?: SapAiCoreConfig,
+    baseUrl?: string
   ): Promise<SessionSuggestion[]> {
     let text = '';
 
@@ -475,7 +476,7 @@ class SessionAnalyzerService {
           baseURL: sapAiCore.baseUrl,
         };
       } else {
-        anthropicOptions = { apiKey };
+        anthropicOptions = { apiKey, ...(baseUrl ? { baseURL: baseUrl } : {}) };
       }
 
       const anthropic = new Anthropic(anthropicOptions);

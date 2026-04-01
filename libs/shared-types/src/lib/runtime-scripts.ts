@@ -525,7 +525,7 @@ export const RUNTIME_SCRIPTS = `
           processClick(pendingClickEvent);
           pendingClickEvent = null;
         }, 250);
-      });
+      }, true); // capture phase — intercepts before Angular router/button handlers fire
 
       function processClick(e) {
         const target = e.target;
@@ -764,7 +764,7 @@ export const RUNTIME_SCRIPTS = `
         // Hide overlay during editing
         const overlayEl = document.getElementById('inspector-overlay');
         if (overlayEl) overlayEl.style.display = 'none';
-      });
+      }, true); // capture phase
     })();
 
     // Multi-Annotation Tool — lets users click multiple elements and annotate each one

@@ -67,6 +67,11 @@ export class TranslationsPanelComponent {
         this.loadTranslations(files);
       }
     });
+
+    // Keep projectService in sync with the active locale so visual editor can use it
+    effect(() => {
+      this.projectService.activeTranslationLocale.set(this.selectedLocale());
+    });
   }
 
   private loadTranslations(files: any) {

@@ -431,13 +431,13 @@ export class NativeContainerEngine extends ContainerEngine {
 
   // --- Storage Settings ---
 
-  async getStorageSettings(appName?: string): Promise<{ localStorage: Record<string, string>; cookies: Record<string, string>; tailwindPrefix?: string }> {
+  async getStorageSettings(appName?: string): Promise<{ localStorage: Record<string, string>; cookies: Record<string, string>; tailwindPrefix?: string; fixedPort?: number }> {
     const params = appName ? `?app=${encodeURIComponent(appName)}` : '';
     const res = await fetch(`${this.apiUrl}/storage-settings${params}`);
     return res.json();
   }
 
-  async saveStorageSettings(settings: { localStorage: Record<string, string>; cookies: Record<string, string>; tailwindPrefix?: string }, appName?: string): Promise<void> {
+  async saveStorageSettings(settings: { localStorage: Record<string, string>; cookies: Record<string, string>; tailwindPrefix?: string; fixedPort?: number }, appName?: string): Promise<void> {
     const params = appName ? `?app=${encodeURIComponent(appName)}` : '';
     await fetch(`${this.apiUrl}/storage-settings${params}`, {
       method: 'POST',

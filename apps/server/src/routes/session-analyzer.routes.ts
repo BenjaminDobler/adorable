@@ -50,6 +50,11 @@ router.post('/analyze', async (req: any, res) => {
     return undefined;
   };
 
+  const getBaseUrl = (providerName: string): string | undefined => {
+    const profile = profiles.find((p: any) => p.provider === providerName);
+    return profile?.baseUrl || undefined;
+  };
+
   const getSapConfig = (): SapAiCoreConfig | undefined => {
     const profile = profiles.find((p: any) => p.provider === 'anthropic');
     if (!profile?.sapAiCore?.enabled) return undefined;
@@ -64,6 +69,7 @@ router.post('/analyze', async (req: any, res) => {
 
   let apiKey = getApiKey('anthropic');
   let provider = 'anthropic';
+  let baseUrl = getBaseUrl('anthropic');
   let sapAiCore = getSapConfig();
 
   // SAP AI Core uses OAuth, not API keys
@@ -72,6 +78,7 @@ router.post('/analyze', async (req: any, res) => {
   } else if (!apiKey) {
     apiKey = getApiKey('gemini');
     provider = 'gemini';
+    baseUrl = getBaseUrl('gemini');
   }
 
   if (!apiKey) {
@@ -131,7 +138,7 @@ router.post('/analyze', async (req: any, res) => {
     // Step 4: Build prompt and call AI
     send({ type: 'progress', message: 'Analyzing with AI...' });
     const prompt = sessionAnalyzerService.buildAnalysisPrompt(events, metrics, kitDocs);
-    const suggestions = await sessionAnalyzerService.analyzeWithAI(prompt, apiKey, undefined, provider, sapAiCore);
+    const suggestions = await sessionAnalyzerService.analyzeWithAI(prompt, apiKey, undefined, provider, sapAiCore, baseUrl);
 
     // Step 5: Stream suggestions
     for (const suggestion of suggestions) {

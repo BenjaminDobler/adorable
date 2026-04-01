@@ -306,7 +306,7 @@ export class ProjectSettingsComponent {
       );
       this.tailwindPrefix.set(settings.tailwindPrefix || this.autoDetectedPrefix());
       this.projectService.tailwindPrefixOverride.set(settings.tailwindPrefix || '');
-      this.fixedPort.set(engine.fixedPort());
+      this.fixedPort.set(settings.fixedPort ?? engine.fixedPort());
     } catch {
       // No settings yet
     }
@@ -360,7 +360,7 @@ export class ProjectSettingsComponent {
       }
       const tailwindPrefix = this.tailwindPrefix().trim() || undefined;
       this.projectService.tailwindPrefixOverride.set(tailwindPrefix || '');
-      await engine.saveStorageSettings({ localStorage, cookies, tailwindPrefix }, this.getSelectedApp());
+      await engine.saveStorageSettings({ localStorage, cookies, tailwindPrefix, fixedPort: this.fixedPort() }, this.getSelectedApp());
 
       const portChanged = engine.fixedPort() !== this.fixedPort();
       engine.fixedPort.set(this.fixedPort());

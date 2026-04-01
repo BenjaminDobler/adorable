@@ -360,6 +360,10 @@ export abstract class BaseLLMProvider {
       const skill = skillRegistry.getSkill(options.forcedSkill);
       if (skill) {
         userMessage += `\n\n[SYSTEM INJECTION] The user has explicitly enabled the '${skill.name}' skill. You MUST follow these instructions:\n${skill.instructions}`;
+        if (skill.references && skill.references.length > 0) {
+          userMessage += '\n\n[SKILL REFERENCE FILES - available on demand]\nUse the `read_skill_reference` tool to read any of these files when needed:\n' +
+            skill.references.map(r => `- ${r.name}`).join('\n');
+        }
       }
     }
 
@@ -651,6 +655,30 @@ Only proceed with implementation after receiving the user's answers.`;
           required: ['name']
         }
       });
+
+      // Add read_skill_reference tool if any skill has references
+      const skillsWithRefs = skills.filter(s => s.references && s.references.length > 0);
+      if (skillsWithRefs.length > 0) {
+        availableTools.push({
+          name: 'read_skill_reference',
+          description: 'Read a specific reference file from an activated skill. Use this after activating a skill to load reference documentation on demand.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              skill_name: {
+                type: 'string',
+                description: 'The name of the skill.',
+                enum: skillsWithRefs.map(s => s.name)
+              },
+              filename: {
+                type: 'string',
+                description: 'The filename of the reference file to read (as listed after skill activation).'
+              }
+            },
+            required: ['skill_name', 'filename']
+          }
+        });
+      }
     }
     return skills;
   }
@@ -871,11 +899,39 @@ Only proceed with implementation after receiving the user's answers.`;
           {
             const skill = skillRegistry.getSkill(toolArgs.name);
             if (skill) {
-              content = `<activated_skill name="${skill.name}">\n${skill.instructions}\n</activated_skill>`;
+              let skillContent = skill.instructions;
+              if (skill.references && skill.references.length > 0) {
+                skillContent += '\n\n[SKILL REFERENCE FILES - available on demand]\nUse the `read_skill_reference` tool to read any of these files when needed:\n' +
+                  skill.references.map(r => `- ${r.name}`).join('\n');
+              }
+              content = `<activated_skill name="${skill.name}">\n${skillContent}\n</activated_skill>`;
             } else {
               content = `Error: Skill '${toolArgs.name}' not found.`;
               isError = true;
             }
+          }
+          break;
+        case 'read_skill_reference':
+          validationError = this.validateToolArgs(toolName, toolArgs, ['skill_name', 'filename']);
+          if (validationError) {
+            content = validationError;
+            isError = true;
+            break;
+          }
+          {
+            const skill = skillRegistry.getSkill(toolArgs.skill_name);
+            if (!skill) {
+              content = `Error: Skill '${toolArgs.skill_name}' not found.`;
+              isError = true;
+              break;
+            }
+            const ref = skill.references?.find(r => r.name === toolArgs.filename);
+            if (!ref) {
+              content = `Error: Reference file '${toolArgs.filename}' not found in skill '${toolArgs.skill_name}'.`;
+              isError = true;
+              break;
+            }
+            content = `### ${ref.name}\n${ref.content}`;
           }
           break;
         case 'delete_file':

@@ -112,6 +112,8 @@ export class ProjectService {
   detectedConfig = signal<any>(null);
   /** User-provided Tailwind prefix override (from project settings). */
   tailwindPrefixOverride = signal<string>('');
+  /** Active locale selected in the Translations panel — used by visual editor to target the right file. */
+  activeTranslationLocale = signal<string>('');
   currentKit = signal<Kit | null>(null);
   currentKitTemplate = signal<KitFileTree | null>(null);
 
@@ -567,6 +569,9 @@ export class ProjectService {
             const settings = await nativeEngine.getStorageSettings(selectedApp);
             if (settings.tailwindPrefix) {
               this.tailwindPrefixOverride.set(settings.tailwindPrefix);
+            }
+            if (settings.fixedPort !== undefined) {
+              nativeEngine.fixedPort.set(settings.fixedPort);
             }
           } catch { /* ignore */ }
         }
