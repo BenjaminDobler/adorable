@@ -1,4 +1,4 @@
-import { FileSystemInterface, StreamCallbacks, GenerateOptions, HistoryMessage } from './types';
+import { FileSystemInterface, StreamCallbacks, GenerateOptions, HistoryMessage, PreflightDecision } from './types';
 import { jsonrepair } from 'jsonrepair';
 import { TOOLS, SAVE_LESSON_TOOL, CDP_TOOLS, FIGMA_TOOLS } from './tools';
 import { figmaBridge } from '../services/figma-bridge.service';
@@ -247,6 +247,85 @@ export abstract class BaseLLMProvider {
   /**
    * Run a proper LLM-based research phase before the main generation loop.
    *
+   * Preflight router — a lightweight LLM call that makes intelligent decisions
+   * about how to handle the incoming request before the main agentic loop starts.
+   *
+   * Decides: whether to run research, detects topic shifts, suggests context clearing,
+   * adjusts reasoning effort, and pre-detects skills.
+   *
+   * @param preflightLLMCall Provider-specific callback for a fast, low-token LLM call.
+   */
+  protected async runPreflight(
+    userPrompt: string,
+    history: HistoryMessage[] | undefined,
+    contextSummary: string | undefined,
+    availableSkills: string[],
+    preflightLLMCall: (systemPrompt: string, userPrompt: string) => Promise<string>,
+  ): Promise<PreflightDecision> {
+    const defaultDecision: PreflightDecision = {
+      runResearch: true,
+      topicShift: false,
+      suggestClearContext: false,
+      reasoningEffort: 'high',
+    };
+
+    // Build conversation context summary for the router
+    let conversationContext = '';
+    if (contextSummary) {
+      conversationContext += `Conversation summary: ${contextSummary}\n`;
+    }
+    if (history?.length) {
+      // Include last few turns for topic detection
+      const recentHistory = history.slice(-6);
+      conversationContext += 'Recent conversation:\n';
+      for (const msg of recentHistory) {
+        const truncated = msg.text.length > 200 ? msg.text.substring(0, 200) + '...' : msg.text;
+        conversationContext += `[${msg.role}]: ${truncated}\n`;
+      }
+    }
+
+    const hasConversation = !!(history?.length || contextSummary);
+
+    const systemPrompt =
+      `You are a request router for an AI coding assistant. Analyze the user's prompt and conversation context to make quick routing decisions.\n\n`
+      + `Respond with ONLY a valid JSON object (no markdown, no explanation) with these fields:\n`
+      + `- "runResearch" (boolean): Should the AI analyze the codebase before starting? true for complex multi-file tasks (new features, new pages/routes, refactoring, integrations). false for simple changes (styling, text edits, small fixes, follow-up tweaks, questions).\n`
+      + `- "topicShift" (boolean): Is the user starting a completely new topic unrelated to the recent conversation? Only relevant when conversation history exists, otherwise false.\n`
+      + `- "suggestClearContext" (boolean): Should we suggest clearing the conversation? true when: topic shifted AND conversation is long (many turns), or accumulated context would hurt more than help. false for normal follow-ups or short conversations.\n`
+      + `- "reasoningEffort" ("low"|"medium"|"high"): How much thinking does this task need? "low" for trivial changes (rename, color change, show/hide). "medium" for moderate tasks (add a button with logic, fix a bug). "high" for complex tasks (new feature, architecture, multi-file changes).\n`
+      + (availableSkills.length > 0
+        ? `- "skillHint" (string|null): If the prompt clearly matches one of these available skills, return its name: ${availableSkills.join(', ')}. Otherwise null.\n`
+        : '')
+      + `- "reasoning" (string): One sentence explaining your decision.\n\n`
+      + `Rules:\n`
+      + `- Be fast and concise — this is a routing decision, not a deep analysis\n`
+      + `- When in doubt about runResearch, lean towards false — the main agent can always read files itself\n`
+      + `- topicShift should only be true for clear, unambiguous topic changes (e.g. "now let's work on the settings page" after 10 messages about the login page)\n`
+      + `- suggestClearContext should be rare — only when stale context would actively hurt\n`;
+
+    const routerPrompt = hasConversation
+      ? `${conversationContext}\n---\nNew user message: ${userPrompt}`
+      : `User message: ${userPrompt}`;
+
+    try {
+      console.log('[Preflight] Running preflight router...');
+      const response = await preflightLLMCall(systemPrompt, routerPrompt);
+
+      // Parse JSON from response (handle potential markdown wrapping)
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const decision = JSON.parse(jsonMatch[0]) as PreflightDecision;
+        console.log(`[Preflight] Decision: research=${decision.runResearch}, topicShift=${decision.topicShift}, clearContext=${decision.suggestClearContext}, effort=${decision.reasoningEffort}, skill=${decision.skillHint || 'none'} — ${decision.reasoning || ''}`);
+        return { ...defaultDecision, ...decision };
+      }
+    } catch (err: any) {
+      console.error('[Preflight] Failed, using defaults:', err.message);
+    }
+
+    return defaultDecision;
+  }
+
+  /**
    * Uses a lightweight LLM call with the RESEARCH_SYSTEM_PROMPT to:
    * 1. Analyze the user's request + file structure
    * 2. Identify which files are relevant (using read_file/read_files tools)

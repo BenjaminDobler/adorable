@@ -30,7 +30,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
 
     // Prepare shared context
     const { fs, skillRegistry, availableTools, userMessage, effectiveSystemPrompt, logger, maxTurns, mcpManager, activeKitName, activeKitId, userId, projectId, history, contextSummary, buildCommand } = await this.prepareAgentContext(options, 'gemini');
-    await this.addSkillTools(availableTools, skillRegistry, fs, options.userId);
+    const skills = await this.addSkillTools(availableTools, skillRegistry, fs, options.userId);
 
     // Convert tools to Gemini format
     const tools = availableTools.map(tool => ({
@@ -70,8 +70,34 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       console.log('[Gemini] URL Context tool enabled');
     }
 
-    // Map reasoning effort to Gemini thinking budget
-    const geminiEffort = options.reasoningEffort || 'high';
+    // Preflight router: lightweight LLM call to decide how to handle this request
+    const availableSkills = skills.map(s => s.name);
+    const preflightDecision = await this.runPreflight(
+      options.prompt, history, contextSummary, availableSkills,
+      async (systemPrompt, userMsg) => {
+        const result = await ai.models.generateContent({
+          model: 'gemini-2.0-flash-lite',
+          config: { systemInstruction: systemPrompt, maxOutputTokens: 256 },
+          contents: [{ role: 'user', parts: [{ text: userMsg }] }],
+        });
+        return result.text || '';
+      }
+    );
+
+    // Notify client of preflight decision
+    callbacks.onPreflightDecision?.(preflightDecision);
+
+    // Apply skill hint from preflight (only if no explicit forced skill)
+    if (preflightDecision.skillHint && !options.forcedSkill) {
+      const hintedSkill = skillRegistry.getSkill(preflightDecision.skillHint);
+      if (hintedSkill) {
+        enrichedUserMessage += `\n\n[SYSTEM INJECTION] The preflight router detected that the '${hintedSkill.name}' skill is relevant. You MUST follow these instructions:\n${hintedSkill.instructions}`;
+        if (initialParts[0]?.text) initialParts[0].text = enrichedUserMessage;
+      }
+    }
+
+    // Map reasoning effort to Gemini thinking budget (user override takes precedence)
+    const geminiEffort = options.reasoningEffort || preflightDecision.reasoningEffort || 'high';
     const thinkingBudget = geminiEffort === 'low' ? 1024 : geminiEffort === 'medium' ? 8192 : -1;
 
     // Build Gemini conversation history from prior turns
@@ -125,7 +151,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
     };
 
     // Research phase: LLM-based agent reads relevant files before main loop
-    if (options.previousFiles && options.researchAgentEnabled !== false) {
+    if (options.previousFiles && options.researchAgentEnabled !== false && preflightDecision.runResearch) {
       const researchContext = await this.runResearchPhase(ctx, options.prompt, userMessage,
         async (researchPrompt, researchTools) => {
           const MAX_RESEARCH_TURNS = 3;

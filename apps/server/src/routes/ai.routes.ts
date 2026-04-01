@@ -424,6 +424,9 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
           },
           onQuestionRequest: (requestId, questions, context) => {
               res.write(`data: ${JSON.stringify({ type: 'question_request', requestId, questions, context })}\n\n`);
+          },
+          onPreflightDecision: (decision) => {
+              res.write(`data: ${JSON.stringify({ type: 'preflight_decision', decision })}\n\n`);
           }
       });
       

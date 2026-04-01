@@ -136,10 +136,48 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       buildCommand,
     };
 
-    const effort = options.reasoningEffort || 'high';
+    let effort = options.reasoningEffort || 'high';
+
+    // Preflight router: lightweight LLM call to decide how to handle this request
+    // Re-use skill names from addSkillTools (called above), which already populated the registry
+    const availableSkills = skills.map(s => s.name);
+    const preflightDecision = await this.runPreflight(
+      options.prompt, history, contextSummary, availableSkills,
+      async (systemPrompt, userMsg) => {
+        // Use a fast, low-cost model for routing decisions
+        const routerModel = 'claude-haiku-4-5-20251001';
+        const result = await anthropic.messages.create({
+          model: routerModel,
+          max_tokens: 256,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userMsg }],
+        });
+        return (result.content[0] as any)?.text || '';
+      }
+    );
+
+    // Notify client of preflight decision (topic shift, context suggestions)
+    callbacks.onPreflightDecision?.(preflightDecision);
+
+    // Apply reasoning effort from preflight (user override takes precedence)
+    if (!options.reasoningEffort && preflightDecision.reasoningEffort) {
+      effort = preflightDecision.reasoningEffort;
+    }
+
+    // Apply skill hint from preflight (only if no explicit forced skill)
+    if (preflightDecision.skillHint && !options.forcedSkill) {
+      const hintedSkill = skillRegistry.getSkill(preflightDecision.skillHint);
+      if (hintedSkill) {
+        enrichedUserMessage += `\n\n[SYSTEM INJECTION] The preflight router detected that the '${hintedSkill.name}' skill is relevant. You MUST follow these instructions:\n${hintedSkill.instructions}`;
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg?.role === 'user' && lastMsg.content?.[0]?.type === 'text') {
+          lastMsg.content[0].text = enrichedUserMessage;
+        }
+      }
+    }
 
     // Research phase: LLM-based agent reads relevant files before main loop
-    if (options.previousFiles && options.researchAgentEnabled !== false) {
+    if (options.previousFiles && options.researchAgentEnabled !== false && preflightDecision.runResearch) {
       const researchContext = await this.runResearchPhase(ctx, options.prompt, userMessage,
         async (researchPrompt, researchTools) => {
           const MAX_RESEARCH_TURNS = 3;

@@ -59,6 +59,15 @@ export interface TokenUsage {
   cacheReadInputTokens?: number;
 }
 
+export interface PreflightDecision {
+  runResearch: boolean;        // should the research agent analyze the codebase?
+  topicShift: boolean;         // is this a new topic vs continuation of prior work?
+  suggestClearContext: boolean; // recommend clearing conversation history?
+  reasoningEffort: 'low' | 'medium' | 'high';
+  skillHint?: string;          // pre-detected skill to activate (e.g. 'angular-expert')
+  reasoning?: string;          // brief explanation of the decision (for logging)
+}
+
 export interface StreamCallbacks {
   onText?: (text: string) => void;
   onToolStart?: (index: number, name: string) => void;
@@ -73,6 +82,8 @@ export interface StreamCallbacks {
   onScreenshotRequest?: (requestId: string) => void;
   // Question request callback - sends question request to client via SSE
   onQuestionRequest?: (requestId: string, questions: Question[], context?: string) => void;
+  // Preflight decision callback - notifies client of routing decisions (topic shift, context suggestions)
+  onPreflightDecision?: (decision: PreflightDecision) => void;
 }
 
 export interface LLMProvider {
