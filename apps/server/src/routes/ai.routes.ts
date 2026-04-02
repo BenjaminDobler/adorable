@@ -387,11 +387,11 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
           kitLessonsEnabled: userSettings.kitLessonsEnabled !== false,
           cdpEnabled,
           figmaLiveConnected,
-          skipVisualEditingIds: isExternalProject,
+          skipVisualEditingIds: isExternalProject || process.env['ADORABLE_DESKTOP_MODE'] === 'true',
           selectedApp: isExternalProject ? selectedApp : undefined,
           previewRoute: previewRoute || undefined,
-          buildCommand: isExternalProject
-            ? (selectedApp ? `npx @richapps/ong build --project ${selectedApp}` : 'npx @richapps/ong build')
+          buildCommand: process.env['ADORABLE_DESKTOP_MODE'] === 'true'
+            ? (isExternalProject && selectedApp ? `npx @richapps/ong build --project ${selectedApp}` : 'npx @richapps/ong build')
             : 'npm run build',
           researchAgentEnabled: userSettings.researchAgentEnabled !== false, // default: on
           reviewAgentEnabled: userSettings.reviewAgentEnabled !== false, // default: on
