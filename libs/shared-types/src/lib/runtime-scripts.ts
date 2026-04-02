@@ -103,11 +103,383 @@ export const RUNTIME_SCRIPTS = `
     // Visual Inspector Script
     (function() {
       let active = false;
+      let measureMode = false;
       let overlay;
       let selectionOverlay;
       let selectedElement = null;
       let clickTimeout = null;
       let pendingClickEvent = null;
+
+      // ─── Measurement Overlay Helpers ───
+      let measureContainer = null;
+
+      function ensureMeasureContainer() {
+        if (document.getElementById('__measure-overlay')) return document.getElementById('__measure-overlay');
+        measureContainer = document.createElement('div');
+        measureContainer.id = '__measure-overlay';
+        measureContainer.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:999997;';
+        document.body.appendChild(measureContainer);
+        return measureContainer;
+      }
+
+      function clearMeasureOverlay() {
+        const c = document.getElementById('__measure-overlay');
+        if (c) c.innerHTML = '';
+      }
+
+      function createPill(text, color, x, y) {
+        const pill = document.createElement('div');
+        pill.style.cssText = 'position:fixed;padding:1px 5px;border-radius:3px;font-size:10px;font-family:system-ui,sans-serif;font-weight:600;white-space:nowrap;pointer-events:none;line-height:14px;z-index:999999;';
+        pill.style.background = color;
+        pill.style.color = '#fff';
+        pill.style.left = x + 'px';
+        pill.style.top = y + 'px';
+        pill.textContent = text;
+        return pill;
+      }
+
+      function createLine(x1, y1, x2, y2, color, dashed) {
+        const line = document.createElement('div');
+        const isVert = Math.abs(x2 - x1) < Math.abs(y2 - y1);
+        if (isVert) {
+          const top = Math.min(y1, y2);
+          const h = Math.abs(y2 - y1);
+          line.style.cssText = 'position:fixed;pointer-events:none;z-index:999998;';
+          line.style.left = x1 + 'px';
+          line.style.top = top + 'px';
+          line.style.width = '1px';
+          line.style.height = h + 'px';
+          line.style.background = color;
+          if (dashed) { line.style.background = 'none'; line.style.borderLeft = '1px dashed ' + color; }
+        } else {
+          const left = Math.min(x1, x2);
+          const w = Math.abs(x2 - x1);
+          line.style.cssText = 'position:fixed;pointer-events:none;z-index:999998;';
+          line.style.left = left + 'px';
+          line.style.top = y1 + 'px';
+          line.style.width = w + 'px';
+          line.style.height = '1px';
+          line.style.background = color;
+          if (dashed) { line.style.background = 'none'; line.style.borderTop = '1px dashed ' + color; }
+        }
+        return line;
+      }
+
+      function createCap(x, y, isVertical, color) {
+        const cap = document.createElement('div');
+        cap.style.cssText = 'position:fixed;pointer-events:none;z-index:999998;background:' + color + ';';
+        if (isVertical) {
+          cap.style.left = (x - 3) + 'px';
+          cap.style.top = y + 'px';
+          cap.style.width = '7px';
+          cap.style.height = '1px';
+        } else {
+          cap.style.left = x + 'px';
+          cap.style.top = (y - 3) + 'px';
+          cap.style.width = '1px';
+          cap.style.height = '7px';
+        }
+        return cap;
+      }
+
+      function createBox(x, y, w, h, color) {
+        const box = document.createElement('div');
+        box.style.cssText = 'position:fixed;pointer-events:none;z-index:999997;';
+        box.style.left = x + 'px';
+        box.style.top = y + 'px';
+        box.style.width = w + 'px';
+        box.style.height = h + 'px';
+        box.style.background = color;
+        return box;
+      }
+
+      // Show width x height near element
+      function showElementDimensions(container, rect) {
+        const text = Math.round(rect.width) + ' × ' + Math.round(rect.height);
+        const pill = createPill(text, '#2196F3', rect.left + rect.width / 2 - 20, rect.bottom + 4);
+        container.appendChild(pill);
+      }
+
+      // Distance guides between selected and hovered rects
+      function showDistanceGuides(container, selRect, hovRect) {
+        const color = '#FF4081';
+        // Horizontal distance
+        const selCenterY = selRect.top + selRect.height / 2;
+        const hovCenterY = hovRect.top + hovRect.height / 2;
+        const selCenterX = selRect.left + selRect.width / 2;
+        const hovCenterX = hovRect.left + hovRect.width / 2;
+
+        // Vertical gap (no Y overlap)
+        if (selRect.bottom <= hovRect.top) {
+          const dist = Math.round(hovRect.top - selRect.bottom);
+          const x = Math.min(selCenterX, hovCenterX);
+          container.appendChild(createLine(x, selRect.bottom, x, hovRect.top, color, false));
+          container.appendChild(createCap(x, selRect.bottom, false, color));
+          container.appendChild(createCap(x, hovRect.top, false, color));
+          if (dist > 0) container.appendChild(createPill(dist + 'px', color, x + 4, selRect.bottom + (hovRect.top - selRect.bottom) / 2 - 8));
+        } else if (hovRect.bottom <= selRect.top) {
+          const dist = Math.round(selRect.top - hovRect.bottom);
+          const x = Math.min(selCenterX, hovCenterX);
+          container.appendChild(createLine(x, hovRect.bottom, x, selRect.top, color, false));
+          container.appendChild(createCap(x, hovRect.bottom, false, color));
+          container.appendChild(createCap(x, selRect.top, false, color));
+          if (dist > 0) container.appendChild(createPill(dist + 'px', color, x + 4, hovRect.bottom + (selRect.top - hovRect.bottom) / 2 - 8));
+        }
+
+        // Horizontal gap (no X overlap)
+        if (selRect.right <= hovRect.left) {
+          const dist = Math.round(hovRect.left - selRect.right);
+          const y = Math.min(selCenterY, hovCenterY);
+          container.appendChild(createLine(selRect.right, y, hovRect.left, y, color, false));
+          container.appendChild(createCap(selRect.right, y, true, color));
+          container.appendChild(createCap(hovRect.left, y, true, color));
+          if (dist > 0) container.appendChild(createPill(dist + 'px', color, selRect.right + (hovRect.left - selRect.right) / 2 - 12, y - 16));
+        } else if (hovRect.right <= selRect.left) {
+          const dist = Math.round(selRect.left - hovRect.right);
+          const y = Math.min(selCenterY, hovCenterY);
+          container.appendChild(createLine(hovRect.right, y, selRect.left, y, color, false));
+          container.appendChild(createCap(hovRect.right, y, true, color));
+          container.appendChild(createCap(selRect.left, y, true, color));
+          if (dist > 0) container.appendChild(createPill(dist + 'px', color, hovRect.right + (selRect.left - hovRect.right) / 2 - 12, y - 16));
+        }
+      }
+
+      // Distances from element to parent edges
+      function showParentRelativeDistances(container, element) {
+        const parent = element.offsetParent || element.parentElement;
+        if (!parent || parent === document.body || parent === document.documentElement) return;
+        const eRect = element.getBoundingClientRect();
+        const pRect = parent.getBoundingClientRect();
+        const color = '#FF9800';
+
+        const distTop = Math.round(eRect.top - pRect.top);
+        const distBottom = Math.round(pRect.bottom - eRect.bottom);
+        const distLeft = Math.round(eRect.left - pRect.left);
+        const distRight = Math.round(pRect.right - eRect.right);
+        const cx = eRect.left + eRect.width / 2;
+        const cy = eRect.top + eRect.height / 2;
+
+        if (distTop > 0) {
+          container.appendChild(createLine(cx, pRect.top, cx, eRect.top, color, true));
+          container.appendChild(createPill(distTop + 'px', color, cx + 4, pRect.top + distTop / 2 - 8));
+        }
+        if (distBottom > 0) {
+          container.appendChild(createLine(cx, eRect.bottom, cx, pRect.bottom, color, true));
+          container.appendChild(createPill(distBottom + 'px', color, cx + 4, eRect.bottom + distBottom / 2 - 8));
+        }
+        if (distLeft > 0) {
+          container.appendChild(createLine(pRect.left, cy, eRect.left, cy, color, true));
+          container.appendChild(createPill(distLeft + 'px', color, pRect.left + distLeft / 2 - 12, cy - 16));
+        }
+        if (distRight > 0) {
+          container.appendChild(createLine(eRect.right, cy, pRect.right, cy, color, true));
+          container.appendChild(createPill(distRight + 'px', color, eRect.right + distRight / 2 - 12, cy - 16));
+        }
+      }
+
+      // Padding visualization on element
+      function showPaddingOverlay(container, element) {
+        const cs = window.getComputedStyle(element);
+        const pTop = parseFloat(cs.paddingTop) || 0;
+        const pRight = parseFloat(cs.paddingRight) || 0;
+        const pBottom = parseFloat(cs.paddingBottom) || 0;
+        const pLeft = parseFloat(cs.paddingLeft) || 0;
+        if (pTop + pRight + pBottom + pLeft === 0) return;
+
+        const rect = element.getBoundingClientRect();
+        const padColor = 'rgba(76,175,80,0.15)';
+
+        // Top
+        if (pTop > 0) {
+          container.appendChild(createBox(rect.left, rect.top, rect.width, pTop, padColor));
+          if (pTop >= 8) container.appendChild(createPill(Math.round(pTop) + '', '#4CAF50', rect.left + rect.width / 2 - 8, rect.top + pTop / 2 - 7));
+        }
+        // Bottom
+        if (pBottom > 0) {
+          container.appendChild(createBox(rect.left, rect.bottom - pBottom, rect.width, pBottom, padColor));
+          if (pBottom >= 8) container.appendChild(createPill(Math.round(pBottom) + '', '#4CAF50', rect.left + rect.width / 2 - 8, rect.bottom - pBottom / 2 - 7));
+        }
+        // Left
+        if (pLeft > 0) {
+          container.appendChild(createBox(rect.left, rect.top + pTop, pLeft, rect.height - pTop - pBottom, padColor));
+          if (pLeft >= 12) container.appendChild(createPill(Math.round(pLeft) + '', '#4CAF50', rect.left + pLeft / 2 - 6, rect.top + rect.height / 2 - 7));
+        }
+        // Right
+        if (pRight > 0) {
+          container.appendChild(createBox(rect.right - pRight, rect.top + pTop, pRight, rect.height - pTop - pBottom, padColor));
+          if (pRight >= 12) container.appendChild(createPill(Math.round(pRight) + '', '#4CAF50', rect.right - pRight / 2 - 6, rect.top + rect.height / 2 - 7));
+        }
+      }
+
+      // Gap overlays for flex/grid containers
+      function showAutoLayoutGaps(container, element) {
+        const cs = window.getComputedStyle(element);
+        const display = cs.display;
+        if (display !== 'flex' && display !== 'inline-flex' && display !== 'grid' && display !== 'inline-grid') return;
+        const children = Array.from(element.children).filter(function(c) {
+          var s = window.getComputedStyle(c);
+          return s.display !== 'none' && s.position !== 'absolute' && s.position !== 'fixed';
+        });
+        if (children.length < 2) return;
+
+        const gapColor = 'rgba(255,64,129,0.12)';
+        const labelColor = '#FF4081';
+        const isRow = display.includes('grid') || cs.flexDirection === 'row' || cs.flexDirection === 'row-reverse';
+
+        for (var i = 0; i < children.length - 1; i++) {
+          var r1 = children[i].getBoundingClientRect();
+          var r2 = children[i + 1].getBoundingClientRect();
+          if (isRow) {
+            var gapLeft = Math.min(r1.right, r2.right);
+            var gapRight = Math.max(r1.left, r2.left);
+            if (gapRight > gapLeft) {
+              var gapW = gapRight - gapLeft;
+              var gapTop = Math.min(r1.top, r2.top);
+              var gapH = Math.max(r1.bottom, r2.bottom) - gapTop;
+              container.appendChild(createBox(gapLeft, gapTop, gapW, gapH, gapColor));
+              if (gapW >= 4) container.appendChild(createPill(Math.round(gapW) + 'px', labelColor, gapLeft + gapW / 2 - 10, gapTop + gapH / 2 - 8));
+            }
+          } else {
+            var gapTop2 = Math.min(r1.bottom, r2.bottom);
+            var gapBottom2 = Math.max(r1.top, r2.top);
+            if (gapBottom2 > gapTop2) {
+              var gapH2 = gapBottom2 - gapTop2;
+              var gapLeft2 = Math.min(r1.left, r2.left);
+              var gapW2 = Math.max(r1.right, r2.right) - gapLeft2;
+              container.appendChild(createBox(gapLeft2, gapTop2, gapW2, gapH2, gapColor));
+              if (gapH2 >= 4) container.appendChild(createPill(Math.round(gapH2) + 'px', labelColor, gapLeft2 + gapW2 / 2 - 10, gapTop2 + gapH2 / 2 - 8));
+            }
+          }
+        }
+      }
+
+      // Grid/Flexbox layout overlay
+      function showLayoutOverlay(container, element) {
+        const cs = window.getComputedStyle(element);
+        const display = cs.display;
+        const rect = element.getBoundingClientRect();
+        const gridColor = '#9C27B0';
+
+        if (display === 'grid' || display === 'inline-grid') {
+          // Grid columns
+          var cols = cs.gridTemplateColumns;
+          if (cols && cols !== 'none') {
+            var colSizes = cols.split(/\\s+/);
+            var colOffset = 0;
+            var colGap = parseFloat(cs.columnGap) || 0;
+            for (var ci = 0; ci < colSizes.length; ci++) {
+              var cw = parseFloat(colSizes[ci]);
+              if (isNaN(cw)) continue;
+              colOffset += cw;
+              if (ci < colSizes.length - 1) {
+                var lx = rect.left + colOffset + colGap * ci;
+                container.appendChild(createLine(lx, rect.top, lx, rect.bottom, gridColor, true));
+                container.appendChild(createPill(Math.round(cw) + 'px', gridColor, rect.left + colOffset - cw / 2 - 12 + colGap * ci, rect.top - 16));
+                // Gap overlay
+                if (colGap > 0) {
+                  container.appendChild(createBox(lx, rect.top, colGap, rect.height, 'rgba(156,39,176,0.08)'));
+                }
+              } else {
+                container.appendChild(createPill(Math.round(cw) + 'px', gridColor, rect.left + colOffset - cw / 2 - 12 + colGap * ci, rect.top - 16));
+              }
+            }
+          }
+          // Grid rows
+          var rows = cs.gridTemplateRows;
+          if (rows && rows !== 'none') {
+            var rowSizes = rows.split(/\\s+/);
+            var rowOffset = 0;
+            var rowGap = parseFloat(cs.rowGap) || 0;
+            for (var ri = 0; ri < rowSizes.length; ri++) {
+              var rh = parseFloat(rowSizes[ri]);
+              if (isNaN(rh)) continue;
+              rowOffset += rh;
+              if (ri < rowSizes.length - 1) {
+                var ly = rect.top + rowOffset + rowGap * ri;
+                container.appendChild(createLine(rect.left, ly, rect.right, ly, gridColor, true));
+                // Gap overlay
+                if (rowGap > 0) {
+                  container.appendChild(createBox(rect.left, ly, rect.width, rowGap, 'rgba(156,39,176,0.08)'));
+                }
+              }
+            }
+          }
+        } else if (display === 'flex' || display === 'inline-flex') {
+          // Flex axis arrow
+          var dir = cs.flexDirection || 'row';
+          var arrowColor = gridColor;
+          var ax, ay, bx, by;
+          var margin = 6;
+          if (dir === 'row' || dir === 'row-reverse') {
+            ay = by = rect.top + rect.height / 2;
+            if (dir === 'row') { ax = rect.left + margin; bx = rect.right - margin; }
+            else { ax = rect.right - margin; bx = rect.left + margin; }
+          } else {
+            ax = bx = rect.left + rect.width / 2;
+            if (dir === 'column') { ay = rect.top + margin; by = rect.bottom - margin; }
+            else { ay = rect.bottom - margin; by = rect.top + margin; }
+          }
+          container.appendChild(createLine(ax, ay, bx, by, arrowColor, true));
+          // Arrowhead
+          var arrowHead = document.createElement('div');
+          arrowHead.style.cssText = 'position:fixed;pointer-events:none;z-index:999998;width:0;height:0;';
+          if (dir === 'row') {
+            arrowHead.style.left = (bx - 6) + 'px'; arrowHead.style.top = (by - 4) + 'px';
+            arrowHead.style.borderTop = '4px solid transparent'; arrowHead.style.borderBottom = '4px solid transparent';
+            arrowHead.style.borderLeft = '6px solid ' + arrowColor;
+          } else if (dir === 'row-reverse') {
+            arrowHead.style.left = bx + 'px'; arrowHead.style.top = (by - 4) + 'px';
+            arrowHead.style.borderTop = '4px solid transparent'; arrowHead.style.borderBottom = '4px solid transparent';
+            arrowHead.style.borderRight = '6px solid ' + arrowColor;
+          } else if (dir === 'column') {
+            arrowHead.style.left = (bx - 4) + 'px'; arrowHead.style.top = (by - 6) + 'px';
+            arrowHead.style.borderLeft = '4px solid transparent'; arrowHead.style.borderRight = '4px solid transparent';
+            arrowHead.style.borderTop = '6px solid ' + arrowColor;
+          } else {
+            arrowHead.style.left = (bx - 4) + 'px'; arrowHead.style.top = by + 'px';
+            arrowHead.style.borderLeft = '4px solid transparent'; arrowHead.style.borderRight = '4px solid transparent';
+            arrowHead.style.borderBottom = '6px solid ' + arrowColor;
+          }
+          container.appendChild(arrowHead);
+          // Show gaps between flex children
+          showAutoLayoutGaps(container, element);
+        }
+      }
+
+      // Main measure update — called on hover/click in measure mode
+      function updateMeasureOverlay(hoveredEl) {
+        clearMeasureOverlay();
+        if (!measureMode) return;
+        var container = ensureMeasureContainer();
+        if (!hoveredEl || hoveredEl === document.body || hoveredEl === document.documentElement) return;
+
+        var hovRect = hoveredEl.getBoundingClientRect();
+        showElementDimensions(container, hovRect);
+
+        if (selectedElement && selectedElement !== hoveredEl) {
+          var selRect = selectedElement.getBoundingClientRect();
+          showDistanceGuides(container, selRect, hovRect);
+        }
+
+        if (selectedElement && selectedElement === hoveredEl) {
+          showParentRelativeDistances(container, hoveredEl);
+        }
+
+        showPaddingOverlay(container, hoveredEl);
+        showAutoLayoutGaps(container, hoveredEl);
+      }
+
+      function updateMeasureForSelection(element) {
+        clearMeasureOverlay();
+        if (!measureMode || !element) return;
+        var container = ensureMeasureContainer();
+        var rect = element.getBoundingClientRect();
+        showElementDimensions(container, rect);
+        showParentRelativeDistances(container, element);
+        showPaddingOverlay(container, element);
+        showLayoutOverlay(container, element);
+      }
+      // ─── End Measurement Helpers ───
 
       function createOverlay() {
         if (document.getElementById('inspector-overlay')) return;
@@ -262,11 +634,23 @@ export const RUNTIME_SCRIPTS = `
             // Inspector turned off - hide hover overlay and selection
             if (overlay) overlay.style.display = 'none';
             hideSelectionOverlay();
+            if (!measureMode) clearMeasureOverlay();
+          }
+        }
+
+        if (event.data.type === 'TOGGLE_MEASURE') {
+          measureMode = event.data.enabled;
+          if (!measureMode) {
+            clearMeasureOverlay();
+          } else {
+            // If there's a selected element, show its layout overlay
+            if (selectedElement) updateMeasureForSelection(selectedElement);
           }
         }
 
         if (event.data.type === 'CLEAR_SELECTION') {
           hideSelectionOverlay();
+          clearMeasureOverlay();
         }
 
         if (event.data.type === 'RELOAD_REQ') {
@@ -493,8 +877,10 @@ export const RUNTIME_SCRIPTS = `
 
       // Inspector Events
       document.addEventListener('mouseover', (e) => {
-        if (!active) return;
+        if (!active && !measureMode) return;
         const target = e.target;
+        // Skip measure overlay elements
+        if (target.closest && target.closest('#__measure-overlay')) return;
         const overlayEl = document.getElementById('inspector-overlay');
         if (!overlayEl || target === overlayEl || target === document.body || target === document.documentElement) return;
 
@@ -504,12 +890,15 @@ export const RUNTIME_SCRIPTS = `
         overlayEl.style.width = rect.width + 'px';
         overlayEl.style.height = rect.height + 'px';
         overlayEl.style.display = 'block';
+
+        if (measureMode) updateMeasureOverlay(target);
       });
 
       // Hide inspector hover overlay when mouse leaves the preview window
       document.addEventListener('mouseleave', () => {
         const overlayEl = document.getElementById('inspector-overlay');
         if (overlayEl) overlayEl.style.display = 'none';
+        if (measureMode) clearMeasureOverlay();
       });
 
       document.addEventListener('click', (e) => {
@@ -607,6 +996,9 @@ export const RUNTIME_SCRIPTS = `
 
         // Show persistent selection overlay
         showSelectionOverlay(target);
+
+        // Update measure overlay for newly selected element
+        if (measureMode) updateMeasureForSelection(target);
 
         window.parent.postMessage({
           type: 'ELEMENT_SELECTED',

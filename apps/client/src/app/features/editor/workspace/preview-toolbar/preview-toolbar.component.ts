@@ -9,6 +9,7 @@ import { Component, input, output } from '@angular/core';
 export class PreviewToolbarComponent {
   previewDevice = input<'desktop' | 'tablet' | 'phone'>('desktop');
   isInspectionActive = input(false);
+  isMeasureActive = input(false);
   isAnnotating = input(false);
   isMultiAnnotating = input(false);
   isFullscreen = input(false);
@@ -17,6 +18,7 @@ export class PreviewToolbarComponent {
 
   previewDeviceChange = output<'desktop' | 'tablet' | 'phone'>();
   inspectionToggled = output<void>();
+  measureToggled = output<void>();
   annotationToggled = output<void>();
   multiAnnotationToggled = output<void>();
   screenshotRequested = output<void>();

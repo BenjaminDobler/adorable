@@ -145,6 +145,7 @@ export class WorkspaceComponent implements AfterViewChecked {
   isResizingSidebar = false;
 
   isInspectionActive = signal(false);
+  isMeasureActive = signal(false);
   isAnnotating = signal(false);
   isMultiAnnotating = signal(false);
   visualEditorData = signal<any>(null);
@@ -534,7 +535,14 @@ export class WorkspaceComponent implements AfterViewChecked {
     }
 
     // Close properties panel when inspector is toggled off
-    if (!isActive) this.visualEditorData.set(null);
+    if (!isActive) {
+      this.visualEditorData.set(null);
+      // Also turn off measure mode since it depends on inspector
+      if (this.isMeasureActive()) {
+        this.isMeasureActive.set(false);
+        this.sendToPreview({ type: 'TOGGLE_MEASURE', enabled: false });
+      }
+    }
 
     if (this.isPreviewUndocked()) {
       // Proxy to preview shell window
@@ -543,6 +551,24 @@ export class WorkspaceComponent implements AfterViewChecked {
     } else {
       this.sendToPreview({ type: 'TOGGLE_INSPECTOR', enabled: isActive });
     }
+  }
+
+  toggleMeasure() {
+    const newState = !this.isMeasureActive();
+    this.isMeasureActive.set(newState);
+
+    if (newState) {
+      // Measure mode requires inspector to be active for hover/click
+      if (!this.isInspectionActive()) {
+        this.isInspectionActive.set(true);
+        this.sendToPreview({ type: 'TOGGLE_INSPECTOR', enabled: true });
+      }
+      // Disable annotation modes
+      if (this.isAnnotating()) this.isAnnotating.set(false);
+      if (this.isMultiAnnotating()) this.deactivateMultiAnnotation();
+    }
+
+    this.sendToPreview({ type: 'TOGGLE_MEASURE', enabled: newState });
   }
 
   toggleAnnotation() {

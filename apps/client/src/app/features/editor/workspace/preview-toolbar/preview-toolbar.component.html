@@ -50,6 +50,29 @@
       <path d="M7 7l5.5 13 2-5 5-2L7 7z" fill="currentColor" stroke="currentColor" stroke-width="1.5"></path>
     </svg>
   </button>
+  <!-- Measure -->
+  <button
+    [class.active]="isMeasureActive()"
+    (click)="measureToggled.emit()"
+    title="Measure Distances & Layout"
+  >
+    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2 2h6v2H4v4H2z"></path>
+      <path d="M22 2h-6v2h4v4h2z"></path>
+      <path d="M2 22h6v-2H4v-4H2z"></path>
+      <path d="M22 22h-6v-2h4v-4h2z"></path>
+      <line x1="12" y1="6" x2="12" y2="18"></line>
+      <line x1="6" y1="12" x2="18" y2="12"></line>
+      <line x1="12" y1="6" x2="10" y2="8"></line>
+      <line x1="12" y1="6" x2="14" y2="8"></line>
+      <line x1="12" y1="18" x2="10" y2="16"></line>
+      <line x1="12" y1="18" x2="14" y2="16"></line>
+      <line x1="6" y1="12" x2="8" y2="10"></line>
+      <line x1="6" y1="12" x2="8" y2="14"></line>
+      <line x1="18" y1="12" x2="16" y2="10"></line>
+      <line x1="18" y1="12" x2="16" y2="14"></line>
+    </svg>
+  </button>
   <!-- Screenshot -->
   <button
     (click)="screenshotRequested.emit()"
