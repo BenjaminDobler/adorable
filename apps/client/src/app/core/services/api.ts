@@ -76,6 +76,10 @@ export class ApiService {
     return this.http.post<any>(`${this.apiUrl}/projects`, { name, files, messages, id, thumbnail, figmaImports, selectedKitId, cloudProjectId, cloudCommitSha, cloudLastSyncAt });
   }
 
+  setProjectKit(projectId: string, kitId: string | null) {
+    return this.http.patch<any>(`${this.apiUrl}/projects/set-kit`, { projectId, kitId });
+  }
+
   listProjects() {
     return this.http.get<any[]>(`${this.apiUrl}/projects`);
   }

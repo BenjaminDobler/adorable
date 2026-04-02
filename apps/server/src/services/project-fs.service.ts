@@ -177,12 +177,13 @@ export class ProjectFsService {
   }
 
   /**
-   * Symlink {projectPath}/.adorable → {kitsDir}/{kitId}/.adorable
+   * Symlink {targetDir}/.adorable → {kitsDir}/{kitId}/.adorable
    * so kit docs are always visible in the project directory.
+   * For external projects, pass the externalPath as targetDir.
    * Call this when a kit is assigned or changed on a project.
    */
-  async linkKit(projectId: string, kitId: string | null): Promise<void> {
-    const projectPath = this.getProjectPath(projectId);
+  async linkKit(projectId: string, kitId: string | null, targetDir?: string): Promise<void> {
+    const projectPath = targetDir || this.getProjectPath(projectId);
     const symlinkPath = path.join(projectPath, '.adorable');
 
     // Remove existing symlink or directory

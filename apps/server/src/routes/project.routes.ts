@@ -282,6 +282,38 @@ router.post('/open-external', async (req: any, res) => {
   }
 });
 
+// ---- Set Kit for Project ----
+router.patch('/set-kit', async (req: any, res) => {
+  const user = req.user;
+  const { projectId, kitId } = req.body;
+  if (!projectId) return res.status(400).json({ error: 'projectId is required' });
+
+  try {
+    const project = await prisma.project.findFirst({ where: { id: projectId, userId: user.id } });
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { selectedKitId: kitId || null },
+    });
+
+    // Link kit docs — for external projects, symlink into the external path;
+    // for regular projects, symlink into storage/projects/{id}/
+    const linkTarget = project.externalPath || undefined;
+    try {
+      await projectFsService.linkKit(projectId, kitId || null, linkTarget);
+    } catch (e) {
+      console.warn('[Set Kit] Kit symlink failed (non-fatal):', e);
+    }
+
+    console.log(`[Set Kit] Project ${projectId} → kit ${kitId || 'none'}`);
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('[Set Kit] Error:', error);
+    res.status(500).json({ error: 'Failed to update kit' });
+  }
+});
+
 // ---- Cloud Sync Endpoints ----
 // These must be defined BEFORE /:id routes to avoid Express matching "sync-status" as an :id param.
 
@@ -618,6 +650,7 @@ router.get('/:id', async (req: any, res) => {
       }
     }
 
+    console.log(`[Load Project] ${project.id} selectedKitId=${selectedKitId || 'none'} (db=${project.selectedKitId || 'none'})`);
     res.json({
         ...project,
         selectedKitId,

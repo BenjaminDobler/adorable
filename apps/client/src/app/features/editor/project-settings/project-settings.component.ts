@@ -5,6 +5,7 @@ import { ContainerEngine } from '../../../core/services/container-engine';
 import { NativeContainerEngine } from '../../../core/services/native-container.engine';
 import { ProjectService } from '../../../core/services/project';
 import { ToastService } from '../../../core/services/toast';
+import { ApiService } from '../../../core/services/api';
 
 @Component({
   selector: 'app-project-settings',
@@ -13,6 +14,22 @@ import { ToastService } from '../../../core/services/toast';
   template: `
     <div class="settings-panel">
       <div class="settings-body">
+        <section>
+          <h4>
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+            </svg>
+            Component Kit
+          </h4>
+          <p class="hint">Associate a component kit for design system docs, system prompts, and component guidance.</p>
+          <select class="kit-select" [ngModel]="selectedKitId()" (ngModelChange)="onKitChange($event)">
+            <option value="">None</option>
+            @for (kit of availableKits(); track kit.id) {
+              <option [value]="kit.id">{{ kit.name }}</option>
+            }
+          </select>
+        </section>
+
         <section>
           <h4>
             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
@@ -223,6 +240,20 @@ import { ToastService } from '../../../core/services/toast';
       align-items: center;
       gap: 0.75rem;
     }
+    .kit-select {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      background: var(--bg-surface-2, #1a1a1f);
+      border: 1px solid var(--panel-border, rgba(255,255,255,0.06));
+      border-radius: 6px;
+      color: var(--text-primary, #f0f0f2);
+      font-size: 0.8125rem;
+      cursor: pointer;
+      &:focus {
+        outline: none;
+        border-color: var(--accent-color, #34d399);
+      }
+    }
     .port-input {
       width: 120px;
       padding: 0.5rem 0.75rem;
@@ -276,6 +307,7 @@ export class ProjectSettingsComponent {
   private containerEngine = inject(ContainerEngine);
   private projectService = inject(ProjectService);
   private toastService = inject(ToastService);
+  private apiService = inject(ApiService);
 
   localStorageEntries = signal<{ key: string; value: string }[]>([]);
   cookieEntries = signal<{ key: string; value: string }[]>([]);
@@ -285,8 +317,37 @@ export class ProjectSettingsComponent {
   autoDetectedPrefix = computed(() => this.projectService.detectedConfig()?.tailwindPrefix || '');
   saving = signal(false);
 
+  availableKits = signal<{ id: string; name: string }[]>([]);
+  selectedKitId = computed(() => this.projectService.selectedKitId() || '');
+
   constructor() {
     this.load();
+    this.loadKits();
+  }
+
+  private loadKits() {
+    this.apiService.getKits().subscribe({
+      next: (kits) => this.availableKits.set(kits),
+    });
+  }
+
+  onKitChange(kitId: string) {
+    const projectId = this.projectService.projectId();
+    console.log('[ProjectSettings] onKitChange called:', { kitId, projectId });
+    if (!projectId) return;
+
+    const newKitId = kitId || null;
+    this.projectService.selectedKitId.set(newKitId);
+    this.apiService.setProjectKit(projectId, newKitId).subscribe({
+      next: (result) => {
+        console.log('[ProjectSettings] Kit saved successfully:', result);
+        this.toastService.show(kitId ? 'Kit associated with project' : 'Kit removed from project', 'success');
+      },
+      error: (err) => {
+        console.error('[ProjectSettings] Failed to save kit:', err);
+        this.toastService.show('Failed to update kit: ' + (err.error?.error || err.message), 'error');
+      },
+    });
   }
 
   private getSelectedApp(): string | undefined {
