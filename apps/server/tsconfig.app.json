@@ -6,5 +6,5 @@
     "types": ["node", "express"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.spec.ts", "src/**/*.test.ts", "src/test/**"]
+  "exclude": ["src/**/*.spec.ts", "src/**/*.test.ts", "src/test/**", "src/assets/default-kit/template/**"]
 }

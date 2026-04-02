@@ -9,8 +9,11 @@
  * consumer code sees the same object shape.
  */
 
+import * as path from 'path';
+import * as fs from 'fs/promises';
 import { prisma } from '../db/prisma';
 import { Kit } from '../providers/kits/types';
+import { kitFsService } from './kit-fs.service';
 
 type KitRow = {
   id: string;
@@ -291,6 +294,83 @@ class KitService {
 
     if (totalMigrated > 0) {
       console.log(`[Kit Migration] Migrated ${totalMigrated} kit(s) from user settings to Kit table`);
+    }
+  }
+  /**
+   * Seed the built-in default kit from assets.
+   * Reads kit.json metadata and template files from the assets directory,
+   * creates/updates the Kit DB row, and syncs template files to storage/kits/.
+   * Idempotent — safe to call on every startup.
+   */
+  async seedDefaultKit(): Promise<void> {
+    // Resolve asset path (dev source or prod dist)
+    const devPath = path.join(process.cwd(), 'apps/server/src/assets/default-kit');
+    const prodPath = path.join(__dirname, 'assets/default-kit');
+
+    let assetPath: string | null = null;
+    for (const p of [devPath, prodPath]) {
+      try {
+        await fs.access(path.join(p, 'kit.json'));
+        assetPath = p;
+        break;
+      } catch {
+        // Try next path
+      }
+    }
+
+    if (!assetPath) {
+      console.log('[Default Kit] No default kit assets found, skipping seed');
+      return;
+    }
+
+    // Read kit metadata
+    const kitMeta = JSON.parse(await fs.readFile(path.join(assetPath, 'kit.json'), 'utf-8'));
+    const kitId = kitMeta.id;
+
+    // Check if already exists in DB
+    const existing = await prisma.kit.findUnique({ where: { id: kitId } });
+
+    // Read template files from assets into FileTree format
+    const templateFiles = await kitFsService.readDirAsFileTreeFromPath(path.join(assetPath, 'template'));
+
+    const config = {
+      template: {
+        type: kitMeta.template?.type || 'default',
+        angularVersion: kitMeta.template?.angularVersion || '21',
+        files: {},
+        storedOnDisk: true,
+      },
+      resources: [],
+      mcpServerIds: [],
+    };
+
+    if (existing) {
+      // Update: sync template files to disk, update DB metadata
+      await kitFsService.writeKitTemplateFiles(kitId, templateFiles);
+      await prisma.kit.update({
+        where: { id: kitId },
+        data: {
+          name: kitMeta.name,
+          description: kitMeta.description || null,
+          config: JSON.stringify(config),
+        },
+      });
+      console.log(`[Default Kit] Updated "${kitMeta.name}" (${kitId})`);
+    } else {
+      // Create: write template files to disk, insert DB row
+      await kitFsService.writeKitTemplateFiles(kitId, templateFiles);
+      await prisma.kit.create({
+        data: {
+          id: kitId,
+          name: kitMeta.name,
+          description: kitMeta.description || null,
+          isGlobal: true,
+          config: JSON.stringify(config),
+          userId: null,
+          teamId: null,
+        },
+      });
+      console.log(`[Default Kit] Created "${kitMeta.name}" (${kitId})`);
     }
   }
 }

@@ -1,0 +1,9 @@
+{
+  "id": "default-angular-starter",
+  "name": "Angular Starter",
+  "description": "Minimal Angular 21 project with standalone components, signals, routing, and SCSS. Ready for AI-assisted development.",
+  "template": {
+    "type": "default",
+    "angularVersion": "21"
+  }
+}

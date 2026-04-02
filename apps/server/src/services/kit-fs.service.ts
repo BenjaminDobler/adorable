@@ -280,6 +280,14 @@ export class KitFsService {
     return this.readDirAsFileTree(templatePath);
   }
 
+  /**
+   * Read a directory into FileTree format from an arbitrary absolute path.
+   * Used by kit seeding to read template files from the assets directory.
+   */
+  async readDirAsFileTreeFromPath(dirPath: string): Promise<FileTree> {
+    return this.readDirAsFileTree(dirPath);
+  }
+
   private async readDirAsFileTree(dirPath: string): Promise<FileTree> {
     const result: FileTree = {};
     let entries;

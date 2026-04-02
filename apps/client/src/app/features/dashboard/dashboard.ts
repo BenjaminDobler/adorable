@@ -264,6 +264,12 @@ export class DashboardComponent {
       this.toastService.show('No kits available. An admin must create at least one global kit before projects can be created.', 'info');
       return;
     }
+    // If only one kit available, skip selection and use it directly
+    const kits = this.allKits();
+    if (kits.length === 1) {
+      this.createProjectWithKit(kits[0].id);
+      return;
+    }
     // Show kit selection modal
     this.showKitSelection.set(true);
   }
