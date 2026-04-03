@@ -330,7 +330,6 @@ export class TemplateService {
     modification: { type: 'text' | 'style' | 'class'; value: string; property?: string },
   ): ModificationResult | null {
     const ann = fingerprint.ongAnnotation!;
-    console.log(`[TemplateService] ong fast path: ${ann.file}:${ann.line}:${ann.col} | top-level keys: ${Object.keys(files).slice(0, 10).join(', ')}`);
 
     // Check if the file is a .ts file (inline template) or .html (external template)
     const isInline = ann.file.endsWith('.ts');
@@ -370,7 +369,9 @@ export class TemplateService {
       return null;
     }
 
-    const match = this.findNodeAtPosition(rootNodes, ann.line, ann.col, isInline ? templateOffset : undefined, isInline ? tsContent : undefined);
+    // ONG annotations are always relative to the template content (both for inline and external),
+    // and we parse templateContent (not the full .ts file), so no offset adjustment is needed.
+    const match = this.findNodeAtPosition(rootNodes, ann.line, ann.col);
     if (!match) {
       console.warn(`[TemplateService] ong fast path: no node at ${ann.line}:${ann.col}`);
       return null;
@@ -431,16 +432,10 @@ export class TemplateService {
   /**
    * Find a template AST node at an exact line:col position.
    */
-  private findNodeAtPosition(nodes: any[], targetLine: number, targetCol: number, templateOffset?: number, tsContent?: string): any | null {
-    // Calculate the line offset for inline templates
-    let lineOffset = 0;
-    if (templateOffset !== undefined && tsContent) {
-      lineOffset = (tsContent.substring(0, templateOffset).match(/\n/g) || []).length;
-    }
-
+  private findNodeAtPosition(nodes: any[], targetLine: number, targetCol: number): any | null {
     for (const node of nodes) {
       if (node.name && node.sourceSpan) {
-        const nodeLine = node.sourceSpan.start.line + 1 + lineOffset;
+        const nodeLine = node.sourceSpan.start.line + 1;
         const nodeCol = node.sourceSpan.start.col;
 
         if (nodeLine === targetLine && nodeCol === targetCol) {
@@ -450,7 +445,7 @@ export class TemplateService {
 
       // Recurse into children and block children
       if (node.children) {
-        const found = this.findNodeAtPosition(node.children, targetLine, targetCol, templateOffset, tsContent);
+        const found = this.findNodeAtPosition(node.children, targetLine, targetCol);
         if (found) return found;
       }
     }
