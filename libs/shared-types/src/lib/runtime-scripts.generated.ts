@@ -468,6 +468,7 @@ export const RUNTIME_SCRIPTS = `
       const COMPARE_TOLERANCE = 2;
       function requestFigmaComparison(element) {
         const figmaNodeId = element.getAttribute("data-figma-node");
+        console.log("[Inspector] requestFigmaComparison:", figmaNodeId, "| measureMode:", measureMode);
         if (!figmaNodeId || !measureMode) return;
         const rect = element.getBoundingClientRect();
         const cs = window.getComputedStyle(element);

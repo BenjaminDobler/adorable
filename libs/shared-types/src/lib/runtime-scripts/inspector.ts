@@ -393,6 +393,7 @@
 
   function requestFigmaComparison(element: HTMLElement): void {
     const figmaNodeId = element.getAttribute('data-figma-node');
+    console.log('[Inspector] requestFigmaComparison:', figmaNodeId, '| measureMode:', measureMode);
     if (!figmaNodeId || !measureMode) return;
 
     const rect = element.getBoundingClientRect();

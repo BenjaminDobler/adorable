@@ -1,40 +1,76 @@
 <div class="preview-toolbar">
-  <!-- Responsive preview buttons -->
-  <div class="device-buttons">
-    <button
-      [class.active]="previewDevice() === 'phone'"
-      (click)="previewDeviceChange.emit('phone')"
-      title="Phone (375px)"
-    >
-      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-        <line x1="12" y1="18" x2="12.01" y2="18"></line>
-      </svg>
-    </button>
-    <button
-      [class.active]="previewDevice() === 'tablet'"
-      (click)="previewDeviceChange.emit('tablet')"
-      title="Tablet (768px)"
-    >
-      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
-        <line x1="12" y1="18" x2="12.01" y2="18"></line>
-      </svg>
-    </button>
-    <button
-      [class.active]="previewDevice() === 'desktop'"
-      (click)="previewDeviceChange.emit('desktop')"
-      title="Desktop (100%)"
-    >
-      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-        <line x1="8" y1="21" x2="16" y2="21"></line>
-        <line x1="12" y1="17" x2="12" y2="21"></line>
-      </svg>
-    </button>
-  </div>
+  <!-- Device Toolbar Toggle -->
+  <button
+    [class.active]="deviceToolbarOpen()"
+    (click)="toggleDeviceToolbar()"
+    title="Toggle Device Toolbar"
+  >
+    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+      <line x1="12" y1="18" x2="12.01" y2="18"></line>
+    </svg>
+  </button>
 
-  <div class="toolbar-separator"></div>
+  <!-- Device Dimensions Bar (Chrome DevTools style) -->
+  @if (deviceToolbarOpen()) {
+    <div class="device-bar">
+      <!-- Preset Dropdown -->
+      <select
+        class="device-select"
+        [value]="selectedPresetLabel()"
+        (change)="selectPreset(presets[$any($event.target).selectedIndex])"
+      >
+        @for (preset of presets; track preset.label) {
+          <option [selected]="preset.label === selectedPresetLabel()">{{ preset.label }}</option>
+        }
+      </select>
+
+      <!-- Width x Height inputs -->
+      <div class="dimension-inputs">
+        <input
+          type="number"
+          class="dim-input"
+          [value]="customWidth() ?? ''"
+          (change)="onWidthChange($any($event.target).value)"
+          placeholder="W"
+          title="Width (px)"
+          min="100"
+          max="3840"
+        >
+        <button class="swap-btn" (click)="swapDimensions()" title="Swap dimensions">
+          <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none">
+            <polyline points="7 16 3 12 7 8"></polyline>
+            <polyline points="17 8 21 12 17 16"></polyline>
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+          </svg>
+        </button>
+        <input
+          type="number"
+          class="dim-input"
+          [value]="customHeight() ?? ''"
+          (change)="onHeightChange($any($event.target).value)"
+          placeholder="H"
+          title="Height (px)"
+          min="100"
+          max="3840"
+        >
+      </div>
+
+      <!-- Scale -->
+      <div class="scale-control">
+        <select class="scale-select" (change)="setScale(+$any($event.target).value)">
+          <option value="0" [selected]="scale() === 0">Fit</option>
+          <option value="0.5" [selected]="scale() === 0.5">50%</option>
+          <option value="0.75" [selected]="scale() === 0.75">75%</option>
+          <option value="1" [selected]="scale() === 1">100%</option>
+          <option value="1.25" [selected]="scale() === 1.25">125%</option>
+          <option value="1.5" [selected]="scale() === 1.5">150%</option>
+        </select>
+      </div>
+    </div>
+  }
+
+  <div class="toolbar-spacer"></div>
 
   <!-- Inspect -->
   <button
@@ -79,12 +115,10 @@
     title="Screenshot Selection"
   >
     <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-      <!-- Corner brackets -->
       <path d="M2 7V2h5"></path>
       <path d="M17 2h5v5"></path>
       <path d="M22 17v5h-5"></path>
       <path d="M7 22H2v-5"></path>
-      <!-- Camera body -->
       <rect x="6" y="9" width="12" height="9" rx="1"></rect>
       <path d="M9 9l1-2h4l1 2"></path>
       <circle cx="12" cy="13.5" r="2.5"></circle>

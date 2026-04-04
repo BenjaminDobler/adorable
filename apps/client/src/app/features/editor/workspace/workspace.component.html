@@ -330,6 +330,7 @@
           [isUndocked]="isPreviewUndocked()"
           [isDesktop]="isDesktop()"
           (previewDeviceChange)="previewDevice.set($event)"
+          (dimensionsChange)="previewDimensions.set($event)"
           (inspectionToggled)="toggleInspection()"
           (measureToggled)="toggleMeasure()"
           (annotationToggled)="toggleAnnotation()"
@@ -340,19 +341,30 @@
           (undockToggled)="toggleUndock()"
           (devtoolsRequested)="openWebviewDevTools()"
         />
-        <div class="iframe-wrapper">
+        <div class="iframe-wrapper"
+          [class.custom-dimensions]="previewDimensions().width || previewDimensions().height"
+          [class.fit-scale]="previewDimensions().scale === 0"
+        >
           @if (isDesktop()) {
             <webview
               #previewWebview
               [attr.src]="containerEngine.url()"
               [style.pointer-events]="isResizingSidebar || isResizingEditor || isAnnotating() || isSelecting ? 'none' : 'auto'"
-              style="width: 100%; height: 100%; border: none;"
+              [style.width]="previewDimensions().width ? previewDimensions().width + 'px' : '100%'"
+              [style.height]="previewDimensions().height ? previewDimensions().height + 'px' : '100%'"
+              [style.transform]="previewDimensions().scale && previewDimensions().scale !== 1 ? 'scale(' + previewDimensions().scale + ')' : null"
+              [style.transform-origin]="previewDimensions().scale && previewDimensions().scale !== 1 ? 'top left' : null"
+              style="border: none;"
             ></webview>
           } @else {
             <iframe
               #previewFrame
               [src]="containerEngine.url() | safeUrl"
               [style.pointer-events]="isResizingSidebar || isResizingEditor || isAnnotating() || isSelecting ? 'none' : 'auto'"
+              [style.width]="previewDimensions().width ? previewDimensions().width + 'px' : null"
+              [style.height]="previewDimensions().height ? previewDimensions().height + 'px' : null"
+              [style.transform]="previewDimensions().scale && previewDimensions().scale !== 1 ? 'scale(' + previewDimensions().scale + ')' : null"
+              [style.transform-origin]="previewDimensions().scale && previewDimensions().scale !== 1 ? 'top left' : null"
             ></iframe>
           }
         </div>

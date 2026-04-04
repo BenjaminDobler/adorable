@@ -39,7 +39,7 @@ import { VersionsPanelComponent } from '../versions/versions-panel.component';
 import { InsightsPanelComponent } from '../insights/insights-panel.component';
 import { VisualEditorPanelComponent } from '../chat/visual-editor-panel/visual-editor-panel.component';
 import { MultiAnnotationPanelComponent, MultiAnnotationItem } from '../chat/multi-annotation-panel/multi-annotation-panel.component';
-import { PreviewToolbarComponent } from './preview-toolbar/preview-toolbar.component';
+import { PreviewToolbarComponent, PreviewDimensions } from './preview-toolbar/preview-toolbar.component';
 import { DebugOverlayComponent } from './debug-overlay/debug-overlay.component';
 import { ProjectSettingsComponent } from '../project-settings/project-settings.component';
 import { TranslationsPanelComponent } from '../translations/translations-panel.component';
@@ -155,6 +155,7 @@ export class WorkspaceComponent implements AfterViewChecked {
 
   // Responsive preview
   previewDevice = signal<'desktop' | 'tablet' | 'phone'>('desktop');
+  previewDimensions = signal<PreviewDimensions>({ width: null, height: null, scale: 1 });
 
   // Project settings dialog
   showProjectSettings = signal(false);
@@ -447,9 +448,12 @@ export class WorkspaceComponent implements AfterViewChecked {
     }
 
     // Figma design comparison: preview requests specs for a data-figma-node element
-    if (data.type === 'FIGMA_COMPARE_REQUEST' && this.figmaBridge.connected()) {
-      const { figmaNodeId, domRect, domStyles } = data;
-      this.fetchFigmaComparisonData(figmaNodeId, domRect, domStyles);
+    if (data.type === 'FIGMA_COMPARE_REQUEST') {
+      console.log('[Workspace] FIGMA_COMPARE_REQUEST received:', data.figmaNodeId, '| bridge connected:', this.figmaBridge.connected());
+      if (this.figmaBridge.connected()) {
+        const { figmaNodeId, domRect, domStyles } = data;
+        this.fetchFigmaComparisonData(figmaNodeId, domRect, domStyles);
+      }
     }
 
     if (data.type === 'ELEMENT_SELECTED') {
@@ -634,11 +638,13 @@ export class WorkspaceComponent implements AfterViewChecked {
   /** Fetch Figma node specs and send comparison data to the preview. */
   private figmaCompareCache = new Map<string, any>();
   private async fetchFigmaComparisonData(figmaNodeId: string, domRect: any, domStyles: any) {
+    console.log('[Workspace] fetchFigmaComparisonData:', figmaNodeId);
     // Check cache first
     let figmaNode = this.figmaCompareCache.get(figmaNodeId);
     if (!figmaNode) {
       try {
         figmaNode = await this.figmaBridge.getNodeForComparison(figmaNodeId).toPromise();
+        console.log('[Workspace] Figma node response:', JSON.stringify(figmaNode).substring(0, 200));
         this.figmaCompareCache.set(figmaNodeId, figmaNode);
       } catch (e) {
         console.warn('[Workspace] Failed to fetch Figma node for comparison:', e);
@@ -647,7 +653,8 @@ export class WorkspaceComponent implements AfterViewChecked {
     }
 
     // Extract design specs from the Figma node response
-    const node = figmaNode?.document || figmaNode;
+    const node = figmaNode?.document || figmaNode?.node || figmaNode;
+    console.log('[Workspace] Extracted node:', node?.name, '| has bbox:', !!node?.absoluteBoundingBox);
     if (!node?.absoluteBoundingBox) return;
 
     const bbox = node.absoluteBoundingBox;
