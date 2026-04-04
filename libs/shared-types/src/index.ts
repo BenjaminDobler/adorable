@@ -1,2 +1,2 @@
 export * from './lib/shared-types';
-export { RUNTIME_SCRIPTS } from './lib/runtime-scripts';
+export { RUNTIME_SCRIPTS } from './lib/runtime-scripts.generated';

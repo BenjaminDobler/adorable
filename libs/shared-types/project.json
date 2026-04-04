@@ -5,8 +5,15 @@
   "projectType": "library",
   "tags": [],
   "targets": {
+    "generate-runtime-scripts": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx tsx libs/shared-types/scripts/build-runtime-scripts.ts"
+      }
+    },
     "build": {
       "executor": "@nx/js:tsc",
+      "dependsOn": ["generate-runtime-scripts"],
       "outputs": ["{options.outputPath}"],
       "options": {
         "outputPath": "dist/libs/shared-types",
