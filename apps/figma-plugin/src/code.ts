@@ -304,11 +304,13 @@ figma.on('documentchange', ({ documentChanges }) => {
   // Collect unique changed node IDs
   const changedNodeIds = new Set<string>();
   for (const change of documentChanges) {
-    if (change.type === 'PROPERTY_CHANGE' && change.node) {
+    if (change.type === 'PROPERTY_CHANGE' && change.node && 'id' in change.node) {
       changedNodeIds.add(change.node.id);
       // Also include parent to catch layout changes
-      if (change.node.parent && change.node.parent.type !== 'PAGE' && change.node.parent.type !== 'DOCUMENT') {
-        changedNodeIds.add(change.node.parent.id);
+      const node = change.node as SceneNode;
+      const parent = node.parent;
+      if (parent && parent.type !== 'PAGE' && parent.type !== 'DOCUMENT') {
+        changedNodeIds.add(parent.id);
       }
     }
   }
