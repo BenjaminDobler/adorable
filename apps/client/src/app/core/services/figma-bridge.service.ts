@@ -19,6 +19,7 @@ export class FigmaBridgeService implements OnDestroy {
   currentSelection = signal<FigmaSelection[]>([]);
   connectionCode = signal<string | null>(null);
   generatingCode = signal(false);
+  nodeAnnotations = signal(false);
 
   /**
    * Check current bridge connection status

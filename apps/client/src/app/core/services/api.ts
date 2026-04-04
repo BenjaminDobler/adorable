@@ -11,7 +11,7 @@ export class ApiService {
   private http = inject(HttpClient);
   private apiUrl = getServerUrl() + '/api';
 
-  generateStream(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[], openFiles?: { [path: string]: string }, forcedSkill?: string, planMode?: boolean, kitId?: string, projectId?: string, selectedApp?: string, previewRoute?: string, builtInTools?: { webSearch?: boolean, urlContext?: boolean }, reasoningEffort?: string, history?: { role: string; text: string }[], contextSummary?: string }): Observable<any> {
+  generateStream(prompt: string, previousFiles?: any, options?: { provider?: string, apiKey?: string, model?: string, images?: string[], openFiles?: { [path: string]: string }, forcedSkill?: string, planMode?: boolean, kitId?: string, projectId?: string, selectedApp?: string, previewRoute?: string, builtInTools?: { webSearch?: boolean, urlContext?: boolean }, reasoningEffort?: string, history?: { role: string; text: string }[], contextSummary?: string, figmaNodeAnnotations?: boolean }): Observable<any> {
     return new Observable(observer => {
       const token = localStorage.getItem('adorable_token');
       

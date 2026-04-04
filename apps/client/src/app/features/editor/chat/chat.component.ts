@@ -15,6 +15,7 @@ import { ScreenshotService } from '../../../core/services/screenshot';
 import { getServerUrl } from '../../../core/services/server-url';
 import { SafeUrlPipe } from '../../../shared/pipes/safe-url.pipe';
 import { FigmaImportPayload } from '@adorable/shared-types';
+import { FigmaBridgeService } from '../../../core/services/figma-bridge.service';
 
 // Sub-components
 
@@ -53,6 +54,7 @@ export class ChatComponent {
   private hmrTrigger = inject(HMRTriggerService);
   private progressiveStore = inject(ProgressiveEditorStore);
   private screenshotService = inject(ScreenshotService);
+  private figmaBridge = inject(FigmaBridgeService);
 
   private messageList = viewChild<ChatMessageListComponent>('messageList');
   private chatInput = viewChild<ChatInputComponent>('chatInput');
@@ -914,7 +916,8 @@ Analyze the attached design images carefully and create matching Angular compone
       builtInTools,
       reasoningEffort: this.reasoningEffort(),
       history: historyToSend?.length ? historyToSend : undefined,
-      contextSummary: summaryToSend
+      contextSummary: summaryToSend,
+      figmaNodeAnnotations: this.figmaBridge.nodeAnnotations() || undefined
     }).subscribe({
       next: async (event) => {
         if (event.type !== 'tool_delta' && event.type !== 'text') {

@@ -121,6 +121,21 @@
   }
 }
 
+.bridge-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+
+  input[type="checkbox"] {
+    accent-color: var(--accent-color);
+    margin: 0;
+  }
+}
+
 .bridge-connect {
   margin-top: 4px;
 }

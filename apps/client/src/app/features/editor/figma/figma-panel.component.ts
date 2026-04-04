@@ -49,6 +49,10 @@ export class FigmaPanelComponent implements OnInit, OnDestroy {
     this.figmaBridge.generateConnectionCode();
   }
 
+  toggleFigmaAnnotations() {
+    this.figmaBridge.nodeAnnotations.update(v => !v);
+  }
+
   grabFigmaSelection() {
     this.grabbingSelection.set(true);
     this.figmaBridge.grabSelection().subscribe({

@@ -166,7 +166,7 @@ router.get('/models/:provider', async (req: any, res) => {
 });
 
 router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) => {
-    let { prompt, previousFiles, provider, model, apiKey, images, openFiles, forcedSkill, planMode, kitId, projectId, selectedApp, previewRoute, builtInTools, reasoningEffort, history, contextSummary } = req.body;
+    let { prompt, previousFiles, provider, model, apiKey, images, openFiles, forcedSkill, planMode, kitId, projectId, selectedApp, previewRoute, builtInTools, reasoningEffort, history, contextSummary, figmaNodeAnnotations } = req.body;
     const user = req.user;
 
     // Debug: Log images received
@@ -387,6 +387,7 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
           kitLessonsEnabled: userSettings.kitLessonsEnabled !== false,
           cdpEnabled,
           figmaLiveConnected,
+          figmaNodeAnnotations: figmaLiveConnected && figmaNodeAnnotations,
           skipVisualEditingIds: isExternalProject || process.env['ADORABLE_DESKTOP_MODE'] === 'true',
           selectedApp: isExternalProject ? selectedApp : undefined,
           previewRoute: previewRoute || undefined,

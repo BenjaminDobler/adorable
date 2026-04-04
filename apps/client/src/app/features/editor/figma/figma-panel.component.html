@@ -27,6 +27,10 @@
       } @else {
         <div class="bridge-hint">Select a frame or component in Figma</div>
       }
+      <label class="bridge-option">
+        <input type="checkbox" [checked]="figmaBridge.nodeAnnotations()" (change)="toggleFigmaAnnotations()">
+        Annotate HTML with Figma node IDs
+      </label>
     } @else {
       <div class="bridge-status bridge-disconnected">
         <span class="bridge-dot"></span>

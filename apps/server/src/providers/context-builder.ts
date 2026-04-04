@@ -394,6 +394,13 @@ Only proceed with implementation after receiving the user's answers.`;
       + `2. Use \`figma_search_nodes\` to find candidates by name\n`
       + `3. Use \`figma_export_node\` to visually compare candidates\n`
       + `4. Use \`figma_select_node\` to highlight the match in Figma\n`;
+
+    if (options.figmaNodeAnnotations) {
+      userMessage += `\n**FIGMA NODE ANNOTATIONS:** Add \`data-figma-node="<nodeId>"\` attributes to every HTML element that corresponds to a Figma node. `
+        + `Use the node IDs returned by \`figma_get_selection\` or \`figma_get_node\` tool responses. `
+        + `Parent frames should get their parent node ID, and children should get their own respective node IDs. `
+        + `These attributes are used by the measurement overlay to compare the implementation against the Figma design specs.\n`;
+    }
   }
 
   // Determine effective system prompt: kit override or default
