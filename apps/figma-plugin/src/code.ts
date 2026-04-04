@@ -299,7 +299,9 @@ figma.on('selectionchange', () => {
   });
 });
 
-// Listen for document changes (node property updates) and forward to bridge
+// Listen for document changes (node property updates) and forward to bridge.
+// documentchange requires loadAllPagesAsync() first in incremental mode.
+figma.loadAllPagesAsync().then(() => {
 figma.on('documentchange', ({ documentChanges }) => {
   // Collect unique changed node IDs
   const changedNodeIds = new Set<string>();
@@ -320,6 +322,7 @@ figma.on('documentchange', ({ documentChanges }) => {
       changedNodeIds: Array.from(changedNodeIds),
     });
   }
+});
 });
 
 // Send initial selection info
