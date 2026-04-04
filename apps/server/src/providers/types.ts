@@ -1,6 +1,9 @@
 import { MCPServerConfig } from '../mcp/types';
+import { MCPManager } from '../mcp/mcp-manager';
 import { Kit } from './kits/types';
 import { Question } from './question-manager';
+import { SkillRegistry } from './skills/skill-registry';
+import { DebugLogger } from './debug-logger';
 
 export interface HistoryMessage {
   role: 'user' | 'assistant';
@@ -124,4 +127,27 @@ export interface SkillReference {
   name: string;
   path: string;
   content: string;
+}
+
+export interface AgentLoopContext {
+  fs: FileSystemInterface;
+  callbacks: StreamCallbacks;
+  skillRegistry: SkillRegistry;
+  availableTools: any[];
+  logger: DebugLogger;
+  hasRunBuild: boolean;
+  hasWrittenFiles: boolean;
+  modifiedFiles: string[]; // tracks all files written/edited during generation
+  buildNudgeSent: boolean;
+  fullExplanation: string;
+  mcpManager?: MCPManager;
+  failedBuildCount: number;
+  lastBuildOutput: string;
+  activeKitName?: string;
+  activeKitId?: string;
+  userId?: string;
+  projectId?: string;
+  cdpEnabled?: boolean;
+  hasVerifiedWithBrowser?: boolean;
+  buildCommand: string; // The resolved build command (e.g. "npm run build" or "npx @richapps/ong build --project apps/my-app")
 }
