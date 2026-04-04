@@ -4,6 +4,7 @@
 (function () {
   let active = false;
   let measureMode = false;
+  let figmaCompareMode = false; // When true, hover/clicks snap to nearest data-figma-node ancestor
   let overlay: HTMLDivElement | null = null;
   let selectionOverlay: HTMLDivElement | null = null;
   let selectedElement: HTMLElement | null = null;
@@ -391,9 +392,18 @@
   // ─── Figma Design Comparison Overlay ───
   const COMPARE_TOLERANCE = 2; // px tolerance for "matching"
 
+  // Walk up the DOM to find the nearest ancestor (or self) with data-figma-node
+  function snapToFigmaNode(element: HTMLElement | null): HTMLElement | null {
+    let el: HTMLElement | null = element;
+    while (el && el !== document.body) {
+      if (el.getAttribute('data-figma-node')) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
   function requestFigmaComparison(element: HTMLElement): void {
     const figmaNodeId = element.getAttribute('data-figma-node');
-    console.log('[Inspector] requestFigmaComparison:', figmaNodeId, '| measureMode:', measureMode);
     if (!figmaNodeId || !measureMode) return;
 
     const rect = element.getBoundingClientRect();
@@ -526,7 +536,8 @@
     // Update label
     if (label) {
       const tagName = element.tagName.toLowerCase();
-      const classes = element.className ? '.' + element.className.split(' ').slice(0, 2).join('.') : '';
+      const classStr = typeof element.className === 'string' ? element.className : (element.getAttribute('class') || '');
+      const classes = classStr ? '.' + classStr.split(' ').slice(0, 2).join('.') : '';
       label.textContent = '<' + tagName + '>' + classes;
     }
 
@@ -631,6 +642,10 @@
         // If there's a selected element, show its layout overlay
         if (selectedElement) updateMeasureForSelection(selectedElement);
       }
+    }
+
+    if (event.data.type === 'TOGGLE_FIGMA_COMPARE') {
+      figmaCompareMode = event.data.enabled;
     }
 
     // Figma Live Bridge: nodes changed in Figma — re-compare if selected element is affected
@@ -881,11 +896,21 @@
   // Inspector Events
   document.addEventListener('mouseover', (e: MouseEvent) => {
     if (!active && !measureMode) return;
-    const target = e.target as HTMLElement;
+    let target = e.target as HTMLElement;
     // Skip measure overlay elements
     if (target.closest && target.closest('#__measure-overlay')) return;
     const overlayEl = document.getElementById('inspector-overlay');
     if (!overlayEl || target === overlayEl || target === document.body || target === document.documentElement) return;
+
+    // In Figma compare mode, snap hover to nearest ancestor with data-figma-node
+    if (figmaCompareMode) {
+      const snapped = snapToFigmaNode(target);
+      if (!snapped) {
+        overlayEl.style.display = 'none';
+        return;
+      }
+      target = snapped;
+    }
 
     const rect = target.getBoundingClientRect();
     overlayEl.style.top = rect.top + 'px';
@@ -920,7 +945,13 @@
   }, true); // capture phase — intercepts before Angular router/button handlers fire
 
   function processClick(e: MouseEvent): void {
-    const target = e.target as HTMLElement;
+    let target = e.target as HTMLElement;
+    // In Figma compare mode, snap click to nearest ancestor with data-figma-node
+    if (figmaCompareMode) {
+      const snapped = snapToFigmaNode(target);
+      if (!snapped) return; // No Figma node in ancestors — ignore click
+      target = snapped;
+    }
     let componentName: string | null = null;
     let hostTag: string | null = null;
 

@@ -199,7 +199,7 @@ figma.ui.onmessage = async (msg: { type: string; scale?: number; requestId?: str
         }
 
         case 'get_node': {
-          const node = figma.getNodeById(command.nodeId);
+          const node = await figma.getNodeByIdAsync(command.nodeId);
           if (node && 'type' in node && node.type !== 'DOCUMENT' && node.type !== 'PAGE') {
             responseData = {
               node: extractNodeStructure(node as SceneNode, 0),
@@ -211,7 +211,7 @@ figma.ui.onmessage = async (msg: { type: string; scale?: number; requestId?: str
         }
 
         case 'export_node': {
-          const node = figma.getNodeById(command.nodeId);
+          const node = await figma.getNodeByIdAsync(command.nodeId);
           if (node && 'exportAsync' in node) {
             const image = await exportNodeAsImage(node as SceneNode, command.scale || 2);
             responseData = { image };
@@ -222,7 +222,7 @@ figma.ui.onmessage = async (msg: { type: string; scale?: number; requestId?: str
         }
 
         case 'select_node': {
-          const node = figma.getNodeById(command.nodeId);
+          const node = await figma.getNodeByIdAsync(command.nodeId);
           if (node && 'type' in node && node.type !== 'DOCUMENT' && node.type !== 'PAGE') {
             figma.currentPage.selection = [node as SceneNode];
             figma.viewport.scrollAndZoomIntoView([node as SceneNode]);
@@ -234,7 +234,7 @@ figma.ui.onmessage = async (msg: { type: string; scale?: number; requestId?: str
         }
 
         case 'scroll_to_node': {
-          const node = figma.getNodeById(command.nodeId);
+          const node = await figma.getNodeByIdAsync(command.nodeId);
           if (node) {
             figma.viewport.scrollAndZoomIntoView([node]);
             responseData = { success: true };

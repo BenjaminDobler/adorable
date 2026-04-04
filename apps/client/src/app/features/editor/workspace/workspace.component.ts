@@ -218,6 +218,13 @@ export class WorkspaceComponent implements AfterViewChecked {
       this.figmaBridge.changedNodeIds.set([]);
     });
 
+    // Figma compare mode: when nodeAnnotations is enabled, restrict hover/click
+    // in the preview to elements with data-figma-node attributes
+    effect(() => {
+      const enabled = this.figmaBridge.nodeAnnotations() && this.figmaBridge.connected();
+      this.sendToPreview({ type: 'TOGGLE_FIGMA_COMPARE', enabled });
+    });
+
     // Send RELOAD_TRANSLATIONS to the preview — runtime scripts try smart reload first,
     // then fall back to window.location.reload() if no translation service is found.
     this.hmrTriggerService.reloadTranslations$.subscribe(({ content }) => {
@@ -448,12 +455,9 @@ export class WorkspaceComponent implements AfterViewChecked {
     }
 
     // Figma design comparison: preview requests specs for a data-figma-node element
-    if (data.type === 'FIGMA_COMPARE_REQUEST') {
-      console.log('[Workspace] FIGMA_COMPARE_REQUEST received:', data.figmaNodeId, '| bridge connected:', this.figmaBridge.connected());
-      if (this.figmaBridge.connected()) {
-        const { figmaNodeId, domRect, domStyles } = data;
-        this.fetchFigmaComparisonData(figmaNodeId, domRect, domStyles);
-      }
+    if (data.type === 'FIGMA_COMPARE_REQUEST' && this.figmaBridge.connected()) {
+      const { figmaNodeId, domRect, domStyles } = data;
+      this.fetchFigmaComparisonData(figmaNodeId, domRect, domStyles);
     }
 
     if (data.type === 'ELEMENT_SELECTED') {
@@ -638,13 +642,11 @@ export class WorkspaceComponent implements AfterViewChecked {
   /** Fetch Figma node specs and send comparison data to the preview. */
   private figmaCompareCache = new Map<string, any>();
   private async fetchFigmaComparisonData(figmaNodeId: string, domRect: any, domStyles: any) {
-    console.log('[Workspace] fetchFigmaComparisonData:', figmaNodeId);
     // Check cache first
     let figmaNode = this.figmaCompareCache.get(figmaNodeId);
     if (!figmaNode) {
       try {
         figmaNode = await this.figmaBridge.getNodeForComparison(figmaNodeId).toPromise();
-        console.log('[Workspace] Figma node response:', JSON.stringify(figmaNode).substring(0, 200));
         this.figmaCompareCache.set(figmaNodeId, figmaNode);
       } catch (e) {
         console.warn('[Workspace] Failed to fetch Figma node for comparison:', e);
@@ -654,7 +656,6 @@ export class WorkspaceComponent implements AfterViewChecked {
 
     // Extract design specs from the Figma node response
     const node = figmaNode?.document || figmaNode?.node || figmaNode;
-    console.log('[Workspace] Extracted node:', node?.name, '| has bbox:', !!node?.absoluteBoundingBox);
     if (!node?.absoluteBoundingBox) return;
 
     const bbox = node.absoluteBoundingBox;

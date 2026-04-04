@@ -111,6 +111,7 @@ export const RUNTIME_SCRIPTS = `
     (function() {
       let active = false;
       let measureMode = false;
+      let figmaCompareMode = false;
       let overlay = null;
       let selectionOverlay = null;
       let selectedElement = null;
@@ -466,9 +467,16 @@ export const RUNTIME_SCRIPTS = `
         }
       }
       const COMPARE_TOLERANCE = 2;
+      function snapToFigmaNode(element) {
+        let el = element;
+        while (el && el !== document.body) {
+          if (el.getAttribute("data-figma-node")) return el;
+          el = el.parentElement;
+        }
+        return null;
+      }
       function requestFigmaComparison(element) {
         const figmaNodeId = element.getAttribute("data-figma-node");
-        console.log("[Inspector] requestFigmaComparison:", figmaNodeId, "| measureMode:", measureMode);
         if (!figmaNodeId || !measureMode) return;
         const rect = element.getBoundingClientRect();
         const cs = window.getComputedStyle(element);
@@ -572,7 +580,8 @@ export const RUNTIME_SCRIPTS = `
         sel.style.display = "block";
         if (label) {
           const tagName = element.tagName.toLowerCase();
-          const classes = element.className ? "." + element.className.split(" ").slice(0, 2).join(".") : "";
+          const classStr = typeof element.className === "string" ? element.className : element.getAttribute("class") || "";
+          const classes = classStr ? "." + classStr.split(" ").slice(0, 2).join(".") : "";
           label.textContent = "<" + tagName + ">" + classes;
         }
         startObserving(element);
@@ -655,6 +664,9 @@ export const RUNTIME_SCRIPTS = `
           } else {
             if (selectedElement) updateMeasureForSelection(selectedElement);
           }
+        }
+        if (event.data.type === "TOGGLE_FIGMA_COMPARE") {
+          figmaCompareMode = event.data.enabled;
         }
         if (event.data.type === "FIGMA_NODES_CHANGED" && measureMode && selectedElement) {
           const changedIds = event.data.changedNodeIds || [];
@@ -876,10 +888,18 @@ export const RUNTIME_SCRIPTS = `
       });
       document.addEventListener("mouseover", (e) => {
         if (!active && !measureMode) return;
-        const target = e.target;
+        let target = e.target;
         if (target.closest && target.closest("#__measure-overlay")) return;
         const overlayEl = document.getElementById("inspector-overlay");
         if (!overlayEl || target === overlayEl || target === document.body || target === document.documentElement) return;
+        if (figmaCompareMode) {
+          const snapped = snapToFigmaNode(target);
+          if (!snapped) {
+            overlayEl.style.display = "none";
+            return;
+          }
+          target = snapped;
+        }
         const rect = target.getBoundingClientRect();
         overlayEl.style.top = rect.top + "px";
         overlayEl.style.left = rect.left + "px";
@@ -906,7 +926,12 @@ export const RUNTIME_SCRIPTS = `
         }, 250);
       }, true);
       function processClick(e) {
-        const target = e.target;
+        let target = e.target;
+        if (figmaCompareMode) {
+          const snapped = snapToFigmaNode(target);
+          if (!snapped) return;
+          target = snapped;
+        }
         let componentName = null;
         let hostTag = null;
         if (window.ng) {
