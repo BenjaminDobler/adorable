@@ -240,8 +240,8 @@ class NativeManager {
       // in packaged mode it's inside asar so use process.resourcesPath
       const isPackaged = __dirname.includes('app.asar');
       const runtimeScriptsPath = isPackaged
-        ? path.join(process.resourcesPath!, 'libs', 'shared-types', 'src', 'lib', 'runtime-scripts.js')
-        : path.join(__dirname, '..', '..', 'libs', 'shared-types', 'src', 'lib', 'runtime-scripts.js');
+        ? path.join(process.resourcesPath!, 'libs', 'shared-types', 'src', 'lib', 'runtime-scripts.generated.js')
+        : path.join(__dirname, '..', '..', 'libs', 'shared-types', 'src', 'lib', 'runtime-scripts.generated.js');
 
       // Replace npx + @richapps/ong with direct node + ong binary
       finalCmd = cmd.map(a => a === '@richapps/ong' ? ongBin : a);
@@ -1443,8 +1443,8 @@ let RUNTIME_SCRIPTS_INJECTION = '';
 try {
   const _isPackaged = __dirname.includes('app.asar');
   const runtimeScriptsPath = _isPackaged
-    ? path.join(process.resourcesPath!, 'libs', 'shared-types', 'src', 'lib', 'runtime-scripts')
-    : path.join(__dirname, '..', '..', 'libs', 'shared-types', 'src', 'lib', 'runtime-scripts');
+    ? path.join(process.resourcesPath!, 'libs', 'shared-types', 'src', 'lib', 'runtime-scripts.generated')
+    : path.join(__dirname, '..', '..', 'libs', 'shared-types', 'src', 'lib', 'runtime-scripts.generated');
   const { RUNTIME_SCRIPTS } = require(runtimeScriptsPath);
   RUNTIME_SCRIPTS_INJECTION = `<!-- ADORABLE_RUNTIME_SCRIPTS -->\n${RUNTIME_SCRIPTS}\n<!-- /ADORABLE_RUNTIME_SCRIPTS -->`;
 } catch {

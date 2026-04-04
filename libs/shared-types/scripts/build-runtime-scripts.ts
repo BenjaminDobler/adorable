@@ -27,20 +27,20 @@ const SCRIPT_ORDER = [
 
 function compileScript(filePath: string): string {
   const source = readFileSync(filePath, 'utf-8');
-  const isGlobal = filePath.includes('element-helpers');
 
+  // Use ESM format to just strip types without adding IIFE wrapper.
+  // The source files already have their own IIFE wrappers where needed.
   const result = transformSync(source, {
     loader: 'ts',
     target: 'es2020',
-    // element-helpers defines global functions — compile as plain script, not IIFE
-    format: isGlobal ? 'esm' : 'iife',
+    format: 'esm',
   });
   let code = result.code.trim();
 
-  // For global scripts compiled as ESM, strip any "export {}" that esbuild adds
-  if (isGlobal) {
-    code = code.replace(/\nexport \{\s*\};\s*$/, '').trim();
-  }
+  // Strip the "export {};" that esbuild adds for ESM format
+  code = code.replace(/\nexport \{\s*\};\s*$/, '').trim();
+  // Also strip triple-slash reference directives
+  code = code.replace(/^\/\/\/\s*<reference.*\/>\s*\n?/gm, '').trim();
 
   return code;
 }
