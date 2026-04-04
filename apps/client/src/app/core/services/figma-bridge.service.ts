@@ -20,6 +20,8 @@ export class FigmaBridgeService implements OnDestroy {
   connectionCode = signal<string | null>(null);
   generatingCode = signal(false);
   nodeAnnotations = signal(false);
+  /** Node IDs that changed in Figma since last check. Consumers should read and clear. */
+  changedNodeIds = signal<string[]>([]);
 
   /**
    * Check current bridge connection status
@@ -84,6 +86,9 @@ export class FigmaBridgeService implements OnDestroy {
             break;
           case 'figma:selection_update':
             this.currentSelection.set(data.selection || []);
+            break;
+          case 'figma:document_changed':
+            this.changedNodeIds.set(data.changedNodeIds || []);
             break;
         }
       } catch { /* ignore parse errors */ }

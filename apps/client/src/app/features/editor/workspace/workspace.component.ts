@@ -204,6 +204,19 @@ export class WorkspaceComponent implements AfterViewChecked {
     // Reload preview (webview/undocked) on demand from HMRTriggerService
     this.hmrTriggerService.reloadPreview$.subscribe(() => this.reloadIframe());
 
+    // Figma Live Bridge: when nodes change in Figma, invalidate comparison cache
+    // and notify the preview to re-compare if those nodes are visible
+    effect(() => {
+      const changed = this.figmaBridge.changedNodeIds();
+      if (changed.length === 0) return;
+      for (const nodeId of changed) {
+        this.figmaCompareCache.delete(nodeId);
+      }
+      // Tell preview to re-check comparison for changed nodes
+      this.sendToPreview({ type: 'FIGMA_NODES_CHANGED', changedNodeIds: changed });
+      this.figmaBridge.changedNodeIds.set([]);
+    });
+
     // Send RELOAD_TRANSLATIONS to the preview — runtime scripts try smart reload first,
     // then fall back to window.location.reload() if no translation service is found.
     this.hmrTriggerService.reloadTranslations$.subscribe(({ content }) => {

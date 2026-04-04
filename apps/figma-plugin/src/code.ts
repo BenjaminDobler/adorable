@@ -299,6 +299,27 @@ figma.on('selectionchange', () => {
   });
 });
 
+// Listen for document changes (node property updates) and forward to bridge
+figma.on('documentchange', ({ documentChanges }) => {
+  // Collect unique changed node IDs
+  const changedNodeIds = new Set<string>();
+  for (const change of documentChanges) {
+    if (change.type === 'PROPERTY_CHANGE' && change.node) {
+      changedNodeIds.add(change.node.id);
+      // Also include parent to catch layout changes
+      if (change.node.parent && change.node.parent.type !== 'PAGE' && change.node.parent.type !== 'DOCUMENT') {
+        changedNodeIds.add(change.node.parent.id);
+      }
+    }
+  }
+  if (changedNodeIds.size > 0) {
+    figma.ui.postMessage({
+      type: 'bridge-document-change',
+      changedNodeIds: Array.from(changedNodeIds),
+    });
+  }
+});
+
 // Send initial selection info
 const initialSelection = figma.currentPage.selection;
 figma.ui.postMessage({

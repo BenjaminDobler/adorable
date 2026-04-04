@@ -74,6 +74,13 @@ class FigmaBridgeService extends EventEmitter {
         break;
       }
 
+      case 'figma:document_changed': {
+        this.emit('document_changed', userId, {
+          changedNodeIds: msg.changedNodeIds as string[],
+        });
+        break;
+      }
+
       case 'figma:response': {
         const pending = this.pendingRequests.get(msg.requestId);
         if (pending) {

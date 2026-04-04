@@ -90,14 +90,22 @@ router.get('/bridge/events', async (req: any, res) => {
     }
   };
 
+  const onDocumentChanged = (connUserId: string, data: any) => {
+    if (connUserId === userId) {
+      send({ type: 'figma:document_changed', ...data });
+    }
+  };
+
   figmaBridge.on('connected', onConnected);
   figmaBridge.on('disconnected', onDisconnected);
   figmaBridge.on('selection_changed', onSelectionChanged);
+  figmaBridge.on('document_changed', onDocumentChanged);
 
   req.on('close', () => {
     figmaBridge.off('connected', onConnected);
     figmaBridge.off('disconnected', onDisconnected);
     figmaBridge.off('selection_changed', onSelectionChanged);
+    figmaBridge.off('document_changed', onDocumentChanged);
   });
 });
 

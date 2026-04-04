@@ -655,6 +655,14 @@ export const RUNTIME_SCRIPTS = `
             if (selectedElement) updateMeasureForSelection(selectedElement);
           }
         }
+        if (event.data.type === "FIGMA_NODES_CHANGED" && measureMode && selectedElement) {
+          const changedIds = event.data.changedNodeIds || [];
+          const nodeId = selectedElement.getAttribute("data-figma-node");
+          if (nodeId && changedIds.includes(nodeId)) {
+            pendingCompareElement = selectedElement;
+            requestFigmaComparison(selectedElement);
+          }
+        }
         if (event.data.type === "FIGMA_COMPARE_RESULT") {
           const { figmaNodeId, figmaSpecs, domRect, domStyles } = event.data;
           if (pendingCompareElement && pendingCompareElement.getAttribute("data-figma-node") === figmaNodeId) {

@@ -681,6 +681,14 @@
           pageName: msg.pageName,
         }));
       }
+
+      // Relay document changes (node property updates) to WebSocket
+      if (msg.type === 'bridge-document-change' && bridgeWs && bridgeWs.readyState === 1) {
+        bridgeWs.send(JSON.stringify({
+          type: 'figma:document_changed',
+          changedNodeIds: msg.changedNodeIds,
+        }));
+      }
     };
 
     // Connect button: connect via WebSocket with code directly (no fetch needed)
