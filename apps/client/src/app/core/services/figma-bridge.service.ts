@@ -112,6 +112,14 @@ export class FigmaBridgeService implements OnDestroy {
     return this.http.post<FigmaImportPayload>(`${this.apiUrl}/grab-selection`, {});
   }
 
+  /**
+   * Fetch a Figma node's structure (dimensions, styles) for design comparison.
+   * Returns the node data without images for fast lookup.
+   */
+  getNodeForComparison(nodeId: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/get-node`, { nodeId, includeImage: false });
+  }
+
   ngOnDestroy(): void {
     this.stopListening();
   }

@@ -379,8 +379,91 @@
     showParentRelativeDistances(container, element);
     showPaddingOverlay(container, element);
     showLayoutOverlay(container, element);
+
+    // Request Figma comparison if element has data-figma-node
+    if (element.getAttribute('data-figma-node')) {
+      pendingCompareElement = element;
+      requestFigmaComparison(element);
+    }
   }
   // ─── End Measurement Helpers ───
+
+  // ─── Figma Design Comparison Overlay ───
+  const COMPARE_TOLERANCE = 2; // px tolerance for "matching"
+
+  function requestFigmaComparison(element: HTMLElement): void {
+    const figmaNodeId = element.getAttribute('data-figma-node');
+    if (!figmaNodeId || !measureMode) return;
+
+    const rect = element.getBoundingClientRect();
+    const cs = window.getComputedStyle(element);
+    window.parent.postMessage({
+      type: 'FIGMA_COMPARE_REQUEST',
+      figmaNodeId,
+      domRect: { width: Math.round(rect.width), height: Math.round(rect.height) },
+      domStyles: {
+        paddingTop: parseFloat(cs.paddingTop) || 0,
+        paddingRight: parseFloat(cs.paddingRight) || 0,
+        paddingBottom: parseFloat(cs.paddingBottom) || 0,
+        paddingLeft: parseFloat(cs.paddingLeft) || 0,
+        borderRadius: parseFloat(cs.borderRadius) || 0,
+        gap: parseFloat(cs.gap) || 0,
+      },
+    }, '*');
+  }
+
+  function showComparisonOverlay(container: HTMLElement, figmaSpecs: any, domRect: any, domStyles: any, element: HTMLElement): void {
+    const rect = element.getBoundingClientRect();
+    const comparisons: { label: string; dom: number; figma: number }[] = [];
+
+    // Dimensions
+    if (figmaSpecs.width != null) comparisons.push({ label: 'W', dom: domRect.width, figma: figmaSpecs.width });
+    if (figmaSpecs.height != null) comparisons.push({ label: 'H', dom: domRect.height, figma: figmaSpecs.height });
+
+    // Padding
+    if (figmaSpecs.paddingTop != null) comparisons.push({ label: 'pt', dom: Math.round(domStyles.paddingTop), figma: figmaSpecs.paddingTop });
+    if (figmaSpecs.paddingRight != null) comparisons.push({ label: 'pr', dom: Math.round(domStyles.paddingRight), figma: figmaSpecs.paddingRight });
+    if (figmaSpecs.paddingBottom != null) comparisons.push({ label: 'pb', dom: Math.round(domStyles.paddingBottom), figma: figmaSpecs.paddingBottom });
+    if (figmaSpecs.paddingLeft != null) comparisons.push({ label: 'pl', dom: Math.round(domStyles.paddingLeft), figma: figmaSpecs.paddingLeft });
+
+    // Border radius
+    if (figmaSpecs.cornerRadius != null) comparisons.push({ label: 'radius', dom: Math.round(domStyles.borderRadius), figma: figmaSpecs.cornerRadius });
+
+    // Gap (auto-layout spacing)
+    if (figmaSpecs.itemSpacing != null) comparisons.push({ label: 'gap', dom: Math.round(domStyles.gap), figma: figmaSpecs.itemSpacing });
+
+    if (comparisons.length === 0) return;
+
+    // Count matches/mismatches
+    let matches = 0;
+    let mismatches = 0;
+    for (const c of comparisons) {
+      if (Math.abs(c.dom - c.figma) <= COMPARE_TOLERANCE) matches++;
+      else mismatches++;
+    }
+
+    // Summary badge at top-right of element
+    const badgeColor = mismatches === 0 ? '#4CAF50' : '#FF5722';
+    const badge = createPill(matches + '/' + comparisons.length + ' match', badgeColor, rect.right + 4, rect.top - 8);
+    container.appendChild(badge);
+
+    // Detail labels for mismatches
+    let yOffset = rect.top + 10;
+    for (const c of comparisons) {
+      const delta = c.dom - c.figma;
+      if (Math.abs(delta) <= COMPARE_TOLERANCE) continue; // skip matches
+
+      const sign = delta > 0 ? '+' : '';
+      const text = c.label + ': ' + c.dom + 'px → ' + c.figma + 'px (' + sign + delta + ')';
+      const pill = createPill(text, '#FF5722', rect.right + 4, yOffset);
+      container.appendChild(pill);
+      yOffset += 18;
+    }
+  }
+
+  // Track the last comparison element to render overlay when result arrives
+  let pendingCompareElement: HTMLElement | null = null;
+  // ─── End Figma Design Comparison ───
 
   function createOverlay(): void {
     if (document.getElementById('inspector-overlay')) return;
@@ -546,6 +629,14 @@
       } else {
         // If there's a selected element, show its layout overlay
         if (selectedElement) updateMeasureForSelection(selectedElement);
+      }
+    }
+
+    if (event.data.type === 'FIGMA_COMPARE_RESULT') {
+      const { figmaNodeId, figmaSpecs, domRect, domStyles } = event.data;
+      if (pendingCompareElement && pendingCompareElement.getAttribute('data-figma-node') === figmaNodeId) {
+        const container = ensureMeasureContainer();
+        showComparisonOverlay(container, figmaSpecs, domRect, domStyles, pendingCompareElement);
       }
     }
 

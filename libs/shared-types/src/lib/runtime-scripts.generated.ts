@@ -460,7 +460,64 @@ export const RUNTIME_SCRIPTS = `
         showParentRelativeDistances(container, element);
         showPaddingOverlay(container, element);
         showLayoutOverlay(container, element);
+        if (element.getAttribute("data-figma-node")) {
+          pendingCompareElement = element;
+          requestFigmaComparison(element);
+        }
       }
+      const COMPARE_TOLERANCE = 2;
+      function requestFigmaComparison(element) {
+        const figmaNodeId = element.getAttribute("data-figma-node");
+        if (!figmaNodeId || !measureMode) return;
+        const rect = element.getBoundingClientRect();
+        const cs = window.getComputedStyle(element);
+        window.parent.postMessage({
+          type: "FIGMA_COMPARE_REQUEST",
+          figmaNodeId,
+          domRect: { width: Math.round(rect.width), height: Math.round(rect.height) },
+          domStyles: {
+            paddingTop: parseFloat(cs.paddingTop) || 0,
+            paddingRight: parseFloat(cs.paddingRight) || 0,
+            paddingBottom: parseFloat(cs.paddingBottom) || 0,
+            paddingLeft: parseFloat(cs.paddingLeft) || 0,
+            borderRadius: parseFloat(cs.borderRadius) || 0,
+            gap: parseFloat(cs.gap) || 0
+          }
+        }, "*");
+      }
+      function showComparisonOverlay(container, figmaSpecs, domRect, domStyles, element) {
+        const rect = element.getBoundingClientRect();
+        const comparisons = [];
+        if (figmaSpecs.width != null) comparisons.push({ label: "W", dom: domRect.width, figma: figmaSpecs.width });
+        if (figmaSpecs.height != null) comparisons.push({ label: "H", dom: domRect.height, figma: figmaSpecs.height });
+        if (figmaSpecs.paddingTop != null) comparisons.push({ label: "pt", dom: Math.round(domStyles.paddingTop), figma: figmaSpecs.paddingTop });
+        if (figmaSpecs.paddingRight != null) comparisons.push({ label: "pr", dom: Math.round(domStyles.paddingRight), figma: figmaSpecs.paddingRight });
+        if (figmaSpecs.paddingBottom != null) comparisons.push({ label: "pb", dom: Math.round(domStyles.paddingBottom), figma: figmaSpecs.paddingBottom });
+        if (figmaSpecs.paddingLeft != null) comparisons.push({ label: "pl", dom: Math.round(domStyles.paddingLeft), figma: figmaSpecs.paddingLeft });
+        if (figmaSpecs.cornerRadius != null) comparisons.push({ label: "radius", dom: Math.round(domStyles.borderRadius), figma: figmaSpecs.cornerRadius });
+        if (figmaSpecs.itemSpacing != null) comparisons.push({ label: "gap", dom: Math.round(domStyles.gap), figma: figmaSpecs.itemSpacing });
+        if (comparisons.length === 0) return;
+        let matches = 0;
+        let mismatches = 0;
+        for (const c of comparisons) {
+          if (Math.abs(c.dom - c.figma) <= COMPARE_TOLERANCE) matches++;
+          else mismatches++;
+        }
+        const badgeColor = mismatches === 0 ? "#4CAF50" : "#FF5722";
+        const badge = createPill(matches + "/" + comparisons.length + " match", badgeColor, rect.right + 4, rect.top - 8);
+        container.appendChild(badge);
+        let yOffset = rect.top + 10;
+        for (const c of comparisons) {
+          const delta = c.dom - c.figma;
+          if (Math.abs(delta) <= COMPARE_TOLERANCE) continue;
+          const sign = delta > 0 ? "+" : "";
+          const text = c.label + ": " + c.dom + "px \u2192 " + c.figma + "px (" + sign + delta + ")";
+          const pill = createPill(text, "#FF5722", rect.right + 4, yOffset);
+          container.appendChild(pill);
+          yOffset += 18;
+        }
+      }
+      let pendingCompareElement = null;
       function createOverlay() {
         if (document.getElementById("inspector-overlay")) return;
         overlay = document.createElement("div");
@@ -596,6 +653,13 @@ export const RUNTIME_SCRIPTS = `
             clearMeasureOverlay();
           } else {
             if (selectedElement) updateMeasureForSelection(selectedElement);
+          }
+        }
+        if (event.data.type === "FIGMA_COMPARE_RESULT") {
+          const { figmaNodeId, figmaSpecs, domRect, domStyles } = event.data;
+          if (pendingCompareElement && pendingCompareElement.getAttribute("data-figma-node") === figmaNodeId) {
+            const container = ensureMeasureContainer();
+            showComparisonOverlay(container, figmaSpecs, domRect, domStyles, pendingCompareElement);
           }
         }
         if (event.data.type === "CLEAR_SELECTION") {

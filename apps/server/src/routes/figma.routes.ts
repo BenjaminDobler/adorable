@@ -521,4 +521,28 @@ router.post('/bridge/grab-selection', async (req: any, res) => {
   }
 });
 
+/**
+ * POST /bridge/get-node - Get a Figma node's structure for design comparison
+ */
+router.post('/bridge/get-node', async (req: any, res) => {
+  const userId = req.user.id;
+  const { nodeId, includeImage } = req.body;
+
+  if (!nodeId) {
+    return res.status(400).json({ error: 'nodeId is required' });
+  }
+
+  if (!figmaBridge.isConnected(userId)) {
+    return res.status(400).json({ error: 'Figma is not connected' });
+  }
+
+  try {
+    const result = await figmaBridge.sendCommand(userId, { action: 'get_node', nodeId });
+    res.json(result);
+  } catch (error: any) {
+    console.error('Figma get-node error:', error);
+    res.status(500).json({ error: error.message || 'Failed to get Figma node' });
+  }
+});
+
 export const figmaRouter = router;

@@ -47,6 +47,7 @@ import { HMRTriggerService } from '../../../core/services/hmr-trigger.service';
 import { DevtoolsPanelComponent } from '../devtools/devtools-panel.component';
 import { DevtoolsService } from '../../../core/services/devtools.service';
 import { ToolsTesterPanelComponent } from '../tools-tester/tools-tester-panel.component';
+import { FigmaBridgeService } from '../../../core/services/figma-bridge.service';
 
 @Component({
   standalone: true,
@@ -86,6 +87,7 @@ export class WorkspaceComponent implements AfterViewChecked {
   private templateService = inject(TemplateService);
   private hmrTriggerService = inject(HMRTriggerService);
   public devtoolsService = inject(DevtoolsService);
+  private figmaBridge = inject(FigmaBridgeService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
 
@@ -431,6 +433,12 @@ export class WorkspaceComponent implements AfterViewChecked {
       }
     }
 
+    // Figma design comparison: preview requests specs for a data-figma-node element
+    if (data.type === 'FIGMA_COMPARE_REQUEST' && this.figmaBridge.connected()) {
+      const { figmaNodeId, domRect, domStyles } = data;
+      this.fetchFigmaComparisonData(figmaNodeId, domRect, domStyles);
+    }
+
     if (data.type === 'ELEMENT_SELECTED') {
       if (this.activeTab() === 'devtools') {
         // Route to devtools service instead of visual editor
@@ -608,6 +616,49 @@ export class WorkspaceComponent implements AfterViewChecked {
     }
     // Just hide/show badges — don't clear items
     this.sendToPreview({ type: 'TOGGLE_MULTI_ANNOTATOR', enabled: newState });
+  }
+
+  /** Fetch Figma node specs and send comparison data to the preview. */
+  private figmaCompareCache = new Map<string, any>();
+  private async fetchFigmaComparisonData(figmaNodeId: string, domRect: any, domStyles: any) {
+    // Check cache first
+    let figmaNode = this.figmaCompareCache.get(figmaNodeId);
+    if (!figmaNode) {
+      try {
+        figmaNode = await this.figmaBridge.getNodeForComparison(figmaNodeId).toPromise();
+        this.figmaCompareCache.set(figmaNodeId, figmaNode);
+      } catch (e) {
+        console.warn('[Workspace] Failed to fetch Figma node for comparison:', e);
+        return;
+      }
+    }
+
+    // Extract design specs from the Figma node response
+    const node = figmaNode?.document || figmaNode;
+    if (!node?.absoluteBoundingBox) return;
+
+    const bbox = node.absoluteBoundingBox;
+    const figmaSpecs: any = {
+      width: Math.round(bbox.width),
+      height: Math.round(bbox.height),
+      cornerRadius: node.cornerRadius ?? null,
+      paddingTop: node.paddingTop ?? null,
+      paddingRight: node.paddingRight ?? null,
+      paddingBottom: node.paddingBottom ?? null,
+      paddingLeft: node.paddingLeft ?? null,
+      itemSpacing: node.itemSpacing ?? null, // auto-layout gap
+      fills: node.fills ?? [],
+      strokes: node.strokes ?? [],
+      strokeWeight: node.strokeWeight ?? null,
+    };
+
+    this.sendToPreview({
+      type: 'FIGMA_COMPARE_RESULT',
+      figmaNodeId,
+      figmaSpecs,
+      domRect,
+      domStyles,
+    });
   }
 
   /** Hides the multi-annotator UI without clearing annotations. */
