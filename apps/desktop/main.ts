@@ -385,6 +385,30 @@ app.on('ready', async () => {
       await shell.openExternal(url);
     });
 
+    // Reveal a file or folder in the OS file manager (Finder on macOS, Explorer on Windows).
+    // Accepts a project-relative path and resolves it against the active project path
+    // from the local agent.
+    ipcMain.handle('show-in-finder', async (_event, relativePath: string) => {
+      if (typeof relativePath !== 'string') {
+        throw new Error('Path is required');
+      }
+      // Fetch the active project path from the local agent
+      const info = await new Promise<{ projectPath?: string } | null>((resolve) => {
+        const req = http.get(`http://localhost:${AGENT_PORT}/api/native/info`, (res) => {
+          let body = '';
+          res.on('data', (c) => { body += c; });
+          res.on('end', () => {
+            try { resolve(JSON.parse(body)); } catch { resolve(null); }
+          });
+        });
+        req.on('error', () => resolve(null));
+        req.setTimeout(2000, () => { req.destroy(); resolve(null); });
+      });
+      if (!info?.projectPath) throw new Error('No active project');
+      const absolutePath = relativePath ? path.join(info.projectPath, relativePath) : info.projectPath;
+      shell.showItemInFolder(absolutePath);
+    });
+
     // --- Preview Window IPC Handlers ---
     ipcMain.handle('preview:undock', async (_event, url: string) => {
       if (!previewManager) return { error: 'Not initialized' };

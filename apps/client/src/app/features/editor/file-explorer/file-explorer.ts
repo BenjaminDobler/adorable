@@ -76,6 +76,8 @@ export class FileExplorerComponent {
   fileSelect = output<{name: string, path: string, content: string}>();
   fileAction = output<FileAction>();
 
+  isDesktop = !!(window as any).electronAPI?.isDesktop;
+
   nodes = computed(() => this.transformFiles(this.files()));
   dropTarget = signal<string | null>(null);
 
@@ -181,6 +183,9 @@ export class FileExplorerComponent {
       }
     } else if (action === 'delete' && ctx.node) {
       this.fileAction.emit({ type: 'delete', path: ctx.node.path });
+    } else if (action === 'show-in-finder') {
+      const targetPath = ctx.node?.path || ctx.parentPath || '';
+      (window as any).electronAPI?.showInFinder(targetPath);
     }
   }
 

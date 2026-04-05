@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('capture-page', rect),
   // Open a URL in the system default browser
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
+  // Reveal a file/folder in the OS file manager (Finder/Explorer)
+  showInFinder: (absolutePath: string) => ipcRenderer.invoke('show-in-finder', absolutePath),
   // Preview window management (dock/undock for CDP access)
   previewUndock: (url: string) => ipcRenderer.invoke('preview:undock', url),
   previewDock: () => ipcRenderer.invoke('preview:dock'),
