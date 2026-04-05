@@ -460,6 +460,11 @@ export class WorkspaceComponent implements AfterViewChecked {
       this.fetchFigmaComparisonData(figmaNodeId, domRect, domStyles);
     }
 
+    // Figma auto-fix: user clicked "Fix with AI" on the comparison overlay
+    if (data.type === 'FIGMA_AUTO_FIX_REQUEST') {
+      this.handleFigmaAutoFixRequest(data);
+    }
+
     if (data.type === 'ELEMENT_SELECTED') {
       if (this.activeTab() === 'devtools') {
         // Route to devtools service instead of visual editor
@@ -680,6 +685,44 @@ export class WorkspaceComponent implements AfterViewChecked {
       domRect,
       domStyles,
     });
+  }
+
+  /** Build a precise AI prompt from Figma deviations and send it to the chat. */
+  private handleFigmaAutoFixRequest(data: any) {
+    const { figmaNodeId, ongAnnotation, elementTag, elementClass, deltas } = data;
+    if (!deltas || deltas.length === 0) return;
+
+    const labelMap: Record<string, string> = {
+      W: 'width',
+      H: 'height',
+      pt: 'padding-top',
+      pr: 'padding-right',
+      pb: 'padding-bottom',
+      pl: 'padding-left',
+      radius: 'border-radius',
+      gap: 'gap',
+    };
+
+    const deviationLines = deltas.map((d: any) => {
+      const prop = labelMap[d.label] || d.label;
+      return `- \`${prop}\`: currently ${d.dom}px, Figma design: ${d.figma}px (delta: ${d.delta > 0 ? '+' : ''}${d.delta}px)`;
+    }).join('\n');
+
+    const classInfo = elementClass ? ` (class="${elementClass}")` : '';
+    let sourceLocation = '';
+    if (ongAnnotation) {
+      sourceLocation = `\n\n**Source location:** \`${ongAnnotation.file}\` at line ${ongAnnotation.line}, column ${ongAnnotation.col} (component: \`${ongAnnotation.component}\`)`;
+    }
+
+    const prompt = `Update the \`<${elementTag}>\`${classInfo} element to match its Figma design specs.\n\n` +
+      `**Figma node:** ${figmaNodeId}\n\n` +
+      `**Deviations to fix:**\n${deviationLines}${sourceLocation}\n\n` +
+      `Please update the styles so they match the Figma design values exactly.`;
+
+    if (this.chatComponent) {
+      this.chatComponent.onAiChangeRequested(prompt);
+      this.toastService.show('Sent fix request to AI', 'success');
+    }
   }
 
   /** Hides the multi-annotator UI without clearing annotations. */

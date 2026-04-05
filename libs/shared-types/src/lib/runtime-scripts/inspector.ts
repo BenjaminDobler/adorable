@@ -459,16 +459,42 @@
     container.appendChild(badge);
 
     // Detail labels for mismatches
+    const deltas: { label: string; dom: number; figma: number; delta: number }[] = [];
     let yOffset = rect.top + 10;
     for (const c of comparisons) {
       const delta = c.dom - c.figma;
       if (Math.abs(delta) <= COMPARE_TOLERANCE) continue; // skip matches
 
+      deltas.push({ label: c.label, dom: c.dom, figma: c.figma, delta });
       const sign = delta > 0 ? '+' : '';
       const text = c.label + ': ' + c.dom + 'px → ' + c.figma + 'px (' + sign + delta + ')';
       const pill = createPill(text, '#FF5722', rect.right + 4, yOffset);
       container.appendChild(pill);
       yOffset += 18;
+    }
+
+    // "Fix with AI" button when there are mismatches
+    if (mismatches > 0) {
+      const btn = document.createElement('button');
+      btn.style.cssText = 'position:fixed;padding:3px 8px;border-radius:3px;font-size:10px;font-family:system-ui,sans-serif;font-weight:600;background:#2196F3;color:#fff;border:none;cursor:pointer;pointer-events:auto;z-index:999999;box-shadow:0 2px 4px rgba(0,0,0,0.2);';
+      btn.style.left = (rect.right + 4) + 'px';
+      btn.style.top = (yOffset + 4) + 'px';
+      btn.textContent = '✨ Fix with AI';
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const figmaNodeId = element.getAttribute('data-figma-node');
+        const ongAnnotation = __getOngAnnotation(element);
+        window.parent.postMessage({
+          type: 'FIGMA_AUTO_FIX_REQUEST',
+          figmaNodeId,
+          ongAnnotation,
+          elementTag: element.tagName.toLowerCase(),
+          elementClass: typeof element.className === 'string' ? element.className : '',
+          deltas,
+        }, '*');
+      });
+      container.appendChild(btn);
     }
   }
 
@@ -931,6 +957,9 @@
 
   document.addEventListener('click', (e: MouseEvent) => {
     if (!active) return;
+    // Skip clicks on measure overlay elements (like the Fix with AI button)
+    const clickTarget = e.target as HTMLElement;
+    if (clickTarget && clickTarget.closest && clickTarget.closest('#__measure-overlay')) return;
     e.preventDefault();
     e.stopPropagation();
 
