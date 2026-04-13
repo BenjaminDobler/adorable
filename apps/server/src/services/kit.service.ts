@@ -373,6 +373,183 @@ class KitService {
       console.log(`[Default Kit] Created "${kitMeta.name}" (${kitId})`);
     }
   }
+
+  /**
+   * Seed all built-in kits from the assets/kits/ directory.
+   * Each subdirectory should contain a kit.json. The method handles:
+   *   - Template files (if template/ exists)
+   *   - Pre-generated .adorable/ files (component docs, design tokens)
+   *   - Kit config from kit.json (systemPrompt, npmPackages, etc.)
+   * Idempotent — safe to call on every startup.
+   */
+  async seedBuiltInKits(): Promise<void> {
+    // Resolve the kits directory (dev source or prod dist)
+    const devPath = path.join(process.cwd(), 'apps/server/src/assets/kits');
+    const prodPath = path.join(__dirname, 'assets/kits');
+
+    let kitsDir: string | null = null;
+    for (const p of [devPath, prodPath]) {
+      try {
+        const stat = await fs.stat(p);
+        if (stat.isDirectory()) {
+          kitsDir = p;
+          break;
+        }
+      } catch {
+        // Try next path
+      }
+    }
+
+    if (!kitsDir) return;
+
+    // Scan for kit subdirectories
+    let entries: import('fs').Dirent[];
+    try {
+      entries = await fs.readdir(kitsDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+
+      const kitAssetPath = path.join(kitsDir, entry.name);
+      const kitJsonPath = path.join(kitAssetPath, 'kit.json');
+
+      // Skip directories without kit.json
+      try {
+        await fs.access(kitJsonPath);
+      } catch {
+        continue;
+      }
+
+      try {
+        await this.seedOneBuiltInKit(kitAssetPath);
+      } catch (err) {
+        console.error(`[Built-in Kit] Error seeding "${entry.name}":`, err);
+      }
+    }
+  }
+
+  /**
+   * Seed a single built-in kit from an asset directory.
+   */
+  private async seedOneBuiltInKit(assetPath: string): Promise<void> {
+    const kitMeta = JSON.parse(await fs.readFile(path.join(assetPath, 'kit.json'), 'utf-8'));
+    const kitId = kitMeta.id;
+
+    // Build config from kit.json metadata
+    const config: Record<string, unknown> = {
+      template: {
+        type: kitMeta.template?.type || 'default',
+        angularVersion: kitMeta.template?.angularVersion || '21',
+        files: {},
+        storedOnDisk: true,
+      },
+      resources: kitMeta.resources || [],
+      mcpServerIds: kitMeta.mcpServerIds || [],
+    };
+
+    // Pass through optional fields from kit.json
+    if (kitMeta.npmPackages) config.npmPackages = kitMeta.npmPackages;
+    if (kitMeta.npmPackage) config.npmPackage = kitMeta.npmPackage;
+    if (kitMeta.importSuffix) config.importSuffix = kitMeta.importSuffix;
+    if (kitMeta.systemPrompt) config.systemPrompt = kitMeta.systemPrompt;
+    if (kitMeta.baseSystemPrompt) config.baseSystemPrompt = kitMeta.baseSystemPrompt;
+    if (kitMeta.designTokens) config.designTokens = kitMeta.designTokens;
+    if (kitMeta.commands) config.commands = kitMeta.commands;
+    if (kitMeta.lessonsEnabled !== undefined) config.lessonsEnabled = kitMeta.lessonsEnabled;
+
+    // Read template files (if template/ directory exists)
+    const templateDir = path.join(assetPath, 'template');
+    let hasTemplate = false;
+    try {
+      const stat = await fs.stat(templateDir);
+      hasTemplate = stat.isDirectory();
+    } catch { /* no template dir */ }
+
+    if (hasTemplate) {
+      const templateFiles = await kitFsService.readDirAsFileTreeFromPath(templateDir);
+      await kitFsService.writeKitTemplateFiles(kitId, templateFiles);
+    }
+
+    // Read pre-generated .adorable/ files (component docs, design tokens)
+    const adorableDir = path.join(assetPath, '.adorable');
+    let hasAdorable = false;
+    try {
+      const stat = await fs.stat(adorableDir);
+      hasAdorable = stat.isDirectory();
+    } catch { /* no .adorable dir */ }
+
+    if (hasAdorable) {
+      const adorableFiles = await this.readAdorableFilesFromPath(adorableDir);
+      await kitFsService.writeKitAdorableFiles(kitId, adorableFiles);
+    }
+
+    // Upsert into the DB
+    const existing = await prisma.kit.findUnique({ where: { id: kitId } });
+
+    if (existing) {
+      await prisma.kit.update({
+        where: { id: kitId },
+        data: {
+          name: kitMeta.name,
+          description: kitMeta.description || null,
+          config: JSON.stringify(config),
+        },
+      });
+      console.log(`[Built-in Kit] Updated "${kitMeta.name}" (${kitId})`);
+    } else {
+      await prisma.kit.create({
+        data: {
+          id: kitId,
+          name: kitMeta.name,
+          description: kitMeta.description || null,
+          isGlobal: true,
+          config: JSON.stringify(config),
+          userId: null,
+          teamId: null,
+        },
+      });
+      console.log(`[Built-in Kit] Created "${kitMeta.name}" (${kitId})`);
+    }
+  }
+
+  /**
+   * Read all files from a .adorable directory into a flat Record.
+   * Keys are relative paths like ".adorable/components/Button.md".
+   */
+  private async readAdorableFilesFromPath(adorablePath: string): Promise<Record<string, string>> {
+    const result: Record<string, string> = {};
+    await this.readDirRecursiveFlat(adorablePath, '.adorable', result);
+    return result;
+  }
+
+  private async readDirRecursiveFlat(
+    dirPath: string,
+    prefix: string,
+    result: Record<string, string>
+  ): Promise<void> {
+    let entries: import('fs').Dirent[];
+    try {
+      entries = await fs.readdir(dirPath, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+      const relativePath = prefix + '/' + entry.name;
+      if (entry.isDirectory()) {
+        await this.readDirRecursiveFlat(fullPath, relativePath, result);
+      } else if (entry.isFile()) {
+        try {
+          result[relativePath] = await fs.readFile(fullPath, 'utf-8');
+        } catch {
+          // skip unreadable files
+        }
+      }
+    }
+  }
 }
 
 export const kitService = new KitService();

@@ -183,9 +183,12 @@ const server = app.listen(PORT, async () => {
     logger.error('ServerConfig failed to initialize', { error: err.message })
   );
 
-  // Seed built-in default kit from assets (creates or updates on every startup)
+  // Seed built-in kits from assets (creates or updates on every startup)
   kitService.seedDefaultKit().catch(err =>
     logger.error('Default kit seed failed', { error: err.message })
+  );
+  kitService.seedBuiltInKits().catch(err =>
+    logger.error('Built-in kit seed failed', { error: err.message })
   );
 
   // Migrate existing kits to disk storage (reads from user.settings, must run first)

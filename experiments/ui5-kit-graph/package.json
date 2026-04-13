@@ -1,0 +1,22 @@
+{
+  "name": "ui5-kit-graph",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "build-graph": "tsx build-kit-graph.ts",
+    "compare": "tsx run-comparison.ts"
+  },
+  "dependencies": {
+    "@ui5/webcomponents": "^2.21.0",
+    "@ui5/webcomponents-fiori": "^2.21.0",
+    "@ui5/webcomponents-base": "^2.21.0",
+    "@ui5/webcomponents-icons": "^2.21.0",
+    "@ui5/webcomponents-theming": "^2.21.0",
+    "@anthropic-ai/sdk": "^0.32.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "@types/node": "^22.0.0"
+  }
+}

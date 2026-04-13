@@ -1,0 +1,21 @@
+/* SAP Horizon Theme — Global Styles */
+
+/* Reset body margin and set base theme styles */
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--sapBackgroundColor, #f5f6f7);
+  color: var(--sapTextColor, #131e29);
+  font-family: var(--sapFontFamily, '72', '72full', Arial, Helvetica, sans-serif);
+  font-size: var(--sapFontSize, 0.875rem);
+}
+
+/* Ensure UI5 components fill their containers properly */
+ui5-shellbar,
+ui5-page,
+ui5-dynamic-page,
+ui5-flexible-column-layout,
+ui5-navigation-layout {
+  display: block;
+  width: 100%;
+}

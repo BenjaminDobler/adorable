@@ -1,0 +1,36 @@
+/* Import SAP UI5 Horizon theme */
+@import '@sap-ui5/webcomponents-theming/dist/Assets.js';
+
+:root {
+  /* ── Horizon palette overrides / fallbacks ── */
+  --sapBackgroundColor: #f5f6f7;
+  --sapGroup_ContentBackground: #ffffff;
+  --sapGroup_ContentBorderColor: #e5e5e5;
+  --sapTitleColor: #1c1c1c;
+  --sapTextColor: #1c1c1c;
+  --sapContent_LabelColor: #6a6d70;
+  --sapHighlightColor: #0070f2;
+  --sapPositiveColor: #188918;
+  --sapInformativeColor: #0070f2;
+  --sapNeutralBackground: #f2f2f2;
+  --sapFontFamily: '72', '72full', Arial, Helvetica, sans-serif;
+  --sapFontSize: 0.875rem;
+  --sapFontSmallSize: 0.75rem;
+  --sapFontHeader5Size: 1rem;
+  --sapElement_BorderCornerRadius: 0.5rem;
+  --sapContent_Space: 1rem;
+  --sapContent_Shadow0: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.08);
+  --sapAccentColor6: #e8f3ff;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  font-family: var(--sapFontFamily);
+  background: var(--sapBackgroundColor);
+}

@@ -1,0 +1,3423 @@
+{
+  "ui5-avatar-group": {
+    "tag": "ui5-avatar-group",
+    "componentClass": "AvatarGroupComponent",
+    "exportAs": "ui5AvatarGroup",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/avatar-group",
+    "inputs": [
+      "type",
+      "accessibilityAttributes",
+      "accessibleName",
+      "accessibleNameRef"
+    ],
+    "outputs": {
+      "click": "ui5Click",
+      "overflow": "ui5Overflow"
+    },
+    "outputNames": [
+      "ui5Click",
+      "ui5Overflow"
+    ]
+  },
+  "ui5-avatar": {
+    "tag": "ui5-avatar",
+    "componentClass": "AvatarComponent",
+    "exportAs": "ui5Avatar",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/avatar",
+    "inputs": [
+      "disabled",
+      "interactive",
+      "icon",
+      "fallbackIcon",
+      "initials",
+      "shape",
+      "size",
+      "colorScheme",
+      "accessibleName",
+      "accessibilityAttributes"
+    ],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-bar": {
+    "tag": "ui5-bar",
+    "componentClass": "BarComponent",
+    "exportAs": "ui5Bar",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/bar",
+    "inputs": [
+      "design",
+      "accessibleRole",
+      "accessibleName",
+      "accessibleNameRef"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-breadcrumbs-item": {
+    "tag": "ui5-breadcrumbs-item",
+    "componentClass": "BreadcrumbsItemComponent",
+    "exportAs": "ui5BreadcrumbsItem",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/breadcrumbs-item",
+    "inputs": [
+      "href",
+      "target",
+      "accessibleName"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-breadcrumbs": {
+    "tag": "ui5-breadcrumbs",
+    "componentClass": "BreadcrumbsComponent",
+    "exportAs": "ui5Breadcrumbs",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/breadcrumbs",
+    "inputs": [
+      "design",
+      "separators"
+    ],
+    "outputs": {
+      "item-click": "ui5ItemClick"
+    },
+    "outputNames": [
+      "ui5ItemClick"
+    ]
+  },
+  "ui5-busy-indicator": {
+    "tag": "ui5-busy-indicator",
+    "componentClass": "BusyIndicatorComponent",
+    "exportAs": "ui5BusyIndicator",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/busy-indicator",
+    "inputs": [
+      "text",
+      "size",
+      "active",
+      "delay",
+      "textPlacement"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-button-badge": {
+    "tag": "ui5-button-badge",
+    "componentClass": "ButtonBadgeComponent",
+    "exportAs": "ui5ButtonBadge",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/button-badge",
+    "inputs": [
+      "design",
+      "text"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-button": {
+    "tag": "ui5-button",
+    "componentClass": "ButtonComponent",
+    "exportAs": "ui5Button",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/button",
+    "inputs": [
+      "design",
+      "disabled",
+      "icon",
+      "endIcon",
+      "submits",
+      "tooltip",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibilityAttributes",
+      "accessibleDescription",
+      "type",
+      "accessibleRole",
+      "loading",
+      "loadingDelay"
+    ],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-date-range": {
+    "tag": "ui5-date-range",
+    "componentClass": "CalendarDateRangeComponent",
+    "exportAs": "ui5DateRange",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/calendar-date-range",
+    "inputs": [
+      "startValue",
+      "endValue"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-date": {
+    "tag": "ui5-date",
+    "componentClass": "CalendarDateComponent",
+    "exportAs": "ui5Date",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/calendar-date",
+    "inputs": [
+      "value"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-calendar-legend-item": {
+    "tag": "ui5-calendar-legend-item",
+    "componentClass": "CalendarLegendItemComponent",
+    "exportAs": "ui5CalendarLegendItem",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/calendar-legend-item",
+    "inputs": [
+      "text",
+      "type"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-calendar-legend": {
+    "tag": "ui5-calendar-legend",
+    "componentClass": "CalendarLegendComponent",
+    "exportAs": "ui5CalendarLegend",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/calendar-legend",
+    "inputs": [
+      "hideToday",
+      "hideSelectedDay",
+      "hideNonWorkingDay",
+      "hideWorkingDay"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-calendar": {
+    "tag": "ui5-calendar",
+    "componentClass": "CalendarComponent",
+    "exportAs": "ui5Calendar",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/calendar",
+    "inputs": [
+      "primaryCalendarType",
+      "secondaryCalendarType",
+      "formatPattern",
+      "displayFormat",
+      "valueFormat",
+      "minDate",
+      "maxDate",
+      "calendarWeekNumbering",
+      "selectionMode",
+      "hideWeekNumbers"
+    ],
+    "outputs": {
+      "selection-change": "ui5SelectionChange"
+    },
+    "outputNames": [
+      "ui5SelectionChange"
+    ]
+  },
+  "ui5-card-header": {
+    "tag": "ui5-card-header",
+    "componentClass": "CardHeaderComponent",
+    "exportAs": "ui5CardHeader",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/card-header",
+    "inputs": [
+      "titleText",
+      "subtitleText",
+      "additionalText",
+      "interactive"
+    ],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-card": {
+    "tag": "ui5-card",
+    "componentClass": "CardComponent",
+    "exportAs": "ui5Card",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/card",
+    "inputs": [
+      "accessibleName",
+      "accessibleNameRef",
+      "loading",
+      "loadingDelay"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-carousel": {
+    "tag": "ui5-carousel",
+    "componentClass": "CarouselComponent",
+    "exportAs": "ui5Carousel",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/carousel",
+    "inputs": [
+      "accessibleName",
+      "accessibleNameRef",
+      "cyclic",
+      "itemsPerPage",
+      "hideNavigationArrows",
+      "hidePageIndicator",
+      "pageIndicatorType",
+      "backgroundDesign",
+      "pageIndicatorBackgroundDesign",
+      "pageIndicatorBorderDesign",
+      "arrowsPlacement"
+    ],
+    "outputs": {
+      "navigate": "ui5Navigate"
+    },
+    "outputNames": [
+      "ui5Navigate"
+    ]
+  },
+  "ui5-checkbox": {
+    "tag": "ui5-checkbox",
+    "componentClass": "CheckBoxComponent",
+    "exportAs": "ui5Checkbox",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/check-box",
+    "inputs": [
+      "accessibleNameRef",
+      "accessibleName",
+      "disabled",
+      "readonly",
+      "displayOnly",
+      "required",
+      "indeterminate",
+      "checked",
+      "text",
+      "valueState",
+      "wrappingType",
+      "name",
+      "value"
+    ],
+    "outputs": {
+      "change": "ui5Change"
+    },
+    "outputNames": [
+      "ui5Change"
+    ]
+  },
+  "ui5-color-palette-item": {
+    "tag": "ui5-color-palette-item",
+    "componentClass": "ColorPaletteItemComponent",
+    "exportAs": "ui5ColorPaletteItem",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/color-palette-item",
+    "inputs": [
+      "value",
+      "selected"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-color-palette-popover": {
+    "tag": "ui5-color-palette-popover",
+    "componentClass": "ColorPalettePopoverComponent",
+    "exportAs": "ui5ColorPalettePopover",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/color-palette-popover",
+    "inputs": [
+      "showRecentColors",
+      "showMoreColors",
+      "showDefaultColor",
+      "defaultColor",
+      "open",
+      "opener"
+    ],
+    "outputs": {
+      "item-click": "ui5ItemClick",
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5ItemClick",
+      "ui5Close"
+    ]
+  },
+  "ui5-color-palette": {
+    "tag": "ui5-color-palette",
+    "componentClass": "ColorPaletteComponent",
+    "exportAs": "ui5ColorPalette",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/color-palette",
+    "inputs": [],
+    "outputs": {
+      "item-click": "ui5ItemClick"
+    },
+    "outputNames": [
+      "ui5ItemClick"
+    ]
+  },
+  "ui5-color-picker": {
+    "tag": "ui5-color-picker",
+    "componentClass": "ColorPickerComponent",
+    "exportAs": "ui5ColorPicker",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/color-picker",
+    "inputs": [
+      "value",
+      "name",
+      "simplified"
+    ],
+    "outputs": {
+      "change": "ui5Change"
+    },
+    "outputNames": [
+      "ui5Change"
+    ]
+  },
+  "ui5-cb-item-group": {
+    "tag": "ui5-cb-item-group",
+    "componentClass": "ComboBoxItemGroupComponent",
+    "exportAs": "ui5CbItemGroup",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/combo-box-item-group",
+    "inputs": [
+      "headerText",
+      "headerAccessibleName",
+      "wrappingType"
+    ],
+    "outputs": {
+      "move-over": "ui5MoveOver",
+      "move": "ui5Move"
+    },
+    "outputNames": [
+      "ui5MoveOver",
+      "ui5Move"
+    ]
+  },
+  "ui5-cb-item": {
+    "tag": "ui5-cb-item",
+    "componentClass": "ComboBoxItemComponent",
+    "exportAs": "ui5CbItem",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/combo-box-item",
+    "inputs": [
+      "text",
+      "additionalText"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-combobox": {
+    "tag": "ui5-combobox",
+    "componentClass": "ComboBoxComponent",
+    "exportAs": "ui5Combobox",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/combo-box",
+    "inputs": [
+      "value",
+      "name",
+      "noTypeahead",
+      "placeholder",
+      "disabled",
+      "valueState",
+      "readonly",
+      "required",
+      "loading",
+      "filter",
+      "showClearIcon",
+      "accessibleName",
+      "accessibleNameRef",
+      "open"
+    ],
+    "outputs": {
+      "change": "ui5Change",
+      "open": "ui5Open",
+      "close": "ui5Close",
+      "input": "ui5Input",
+      "selection-change": "ui5SelectionChange"
+    },
+    "outputNames": [
+      "ui5Change",
+      "ui5Open",
+      "ui5Close",
+      "ui5Input",
+      "ui5SelectionChange"
+    ]
+  },
+  "ui5-date-picker": {
+    "tag": "ui5-date-picker",
+    "componentClass": "DatePickerComponent",
+    "exportAs": "ui5DatePicker",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/date-picker",
+    "inputs": [
+      "primaryCalendarType",
+      "secondaryCalendarType",
+      "formatPattern",
+      "displayFormat",
+      "valueFormat",
+      "minDate",
+      "maxDate",
+      "calendarWeekNumbering",
+      "value",
+      "valueState",
+      "required",
+      "disabled",
+      "readonly",
+      "placeholder",
+      "name",
+      "hideWeekNumbers",
+      "open",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleDescription",
+      "accessibleDescriptionRef"
+    ],
+    "outputs": {
+      "change": "ui5Change",
+      "input": "ui5Input",
+      "value-state-change": "ui5ValueStateChange",
+      "open": "ui5Open",
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5Change",
+      "ui5Input",
+      "ui5ValueStateChange",
+      "ui5Open",
+      "ui5Close"
+    ]
+  },
+  "ui5-daterange-picker": {
+    "tag": "ui5-daterange-picker",
+    "componentClass": "DateRangePickerComponent",
+    "exportAs": "ui5DaterangePicker",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/date-range-picker",
+    "inputs": [
+      "primaryCalendarType",
+      "secondaryCalendarType",
+      "formatPattern",
+      "displayFormat",
+      "valueFormat",
+      "minDate",
+      "maxDate",
+      "calendarWeekNumbering",
+      "value",
+      "valueState",
+      "required",
+      "disabled",
+      "readonly",
+      "placeholder",
+      "name",
+      "hideWeekNumbers",
+      "open",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleDescription",
+      "accessibleDescriptionRef",
+      "delimiter"
+    ],
+    "outputs": {
+      "change": "ui5Change",
+      "input": "ui5Input",
+      "value-state-change": "ui5ValueStateChange",
+      "open": "ui5Open",
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5Change",
+      "ui5Input",
+      "ui5ValueStateChange",
+      "ui5Open",
+      "ui5Close"
+    ]
+  },
+  "ui5-datetime-picker": {
+    "tag": "ui5-datetime-picker",
+    "componentClass": "DateTimePickerComponent",
+    "exportAs": "ui5DatetimePicker",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/date-time-picker",
+    "inputs": [
+      "primaryCalendarType",
+      "secondaryCalendarType",
+      "formatPattern",
+      "displayFormat",
+      "valueFormat",
+      "minDate",
+      "maxDate",
+      "calendarWeekNumbering",
+      "value",
+      "valueState",
+      "required",
+      "disabled",
+      "readonly",
+      "placeholder",
+      "name",
+      "hideWeekNumbers",
+      "open",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleDescription",
+      "accessibleDescriptionRef"
+    ],
+    "outputs": {
+      "change": "ui5Change",
+      "input": "ui5Input",
+      "value-state-change": "ui5ValueStateChange",
+      "open": "ui5Open",
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5Change",
+      "ui5Input",
+      "ui5ValueStateChange",
+      "ui5Open",
+      "ui5Close"
+    ]
+  },
+  "ui5-dialog": {
+    "tag": "ui5-dialog",
+    "componentClass": "DialogComponent",
+    "exportAs": "ui5Dialog",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/dialog",
+    "inputs": [
+      "initialFocus",
+      "preventFocusRestore",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleRole",
+      "accessibleDescription",
+      "accessibleDescriptionRef",
+      "preventInitialFocus",
+      "open",
+      "headerText",
+      "stretch",
+      "draggable",
+      "resizable",
+      "state"
+    ],
+    "outputs": {
+      "before-open": "ui5BeforeOpen",
+      "open": "ui5Open",
+      "before-close": "ui5BeforeClose",
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5BeforeOpen",
+      "ui5Open",
+      "ui5BeforeClose",
+      "ui5Close"
+    ]
+  },
+  "ui5-dynamic-date-range": {
+    "tag": "ui5-dynamic-date-range",
+    "componentClass": "DynamicDateRangeComponent",
+    "exportAs": "ui5DynamicDateRange",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/dynamic-date-range",
+    "inputs": [
+      "value",
+      "options"
+    ],
+    "outputs": {
+      "change": "ui5Change"
+    },
+    "outputNames": [
+      "ui5Change"
+    ]
+  },
+  "ui5-expandable-text": {
+    "tag": "ui5-expandable-text",
+    "componentClass": "ExpandableTextComponent",
+    "exportAs": "ui5ExpandableText",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/expandable-text",
+    "inputs": [
+      "text",
+      "maxCharacters",
+      "overflowMode",
+      "emptyIndicatorMode"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-file-uploader": {
+    "tag": "ui5-file-uploader",
+    "componentClass": "FileUploaderComponent",
+    "exportAs": "ui5FileUploader",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/file-uploader",
+    "inputs": [
+      "accept",
+      "hideInput",
+      "disabled",
+      "multiple",
+      "name",
+      "placeholder",
+      "value",
+      "maxFileSize",
+      "valueState",
+      "required",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleDescription",
+      "accessibleDescriptionRef"
+    ],
+    "outputs": {
+      "change": "ui5Change",
+      "file-size-exceed": "ui5FileSizeExceed"
+    },
+    "outputNames": [
+      "ui5Change",
+      "ui5FileSizeExceed"
+    ]
+  },
+  "ui5-form-group": {
+    "tag": "ui5-form-group",
+    "componentClass": "FormGroupComponent",
+    "exportAs": "ui5FormGroup",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/form-group",
+    "inputs": [
+      "headerText",
+      "headerLevel",
+      "columnSpan",
+      "accessibleName",
+      "accessibleNameRef"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-form-item": {
+    "tag": "ui5-form-item",
+    "componentClass": "FormItemComponent",
+    "exportAs": "ui5FormItem",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/form-item",
+    "inputs": [
+      "columnSpan"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-form": {
+    "tag": "ui5-form",
+    "componentClass": "FormComponent",
+    "exportAs": "ui5Form",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/form",
+    "inputs": [
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleMode",
+      "layout",
+      "labelSpan",
+      "emptySpan",
+      "headerText",
+      "headerLevel",
+      "itemSpacing"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-icon": {
+    "tag": "ui5-icon",
+    "componentClass": "IconComponent",
+    "exportAs": "ui5Icon",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/icon",
+    "inputs": [
+      "design",
+      "name",
+      "accessibleName",
+      "showTooltip",
+      "mode"
+    ],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-input": {
+    "tag": "ui5-input",
+    "componentClass": "InputComponent",
+    "exportAs": "ui5Input",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/input",
+    "inputs": [
+      "disabled",
+      "placeholder",
+      "readonly",
+      "required",
+      "noTypeahead",
+      "type",
+      "value",
+      "valueState",
+      "name",
+      "showSuggestions",
+      "maxlength",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleDescription",
+      "accessibleDescriptionRef",
+      "showClearIcon",
+      "open"
+    ],
+    "outputs": {
+      "change": "ui5Change",
+      "input": "ui5Input",
+      "select": "ui5Select",
+      "selection-change": "ui5SelectionChange",
+      "open": "ui5Open",
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5Change",
+      "ui5Input",
+      "ui5Select",
+      "ui5SelectionChange",
+      "ui5Open",
+      "ui5Close"
+    ]
+  },
+  "ui5-label": {
+    "tag": "ui5-label",
+    "componentClass": "LabelComponent",
+    "exportAs": "ui5Label",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/label",
+    "inputs": [
+      "for",
+      "showColon",
+      "required",
+      "wrappingType"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-link": {
+    "tag": "ui5-link",
+    "componentClass": "LinkComponent",
+    "exportAs": "ui5Link",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/link",
+    "inputs": [
+      "disabled",
+      "tooltip",
+      "href",
+      "target",
+      "design",
+      "interactiveAreaSize",
+      "wrappingType",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleRole",
+      "accessibilityAttributes",
+      "accessibleDescription",
+      "icon",
+      "endIcon"
+    ],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-li-custom": {
+    "tag": "ui5-li-custom",
+    "componentClass": "ListItemCustomComponent",
+    "exportAs": "ui5LiCustom",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/list-item-custom",
+    "inputs": [
+      "type",
+      "accessibilityAttributes",
+      "navigated",
+      "tooltip",
+      "highlight",
+      "selected",
+      "movable",
+      "accessibleName"
+    ],
+    "outputs": {
+      "detail-click": "ui5DetailClick"
+    },
+    "outputNames": [
+      "ui5DetailClick"
+    ]
+  },
+  "ui5-li-group": {
+    "tag": "ui5-li-group",
+    "componentClass": "ListItemGroupComponent",
+    "exportAs": "ui5LiGroup",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/list-item-group",
+    "inputs": [
+      "headerText",
+      "headerAccessibleName",
+      "wrappingType"
+    ],
+    "outputs": {
+      "move-over": "ui5MoveOver",
+      "move": "ui5Move"
+    },
+    "outputNames": [
+      "ui5MoveOver",
+      "ui5Move"
+    ]
+  },
+  "ui5-li": {
+    "tag": "ui5-li",
+    "componentClass": "ListItemStandardComponent",
+    "exportAs": "ui5Li",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/list-item-standard",
+    "inputs": [
+      "type",
+      "accessibilityAttributes",
+      "navigated",
+      "tooltip",
+      "highlight",
+      "selected",
+      "text",
+      "description",
+      "icon",
+      "iconEnd",
+      "additionalText",
+      "additionalTextState",
+      "movable",
+      "accessibleName",
+      "wrappingType"
+    ],
+    "outputs": {
+      "detail-click": "ui5DetailClick"
+    },
+    "outputNames": [
+      "ui5DetailClick"
+    ]
+  },
+  "ui5-list": {
+    "tag": "ui5-list",
+    "componentClass": "ListComponent",
+    "exportAs": "ui5List",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/list",
+    "inputs": [
+      "headerText",
+      "footerText",
+      "indent",
+      "selectionMode",
+      "noDataText",
+      "separators",
+      "growing",
+      "growingButtonText",
+      "loading",
+      "loadingDelay",
+      "accessibleName",
+      "accessibilityAttributes",
+      "accessibleNameRef",
+      "accessibleDescription",
+      "accessibleDescriptionRef",
+      "accessibleRole"
+    ],
+    "outputs": {
+      "item-click": "ui5ItemClick",
+      "item-close": "ui5ItemClose",
+      "item-toggle": "ui5ItemToggle",
+      "item-delete": "ui5ItemDelete",
+      "selection-change": "ui5SelectionChange",
+      "load-more": "ui5LoadMore",
+      "move-over": "ui5MoveOver",
+      "move": "ui5Move"
+    },
+    "outputNames": [
+      "ui5ItemClick",
+      "ui5ItemClose",
+      "ui5ItemToggle",
+      "ui5ItemDelete",
+      "ui5SelectionChange",
+      "ui5LoadMore",
+      "ui5MoveOver",
+      "ui5Move"
+    ]
+  },
+  "ui5-menu-item-group": {
+    "tag": "ui5-menu-item-group",
+    "componentClass": "MenuItemGroupComponent",
+    "exportAs": "ui5MenuItemGroup",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/menu-item-group",
+    "inputs": [
+      "checkMode"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-menu-item": {
+    "tag": "ui5-menu-item",
+    "componentClass": "MenuItemComponent",
+    "exportAs": "ui5MenuItem",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/menu-item",
+    "inputs": [
+      "type",
+      "accessibilityAttributes",
+      "navigated",
+      "tooltip",
+      "highlight",
+      "selected",
+      "text",
+      "additionalText",
+      "icon",
+      "disabled",
+      "loading",
+      "loadingDelay",
+      "accessibleName",
+      "checked"
+    ],
+    "outputs": {
+      "detail-click": "ui5DetailClick",
+      "before-open": "ui5BeforeOpen",
+      "open": "ui5Open",
+      "before-close": "ui5BeforeClose",
+      "close": "ui5Close",
+      "check": "ui5Check"
+    },
+    "outputNames": [
+      "ui5DetailClick",
+      "ui5BeforeOpen",
+      "ui5Open",
+      "ui5BeforeClose",
+      "ui5Close",
+      "ui5Check"
+    ]
+  },
+  "ui5-menu-separator": {
+    "tag": "ui5-menu-separator",
+    "componentClass": "MenuSeparatorComponent",
+    "exportAs": "ui5MenuSeparator",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/menu-separator",
+    "inputs": [],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-menu": {
+    "tag": "ui5-menu",
+    "componentClass": "MenuComponent",
+    "exportAs": "ui5Menu",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/menu",
+    "inputs": [
+      "headerText",
+      "open",
+      "placement",
+      "horizontalAlign",
+      "loading",
+      "loadingDelay",
+      "opener"
+    ],
+    "outputs": {
+      "item-click": "ui5ItemClick",
+      "before-open": "ui5BeforeOpen",
+      "open": "ui5Open",
+      "before-close": "ui5BeforeClose",
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5ItemClick",
+      "ui5BeforeOpen",
+      "ui5Open",
+      "ui5BeforeClose",
+      "ui5Close"
+    ]
+  },
+  "ui5-message-strip": {
+    "tag": "ui5-message-strip",
+    "componentClass": "MessageStripComponent",
+    "exportAs": "ui5MessageStrip",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/message-strip",
+    "inputs": [
+      "design",
+      "colorScheme",
+      "hideIcon",
+      "hideCloseButton"
+    ],
+    "outputs": {
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5Close"
+    ]
+  },
+  "ui5-mcb-item-group": {
+    "tag": "ui5-mcb-item-group",
+    "componentClass": "MultiComboBoxItemGroupComponent",
+    "exportAs": "ui5McbItemGroup",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/multi-combo-box-item-group",
+    "inputs": [
+      "headerText",
+      "headerAccessibleName",
+      "wrappingType"
+    ],
+    "outputs": {
+      "move-over": "ui5MoveOver",
+      "move": "ui5Move"
+    },
+    "outputNames": [
+      "ui5MoveOver",
+      "ui5Move"
+    ]
+  },
+  "ui5-mcb-item": {
+    "tag": "ui5-mcb-item",
+    "componentClass": "MultiComboBoxItemComponent",
+    "exportAs": "ui5McbItem",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/multi-combo-box-item",
+    "inputs": [
+      "text",
+      "additionalText",
+      "selected"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-multi-combobox": {
+    "tag": "ui5-multi-combobox",
+    "componentClass": "MultiComboBoxComponent",
+    "exportAs": "ui5MultiCombobox",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/multi-combo-box",
+    "inputs": [
+      "value",
+      "name",
+      "noTypeahead",
+      "placeholder",
+      "noValidation",
+      "disabled",
+      "valueState",
+      "readonly",
+      "required",
+      "filter",
+      "showClearIcon",
+      "accessibleName",
+      "accessibleNameRef",
+      "showSelectAll",
+      "open"
+    ],
+    "outputs": {
+      "change": "ui5Change",
+      "input": "ui5Input",
+      "open": "ui5Open",
+      "close": "ui5Close",
+      "selection-change": "ui5SelectionChange"
+    },
+    "outputNames": [
+      "ui5Change",
+      "ui5Input",
+      "ui5Open",
+      "ui5Close",
+      "ui5SelectionChange"
+    ]
+  },
+  "ui5-multi-input": {
+    "tag": "ui5-multi-input",
+    "componentClass": "MultiInputComponent",
+    "exportAs": "ui5MultiInput",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/multi-input",
+    "inputs": [
+      "disabled",
+      "placeholder",
+      "readonly",
+      "required",
+      "noTypeahead",
+      "type",
+      "value",
+      "valueState",
+      "name",
+      "showSuggestions",
+      "maxlength",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleDescription",
+      "accessibleDescriptionRef",
+      "showClearIcon",
+      "open",
+      "showValueHelpIcon"
+    ],
+    "outputs": {
+      "change": "ui5Change",
+      "input": "ui5Input",
+      "select": "ui5Select",
+      "selection-change": "ui5SelectionChange",
+      "open": "ui5Open",
+      "close": "ui5Close",
+      "value-help-trigger": "ui5ValueHelpTrigger",
+      "token-delete": "ui5TokenDelete"
+    },
+    "outputNames": [
+      "ui5Change",
+      "ui5Input",
+      "ui5Select",
+      "ui5SelectionChange",
+      "ui5Open",
+      "ui5Close",
+      "ui5ValueHelpTrigger",
+      "ui5TokenDelete"
+    ]
+  },
+  "ui5-option-custom": {
+    "tag": "ui5-option-custom",
+    "componentClass": "OptionCustomComponent",
+    "exportAs": "ui5OptionCustom",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/option-custom",
+    "inputs": [
+      "displayText",
+      "value",
+      "tooltip",
+      "selected"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-option": {
+    "tag": "ui5-option",
+    "componentClass": "OptionComponent",
+    "exportAs": "ui5Option",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/option",
+    "inputs": [
+      "value",
+      "icon",
+      "additionalText",
+      "tooltip",
+      "selected"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-panel": {
+    "tag": "ui5-panel",
+    "componentClass": "PanelComponent",
+    "exportAs": "ui5Panel",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/panel",
+    "inputs": [
+      "headerText",
+      "fixed",
+      "collapsed",
+      "noAnimation",
+      "accessibleRole",
+      "headerLevel",
+      "accessibleName",
+      "stickyHeader"
+    ],
+    "outputs": {
+      "toggle": "ui5Toggle"
+    },
+    "outputNames": [
+      "ui5Toggle"
+    ]
+  },
+  "ui5-popover": {
+    "tag": "ui5-popover",
+    "componentClass": "PopoverComponent",
+    "exportAs": "ui5Popover",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/popover",
+    "inputs": [
+      "initialFocus",
+      "preventFocusRestore",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleRole",
+      "accessibleDescription",
+      "accessibleDescriptionRef",
+      "preventInitialFocus",
+      "open",
+      "headerText",
+      "placement",
+      "horizontalAlign",
+      "verticalAlign",
+      "modal",
+      "hideArrow",
+      "allowTargetOverlap",
+      "opener"
+    ],
+    "outputs": {
+      "before-open": "ui5BeforeOpen",
+      "open": "ui5Open",
+      "before-close": "ui5BeforeClose",
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5BeforeOpen",
+      "ui5Open",
+      "ui5BeforeClose",
+      "ui5Close"
+    ]
+  },
+  "ui5-progress-indicator": {
+    "tag": "ui5-progress-indicator",
+    "componentClass": "ProgressIndicatorComponent",
+    "exportAs": "ui5ProgressIndicator",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/progress-indicator",
+    "inputs": [
+      "accessibleName",
+      "hideValue",
+      "value",
+      "displayValue",
+      "valueState"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-radio-button": {
+    "tag": "ui5-radio-button",
+    "componentClass": "RadioButtonComponent",
+    "exportAs": "ui5RadioButton",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/radio-button",
+    "inputs": [
+      "disabled",
+      "readonly",
+      "required",
+      "checked",
+      "text",
+      "valueState",
+      "name",
+      "value",
+      "wrappingType",
+      "accessibleName",
+      "accessibleNameRef"
+    ],
+    "outputs": {
+      "change": "ui5Change"
+    },
+    "outputNames": [
+      "ui5Change"
+    ]
+  },
+  "ui5-range-slider": {
+    "tag": "ui5-range-slider",
+    "componentClass": "RangeSliderComponent",
+    "exportAs": "ui5RangeSlider",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/range-slider",
+    "inputs": [
+      "min",
+      "max",
+      "name",
+      "step",
+      "labelInterval",
+      "showTickmarks",
+      "showTooltip",
+      "editableTooltip",
+      "disabled",
+      "accessibleName",
+      "startValue",
+      "endValue"
+    ],
+    "outputs": {
+      "change": "ui5Change",
+      "input": "ui5Input"
+    },
+    "outputNames": [
+      "ui5Change",
+      "ui5Input"
+    ]
+  },
+  "ui5-rating-indicator": {
+    "tag": "ui5-rating-indicator",
+    "componentClass": "RatingIndicatorComponent",
+    "exportAs": "ui5RatingIndicator",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/rating-indicator",
+    "inputs": [
+      "value",
+      "max",
+      "size",
+      "disabled",
+      "readonly",
+      "accessibleName",
+      "accessibleNameRef",
+      "required",
+      "tooltip"
+    ],
+    "outputs": {
+      "change": "ui5Change"
+    },
+    "outputNames": [
+      "ui5Change"
+    ]
+  },
+  "ui5-responsive-popover": {
+    "tag": "ui5-responsive-popover",
+    "componentClass": "ResponsivePopoverComponent",
+    "exportAs": "ui5ResponsivePopover",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/responsive-popover",
+    "inputs": [
+      "initialFocus",
+      "preventFocusRestore",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleRole",
+      "accessibleDescription",
+      "accessibleDescriptionRef",
+      "preventInitialFocus",
+      "open",
+      "headerText",
+      "placement",
+      "horizontalAlign",
+      "verticalAlign",
+      "modal",
+      "hideArrow",
+      "allowTargetOverlap",
+      "opener"
+    ],
+    "outputs": {
+      "before-open": "ui5BeforeOpen",
+      "open": "ui5Open",
+      "before-close": "ui5BeforeClose",
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5BeforeOpen",
+      "ui5Open",
+      "ui5BeforeClose",
+      "ui5Close"
+    ]
+  },
+  "ui5-segmented-button-item": {
+    "tag": "ui5-segmented-button-item",
+    "componentClass": "SegmentedButtonItemComponent",
+    "exportAs": "ui5SegmentedButtonItem",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/segmented-button-item",
+    "inputs": [
+      "disabled",
+      "selected",
+      "tooltip",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleDescription",
+      "accessibleDescriptionRef",
+      "icon"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-segmented-button": {
+    "tag": "ui5-segmented-button",
+    "componentClass": "SegmentedButtonComponent",
+    "exportAs": "ui5SegmentedButton",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/segmented-button",
+    "inputs": [
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleDescription",
+      "accessibleDescriptionRef",
+      "selectionMode",
+      "itemsFitContent"
+    ],
+    "outputs": {
+      "selection-change": "ui5SelectionChange"
+    },
+    "outputNames": [
+      "ui5SelectionChange"
+    ]
+  },
+  "ui5-select": {
+    "tag": "ui5-select",
+    "componentClass": "SelectComponent",
+    "exportAs": "ui5Select",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/select",
+    "inputs": [
+      "disabled",
+      "name",
+      "valueState",
+      "required",
+      "readonly",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleDescription",
+      "accessibleDescriptionRef",
+      "tooltip",
+      "textSeparator",
+      "value"
+    ],
+    "outputs": {
+      "change": "ui5Change",
+      "live-change": "ui5LiveChange",
+      "open": "ui5Open",
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5Change",
+      "ui5LiveChange",
+      "ui5Open",
+      "ui5Close"
+    ]
+  },
+  "ui5-slider": {
+    "tag": "ui5-slider",
+    "componentClass": "SliderComponent",
+    "exportAs": "ui5Slider",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/slider",
+    "inputs": [
+      "min",
+      "max",
+      "name",
+      "step",
+      "labelInterval",
+      "showTickmarks",
+      "showTooltip",
+      "editableTooltip",
+      "disabled",
+      "accessibleName",
+      "value"
+    ],
+    "outputs": {
+      "change": "ui5Change",
+      "input": "ui5Input"
+    },
+    "outputNames": [
+      "ui5Change",
+      "ui5Input"
+    ]
+  },
+  "ui5-special-date": {
+    "tag": "ui5-special-date",
+    "componentClass": "SpecialCalendarDateComponent",
+    "exportAs": "ui5SpecialDate",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/special-calendar-date",
+    "inputs": [
+      "value",
+      "type"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-split-button": {
+    "tag": "ui5-split-button",
+    "componentClass": "SplitButtonComponent",
+    "exportAs": "ui5SplitButton",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/split-button",
+    "inputs": [
+      "icon",
+      "activeArrowButton",
+      "design",
+      "disabled",
+      "accessibleName",
+      "accessibilityAttributes"
+    ],
+    "outputs": {
+      "click": "ui5Click",
+      "arrow-click": "ui5ArrowClick"
+    },
+    "outputNames": [
+      "ui5Click",
+      "ui5ArrowClick"
+    ]
+  },
+  "ui5-step-input": {
+    "tag": "ui5-step-input",
+    "componentClass": "StepInputComponent",
+    "exportAs": "ui5StepInput",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/step-input",
+    "inputs": [
+      "value",
+      "min",
+      "max",
+      "step",
+      "valueState",
+      "required",
+      "disabled",
+      "readonly",
+      "placeholder",
+      "name",
+      "valuePrecision",
+      "accessibleName",
+      "accessibleNameRef"
+    ],
+    "outputs": {
+      "change": "ui5Change",
+      "input": "ui5Input",
+      "value-state-change": "ui5ValueStateChange"
+    },
+    "outputNames": [
+      "ui5Change",
+      "ui5Input",
+      "ui5ValueStateChange"
+    ]
+  },
+  "ui5-suggestion-item-custom": {
+    "tag": "ui5-suggestion-item-custom",
+    "componentClass": "SuggestionItemCustomComponent",
+    "exportAs": "ui5SuggestionItemCustom",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/suggestion-item-custom",
+    "inputs": [
+      "text"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-suggestion-item-group": {
+    "tag": "ui5-suggestion-item-group",
+    "componentClass": "SuggestionItemGroupComponent",
+    "exportAs": "ui5SuggestionItemGroup",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/suggestion-item-group",
+    "inputs": [
+      "headerText",
+      "headerAccessibleName",
+      "wrappingType"
+    ],
+    "outputs": {
+      "move-over": "ui5MoveOver",
+      "move": "ui5Move"
+    },
+    "outputNames": [
+      "ui5MoveOver",
+      "ui5Move"
+    ]
+  },
+  "ui5-suggestion-item": {
+    "tag": "ui5-suggestion-item",
+    "componentClass": "SuggestionItemComponent",
+    "exportAs": "ui5SuggestionItem",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/suggestion-item",
+    "inputs": [
+      "text",
+      "additionalText"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-switch": {
+    "tag": "ui5-switch",
+    "componentClass": "SwitchComponent",
+    "exportAs": "ui5Switch",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/switch",
+    "inputs": [
+      "design",
+      "checked",
+      "disabled",
+      "textOn",
+      "textOff",
+      "accessibleName",
+      "accessibleNameRef",
+      "tooltip",
+      "required",
+      "name",
+      "value"
+    ],
+    "outputs": {
+      "change": "ui5Change"
+    },
+    "outputNames": [
+      "ui5Change"
+    ]
+  },
+  "ui5-tabcontainer": {
+    "tag": "ui5-tabcontainer",
+    "componentClass": "TabContainerComponent",
+    "exportAs": "ui5Tabcontainer",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/tab-container",
+    "inputs": [
+      "collapsed",
+      "tabLayout",
+      "overflowMode",
+      "headerBackgroundDesign",
+      "contentBackgroundDesign",
+      "noAutoSelection"
+    ],
+    "outputs": {
+      "tab-select": "ui5TabSelect",
+      "move-over": "ui5MoveOver",
+      "move": "ui5Move"
+    },
+    "outputNames": [
+      "ui5TabSelect",
+      "ui5MoveOver",
+      "ui5Move"
+    ]
+  },
+  "ui5-tab-separator": {
+    "tag": "ui5-tab-separator",
+    "componentClass": "TabSeparatorComponent",
+    "exportAs": "ui5TabSeparator",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/tab-separator",
+    "inputs": [],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-tab": {
+    "tag": "ui5-tab",
+    "componentClass": "TabComponent",
+    "exportAs": "ui5Tab",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/tab",
+    "inputs": [
+      "text",
+      "disabled",
+      "additionalText",
+      "icon",
+      "design",
+      "selected",
+      "movable"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-table-cell": {
+    "tag": "ui5-table-cell",
+    "componentClass": "TableCellComponent",
+    "exportAs": "ui5TableCell",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/table-cell",
+    "inputs": [
+      "horizontalAlign"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-table-growing": {
+    "tag": "ui5-table-growing",
+    "componentClass": "TableGrowingComponent",
+    "exportAs": "ui5TableGrowing",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/table-growing",
+    "inputs": [
+      "mode",
+      "text",
+      "subtext"
+    ],
+    "outputs": {
+      "load-more": "ui5LoadMore"
+    },
+    "outputNames": [
+      "ui5LoadMore"
+    ]
+  },
+  "ui5-table-header-cell-action-ai": {
+    "tag": "ui5-table-header-cell-action-ai",
+    "componentClass": "TableHeaderCellActionAIComponent",
+    "exportAs": "ui5TableHeaderCellActionAi",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/table-header-cell-action-ai",
+    "inputs": [],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-table-header-cell": {
+    "tag": "ui5-table-header-cell",
+    "componentClass": "TableHeaderCellComponent",
+    "exportAs": "ui5TableHeaderCell",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/table-header-cell",
+    "inputs": [
+      "horizontalAlign",
+      "width",
+      "minWidth",
+      "importance",
+      "popinText",
+      "sortIndicator",
+      "popinHidden"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-table-header-row": {
+    "tag": "ui5-table-header-row",
+    "componentClass": "TableHeaderRowComponent",
+    "exportAs": "ui5TableHeaderRow",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/table-header-row",
+    "inputs": [
+      "sticky"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-table-row-action-navigation": {
+    "tag": "ui5-table-row-action-navigation",
+    "componentClass": "TableRowActionNavigationComponent",
+    "exportAs": "ui5TableRowActionNavigation",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/table-row-action-navigation",
+    "inputs": [
+      "invisible",
+      "interactive"
+    ],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-table-row-action": {
+    "tag": "ui5-table-row-action",
+    "componentClass": "TableRowActionComponent",
+    "exportAs": "ui5TableRowAction",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/table-row-action",
+    "inputs": [
+      "invisible",
+      "icon",
+      "text"
+    ],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-table-row": {
+    "tag": "ui5-table-row",
+    "componentClass": "TableRowComponent",
+    "exportAs": "ui5TableRow",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/table-row",
+    "inputs": [
+      "rowKey",
+      "position",
+      "interactive",
+      "navigated",
+      "movable"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-table-selection-multi": {
+    "tag": "ui5-table-selection-multi",
+    "componentClass": "TableSelectionMultiComponent",
+    "exportAs": "ui5TableSelectionMulti",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/table-selection-multi",
+    "inputs": [
+      "selected",
+      "behavior",
+      "headerSelector"
+    ],
+    "outputs": {
+      "change": "ui5Change"
+    },
+    "outputNames": [
+      "ui5Change"
+    ]
+  },
+  "ui5-table-selection-single": {
+    "tag": "ui5-table-selection-single",
+    "componentClass": "TableSelectionSingleComponent",
+    "exportAs": "ui5TableSelectionSingle",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/table-selection-single",
+    "inputs": [
+      "selected",
+      "behavior"
+    ],
+    "outputs": {
+      "change": "ui5Change"
+    },
+    "outputNames": [
+      "ui5Change"
+    ]
+  },
+  "ui5-table-selection": {
+    "tag": "ui5-table-selection",
+    "componentClass": "TableSelectionComponent",
+    "exportAs": "ui5TableSelection",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/table-selection",
+    "inputs": [
+      "mode",
+      "selected"
+    ],
+    "outputs": {
+      "change": "ui5Change"
+    },
+    "outputNames": [
+      "ui5Change"
+    ]
+  },
+  "ui5-table-virtualizer": {
+    "tag": "ui5-table-virtualizer",
+    "componentClass": "TableVirtualizerComponent",
+    "exportAs": "ui5TableVirtualizer",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/table-virtualizer",
+    "inputs": [
+      "rowHeight",
+      "rowCount",
+      "extraRows"
+    ],
+    "outputs": {
+      "range-change": "ui5RangeChange"
+    },
+    "outputNames": [
+      "ui5RangeChange"
+    ]
+  },
+  "ui5-table": {
+    "tag": "ui5-table",
+    "componentClass": "TableComponent",
+    "exportAs": "ui5Table",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/table",
+    "inputs": [
+      "accessibleName",
+      "accessibleNameRef",
+      "noDataText",
+      "overflowMode",
+      "loading",
+      "loadingDelay",
+      "rowActionCount",
+      "alternateRowColors"
+    ],
+    "outputs": {
+      "row-click": "ui5RowClick",
+      "move-over": "ui5MoveOver",
+      "move": "ui5Move",
+      "row-action-click": "ui5RowActionClick"
+    },
+    "outputNames": [
+      "ui5RowClick",
+      "ui5MoveOver",
+      "ui5Move",
+      "ui5RowActionClick"
+    ]
+  },
+  "ui5-tag": {
+    "tag": "ui5-tag",
+    "componentClass": "TagComponent",
+    "exportAs": "ui5Tag",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/tag",
+    "inputs": [
+      "design",
+      "colorScheme",
+      "hideStateIcon",
+      "interactive",
+      "wrappingType",
+      "size"
+    ],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-textarea": {
+    "tag": "ui5-textarea",
+    "componentClass": "TextAreaComponent",
+    "exportAs": "ui5Textarea",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/text-area",
+    "inputs": [
+      "value",
+      "disabled",
+      "readonly",
+      "required",
+      "placeholder",
+      "valueState",
+      "rows",
+      "maxlength",
+      "showExceededText",
+      "growing",
+      "growingMaxRows",
+      "name",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleDescription",
+      "accessibleDescriptionRef"
+    ],
+    "outputs": {
+      "change": "ui5Change",
+      "input": "ui5Input",
+      "select": "ui5Select",
+      "scroll": "ui5Scroll"
+    },
+    "outputNames": [
+      "ui5Change",
+      "ui5Input",
+      "ui5Select",
+      "ui5Scroll"
+    ]
+  },
+  "ui5-text": {
+    "tag": "ui5-text",
+    "componentClass": "TextComponent",
+    "exportAs": "ui5Text",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/text",
+    "inputs": [
+      "maxLines",
+      "emptyIndicatorMode"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-time-picker": {
+    "tag": "ui5-time-picker",
+    "componentClass": "TimePickerComponent",
+    "exportAs": "ui5TimePicker",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/time-picker",
+    "inputs": [
+      "value",
+      "name",
+      "valueState",
+      "disabled",
+      "readonly",
+      "placeholder",
+      "formatPattern",
+      "open",
+      "required",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleDescription",
+      "accessibleDescriptionRef"
+    ],
+    "outputs": {
+      "change": "ui5Change",
+      "input": "ui5Input",
+      "open": "ui5Open",
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5Change",
+      "ui5Input",
+      "ui5Open",
+      "ui5Close"
+    ]
+  },
+  "ui5-title": {
+    "tag": "ui5-title",
+    "componentClass": "TitleComponent",
+    "exportAs": "ui5Title",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/title",
+    "inputs": [
+      "wrappingType",
+      "level",
+      "size"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-toast": {
+    "tag": "ui5-toast",
+    "componentClass": "ToastComponent",
+    "exportAs": "ui5Toast",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/toast",
+    "inputs": [
+      "duration",
+      "placement",
+      "open"
+    ],
+    "outputs": {
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5Close"
+    ]
+  },
+  "ui5-toggle-button": {
+    "tag": "ui5-toggle-button",
+    "componentClass": "ToggleButtonComponent",
+    "exportAs": "ui5ToggleButton",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/toggle-button",
+    "inputs": [
+      "design",
+      "disabled",
+      "icon",
+      "endIcon",
+      "submits",
+      "tooltip",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibilityAttributes",
+      "accessibleDescription",
+      "type",
+      "accessibleRole",
+      "loading",
+      "loadingDelay",
+      "pressed"
+    ],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-token": {
+    "tag": "ui5-token",
+    "componentClass": "TokenComponent",
+    "exportAs": "ui5Token",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/token",
+    "inputs": [
+      "text",
+      "selected"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-tokenizer": {
+    "tag": "ui5-tokenizer",
+    "componentClass": "TokenizerComponent",
+    "exportAs": "ui5Tokenizer",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/tokenizer",
+    "inputs": [
+      "readonly",
+      "multiLine",
+      "name",
+      "showClearAll",
+      "disabled",
+      "accessibleName",
+      "accessibleNameRef"
+    ],
+    "outputs": {
+      "token-delete": "ui5TokenDelete",
+      "selection-change": "ui5SelectionChange"
+    },
+    "outputNames": [
+      "ui5TokenDelete",
+      "ui5SelectionChange"
+    ]
+  },
+  "ui5-toolbar-button": {
+    "tag": "ui5-toolbar-button",
+    "componentClass": "ToolbarButtonComponent",
+    "exportAs": "ui5ToolbarButton",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/toolbar-button",
+    "inputs": [
+      "overflowPriority",
+      "preventOverflowClosing",
+      "disabled",
+      "design",
+      "icon",
+      "endIcon",
+      "tooltip",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibilityAttributes",
+      "text",
+      "showOverflowText",
+      "width"
+    ],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-toolbar-select-option": {
+    "tag": "ui5-toolbar-select-option",
+    "componentClass": "ToolbarSelectOptionComponent",
+    "exportAs": "ui5ToolbarSelectOption",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/toolbar-select-option",
+    "inputs": [
+      "selected"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-toolbar-select": {
+    "tag": "ui5-toolbar-select",
+    "componentClass": "ToolbarSelectComponent",
+    "exportAs": "ui5ToolbarSelect",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/toolbar-select",
+    "inputs": [
+      "overflowPriority",
+      "preventOverflowClosing",
+      "width",
+      "valueState",
+      "disabled",
+      "accessibleName",
+      "accessibleNameRef",
+      "value"
+    ],
+    "outputs": {
+      "change": "ui5Change",
+      "open": "ui5Open",
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5Change",
+      "ui5Open",
+      "ui5Close"
+    ]
+  },
+  "ui5-toolbar-separator": {
+    "tag": "ui5-toolbar-separator",
+    "componentClass": "ToolbarSeparatorComponent",
+    "exportAs": "ui5ToolbarSeparator",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/toolbar-separator",
+    "inputs": [
+      "overflowPriority",
+      "preventOverflowClosing"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-toolbar-spacer": {
+    "tag": "ui5-toolbar-spacer",
+    "componentClass": "ToolbarSpacerComponent",
+    "exportAs": "ui5ToolbarSpacer",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/toolbar-spacer",
+    "inputs": [
+      "overflowPriority",
+      "preventOverflowClosing",
+      "width"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-toolbar": {
+    "tag": "ui5-toolbar",
+    "componentClass": "ToolbarComponent",
+    "exportAs": "ui5Toolbar",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/toolbar",
+    "inputs": [
+      "alignContent",
+      "accessibleName",
+      "accessibleNameRef",
+      "design"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-tree-item-custom": {
+    "tag": "ui5-tree-item-custom",
+    "componentClass": "TreeItemCustomComponent",
+    "exportAs": "ui5TreeItemCustom",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/tree-item-custom",
+    "inputs": [
+      "type",
+      "accessibilityAttributes",
+      "navigated",
+      "tooltip",
+      "highlight",
+      "selected",
+      "icon",
+      "expanded",
+      "movable",
+      "indeterminate",
+      "hasChildren",
+      "additionalTextState",
+      "accessibleName",
+      "hideSelectionElement"
+    ],
+    "outputs": {
+      "detail-click": "ui5DetailClick"
+    },
+    "outputNames": [
+      "ui5DetailClick"
+    ]
+  },
+  "ui5-tree-item": {
+    "tag": "ui5-tree-item",
+    "componentClass": "TreeItemComponent",
+    "exportAs": "ui5TreeItem",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/tree-item",
+    "inputs": [
+      "type",
+      "accessibilityAttributes",
+      "navigated",
+      "tooltip",
+      "highlight",
+      "selected",
+      "icon",
+      "expanded",
+      "movable",
+      "indeterminate",
+      "hasChildren",
+      "additionalTextState",
+      "accessibleName",
+      "text",
+      "additionalText"
+    ],
+    "outputs": {
+      "detail-click": "ui5DetailClick"
+    },
+    "outputNames": [
+      "ui5DetailClick"
+    ]
+  },
+  "ui5-tree": {
+    "tag": "ui5-tree",
+    "componentClass": "TreeComponent",
+    "exportAs": "ui5Tree",
+    "importModule": "@ui5/webcomponents-ngx/main",
+    "importPath": "@ui5/webcomponents-ngx/main/tree",
+    "inputs": [
+      "selectionMode",
+      "noDataText",
+      "headerText",
+      "footerText",
+      "accessibleName",
+      "accessibleNameRef",
+      "accessibleDescription",
+      "accessibleDescriptionRef"
+    ],
+    "outputs": {
+      "item-toggle": "ui5ItemToggle",
+      "item-mouseover": "ui5ItemMouseover",
+      "item-mouseout": "ui5ItemMouseout",
+      "item-click": "ui5ItemClick",
+      "item-delete": "ui5ItemDelete",
+      "selection-change": "ui5SelectionChange",
+      "move": "ui5Move",
+      "move-over": "ui5MoveOver"
+    },
+    "outputNames": [
+      "ui5ItemToggle",
+      "ui5ItemMouseover",
+      "ui5ItemMouseout",
+      "ui5ItemClick",
+      "ui5ItemDelete",
+      "ui5SelectionChange",
+      "ui5Move",
+      "ui5MoveOver"
+    ]
+  },
+  "ui5-barcode-scanner-dialog": {
+    "tag": "ui5-barcode-scanner-dialog",
+    "componentClass": "BarcodeScannerDialogComponent",
+    "exportAs": "ui5BarcodeScannerDialog",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/barcode-scanner-dialog",
+    "inputs": [
+      "open"
+    ],
+    "outputs": {
+      "close": "ui5Close",
+      "scan-success": "ui5ScanSuccess",
+      "scan-error": "ui5ScanError"
+    },
+    "outputNames": [
+      "ui5Close",
+      "ui5ScanSuccess",
+      "ui5ScanError"
+    ]
+  },
+  "ui5-dynamic-page-header": {
+    "tag": "ui5-dynamic-page-header",
+    "componentClass": "DynamicPageHeaderComponent",
+    "exportAs": "ui5DynamicPageHeader",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/dynamic-page-header",
+    "inputs": [],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-dynamic-page-title": {
+    "tag": "ui5-dynamic-page-title",
+    "componentClass": "DynamicPageTitleComponent",
+    "exportAs": "ui5DynamicPageTitle",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/dynamic-page-title",
+    "inputs": [],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-dynamic-page": {
+    "tag": "ui5-dynamic-page",
+    "componentClass": "DynamicPageComponent",
+    "exportAs": "ui5DynamicPage",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/dynamic-page",
+    "inputs": [
+      "hidePinButton",
+      "headerPinned",
+      "showFooter",
+      "headerSnapped"
+    ],
+    "outputs": {
+      "pin-button-toggle": "ui5PinButtonToggle",
+      "title-toggle": "ui5TitleToggle"
+    },
+    "outputNames": [
+      "ui5PinButtonToggle",
+      "ui5TitleToggle"
+    ]
+  },
+  "ui5-dynamic-side-content": {
+    "tag": "ui5-dynamic-side-content",
+    "componentClass": "DynamicSideContentComponent",
+    "exportAs": "ui5DynamicSideContent",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/dynamic-side-content",
+    "inputs": [
+      "hideMainContent",
+      "hideSideContent",
+      "sideContentPosition",
+      "sideContentVisibility",
+      "sideContentFallDown",
+      "equalSplit",
+      "accessibilityAttributes"
+    ],
+    "outputs": {
+      "layout-change": "ui5LayoutChange"
+    },
+    "outputNames": [
+      "ui5LayoutChange"
+    ]
+  },
+  "ui5-filter-item-option": {
+    "tag": "ui5-filter-item-option",
+    "componentClass": "FilterItemOptionComponent",
+    "exportAs": "ui5FilterItemOption",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/filter-item-option",
+    "inputs": [
+      "text",
+      "selected"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-filter-item": {
+    "tag": "ui5-filter-item",
+    "componentClass": "FilterItemComponent",
+    "exportAs": "ui5FilterItem",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/filter-item",
+    "inputs": [
+      "text",
+      "additionalText"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-flexible-column-layout": {
+    "tag": "ui5-flexible-column-layout",
+    "componentClass": "FlexibleColumnLayoutComponent",
+    "exportAs": "ui5FlexibleColumnLayout",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/flexible-column-layout",
+    "inputs": [
+      "layout",
+      "disableResizing",
+      "accessibilityAttributes",
+      "layoutsConfiguration"
+    ],
+    "outputs": {
+      "layout-change": "ui5LayoutChange",
+      "layout-configuration-change": "ui5LayoutConfigurationChange"
+    },
+    "outputNames": [
+      "ui5LayoutChange",
+      "ui5LayoutConfigurationChange"
+    ]
+  },
+  "ui5-group-item": {
+    "tag": "ui5-group-item",
+    "componentClass": "GroupItemComponent",
+    "exportAs": "ui5GroupItem",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/group-item",
+    "inputs": [
+      "text",
+      "selected"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-illustrated-message": {
+    "tag": "ui5-illustrated-message",
+    "componentClass": "IllustratedMessageComponent",
+    "exportAs": "ui5IllustratedMessage",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/illustrated-message",
+    "inputs": [
+      "name",
+      "design",
+      "subtitleText",
+      "titleText",
+      "accessibleNameRef",
+      "decorative"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-media-gallery-item": {
+    "tag": "ui5-media-gallery-item",
+    "componentClass": "MediaGalleryItemComponent",
+    "exportAs": "ui5MediaGalleryItem",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/media-gallery-item",
+    "inputs": [
+      "selected",
+      "disabled",
+      "layout"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-media-gallery": {
+    "tag": "ui5-media-gallery",
+    "componentClass": "MediaGalleryComponent",
+    "exportAs": "ui5MediaGallery",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/media-gallery",
+    "inputs": [
+      "showAllThumbnails",
+      "interactiveDisplayArea",
+      "layout",
+      "menuHorizontalAlign",
+      "menuVerticalAlign"
+    ],
+    "outputs": {
+      "selection-change": "ui5SelectionChange",
+      "overflow-click": "ui5OverflowClick",
+      "display-area-click": "ui5DisplayAreaClick"
+    },
+    "outputNames": [
+      "ui5SelectionChange",
+      "ui5OverflowClick",
+      "ui5DisplayAreaClick"
+    ]
+  },
+  "ui5-navigation-layout": {
+    "tag": "ui5-navigation-layout",
+    "componentClass": "NavigationLayoutComponent",
+    "exportAs": "ui5NavigationLayout",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/navigation-layout",
+    "inputs": [
+      "mode"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-li-notification-group": {
+    "tag": "ui5-li-notification-group",
+    "componentClass": "NotificationListGroupItemComponent",
+    "exportAs": "ui5LiNotificationGroup",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/notification-list-group-item",
+    "inputs": [
+      "titleText",
+      "read",
+      "loading",
+      "loadingDelay",
+      "collapsed",
+      "growing"
+    ],
+    "outputs": {
+      "toggle": "ui5Toggle",
+      "load-more": "ui5LoadMore"
+    },
+    "outputNames": [
+      "ui5Toggle",
+      "ui5LoadMore"
+    ]
+  },
+  "ui5-li-notification": {
+    "tag": "ui5-li-notification",
+    "componentClass": "NotificationListItemComponent",
+    "exportAs": "ui5LiNotification",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/notification-list-item",
+    "inputs": [
+      "titleText",
+      "read",
+      "loading",
+      "loadingDelay",
+      "wrappingType",
+      "state",
+      "showClose",
+      "importance"
+    ],
+    "outputs": {
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5Close"
+    ]
+  },
+  "ui5-notification-list": {
+    "tag": "ui5-notification-list",
+    "componentClass": "NotificationListComponent",
+    "exportAs": "ui5NotificationList",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/notification-list",
+    "inputs": [
+      "noDataText"
+    ],
+    "outputs": {
+      "item-click": "ui5ItemClick",
+      "item-close": "ui5ItemClose",
+      "item-toggle": "ui5ItemToggle"
+    },
+    "outputNames": [
+      "ui5ItemClick",
+      "ui5ItemClose",
+      "ui5ItemToggle"
+    ]
+  },
+  "ui5-page": {
+    "tag": "ui5-page",
+    "componentClass": "PageComponent",
+    "exportAs": "ui5Page",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/page",
+    "inputs": [
+      "backgroundDesign",
+      "noScrolling",
+      "fixedFooter",
+      "hideFooter"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-product-switch-item": {
+    "tag": "ui5-product-switch-item",
+    "componentClass": "ProductSwitchItemComponent",
+    "exportAs": "ui5ProductSwitchItem",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/product-switch-item",
+    "inputs": [
+      "titleText",
+      "subtitleText",
+      "icon",
+      "target",
+      "targetSrc"
+    ],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-product-switch": {
+    "tag": "ui5-product-switch",
+    "componentClass": "ProductSwitchComponent",
+    "exportAs": "ui5ProductSwitch",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/product-switch",
+    "inputs": [],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-search-item-group": {
+    "tag": "ui5-search-item-group",
+    "componentClass": "SearchItemGroupComponent",
+    "exportAs": "ui5SearchItemGroup",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/search-item-group",
+    "inputs": [
+      "headerText",
+      "headerAccessibleName",
+      "wrappingType"
+    ],
+    "outputs": {
+      "move-over": "ui5MoveOver",
+      "move": "ui5Move"
+    },
+    "outputNames": [
+      "ui5MoveOver",
+      "ui5Move"
+    ]
+  },
+  "ui5-search-item-show-more": {
+    "tag": "ui5-search-item-show-more",
+    "componentClass": "SearchItemShowMoreComponent",
+    "exportAs": "ui5SearchItemShowMore",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/search-item-show-more",
+    "inputs": [
+      "itemsToShowCount",
+      "selected"
+    ],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-search-item": {
+    "tag": "ui5-search-item",
+    "componentClass": "SearchItemComponent",
+    "exportAs": "ui5SearchItem",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/search-item",
+    "inputs": [
+      "text",
+      "description",
+      "icon",
+      "selected",
+      "deletable",
+      "scopeName"
+    ],
+    "outputs": {
+      "delete": "ui5Delete"
+    },
+    "outputNames": [
+      "ui5Delete"
+    ]
+  },
+  "ui5-search-message-area": {
+    "tag": "ui5-search-message-area",
+    "componentClass": "SearchMessageAreaComponent",
+    "exportAs": "ui5SearchMessageArea",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/search-message-area",
+    "inputs": [
+      "text",
+      "description"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-search-scope": {
+    "tag": "ui5-search-scope",
+    "componentClass": "SearchScopeComponent",
+    "exportAs": "ui5SearchScope",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/search-scope",
+    "inputs": [
+      "text",
+      "value"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-search": {
+    "tag": "ui5-search",
+    "componentClass": "SearchComponent",
+    "exportAs": "ui5Search",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/search",
+    "inputs": [
+      "loading",
+      "noTypeahead",
+      "open",
+      "showClearIcon",
+      "value",
+      "placeholder",
+      "accessibleName",
+      "accessibleDescription",
+      "scopeValue"
+    ],
+    "outputs": {
+      "open": "ui5Open",
+      "close": "ui5Close",
+      "input": "ui5Input",
+      "scope-change": "ui5ScopeChange",
+      "search": "ui5Search"
+    },
+    "outputNames": [
+      "ui5Open",
+      "ui5Close",
+      "ui5Input",
+      "ui5ScopeChange",
+      "ui5Search"
+    ]
+  },
+  "ui5-shellbar-branding": {
+    "tag": "ui5-shellbar-branding",
+    "componentClass": "ShellBarBrandingComponent",
+    "exportAs": "ui5ShellbarBranding",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/shell-bar-branding",
+    "inputs": [
+      "href",
+      "target",
+      "accessibleName"
+    ],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-shellbar-item": {
+    "tag": "ui5-shellbar-item",
+    "componentClass": "ShellBarItemComponent",
+    "exportAs": "ui5ShellbarItem",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/shell-bar-item",
+    "inputs": [
+      "icon",
+      "text",
+      "count",
+      "accessibilityAttributes"
+    ],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-shellbar-search": {
+    "tag": "ui5-shellbar-search",
+    "componentClass": "ShellBarSearchComponent",
+    "exportAs": "ui5ShellbarSearch",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/shell-bar-search",
+    "inputs": [
+      "loading",
+      "noTypeahead",
+      "open",
+      "showClearIcon",
+      "value",
+      "placeholder",
+      "accessibleName",
+      "accessibleDescription",
+      "scopeValue",
+      "autoOpen"
+    ],
+    "outputs": {
+      "open": "ui5Open",
+      "close": "ui5Close",
+      "input": "ui5Input",
+      "scope-change": "ui5ScopeChange",
+      "search": "ui5Search"
+    },
+    "outputNames": [
+      "ui5Open",
+      "ui5Close",
+      "ui5Input",
+      "ui5ScopeChange",
+      "ui5Search"
+    ]
+  },
+  "ui5-shellbar-spacer": {
+    "tag": "ui5-shellbar-spacer",
+    "componentClass": "ShellBarSpacerComponent",
+    "exportAs": "ui5ShellbarSpacer",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/shell-bar-spacer",
+    "inputs": [],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-shellbar": {
+    "tag": "ui5-shellbar",
+    "componentClass": "ShellBarComponent",
+    "exportAs": "ui5Shellbar",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/shell-bar",
+    "inputs": [
+      "hideSearchButton",
+      "disableSearchCollapse",
+      "primaryTitle",
+      "secondaryTitle",
+      "notificationsCount",
+      "showNotifications",
+      "showProductSwitch",
+      "showSearchField",
+      "accessibilityAttributes"
+    ],
+    "outputs": {
+      "notifications-click": "ui5NotificationsClick",
+      "profile-click": "ui5ProfileClick",
+      "product-switch-click": "ui5ProductSwitchClick",
+      "logo-click": "ui5LogoClick",
+      "menu-item-click": "ui5MenuItemClick",
+      "search-button-click": "ui5SearchButtonClick",
+      "search-field-toggle": "ui5SearchFieldToggle",
+      "search-field-clear": "ui5SearchFieldClear",
+      "content-item-visibility-change": "ui5ContentItemVisibilityChange"
+    },
+    "outputNames": [
+      "ui5NotificationsClick",
+      "ui5ProfileClick",
+      "ui5ProductSwitchClick",
+      "ui5LogoClick",
+      "ui5MenuItemClick",
+      "ui5SearchButtonClick",
+      "ui5SearchFieldToggle",
+      "ui5SearchFieldClear",
+      "ui5ContentItemVisibilityChange"
+    ]
+  },
+  "ui5-side-navigation-group": {
+    "tag": "ui5-side-navigation-group",
+    "componentClass": "SideNavigationGroupComponent",
+    "exportAs": "ui5SideNavigationGroup",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/side-navigation-group",
+    "inputs": [
+      "text",
+      "disabled",
+      "tooltip",
+      "expanded"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-side-navigation-item": {
+    "tag": "ui5-side-navigation-item",
+    "componentClass": "SideNavigationItemComponent",
+    "exportAs": "ui5SideNavigationItem",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/side-navigation-item",
+    "inputs": [
+      "text",
+      "disabled",
+      "tooltip",
+      "icon",
+      "selected",
+      "href",
+      "target",
+      "design",
+      "unselectable",
+      "accessibilityAttributes",
+      "expanded"
+    ],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-side-navigation-sub-item": {
+    "tag": "ui5-side-navigation-sub-item",
+    "componentClass": "SideNavigationSubItemComponent",
+    "exportAs": "ui5SideNavigationSubItem",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/side-navigation-sub-item",
+    "inputs": [
+      "text",
+      "disabled",
+      "tooltip",
+      "icon",
+      "selected",
+      "href",
+      "target",
+      "design",
+      "unselectable",
+      "accessibilityAttributes"
+    ],
+    "outputs": {
+      "click": "ui5Click"
+    },
+    "outputNames": [
+      "ui5Click"
+    ]
+  },
+  "ui5-side-navigation": {
+    "tag": "ui5-side-navigation",
+    "componentClass": "SideNavigationComponent",
+    "exportAs": "ui5SideNavigation",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/side-navigation",
+    "inputs": [
+      "collapsed",
+      "accessibleName"
+    ],
+    "outputs": {
+      "selection-change": "ui5SelectionChange"
+    },
+    "outputNames": [
+      "ui5SelectionChange"
+    ]
+  },
+  "ui5-sort-item": {
+    "tag": "ui5-sort-item",
+    "componentClass": "SortItemComponent",
+    "exportAs": "ui5SortItem",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/sort-item",
+    "inputs": [
+      "text",
+      "selected"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-timeline-group-item": {
+    "tag": "ui5-timeline-group-item",
+    "componentClass": "TimelineGroupItemComponent",
+    "exportAs": "ui5TimelineGroupItem",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/timeline-group-item",
+    "inputs": [
+      "groupName",
+      "collapsed"
+    ],
+    "outputs": {
+      "toggle": "ui5Toggle"
+    },
+    "outputNames": [
+      "ui5Toggle"
+    ]
+  },
+  "ui5-timeline-item": {
+    "tag": "ui5-timeline-item",
+    "componentClass": "TimelineItemComponent",
+    "exportAs": "ui5TimelineItem",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/timeline-item",
+    "inputs": [
+      "icon",
+      "name",
+      "nameClickable",
+      "titleText",
+      "subtitleText",
+      "state"
+    ],
+    "outputs": {
+      "name-click": "ui5NameClick"
+    },
+    "outputNames": [
+      "ui5NameClick"
+    ]
+  },
+  "ui5-timeline": {
+    "tag": "ui5-timeline",
+    "componentClass": "TimelineComponent",
+    "exportAs": "ui5Timeline",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/timeline",
+    "inputs": [
+      "layout",
+      "accessibleName",
+      "loading",
+      "loadingDelay",
+      "growing"
+    ],
+    "outputs": {
+      "load-more": "ui5LoadMore"
+    },
+    "outputNames": [
+      "ui5LoadMore"
+    ]
+  },
+  "ui5-upload-collection-item": {
+    "tag": "ui5-upload-collection-item",
+    "componentClass": "UploadCollectionItemComponent",
+    "exportAs": "ui5UploadCollectionItem",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/upload-collection-item",
+    "inputs": [
+      "type",
+      "accessibilityAttributes",
+      "navigated",
+      "tooltip",
+      "highlight",
+      "selected",
+      "file",
+      "fileName",
+      "fileNameClickable",
+      "disableDeleteButton",
+      "hideDeleteButton",
+      "hideRetryButton",
+      "hideTerminateButton",
+      "progress",
+      "uploadState"
+    ],
+    "outputs": {
+      "detail-click": "ui5DetailClick",
+      "file-name-click": "ui5FileNameClick",
+      "rename": "ui5Rename",
+      "terminate": "ui5Terminate",
+      "retry": "ui5Retry"
+    },
+    "outputNames": [
+      "ui5DetailClick",
+      "ui5FileNameClick",
+      "ui5Rename",
+      "ui5Terminate",
+      "ui5Retry"
+    ]
+  },
+  "ui5-upload-collection": {
+    "tag": "ui5-upload-collection",
+    "componentClass": "UploadCollectionComponent",
+    "exportAs": "ui5UploadCollection",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/upload-collection",
+    "inputs": [
+      "selectionMode",
+      "noDataDescription",
+      "noDataText",
+      "noDataHeaderLevel",
+      "hideDragOverlay",
+      "accessibleName"
+    ],
+    "outputs": {
+      "item-delete": "ui5ItemDelete",
+      "selection-change": "ui5SelectionChange"
+    },
+    "outputNames": [
+      "ui5ItemDelete",
+      "ui5SelectionChange"
+    ]
+  },
+  "ui5-user-menu-account": {
+    "tag": "ui5-user-menu-account",
+    "componentClass": "UserMenuAccountComponent",
+    "exportAs": "ui5UserMenuAccount",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/user-menu-account",
+    "inputs": [
+      "avatarSrc",
+      "avatarInitials",
+      "titleText",
+      "subtitleText",
+      "description",
+      "additionalInfo",
+      "selected",
+      "loading"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-user-menu-item-group": {
+    "tag": "ui5-user-menu-item-group",
+    "componentClass": "UserMenuItemGroupComponent",
+    "exportAs": "ui5UserMenuItemGroup",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/user-menu-item-group",
+    "inputs": [
+      "checkMode"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-user-menu-item": {
+    "tag": "ui5-user-menu-item",
+    "componentClass": "UserMenuItemComponent",
+    "exportAs": "ui5UserMenuItem",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/user-menu-item",
+    "inputs": [
+      "type",
+      "accessibilityAttributes",
+      "navigated",
+      "tooltip",
+      "highlight",
+      "selected",
+      "text",
+      "additionalText",
+      "icon",
+      "disabled",
+      "loading",
+      "loadingDelay",
+      "accessibleName",
+      "checked"
+    ],
+    "outputs": {
+      "detail-click": "ui5DetailClick",
+      "before-open": "ui5BeforeOpen",
+      "open": "ui5Open",
+      "before-close": "ui5BeforeClose",
+      "close": "ui5Close",
+      "check": "ui5Check"
+    },
+    "outputNames": [
+      "ui5DetailClick",
+      "ui5BeforeOpen",
+      "ui5Open",
+      "ui5BeforeClose",
+      "ui5Close",
+      "ui5Check"
+    ]
+  },
+  "ui5-user-menu": {
+    "tag": "ui5-user-menu",
+    "componentClass": "UserMenuComponent",
+    "exportAs": "ui5UserMenu",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/user-menu",
+    "inputs": [
+      "open",
+      "opener",
+      "showManageAccount",
+      "showOtherAccounts",
+      "showEditAccounts",
+      "showEditButton"
+    ],
+    "outputs": {
+      "avatar-click": "ui5AvatarClick",
+      "manage-account-click": "ui5ManageAccountClick",
+      "edit-accounts-click": "ui5EditAccountsClick",
+      "change-account": "ui5ChangeAccount",
+      "item-click": "ui5ItemClick",
+      "open": "ui5Open",
+      "close": "ui5Close",
+      "sign-out-click": "ui5SignOutClick"
+    },
+    "outputNames": [
+      "ui5AvatarClick",
+      "ui5ManageAccountClick",
+      "ui5EditAccountsClick",
+      "ui5ChangeAccount",
+      "ui5ItemClick",
+      "ui5Open",
+      "ui5Close",
+      "ui5SignOutClick"
+    ]
+  },
+  "ui5-user-settings-account-view": {
+    "tag": "ui5-user-settings-account-view",
+    "componentClass": "UserSettingsAccountViewComponent",
+    "exportAs": "ui5UserSettingsAccountView",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/user-settings-account-view",
+    "inputs": [
+      "text",
+      "selected",
+      "secondary",
+      "showManageAccount"
+    ],
+    "outputs": {
+      "edit-accounts-click": "ui5EditAccountsClick",
+      "manage-account-click": "ui5ManageAccountClick"
+    },
+    "outputNames": [
+      "ui5EditAccountsClick",
+      "ui5ManageAccountClick"
+    ]
+  },
+  "ui5-user-settings-appearance-view-group": {
+    "tag": "ui5-user-settings-appearance-view-group",
+    "componentClass": "UserSettingsAppearanceViewGroupComponent",
+    "exportAs": "ui5UserSettingsAppearanceViewGroup",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/user-settings-appearance-view-group",
+    "inputs": [
+      "headerText",
+      "headerAccessibleName",
+      "wrappingType"
+    ],
+    "outputs": {
+      "move-over": "ui5MoveOver",
+      "move": "ui5Move"
+    },
+    "outputNames": [
+      "ui5MoveOver",
+      "ui5Move"
+    ]
+  },
+  "ui5-user-settings-appearance-view-item": {
+    "tag": "ui5-user-settings-appearance-view-item",
+    "componentClass": "UserSettingsAppearanceViewItemComponent",
+    "exportAs": "ui5UserSettingsAppearanceViewItem",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/user-settings-appearance-view-item",
+    "inputs": [
+      "type",
+      "accessibilityAttributes",
+      "navigated",
+      "tooltip",
+      "highlight",
+      "selected",
+      "movable",
+      "accessibleName",
+      "itemKey",
+      "text",
+      "icon",
+      "colorScheme"
+    ],
+    "outputs": {
+      "detail-click": "ui5DetailClick"
+    },
+    "outputNames": [
+      "ui5DetailClick"
+    ]
+  },
+  "ui5-user-settings-appearance-view": {
+    "tag": "ui5-user-settings-appearance-view",
+    "componentClass": "UserSettingsAppearanceViewComponent",
+    "exportAs": "ui5UserSettingsAppearanceView",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/user-settings-appearance-view",
+    "inputs": [
+      "text",
+      "selected",
+      "secondary"
+    ],
+    "outputs": {
+      "selection-change": "ui5SelectionChange"
+    },
+    "outputNames": [
+      "ui5SelectionChange"
+    ]
+  },
+  "ui5-user-settings-dialog": {
+    "tag": "ui5-user-settings-dialog",
+    "componentClass": "UserSettingsDialogComponent",
+    "exportAs": "ui5UserSettingsDialog",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/user-settings-dialog",
+    "inputs": [
+      "open",
+      "headerText",
+      "showSearchField"
+    ],
+    "outputs": {
+      "selection-change": "ui5SelectionChange",
+      "open": "ui5Open",
+      "before-close": "ui5BeforeClose",
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5SelectionChange",
+      "ui5Open",
+      "ui5BeforeClose",
+      "ui5Close"
+    ]
+  },
+  "ui5-user-settings-item": {
+    "tag": "ui5-user-settings-item",
+    "componentClass": "UserSettingsItemComponent",
+    "exportAs": "ui5UserSettingsItem",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/user-settings-item",
+    "inputs": [
+      "text",
+      "tooltip",
+      "headerText",
+      "selected",
+      "disabled",
+      "loading",
+      "loadingReason",
+      "icon",
+      "accessibleName"
+    ],
+    "outputs": {
+      "selection-change": "ui5SelectionChange"
+    },
+    "outputNames": [
+      "ui5SelectionChange"
+    ]
+  },
+  "ui5-user-settings-view": {
+    "tag": "ui5-user-settings-view",
+    "componentClass": "UserSettingsViewComponent",
+    "exportAs": "ui5UserSettingsView",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/user-settings-view",
+    "inputs": [
+      "text",
+      "selected",
+      "secondary"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-view-settings-dialog": {
+    "tag": "ui5-view-settings-dialog",
+    "componentClass": "ViewSettingsDialogComponent",
+    "exportAs": "ui5ViewSettingsDialog",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/view-settings-dialog",
+    "inputs": [
+      "sortDescending",
+      "groupDescending",
+      "open"
+    ],
+    "outputs": {
+      "confirm": "ui5Confirm",
+      "cancel": "ui5Cancel",
+      "before-open": "ui5BeforeOpen",
+      "open": "ui5Open",
+      "close": "ui5Close"
+    },
+    "outputNames": [
+      "ui5Confirm",
+      "ui5Cancel",
+      "ui5BeforeOpen",
+      "ui5Open",
+      "ui5Close"
+    ]
+  },
+  "ui5-wizard-step": {
+    "tag": "ui5-wizard-step",
+    "componentClass": "WizardStepComponent",
+    "exportAs": "ui5WizardStep",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/wizard-step",
+    "inputs": [
+      "titleText",
+      "subtitleText",
+      "icon",
+      "disabled",
+      "selected",
+      "branching"
+    ],
+    "outputs": {},
+    "outputNames": []
+  },
+  "ui5-wizard": {
+    "tag": "ui5-wizard",
+    "componentClass": "WizardComponent",
+    "exportAs": "ui5Wizard",
+    "importModule": "@ui5/webcomponents-ngx/fiori",
+    "importPath": "@ui5/webcomponents-ngx/fiori/wizard",
+    "inputs": [
+      "contentLayout"
+    ],
+    "outputs": {
+      "step-change": "ui5StepChange"
+    },
+    "outputNames": [
+      "ui5StepChange"
+    ]
+  }
+}

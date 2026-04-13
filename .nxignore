@@ -1,0 +1,6 @@
+# Template directories contain package.json files for user projects, not Nx projects
+apps/server/src/assets/default-kit/template
+apps/server/src/assets/kits/**/template
+
+# Experiment output contains generated Angular projects
+experiments

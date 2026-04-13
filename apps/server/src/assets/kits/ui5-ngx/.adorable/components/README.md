@@ -1,0 +1,202 @@
+# SAP UI5 Web Components (Angular / @ui5/webcomponents-ngx)
+
+UI5 version: 2.21.0
+
+## MANDATORY — Read Before Writing Code
+
+This project uses **@ui5/webcomponents-ngx** Angular wrappers, NOT raw web components.
+
+**Rules:**
+1. Import wrapper classes from `@ui5/webcomponents-ngx/main` or `@ui5/webcomponents-ngx/fiori` — NEVER from `@ui5/webcomponents/dist/*`
+2. Use real Angular inputs: `[design]="..."` — NEVER `[attr.design]="..."`
+3. Events are renamed with `ui5` prefix: `(ui5Click)`, `(ui5SelectionChange)` — NEVER `(click)` or `(selection-change)` on UI5 elements
+4. Do NOT use `CUSTOM_ELEMENTS_SCHEMA` — the wrappers ARE Angular components
+5. Use camelCase input names: `[titleText]` — NEVER kebab-case `title-text="..."`
+
+## main (121 components)
+
+- [ui5-avatar](./ui5-avatar.md) — An image-like component that has different display options for representing imag
+- [ui5-avatar-badge](./ui5-avatar-badge.md) — The ui5-avatar-badge component is used to display a badge on top of ui5-avatar c
+- [ui5-avatar-group](./ui5-avatar-group.md) — Displays a group of avatars arranged horizontally. It is useful to visually show
+- [ui5-bar](./ui5-bar.md) — The Bar is a container which is primarily used to hold titles, buttons and input
+- [ui5-breadcrumbs](./ui5-breadcrumbs.md) — Enables users to navigate between items by providing a list of links to previous
+- [ui5-breadcrumbs-item](./ui5-breadcrumbs-item.md) — The ui5-breadcrumbs-item component defines the content of an item in ui5-breadcr
+- [ui5-busy-indicator](./ui5-busy-indicator.md) — The ui5-busy-indicator signals that some operation is going on and that the user
+- [ui5-button](./ui5-button.md) — The ui5-button component represents a simple push button. It enables users to tr
+- [ui5-button-badge](./ui5-button-badge.md) — The ui5-button-badge component defines a badge that appears in the ui5-button. i
+- [ui5-calendar](./ui5-calendar.md) — The ui5-calendar component allows users to select one or more dates. Currently s
+- [ui5-calendar-legend](./ui5-calendar-legend.md) — The ui5-calendar-legend component is designed for use within the ui5-calendar to
+- [ui5-calendar-legend-item](./ui5-calendar-legend-item.md) — Each ui5-calendar-legend-item represents a legend item, displaying a color with 
+- [ui5-card](./ui5-card.md) — The ui5-card is a component that represents information in the form of a tile wi
+- [ui5-card-header](./ui5-card-header.md) — The ui5-card-header is a component, meant to be used as a header of the ui5-card
+- [ui5-carousel](./ui5-carousel.md) — The Carousel allows the user to browse through a set of items. The component is 
+- [ui5-cb-item](./ui5-cb-item.md) — The ui5-cb-item represents the item for a ui5-combobox.
+- [ui5-cb-item-group](./ui5-cb-item-group.md) — The ui5-cb-group-item is type of suggestion item, that can be used to split the 
+- [ui5-checkbox](./ui5-checkbox.md) — Allows the user to set a binary value, such as true/false or yes/no for an item.
+- [ui5-color-palette](./ui5-color-palette.md) — The ui5-color-palette provides the users with a range of predefined colors. The 
+- [ui5-color-palette-item](./ui5-color-palette-item.md) — The ui5-color-palette-item component represents a color in the the ui5-color-pal
+- [ui5-color-palette-popover](./ui5-color-palette-popover.md) — Represents a predefined range of colors for easier selection. Overview The Color
+- [ui5-color-picker](./ui5-color-picker.md) — The ui5-color-picker allows users to choose any color and provides different inp
+- [ui5-combobox](./ui5-combobox.md) — The ui5-combobox component represents a drop-down menu with a list of the availa
+- [ui5-date](./ui5-date.md) — The ui5-date component defines a calendar date to be used inside ui5-calendar
+- [ui5-date-picker](./ui5-date-picker.md) — The ui5-date-picker component provides an input field with assigned calendar whi
+- [ui5-date-range](./ui5-date-range.md) — The ui5-date-range component defines a range of dates to be used inside ui5-cale
+- [ui5-daterange-picker](./ui5-daterange-picker.md) — The DateRangePicker enables the users to enter a localized date range using touc
+- [ui5-datetime-input](./ui5-datetime-input.md) — Extention of the UI5 Input, so we do not modify Input's private properties withi
+- [ui5-datetime-picker](./ui5-datetime-picker.md) — The DateTimePicker component alows users to select both date (day, month and yea
+- [ui5-daypicker](./ui5-daypicker.md) — Represents the days inside a single month view of the ui5-calendar component.
+- [ui5-dialog](./ui5-dialog.md) — The ui5-dialog component is used to temporarily display some information in a si
+- [ui5-drop-indicator](./ui5-drop-indicator.md) — import "@ui5/webcomponents/dist/DropIndicator.js";
+- [ui5-dynamic-date-range](./ui5-dynamic-date-range.md) — The ui5-dynamic-date-range component provides a flexible interface to define dat
+- [ui5-expandable-text](./ui5-expandable-text.md) — The ui5-expandable-text component allows displaying a large body of text in a sm
+- [ui5-file-uploader](./ui5-file-uploader.md) — The ui5-file-uploader opens a file explorer dialog and enables users to upload f
+- [ui5-form](./ui5-form.md) — The Form is a layout component that arranges labels and form fields (like input 
+- [ui5-form-group](./ui5-form-group.md) — The FormGroup (ui5-form-group) represents a group inside the Form (ui5-form) com
+- [ui5-form-item](./ui5-form-item.md) — The FormItem (ui5-form-item) represents pair of a label and one or more componen
+- [ui5-icon](./ui5-icon.md) — The ui5-icon component represents an SVG icon. There are two main scenarios how 
+- [ui5-input](./ui5-input.md) — The ui5-input component allows the user to enter and edit text or numeric values
+- [ui5-label](./ui5-label.md) — The ui5-label is a component used to represent a label for elements like input, 
+- [ui5-li](./ui5-li.md) — The ui5-li represents the simplest type of item for a ui5-list. This is a list i
+- [ui5-li-custom](./ui5-li-custom.md) — A component to be used as custom list item within the ui5-list the same way as t
+- [ui5-li-group](./ui5-li-group.md) — The ui5-li-group is a special list item, used only to create groups of list item
+- [ui5-li-group-header](./ui5-li-group-header.md) — The ui5-li-group-header is a special list item, used only to separate other list
+- [ui5-li-suggestion-item](./ui5-li-suggestion-item.md) — The ui5-li-suggestion-item represents the suggestion item in the ui5-input sugge
+- [ui5-link](./ui5-link.md) — The ui5-link is a hyperlink component that is used to navigate to other apps and
+- [ui5-list](./ui5-list.md) — The ui5-list component allows displaying a list of items, advanced keyboard hand
+- [ui5-mcb-item](./ui5-mcb-item.md) — The ui5-mcb-item represents the item for a ui5-multi-combobox.
+- [ui5-mcb-item-group](./ui5-mcb-item-group.md) — The ui5-mcb-item-group is type of suggestion item, that can be used to split the
+- [ui5-menu](./ui5-menu.md) — ui5-menu component represents a hierarchical menu structure. The ui5-menu can ho
+- [ui5-menu-item](./ui5-menu-item.md) — ui5-menu-item is the item to use inside a ui5-menu. An arbitrary hierarchy struc
+- [ui5-menu-item-group](./ui5-menu-item-group.md) — The ui5-menu-item-group component represents a group of items designed for use i
+- [ui5-menu-separator](./ui5-menu-separator.md) — The ui5-menu-separator represents a horizontal line to separate menu items insid
+- [ui5-message-strip](./ui5-message-strip.md) — The ui5-message-strip component allows for the embedding of application-related 
+- [ui5-monthpicker](./ui5-monthpicker.md) — Month picker component.
+- [ui5-multi-combobox](./ui5-multi-combobox.md) — The ui5-multi-combobox component consists of a list box with items and a text fi
+- [ui5-multi-input](./ui5-multi-input.md) — A ui5-multi-input field allows the user to enter multiple values, which are disp
+- [ui5-option](./ui5-option.md) — The ui5-option component defines the content of an option in the ui5-select. imp
+- [ui5-option-custom](./ui5-option-custom.md) — The ui5-option-custom component defines a custom content of an option in the ui5
+- [ui5-panel](./ui5-panel.md) — The ui5-panel component is a container which has a header and a content area and
+- [ui5-popover](./ui5-popover.md) — The ui5-popover component displays additional information for an object in a com
+- [ui5-progress-indicator](./ui5-progress-indicator.md) — Shows the progress of a process in a graphical way. To indicate the progress, th
+- [ui5-radio-button](./ui5-radio-button.md) — The ui5-radio-button component enables users to select a single option from a se
+- [ui5-range-slider](./ui5-range-slider.md) — Represents a numerical interval and two handles (grips) to select a sub-range wi
+- [ui5-rating-indicator](./ui5-rating-indicator.md) — The Rating Indicator is used to display a specific number of icons that are used
+- [ui5-responsive-popover](./ui5-responsive-popover.md) — The ui5-responsive-popover acts as a Popover on desktop and tablet, while on pho
+- [ui5-segmented-button](./ui5-segmented-button.md) — The ui5-segmented-button shows a group of items. When the user clicks or taps on
+- [ui5-segmented-button-item](./ui5-segmented-button-item.md) — Users can use the ui5-segmented-button-item as part of a ui5-segmented-button. C
+- [ui5-select](./ui5-select.md) — The ui5-select component is used to create a drop-down list. There are two main 
+- [ui5-slider](./ui5-slider.md) — The Slider component represents a numerical range and a handle (grip). The purpo
+- [ui5-slider-handle](./ui5-slider-handle.md) — The <code>ui5-slider-handle</code> component represents the handle of the <code>
+- [ui5-slider-tooltip](./ui5-slider-tooltip.md) — 
+- [ui5-special-date](./ui5-special-date.md) — The ui5-special-date component defines a special calendar date to be used inside
+- [ui5-split-button](./ui5-split-button.md) — ui5-split-button enables users to trigger actions. It is constructed of two sepa
+- [ui5-step-input](./ui5-step-input.md) — The ui5-step-input consists of an input field and buttons with icons to increase
+- [ui5-suggestion-item](./ui5-suggestion-item.md) — The ui5-suggestion-item represents the suggestion item of the ui5-input.
+- [ui5-suggestion-item-custom](./ui5-suggestion-item-custom.md) — The ui5-suggestion-item-custom is type of suggestion item, that can be used to p
+- [ui5-suggestion-item-group](./ui5-suggestion-item-group.md) — The ui5-suggestion-item-group is type of suggestion item, that can be used to sp
+- [ui5-switch](./ui5-switch.md) — The ui5-switch component is used for changing between binary states. The compone
+- [ui5-tab](./ui5-tab.md) — The ui5-tab represents a selectable item inside a ui5-tabcontainer. It defines b
+- [ui5-tab-separator](./ui5-tab-separator.md) — The ui5-tab-separator represents a vertical line to separate tabs inside a ui5-t
+- [ui5-tabcontainer](./ui5-tabcontainer.md) — The ui5-tabcontainer represents a collection of tabs with associated content. Na
+- [ui5-table](./ui5-table.md) — The ui5-table component provides a set of sophisticated features for displaying 
+- [ui5-table-cell](./ui5-table-cell.md) — The ui5-table-cell represents a cell inside of a ui5-table. It is tightly couple
+- [ui5-table-growing](./ui5-table-growing.md) — The ui5-table-growing component is used inside the ui5-table to add a growing/da
+- [ui5-table-header-cell](./ui5-table-header-cell.md) — The ui5-table-header-cell component represents a column in the ui5-table. As it 
+- [ui5-table-header-cell-action-ai](./ui5-table-header-cell-action-ai.md) — The ui5-table-header-cell-action-ai component defines a dedicated AI action for 
+- [ui5-table-header-row](./ui5-table-header-row.md) — The ui5-table-header-row component represents the table headers of a ui5-table. 
+- [ui5-table-row](./ui5-table-row.md) — The ui5-table-row component represents a row in the ui5-table. import "@ui5/webc
+- [ui5-table-row-action](./ui5-table-row-action.md) — The ui5-table-row-action component defines an action for table rows. import "@ui
+- [ui5-table-row-action-navigation](./ui5-table-row-action-navigation.md) — The ui5-table-row-action-navigation component defines a navigation action for ta
+- [ui5-table-selection](./ui5-table-selection.md) — The ui5-table-selection component is used inside the ui5-table to add key-based 
+- [ui5-table-selection-multi](./ui5-table-selection-multi.md) — The ui5-table-selection-multi component is used inside the ui5-table to add mult
+- [ui5-table-selection-single](./ui5-table-selection-single.md) — The ui5-table-selection-single component is used inside the ui5-table to add sin
+- [ui5-table-virtualizer](./ui5-table-virtualizer.md) — The ui5-table-virtualizer component is used inside the ui5-table to virtualize t
+- [ui5-tag](./ui5-tag.md) — The ui5-tag is a component which serves the purpose to attract the user attentio
+- [ui5-text](./ui5-text.md) — The ui5-text component displays text that can be used in any content area of an 
+- [ui5-textarea](./ui5-textarea.md) — The ui5-textarea component is used to enter multiple rows of text. When empty, i
+- [ui5-time-picker](./ui5-time-picker.md) — The ui5-time-picker component provides an input field with assigned clocks which
+- [ui5-time-picker-clock](./ui5-time-picker-clock.md) — ui5-time-picker-clock allows selecting of hours,minutes or seconds (depending on
+- [ui5-time-selection-clocks](./ui5-time-selection-clocks.md) — ui5-time-selection-clocks is component that contains all the ui5-time-picker-clo
+- [ui5-time-selection-inputs](./ui5-time-selection-inputs.md) — ui5-time-selection-inputs displays a popover with ui5-input components of type="
+- [ui5-title](./ui5-title.md) — The ui5-title component is used to display titles inside a page. It is a simple,
+- [ui5-toast](./ui5-toast.md) — The ui5-toast is a small, non-disruptive popup for success or information messag
+- [ui5-toggle-button](./ui5-toggle-button.md) — The ui5-toggle-button component is an enhanced ui5-button that can be toggled be
+- [ui5-toggle-spin-button](./ui5-toggle-spin-button.md) — ui5-toggle-spin-button is explicitly used in the new design of ui5-time-picker. 
+- [ui5-token](./ui5-token.md) — Tokens are small items of information (similar to tags) that mainly serve to vis
+- [ui5-tokenizer](./ui5-tokenizer.md) — A ui5-tokenizer is an invisible container for ui5-tokens that supports keyboard 
+- [ui5-toolbar](./ui5-toolbar.md) — The ui5-toolbar component is used to create a horizontal layout with items. The 
+- [ui5-toolbar-button](./ui5-toolbar-button.md) — The ui5-toolbar-button represents an abstract action, used in the ui5-toolbar. i
+- [ui5-toolbar-item](./ui5-toolbar-item.md) — The ui5-toolbar-item is a wrapper component used to integrate UI5 Web Components
+- [ui5-toolbar-select](./ui5-toolbar-select.md) — The ui5-toolbar-select component is used to create a toolbar drop-down list. The
+- [ui5-toolbar-select-option](./ui5-toolbar-select-option.md) — The ui5-toolbar-select-option component defines the content of an option in the 
+- [ui5-toolbar-separator](./ui5-toolbar-separator.md) — The ui5-toolbar-separator is an element, used for visual separation between two 
+- [ui5-toolbar-spacer](./ui5-toolbar-spacer.md) — The ui5-toolbar-spacer is an element, used for taking needed space for toolbar i
+- [ui5-tree](./ui5-tree.md) — The ui5-tree component provides a tree structure for displaying data in a hierar
+- [ui5-tree-item](./ui5-tree-item.md) — The ui5-tree-item represents a node in a tree structure, shown as a ui5-list. Th
+- [ui5-tree-item-custom](./ui5-tree-item-custom.md) — The ui5-tree-item-custom represents a node in a tree structure, shown as a ui5-l
+- [ui5-yearpicker](./ui5-yearpicker.md) — Displays years which can be selected.
+- [ui5-yearrangepicker](./ui5-yearrangepicker.md) — Displays year ranges which help navigate through years faster.
+
+## fiori (61 components)
+
+- [ui5-barcode-scanner-dialog](./ui5-barcode-scanner-dialog.md) — The BarcodeScannerDialog component provides barcode scanning functionality for a
+- [ui5-dynamic-page](./ui5-dynamic-page.md) — A layout component, representing a web page, consisting of a title, header with 
+- [ui5-dynamic-page-header](./ui5-dynamic-page-header.md) — Header of the DynamicPage. The DynamicPageHeader ui5-dynamic-page-header is part
+- [ui5-dynamic-page-header-actions](./ui5-dynamic-page-header-actions.md) — The DynamicPageHeaderActions component is part of the DynamicPage family and is 
+- [ui5-dynamic-page-title](./ui5-dynamic-page-title.md) — Title of the DynamicPage. The DynamicPageTitle component is part of the DynamicP
+- [ui5-dynamic-side-content](./ui5-dynamic-side-content.md) — The DynamicSideContent (ui5-dynamic-side-content) is a layout component that all
+- [ui5-filter-item](./ui5-filter-item.md) — The ui5-filter-item component defines the filtering criteria for data in ui5-vie
+- [ui5-filter-item-option](./ui5-filter-item-option.md) — The ui5-filter-item-option component defines individual filter values within a u
+- [ui5-flexible-column-layout](./ui5-flexible-column-layout.md) — The FlexibleColumnLayout implements the list-detail-detail paradigm by displayin
+- [ui5-group-item](./ui5-group-item.md) — The ui5-group-item component defines the grouping criteria for data in ui5-view-
+- [ui5-illustrated-message](./ui5-illustrated-message.md) — An IllustratedMessage is a recommended combination of a solution-oriented messag
+- [ui5-li-notification](./ui5-li-notification.md) — The ui5-li-notification is a type of list item, meant to display notifications. 
+- [ui5-li-notification-group](./ui5-li-notification-group.md) — The ui5-li-notification-group is a special type of list item, that unlike others
+- [ui5-media-gallery](./ui5-media-gallery.md) — The ui5-media-gallery component allows the user to browse through multimedia ite
+- [ui5-media-gallery-item](./ui5-media-gallery-item.md) — The ui5-media-gallery-item web component represents the items displayed in the u
+- [ui5-navigation-layout](./ui5-navigation-layout.md) — The ui5-navigation-layout is a container component that can be used to create a 
+- [ui5-navigation-menu](./ui5-navigation-menu.md) — ui5-navigation-menu component represents a hierarchical menu structure, inherits
+- [ui5-navigation-menu-item](./ui5-navigation-menu-item.md) — ui5-navigation-menu-item is the item to use inside a ui5-navigation-menu. An arb
+- [ui5-notification-group-list](./ui5-notification-group-list.md) — Internal ui5-li-notification-group-list component, that is used to support keybo
+- [ui5-notification-list](./ui5-notification-list.md) — The ui5-notification-list web component represents a container for ui5-li-notifi
+- [ui5-notification-list-internal](./ui5-notification-list-internal.md) — Internal ui5-li-notification-list-list component, that is used to support keyboa
+- [ui5-page](./ui5-page.md) — The ui5-page is a container component that holds one whole screen of an applicat
+- [ui5-product-switch](./ui5-product-switch.md) — The ui5-product-switch is an SAP Fiori specific web component that is used in ui
+- [ui5-product-switch-item](./ui5-product-switch-item.md) — The ui5-product-switch-item web component represents the items displayed in the 
+- [ui5-search](./ui5-search.md) — A ui5-search is an input with suggestions, used for user search. The ui5-search 
+- [ui5-search-field](./ui5-search-field.md) — A ui5-search-field is an input field, used for user search. The ui5-search-field
+- [ui5-search-item](./ui5-search-item.md) — A ui5-search-item is a list item, used for displaying search suggestions import 
+- [ui5-search-item-group](./ui5-search-item-group.md) — The ui5-search-item-group is type of suggestion item, that can be used to split 
+- [ui5-search-item-show-more](./ui5-search-item-show-more.md) — A ui5-search-item-show-more is a special type of ui5-li that acts as a button to
+- [ui5-search-message-area](./ui5-search-message-area.md) — import "@ui5/webcomponents-fiori/dist/SearchMessageArea.js";
+- [ui5-search-scope](./ui5-search-scope.md) — The ui5-search-scope represents the options for the scope in ui5-search.
+- [ui5-shellbar](./ui5-shellbar.md) — The ui5-shellbar is meant to serve as an application header and includes numerou
+- [ui5-shellbar-branding](./ui5-shellbar-branding.md) — The ui5-shellbar-branding component is intended to be placed inside the branding
+- [ui5-shellbar-item](./ui5-shellbar-item.md) — The ui5-shellbar-item represents a custom item for ui5-shellbar. import "@ui5/we
+- [ui5-shellbar-search](./ui5-shellbar-search.md) — Search field for the ShellBar component.
+- [ui5-shellbar-spacer](./ui5-shellbar-spacer.md) — The ui5-shellbar-spacer is an element, used for visual separation between the tw
+- [ui5-side-navigation](./ui5-side-navigation.md) — The SideNavigation is used as a standard menu in applications. It consists of th
+- [ui5-side-navigation-group](./ui5-side-navigation-group.md) — Represents a group of navigation actions within ui5-side-navigation. The ui5-sid
+- [ui5-side-navigation-item](./ui5-side-navigation-item.md) — Represents a navigation action. It can provide sub items. The ui5-side-navigatio
+- [ui5-side-navigation-sub-item](./ui5-side-navigation-sub-item.md) — Represents a single navigation action within ui5-side-navigation-item. The ui5-s
+- [ui5-sort-item](./ui5-sort-item.md) — The ui5-sort-item component defines the sorting criteria for data in ui5-view-se
+- [ui5-timeline](./ui5-timeline.md) — The ui5-timeline component shows entries (such as objects, events, or posts) in 
+- [ui5-timeline-group-item](./ui5-timeline-group-item.md) — An entry posted on the timeline. It is intented to represent a group of <ui5-tim
+- [ui5-timeline-item](./ui5-timeline-item.md) — An entry posted on the timeline.
+- [ui5-upload-collection](./ui5-upload-collection.md) — This component allows you to represent files before uploading them to a server, 
+- [ui5-upload-collection-item](./ui5-upload-collection-item.md) — A component to be used within the ui5-upload-collection. import "@ui5/webcompone
+- [ui5-user-menu](./ui5-user-menu.md) — The ui5-user-menu is an SAP Fiori specific web component that is used in ui5-she
+- [ui5-user-menu-account](./ui5-user-menu-account.md) — The ui5-user-menu-account represents an account in the ui5-user-menu. import "@u
+- [ui5-user-menu-item](./ui5-user-menu-item.md) — ui5-user-menu-item is the item to use inside a ui5-user-menu. An arbitrary hiera
+- [ui5-user-menu-item-group](./ui5-user-menu-item-group.md) — The ui5-user-menu-item-group component represents a group of items designed for 
+- [ui5-user-settings-account-view](./ui5-user-settings-account-view.md) — The ui5-user-settings-account-view represents a view displayed in the ui5-user-s
+- [ui5-user-settings-appearance-view](./ui5-user-settings-appearance-view.md) — The ui5-user-settings-appearance-view represents a view displayed in the ui5-use
+- [ui5-user-settings-appearance-view-group](./ui5-user-settings-appearance-view-group.md) — The ui5-user-settings-appearance-view-group is a special list item group used to
+- [ui5-user-settings-appearance-view-item](./ui5-user-settings-appearance-view-item.md) — The ui5-user-settings-appearance-view-item represents a theme/appearance option 
+- [ui5-user-settings-dialog](./ui5-user-settings-dialog.md) — The ui5-user-settings-dialog is an SAP Fiori-specific web component used in the 
+- [ui5-user-settings-item](./ui5-user-settings-item.md) — The ui5-user-settings-item represents an item in the ui5-user-settings-dialog. i
+- [ui5-user-settings-view](./ui5-user-settings-view.md) — The ui5-user-settings-view represents a view displayed in the ui5-user-settings-
+- [ui5-view-settings-dialog](./ui5-view-settings-dialog.md) — The ui5-view-settings-dialog component helps the user to sort data within a list
+- [ui5-wizard](./ui5-wizard.md) — The ui5-wizard helps users to complete a complex task by dividing it into sectio
+- [ui5-wizard-step](./ui5-wizard-step.md) — A component that represents a logical step as part of the ui5-wizard. It is mean
+- [ui5-wizard-tab](./ui5-wizard-tab.md) — Private component, used internally by the ui5-wizard to represent a "step" in th
