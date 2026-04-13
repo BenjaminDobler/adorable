@@ -83,7 +83,33 @@ export type FigmaCommand =
   | { action: 'export_node'; nodeId: string; scale?: number; format?: 'PNG' | 'SVG' }
   | { action: 'select_node'; nodeId: string }
   | { action: 'scroll_to_node'; nodeId: string }
-  | { action: 'search_nodes'; query: string; types?: string[] };
+  | { action: 'search_nodes'; query: string; types?: string[] }
+  | { action: 'get_variables' }
+  | { action: 'get_fonts' };
+
+// Figma design token representation (extracted via get_variables)
+export interface FigmaVariableToken {
+  id: string;
+  name: string;            // e.g. "color/brand/primary" — Figma uses slashes as groups
+  type: 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN';
+  collection: string;      // collection name (e.g. "Semantic", "Primitives")
+  // Values keyed by mode name (e.g. { "Light": "#ff0000", "Dark": "#1a1a1a" })
+  valuesByMode: Record<string, string | number | boolean>;
+  description?: string;
+  scopes?: string[];       // Figma scopes (e.g. ALL_FILLS, CORNER_RADIUS)
+}
+
+export interface FigmaVariablesPayload {
+  fileKey: string;
+  fileName: string;
+  collections: Array<{
+    id: string;
+    name: string;
+    modes: string[];
+    defaultMode: string;
+  }>;
+  tokens: FigmaVariableToken[];
+}
 
 // Figma bridge SSE events (server -> client)
 export type FigmaBridgeEvent =

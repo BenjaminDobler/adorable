@@ -137,6 +137,18 @@ class FigmaBridgeService extends EventEmitter {
     if (!conn || conn.ws.readyState !== WebSocket.OPEN) return null;
     return { fileKey: conn.fileKey, fileName: conn.fileName };
   }
+
+  /**
+   * Return the userId of the sole active bridge connection, if exactly one
+   * exists. Used by CLI local-access flow to auto-resolve the caller.
+   */
+  getSoleConnectionUserId(): string | null {
+    const open: string[] = [];
+    for (const [userId, conn] of this.connections) {
+      if (conn.ws.readyState === WebSocket.OPEN) open.push(userId);
+    }
+    return open.length === 1 ? open[0] : null;
+  }
 }
 
 export const figmaBridge = new FigmaBridgeService();

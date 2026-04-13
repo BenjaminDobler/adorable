@@ -1,7 +1,7 @@
 import { Injectable, inject, signal, OnDestroy } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { FigmaImportPayload, FigmaSelection } from '@adorable/shared-types';
+import { FigmaImportPayload, FigmaSelection, FigmaVariablesPayload } from '@adorable/shared-types';
 import { getServerUrl } from './server-url';
 
 @Injectable({
@@ -123,6 +123,13 @@ export class FigmaBridgeService implements OnDestroy {
    */
   getNodeForComparison(nodeId: string): Observable<any> {
     return this.http.post<any>(`${this.apiUrl}/get-node`, { nodeId, includeImage: false });
+  }
+
+  /**
+   * Fetch Figma local variables (design tokens) from the live-connected file.
+   */
+  getVariables(): Observable<FigmaVariablesPayload> {
+    return this.http.post<FigmaVariablesPayload>(`${this.apiUrl}/get-variables`, {});
   }
 
   ngOnDestroy(): void {

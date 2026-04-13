@@ -312,6 +312,23 @@ export abstract class BaseLLMProvider {
       const msg = messages[i];
       if (!msg.content || !Array.isArray(msg.content)) continue;
 
+      // Strip image blocks from older messages — they are the biggest token consumers
+      // (each 2x PNG screenshot can be 50k+ tokens). Replace with a text placeholder.
+      msg.content = msg.content.filter((block: any) => {
+        if (block.type === 'image') return false;
+        return true;
+      }).map((block: any) => {
+        // Also strip images from tool_result content arrays
+        if (block.type === 'tool_result' && Array.isArray(block.content)) {
+          const hasImage = block.content.some((c: any) => c.type === 'image');
+          if (hasImage) {
+            block.content = block.content.filter((c: any) => c.type !== 'image');
+            block.content.push({ type: 'text', text: '[image removed from older message to save context]' });
+          }
+        }
+        return block;
+      });
+
       for (const block of msg.content) {
         // Truncate tool_use inputs — keep schema-valid structure
         if (block.type === 'tool_use' && block.input) {

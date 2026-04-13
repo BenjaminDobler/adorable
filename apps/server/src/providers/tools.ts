@@ -586,7 +586,7 @@ export const CDP_TOOLS = [
 export const FIGMA_TOOLS = [
   {
     name: 'figma_get_selection',
-    description: 'Get the current selection in the connected Figma file. Returns the node structure (names, types, bounding boxes, visual properties) and PNG images for each selected frame/component. Use this to see what the user is looking at in Figma.',
+    description: 'Get the current selection in the connected Figma file. Returns the node structure (names, types, bounding boxes, visual properties) as JSON — NO images. Use figma_export_node separately to get a visual reference. For large selections, use figma_get_node with depth parameter to fetch sections incrementally.',
     input_schema: {
       type: 'object',
       properties: {},
@@ -613,7 +613,7 @@ export const FIGMA_TOOLS = [
   },
   {
     name: 'figma_export_node',
-    description: 'Export a Figma node as a PNG image. Returns a base64 data URI. Use for visual comparison between Figma design and app preview.',
+    description: 'Export a Figma node as PNG or SVG. Use PNG for visual comparison. Use SVG (format: "SVG") for logos, illustrations, and vector graphics that should be inlined in code — this produces clean, scalable markup instead of a raster image.',
     input_schema: {
       type: 'object',
       properties: {
@@ -621,9 +621,14 @@ export const FIGMA_TOOLS = [
           type: 'string',
           description: 'The Figma node ID to export.'
         },
+        format: {
+          type: 'string',
+          enum: ['PNG', 'SVG'],
+          description: 'Export format. Use "SVG" for logos and vector assets to inline in code. Default "PNG".'
+        },
         scale: {
           type: 'number',
-          description: 'Export scale (1-4). Default 2.'
+          description: 'Export scale for PNG (1-4). Default 2. Ignored for SVG.'
         }
       },
       required: ['nodeId']
@@ -660,6 +665,24 @@ export const FIGMA_TOOLS = [
         }
       },
       required: ['query']
+    }
+  },
+  {
+    name: 'figma_get_fonts',
+    description: 'Get all fonts used in the current Figma page. Returns font families, styles/weights, whether each is an icon font, Unicode codepoint samples for icon fonts, CDN URLs, and — critically — the correct CSS font-family name and font-weight to use in code (which often differs from Figma\'s internal name). ALWAYS call this before generating code from a Figma design.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'figma_get_variables',
+    description: 'Extract design tokens (Figma local variables) from the connected file. Returns collections, modes, and tokens with resolved values per mode. Colors are resolved to #hex/rgba(), variable aliases are followed. Use to get exact design token values for theme files.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: []
     }
   }
 ];

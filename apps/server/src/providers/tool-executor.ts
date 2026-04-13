@@ -767,6 +767,8 @@ export async function executeTool(
       case 'figma_export_node':
       case 'figma_select_node':
       case 'figma_search_nodes':
+      case 'figma_get_fonts':
+      case 'figma_get_variables':
         {
           const userId = ctx.userId || '';
           if (!figmaBridge.isConnected(userId)) {
@@ -783,7 +785,7 @@ export async function executeTool(
                   command = { action: 'get_node', nodeId: toolArgs.nodeId, depth: toolArgs.depth };
                   break;
                 case 'figma_export_node':
-                  command = { action: 'export_node', nodeId: toolArgs.nodeId, scale: toolArgs.scale || 2 };
+                  command = { action: 'export_node', nodeId: toolArgs.nodeId, scale: toolArgs.scale || 1, format: toolArgs.format || 'PNG' };
                   break;
                 case 'figma_select_node':
                   command = { action: 'select_node', nodeId: toolArgs.nodeId };
@@ -791,35 +793,41 @@ export async function executeTool(
                 case 'figma_search_nodes':
                   command = { action: 'search_nodes', query: toolArgs.query, types: toolArgs.types };
                   break;
+                case 'figma_get_fonts':
+                  command = { action: 'get_fonts' };
+                  break;
+                case 'figma_get_variables':
+                  command = { action: 'get_variables' };
+                  break;
               }
 
               const result = await figmaBridge.sendCommand(userId, command);
 
-              // For get_selection and get_node with images, also export images
-              if (toolName === 'figma_get_selection' && result.nodes?.length > 0) {
-                const images: string[] = [];
-                for (const node of result.nodes.slice(0, 5)) { // Limit to 5 images
-                  try {
-                    const imgResult = await figmaBridge.sendCommand(userId, { action: 'export_node', nodeId: node.id, scale: 2 });
-                    if (imgResult.image) images.push(imgResult.image);
-                  } catch { /* skip failed exports */ }
-                }
-                if (images.length > 0) {
-                  content = JSON.stringify(result, null, 2) + '\n\n' + images.map(img => `[SCREENSHOT:${img}]`).join('\n');
-                } else {
-                  content = JSON.stringify(result, null, 2);
-                }
-              } else if (toolName === 'figma_get_node' && toolArgs.includeImage !== false) {
-                try {
-                  const imgResult = await figmaBridge.sendCommand(userId, { action: 'export_node', nodeId: toolArgs.nodeId, scale: 2 });
-                  if (imgResult.image) {
-                    content = JSON.stringify(result, null, 2) + '\n\n' + `[SCREENSHOT:${imgResult.image}]`;
-                  } else {
-                    content = JSON.stringify(result, null, 2);
+              // Return structure only — no auto-image-export.
+              // The AI should call figma_export_node explicitly when it needs
+              // a visual reference. This keeps tool results small.
+              if (toolName === 'figma_get_selection' || toolName === 'figma_get_node') {
+                // Slim the JSON: strip empty arrays and default values to reduce token usage
+                const slimResult = JSON.stringify(result, (key, val) => {
+                  // Strip empty arrays (fills: [], strokes: [], effects: [])
+                  if (Array.isArray(val) && val.length === 0) return undefined;
+                  // Strip default visual values
+                  if (key === 'visible' && val === true) return undefined;
+                  if (key === 'opacity' && val === 1) return undefined;
+                  if (key === 'cornerRadius' && val === 0) return undefined;
+                  // Strip invisible fills/strokes (visible: false)
+                  if ((key === 'fills' || key === 'strokes') && Array.isArray(val)) {
+                    const visible = val.filter((f: any) => f.visible !== false);
+                    return visible.length > 0 ? visible : undefined;
                   }
-                } catch {
-                  content = JSON.stringify(result, null, 2);
-                }
+                  // Strip boundVariables if empty
+                  if (key === 'boundVariables' && typeof val === 'object' && Object.keys(val).length === 0) return undefined;
+                  return val;
+                }, 2);
+                content = slimResult;
+              } else if (toolName === 'figma_export_node' && result.svg) {
+                // SVG export — return raw SVG for inline use
+                content = result.svg;
               } else if (toolName === 'figma_export_node' && result.image) {
                 content = `[SCREENSHOT:${result.image}]`;
               } else {

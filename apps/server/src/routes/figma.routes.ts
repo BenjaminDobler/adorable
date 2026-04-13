@@ -124,8 +124,36 @@ export function verifyBridgeCode(code: string): { userId: string; token: string 
   return { userId: entry.userId, token };
 }
 
-// All other routes require authentication
-router.use(authenticate);
+/**
+ * CLI local-access bypass: when ADORABLE_CLI_LOCAL_ACCESS=true, allow
+ * unauthenticated requests to /bridge/* from localhost to use the sole
+ * active bridge connection's user identity. Makes the `figma-bridge` skill
+ * (and other local CLIs) work with zero setup.
+ */
+async function tryCliLocalAccess(req: any): Promise<boolean> {
+  if (process.env.ADORABLE_CLI_LOCAL_ACCESS !== 'true') return false;
+  if (!req.path.startsWith('/bridge/')) return false;
+  if (req.headers['authorization']) return false; // user provided a token — use it
+
+  // Only trust loopback addresses
+  const ip = (req.ip || req.socket?.remoteAddress || '').replace('::ffff:', '');
+  if (ip !== '127.0.0.1' && ip !== '::1' && ip !== 'localhost') return false;
+
+  const userId = figmaBridge.getSoleConnectionUserId();
+  if (!userId) return false;
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || !user.isActive) return false;
+
+  req.user = user;
+  return true;
+}
+
+// All other routes require authentication (with CLI localhost bypass for /bridge/*)
+router.use(async (req, res, next) => {
+  if (await tryCliLocalAccess(req)) return next();
+  return authenticate(req, res, next);
+});
 
 /**
  * Get Figma PAT from user settings
@@ -550,6 +578,44 @@ router.post('/bridge/get-node', async (req: any, res) => {
   } catch (error: any) {
     console.error('Figma get-node error:', error);
     res.status(500).json({ error: error.message || 'Failed to get Figma node' });
+  }
+});
+
+/**
+ * POST /bridge/get-variables - Extract Figma local variables (design tokens)
+ */
+router.post('/bridge/get-variables', async (req: any, res) => {
+  const userId = req.user.id;
+
+  if (!figmaBridge.isConnected(userId)) {
+    return res.status(400).json({ error: 'Figma is not connected' });
+  }
+
+  try {
+    const result = await figmaBridge.sendCommand(userId, { action: 'get_variables' });
+    res.json(result);
+  } catch (error: any) {
+    console.error('Figma get-variables error:', error);
+    res.status(500).json({ error: error.message || 'Failed to get Figma variables' });
+  }
+});
+
+/**
+ * POST /bridge/get-fonts - Get all fonts used in the live-connected Figma file
+ */
+router.post('/bridge/get-fonts', async (req: any, res) => {
+  const userId = req.user.id;
+
+  if (!figmaBridge.isConnected(userId)) {
+    return res.status(400).json({ error: 'Figma is not connected' });
+  }
+
+  try {
+    const result = await figmaBridge.sendCommand(userId, { action: 'get_fonts' });
+    res.json(result);
+  } catch (error: any) {
+    console.error('Figma get-fonts error:', error);
+    res.status(500).json({ error: error.message || 'Failed to get Figma fonts' });
   }
 });
 

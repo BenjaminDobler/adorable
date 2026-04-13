@@ -333,6 +333,17 @@
           Connect
         </button>
       </div>
+      <details style="margin-top: 4px;">
+        <summary style="font-size: 10px; color: #888; cursor: pointer;">Advanced: server URL</summary>
+        <div style="margin-top: 6px; display: flex; gap: 6px; align-items: center;">
+          <input id="bridge-url-input" type="text" placeholder="ws://localhost:3333/ws/figma-bridge"
+            style="flex: 1; padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 10px; font-family: monospace;" />
+          <button id="bridge-url-save" class="btn btn-secondary" style="padding: 4px 8px; font-size: 10px; min-width: auto;">Save</button>
+        </div>
+        <div style="margin-top: 4px; font-size: 10px; color: #999;">
+          Use <code>ws://localhost:7777/ws/figma-bridge</code> for the standalone skill server, or leave blank for Adorable.
+        </div>
+      </details>
     </div>
     <div id="bridge-connected-section" style="display: none;">
       <div style="margin: 8px 0; font-size: 11px; color: #22c55e;">
@@ -544,12 +555,22 @@
     const bridgeCodeInput = document.getElementById('bridge-code-input');
     const bridgeConnectBtn = document.getElementById('bridge-connect-btn');
     const bridgeDisconnectBtn = document.getElementById('bridge-disconnect-btn');
+    const bridgeUrlInput = document.getElementById('bridge-url-input');
+    const bridgeUrlSave = document.getElementById('bridge-url-save');
 
     let bridgeWs = null;
     let bridgeToken = null;
     let reconnectTimer = null;
     let reconnectAttempts = 0;
+    let hasEverConnected = false;
+    let bridgeUrlOverride = null; // populated from clientStorage on init
     const BRIDGE_PORT = 3333;
+    const DEFAULT_WS_URL = `ws://localhost:${BRIDGE_PORT}/ws/figma-bridge`;
+    const MAX_AUTH_RETRIES = 3;
+
+    function getBridgeUrl() {
+      return bridgeUrlOverride || DEFAULT_WS_URL;
+    }
 
     function setBridgeStatus(status) {
       if (status === 'connected') {
@@ -580,8 +601,8 @@
       try {
         const params = token
           ? `token=${encodeURIComponent(token)}`
-          : `code=${encodeURIComponent(code)}`;
-        bridgeWs = new WebSocket(`ws://localhost:${BRIDGE_PORT}/ws/figma-bridge?${params}`);
+          : `code=${encodeURIComponent(code || 'standalone')}`;
+        bridgeWs = new WebSocket(`${getBridgeUrl()}?${params}`);
       } catch (err) {
         setBridgeStatus('disconnected');
         showStatus('Failed to create WebSocket connection', 'error');
@@ -590,6 +611,7 @@
 
       bridgeWs.onopen = () => {
         reconnectAttempts = 0;
+        hasEverConnected = true;
         setBridgeStatus('connected');
         // Send hello with file info
         bridgeWs.send(JSON.stringify({
@@ -608,6 +630,8 @@
           if (msg.type === 'figma:auth') {
             // Server sent back a JWT after code-based auth — save for reconnect
             bridgeToken = msg.token;
+            // Persist across plugin sessions so users never re-enter the code
+            parent.postMessage({ pluginMessage: { type: 'save-bridge-token', token: msg.token } }, '*');
           } else if (msg.type === 'figma:request') {
             // Forward command to code.ts
             parent.postMessage({
@@ -626,12 +650,18 @@
       bridgeWs.onclose = () => {
         setBridgeStatus('disconnected');
         bridgeWs = null;
-        // Auto-reconnect if we have a token
-        if (bridgeToken) {
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
-          reconnectAttempts++;
-          reconnectTimer = setTimeout(() => connectBridge(bridgeToken), delay);
+        if (!bridgeToken) return;
+        // If we've never opened a connection and tried several times, the token
+        // is likely invalid/expired — clear it and ask the user for a new code.
+        if (!hasEverConnected && reconnectAttempts >= MAX_AUTH_RETRIES) {
+          bridgeToken = null;
+          parent.postMessage({ pluginMessage: { type: 'clear-bridge-token' } }, '*');
+          showStatus('Saved bridge token expired. Please enter a new code.', 'error');
+          return;
         }
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+        reconnectAttempts++;
+        reconnectTimer = setTimeout(() => connectBridge(bridgeToken), delay);
       };
 
       bridgeWs.onerror = () => {
@@ -642,6 +672,9 @@
     function disconnectBridge() {
       bridgeToken = null;
       reconnectAttempts = 0;
+      hasEverConnected = false;
+      // Clear the persisted token on explicit disconnect
+      parent.postMessage({ pluginMessage: { type: 'clear-bridge-token' } }, '*');
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;
@@ -661,6 +694,17 @@
 
       const msg = event.data.pluginMessage;
       if (!msg) return;
+
+      // Populate URL override from persisted storage (sent by code.ts on load)
+      if (msg.type === 'init-bridge-url') {
+        bridgeUrlOverride = msg.url || null;
+        if (bridgeUrlInput) bridgeUrlInput.value = bridgeUrlOverride || '';
+      }
+
+      // Auto-reconnect using persisted bridge token (sent by code.ts on plugin load)
+      if (msg.type === 'init-bridge-token' && msg.token && !bridgeWs) {
+        connectBridge(msg.token);
+      }
 
       // Relay bridge responses from code.ts to WebSocket
       if (msg.type === 'bridge-response' && bridgeWs && bridgeWs.readyState === 1) {
@@ -712,6 +756,16 @@
     });
 
     bridgeDisconnectBtn.addEventListener('click', disconnectBridge);
+
+    // Persist the bridge URL override via code.ts clientStorage
+    bridgeUrlSave.addEventListener('click', () => {
+      const url = bridgeUrlInput.value.trim();
+      bridgeUrlOverride = url || null;
+      parent.postMessage({
+        pluginMessage: { type: 'save-bridge-url', url: bridgeUrlOverride },
+      }, '*');
+      showStatus(url ? `Bridge URL set to ${url}` : 'Bridge URL cleared (using default)', 'success');
+    });
   </script>
 </body>
 </html>

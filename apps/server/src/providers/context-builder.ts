@@ -382,13 +382,25 @@ Only proceed with implementation after receiving the user's answers.`;
       + `- \`figma_get_node\` — Get a specific node by ID with its structure and optional PNG export\n`
       + `- \`figma_export_node\` — Export any node as a PNG image for visual comparison\n`
       + `- \`figma_select_node\` — Select a node in Figma and scroll it into view (highlights it for the user)\n`
-      + `- \`figma_search_nodes\` — Search for nodes by name in the current Figma page\n\n`
+      + `- \`figma_search_nodes\` — Search for nodes by name in the current Figma page\n`
+      + `- \`figma_get_fonts\` — Get all fonts with correct CSS names, weights, CDN URLs, and icon codepoints. **CALL THIS FIRST before any code generation.**\n`
+      + `- \`figma_get_variables\` — Extract design tokens (local variables) with resolved values per mode\n\n`
       + `**DESIGN-TO-CODE WORKFLOW:**\n`
-      + `1. Use \`figma_get_selection\` to see what the user has selected in Figma\n`
-      + `2. Analyze the node structure and PNG image to understand the design\n`
-      + `3. Implement the Angular component to match the design precisely\n`
-      + `4. Use \`browse_screenshot\` (if available) to compare your implementation with the Figma export\n`
-      + `5. Use \`figma_select_node\` to highlight the Figma element you are currently implementing\n\n`
+      + `1. **FONTS FIRST**: Call \`figma_get_fonts\` to get exact CSS font-family names, font-weights, CDN/Google Fonts URLs, and icon codepoints. Figma internal names differ from CSS names (e.g., \`la-solid-900\` → \`font-family: 'Line Awesome Free'; font-weight: 900\`). Always use \`cssFontFamily\` and \`cssFontWeight\` — NEVER the raw Figma \`family\` name. NEVER substitute icon fonts with different libraries.\n`
+      + `2. **DESIGN TOKENS**: Call \`figma_get_variables\` to get theme colors, spacing, typography tokens. Generate a CSS variables block (\`:root { --color-primary: ...; }\`) and use these variables throughout. If no variables exist, extract colors/spacing from the node fills and dimensions.\n`
+      + `3. **GET SELECTION**: Call \`figma_get_selection\` to get the selected frame's structure (JSON only, no images). Then call \`figma_export_node\` once with scale=1 to get a single visual reference image. Do NOT export multiple images upfront — only export additional nodes as needed.\n`
+      + `4. **INCREMENTAL FETCHING**: If the selection is large/complex (many children), DO NOT fetch the full tree. Use \`figma_get_node(id, depth=1)\` to map the skeleton, then drill into each section with \`figma_get_node(childId, depth=3)\`. This avoids timeouts and context bloat.\n`
+      + `5. **ICON FONTS**: For TEXT nodes with \`isIconFont: true\` and \`iconCodepoint\`: render with CSS \`content: '\\fXXX'\` using the \`cssFontFamily\` from step 1. Use the exact codepoint — do not guess icon names.\n`
+      + `6. **VECTOR ASSETS**: For GROUP, VECTOR, or INSTANCE nodes that are logos, illustrations, or complex graphics (not reproducible with CSS): call \`figma_export_node(nodeId, format="SVG")\` and inline the SVG in the template. NEVER render placeholder boxes.\n`
+      + `7. **EXACT CONTENT**: Use the exact \`characters\` text from TEXT nodes — do not invent placeholder text. Use exact fill colors converted to hex. Use \`absoluteBoundingBox\` for dimensions.\n`
+      + `8. **IMPLEMENT**: Generate the Angular component matching the design precisely. Load fonts via the CDN/Google Fonts URLs from step 1.\n`
+      + `9. **VERIFY**: Use \`browse_screenshot\` (if available) to compare implementation with the Figma export. Fix any remaining discrepancies.\n\n`
+      + `**CRITICAL EFFICIENCY RULES:**\n`
+      + `- **Gather first, write once.** Read ALL existing files and ALL Figma data before writing any code. Then write ALL changes in one comprehensive batch. Do NOT do iterative screenshot→fix→screenshot loops.\n`
+      + `- **Export Figma images ONCE.** Never re-export the same node ID. If you already exported it, reference the earlier result.\n`
+      + `- **Maximum 2 screenshots per session.** One after initial implementation, one final verification. Not after every small change.\n`
+      + `- **No partial fixes.** If you see 5 issues, fix all 5 in one write_files call. Do not fix one, screenshot, fix another, screenshot, etc.\n`
+      + `- **Target: 5-8 turns total.** Fonts+tokens → selection+export → read existing → write all → build → verify. That's the whole session.\n\n`
       + `**FINDING MATCHING ELEMENTS:** When asked to find a matching Figma element for something in the app:\n`
       + `1. Take a screenshot of the app element with \`browse_screenshot\`\n`
       + `2. Use \`figma_search_nodes\` to find candidates by name\n`

@@ -123,10 +123,14 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       logger.log('HISTORY_INJECTED', { messageCount: geminiHistory.length, hasSummary: !!contextSummary, totalChars: geminiHistory.reduce((sum: number, m: any) => sum + (m.parts?.[0]?.text?.length || 0), 0) });
     }
 
+    // When combining built-in tools (googleSearch, urlContext) with function declarations,
+    // Gemini requires includeServerSideToolInvocations to be enabled.
+    const hasBuiltInTools = geminiTools.length > 1; // >1 means we have more than just functionDeclarations
     const chat = ai.chats.create({
       model: modelName,
       config: {
         tools: geminiTools,
+        ...(hasBuiltInTools ? { toolConfig: { includeServerSideToolInvocations: true } } : {}),
         systemInstruction: ANGULAR_KNOWLEDGE_BASE + '\n\n' + effectiveSystemPrompt,
         thinkingConfig: { thinkingBudget },
       },

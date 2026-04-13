@@ -1,4 +1,36 @@
 <div class="figma-panel">
+  <!-- Figma Source Section - shows which Figma files this project was built from -->
+  @if (figmaSources().length > 0) {
+    <div class="figma-source-section">
+      <div class="figma-source-label">
+        <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/></svg>
+        <span>Figma Source{{ figmaSources().length > 1 ? 's' : '' }}</span>
+      </div>
+      @for (source of figmaSources(); track source.fileKey) {
+        <div class="figma-source-card" [class.is-connected]="isSourceConnected(source.fileKey)">
+          <div class="figma-source-info">
+            <span class="figma-source-name" [title]="source.fileName">{{ source.fileName }}</span>
+            @if (isSourceConnected(source.fileKey)) {
+              <span class="figma-source-badge">Connected</span>
+            }
+          </div>
+          <div class="figma-source-actions">
+            <button class="btn-source" (click)="openInFigma(source.fileKey, source.fileName)" title="Open file in Figma">
+              <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              Open
+            </button>
+            @if (!isSourceConnected(source.fileKey)) {
+              <button class="btn-source btn-source-primary" (click)="connectFigmaSource(source.fileKey, source.fileName)" [disabled]="figmaBridge.generatingCode()" title="Open in Figma and start Live Bridge">
+                <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 2 13 10 20 10"/><polyline points="11 22 11 14 4 14"/></svg>
+                {{ figmaBridge.generatingCode() ? 'Connecting...' : 'Connect' }}
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+
   <!-- Live Bridge Section -->
   <div class="live-bridge-section">
     @if (figmaBridge.connected()) {
@@ -31,6 +63,10 @@
         <input type="checkbox" [checked]="figmaBridge.nodeAnnotations()" (change)="toggleFigmaAnnotations()">
         Annotate HTML with Figma node IDs
       </label>
+      <button class="btn-bridge btn-tokens" (click)="pullTokens()" [disabled]="pullingTokens()">
+        <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+        {{ pullingTokens() ? 'Pulling...' : 'Pull Design Tokens' }}
+      </button>
     } @else {
       <div class="bridge-status bridge-disconnected">
         <span class="bridge-dot"></span>
@@ -39,8 +75,10 @@
       <div class="bridge-connect">
         @if (figmaBridge.connectionCode()) {
           <div class="bridge-code">
-            <span class="bridge-code-label">Enter this code in the Figma plugin:</span>
-            <span class="bridge-code-value">{{ figmaBridge.connectionCode() }}</span>
+            <span class="bridge-code-label">Enter this code in the Figma plugin (click to copy):</span>
+            <button class="bridge-code-value" type="button" (click)="copyConnectionCode()" [class.copied]="copiedCode()" title="Click to copy">
+              {{ copiedCode() ? 'Copied!' : figmaBridge.connectionCode() }}
+            </button>
           </div>
         } @else {
           <button class="btn-bridge" (click)="generateBridgeCode()" [disabled]="figmaBridge.generatingCode()">
@@ -50,6 +88,60 @@
       </div>
     }
   </div>
+
+  <!-- Design Tokens Result -->
+  @if (tokensResult(); as tokens) {
+    <div class="tokens-panel">
+      <div class="tokens-header">
+        <div class="tokens-title">
+          <span>Design Tokens</span>
+          <span class="tokens-count">{{ tokens.tokens.length }} tokens · {{ tokens.collections.length }} collection{{ tokens.collections.length === 1 ? '' : 's' }}</span>
+        </div>
+        <button class="btn-tokens-action" (click)="copyTokensAsCss()" [class.copied]="copiedTokensCss()" title="Copy as CSS variables">
+          @if (copiedTokensCss()) {
+            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Copied
+          } @else {
+            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy CSS
+          }
+        </button>
+        <button class="btn-icon btn-tokens-close" (click)="dismissTokens()" title="Close">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      @if (tokens.tokens.length === 0) {
+        <div class="tokens-empty">No local variables found in this Figma file.</div>
+      } @else {
+        <div class="tokens-body">
+          @for (group of tokensByCollection(); track group.name) {
+            <div class="token-collection">
+              <div class="token-collection-name">{{ group.name }}</div>
+              @for (token of group.tokens; track token.id) {
+                <div class="token-row" [title]="token.description || token.name">
+                  @for (mode of $any(token.valuesByMode) | keyvalue; track mode.key) {
+                    @if (isColorToken(mode.value)) {
+                      <span class="token-swatch" [style.background]="mode.value"></span>
+                    }
+                  }
+                  <span class="token-name">{{ token.name }}</span>
+                  <span class="token-type">{{ token.type }}</span>
+                  <div class="token-values">
+                    @for (mode of $any(token.valuesByMode) | keyvalue; track mode.key) {
+                      <span class="token-value">
+                        <span class="token-mode">{{ mode.key }}:</span>
+                        <code>{{ formatTokenValue(mode.value) }}</code>
+                      </span>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
 
   <!-- Loading Overlay -->
   @if (figmaService.loading() || importing()) {

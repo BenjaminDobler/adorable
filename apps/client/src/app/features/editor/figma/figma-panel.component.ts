@@ -1,14 +1,14 @@
 import { Component, inject, signal, output, input, effect, computed, OnInit, OnDestroy } from '@angular/core';
-import { DecimalPipe, NgStyle, NgTemplateOutlet } from '@angular/common';
+import { DecimalPipe, KeyValuePipe, NgStyle, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FigmaService, FigmaNodeInfo, FigmaPageInfo } from '../../../core/services/figma.service';
 import { FigmaBridgeService } from '../../../core/services/figma-bridge.service';
-import { FigmaImportPayload } from '@adorable/shared-types';
+import { FigmaImportPayload, FigmaVariablesPayload } from '@adorable/shared-types';
 
 @Component({
   selector: 'app-figma-panel',
   standalone: true,
-  imports: [DecimalPipe, NgStyle, NgTemplateOutlet, FormsModule],
+  imports: [DecimalPipe, KeyValuePipe, NgStyle, NgTemplateOutlet, FormsModule],
   templateUrl: './figma-panel.component.html',
   styleUrls: ['./figma-panel.component.scss']
 })
@@ -24,6 +24,9 @@ export class FigmaPanelComponent implements OnInit, OnDestroy {
 
   // Live bridge state
   grabbingSelection = signal(false);
+  copiedCode = signal(false);
+  pullingTokens = signal(false);
+  tokensResult = signal<FigmaVariablesPayload | null>(null);
 
   constructor() {
     effect(() => {
@@ -47,6 +50,183 @@ export class FigmaPanelComponent implements OnInit, OnDestroy {
 
   generateBridgeCode() {
     this.figmaBridge.generateConnectionCode();
+  }
+
+  /**
+   * Unique Figma files used to build this project, derived from stored imports.
+   */
+  figmaSources = computed(() => {
+    const imports = this.importedPayloads();
+    const map = new Map<string, { fileKey: string; fileName: string }>();
+    for (const p of imports) {
+      if (p.fileKey && !map.has(p.fileKey)) {
+        map.set(p.fileKey, { fileKey: p.fileKey, fileName: p.fileName || p.fileKey });
+      }
+    }
+    return Array.from(map.values());
+  });
+
+  /**
+   * Build a Figma file URL from a fileKey + name.
+   */
+  private figmaFileUrl(fileKey: string, fileName: string): string {
+    const slug = (fileName || 'file')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'file';
+    return `https://www.figma.com/file/${fileKey}/${slug}`;
+  }
+
+  /**
+   * Open the given Figma file in a new tab.
+   */
+  openInFigma(fileKey: string, fileName: string) {
+    window.open(this.figmaFileUrl(fileKey, fileName), '_blank', 'noopener');
+  }
+
+  /**
+   * Open the Figma file AND initiate the Live Bridge connection code.
+   * The code is copied to the clipboard so the user can paste it into
+   * the Adorable plugin once Figma opens.
+   */
+  async connectFigmaSource(fileKey: string, fileName: string) {
+    // Only generate a code if we don't already have one
+    if (!this.figmaBridge.connectionCode() && !this.figmaBridge.connected()) {
+      this.figmaBridge.generateConnectionCode();
+    }
+    // Open the file in a new tab
+    this.openInFigma(fileKey, fileName);
+  }
+
+  /**
+   * Copy the current bridge connection code to clipboard.
+   */
+  async copyConnectionCode() {
+    const code = this.figmaBridge.connectionCode();
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      this.copiedCode.set(true);
+      setTimeout(() => this.copiedCode.set(false), 1500);
+    } catch { /* ignore clipboard errors */ }
+  }
+
+  isSourceConnected(fileKey: string): boolean {
+    return this.figmaBridge.connected() && this.figmaBridge.fileKey() === fileKey;
+  }
+
+  pullTokens() {
+    this.pullingTokens.set(true);
+    this.tokensResult.set(null);
+    this.figmaBridge.getVariables().subscribe({
+      next: (result) => {
+        this.tokensResult.set(result);
+        this.pullingTokens.set(false);
+      },
+      error: (err) => {
+        this.error.set(err.error?.error || 'Failed to pull design tokens');
+        this.pullingTokens.set(false);
+      },
+    });
+  }
+
+  dismissTokens() {
+    this.tokensResult.set(null);
+  }
+
+  copiedTokensCss = signal(false);
+
+  /**
+   * Convert a Figma variable name (e.g. "color/brand/primary") into a CSS
+   * custom property name (e.g. "--color-brand-primary").
+   */
+  private toCssVarName(name: string): string {
+    const kebab = name
+      .replace(/[\/\s_]+/g, '-')
+      .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    return `--${kebab || 'token'}`;
+  }
+
+  /**
+   * Build CSS for the pulled tokens. Emits `:root` for the default mode and a
+   * `[data-theme="<mode>"]` selector for every additional mode per collection.
+   */
+  private buildTokensCss(): string {
+    const tokens = this.tokensResult();
+    if (!tokens || tokens.tokens.length === 0) return '';
+
+    // Group by collection → mode → token
+    const byCollection = new Map<string, { defaultMode: string; modes: Set<string> }>();
+    for (const coll of tokens.collections) {
+      byCollection.set(coll.name, { defaultMode: coll.defaultMode, modes: new Set(coll.modes) });
+    }
+
+    // For each mode, collect tokens that have a value in it
+    // Default mode goes into :root, other modes into [data-theme="mode"]
+    const modeGroups = new Map<string, string[]>();
+    modeGroups.set(':root', []);
+
+    for (const token of tokens.tokens) {
+      const coll = byCollection.get(token.collection);
+      const defaultMode = coll?.defaultMode;
+      const varName = this.toCssVarName(token.name);
+
+      for (const [modeName, value] of Object.entries(token.valuesByMode)) {
+        const cssValue = typeof value === 'number' && token.type === 'FLOAT'
+          ? `${this.formatTokenValue(value)}px` // best-guess unit for numeric tokens
+          : this.formatTokenValue(value);
+        const line = `  ${varName}: ${cssValue};`;
+
+        const selector = modeName === defaultMode ? ':root' : `[data-theme="${modeName}"]`;
+        if (!modeGroups.has(selector)) modeGroups.set(selector, []);
+        modeGroups.get(selector)!.push(line);
+      }
+    }
+
+    const sections: string[] = [];
+    for (const [selector, lines] of modeGroups) {
+      if (lines.length === 0) continue;
+      sections.push(`${selector} {\n${lines.join('\n')}\n}`);
+    }
+    return `/* Design tokens extracted from Figma: ${tokens.fileName} */\n` + sections.join('\n\n');
+  }
+
+  async copyTokensAsCss() {
+    const css = this.buildTokensCss();
+    if (!css) return;
+    try {
+      await navigator.clipboard.writeText(css);
+      this.copiedTokensCss.set(true);
+      setTimeout(() => this.copiedTokensCss.set(false), 1500);
+    } catch { /* ignore */ }
+  }
+
+  tokensByCollection = computed(() => {
+    const result = this.tokensResult();
+    if (!result) return [];
+    const groups = new Map<string, FigmaVariablesPayload['tokens']>();
+    for (const token of result.tokens) {
+      const arr = groups.get(token.collection) || [];
+      arr.push(token);
+      groups.set(token.collection, arr);
+    }
+    return Array.from(groups.entries()).map(([name, tokens]) => ({ name, tokens }));
+  });
+
+  formatTokenValue(value: string | number | boolean): string {
+    if (typeof value === 'number') {
+      // Trim trailing zeros for common token values
+      return String(Number(value.toFixed(3)));
+    }
+    return String(value);
+  }
+
+  isColorToken(value: string | number | boolean): boolean {
+    if (typeof value !== 'string') return false;
+    return value.startsWith('#') || value.startsWith('rgba(') || value.startsWith('rgb(');
   }
 
   toggleFigmaAnnotations() {
