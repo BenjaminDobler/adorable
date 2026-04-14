@@ -4,12 +4,19 @@
 (function () {
   let active = false;
   let measureMode = false;
+  let optionHeld = false; // Option/Alt key held — temporary measure mode (Figma-style)
+  let lastHoveredElement: HTMLElement | null = null; // Track element under cursor for instant Option-key measure
   let figmaCompareMode = false; // When true, hover/clicks snap to nearest data-figma-node ancestor
   let overlay: HTMLDivElement | null = null;
   let selectionOverlay: HTMLDivElement | null = null;
   let selectedElement: HTMLElement | null = null;
   let clickTimeout: ReturnType<typeof setTimeout> | null = null;
   let pendingClickEvent: MouseEvent | null = null;
+
+  /** Effective measure mode: toggled on OR Option/Alt key held */
+  function isMeasuring(): boolean {
+    return measureMode || optionHeld;
+  }
 
   // ─── Measurement Overlay Helpers ───
   let measureContainer: HTMLDivElement | null = null;
@@ -351,7 +358,7 @@
   // Main measure update — called on hover/click in measure mode
   function updateMeasureOverlay(hoveredEl: HTMLElement): void {
     clearMeasureOverlay();
-    if (!measureMode) return;
+    if (!isMeasuring()) return;
     const container = ensureMeasureContainer();
     if (!hoveredEl || hoveredEl === document.body || hoveredEl === document.documentElement) return;
 
@@ -373,7 +380,7 @@
 
   function updateMeasureForSelection(element: HTMLElement): void {
     clearMeasureOverlay();
-    if (!measureMode || !element) return;
+    if (!isMeasuring() || !element) return;
     const container = ensureMeasureContainer();
     const rect = element.getBoundingClientRect();
     showElementDimensions(container, rect);
@@ -404,7 +411,7 @@
 
   function requestFigmaComparison(element: HTMLElement): void {
     const figmaNodeId = element.getAttribute('data-figma-node');
-    if (!figmaNodeId || !measureMode) return;
+    if (!figmaNodeId || !isMeasuring()) return;
 
     const rect = element.getBoundingClientRect();
     const cs = window.getComputedStyle(element);
@@ -656,7 +663,7 @@
         // Inspector turned off - hide hover overlay and selection
         if (overlay) overlay.style.display = 'none';
         hideSelectionOverlay();
-        if (!measureMode) clearMeasureOverlay();
+        if (!isMeasuring()) clearMeasureOverlay();
       }
     }
 
@@ -675,7 +682,7 @@
     }
 
     // Figma Live Bridge: nodes changed in Figma — re-compare if selected element is affected
-    if (event.data.type === 'FIGMA_NODES_CHANGED' && measureMode && selectedElement) {
+    if (event.data.type === 'FIGMA_NODES_CHANGED' && isMeasuring() && selectedElement) {
       const changedIds: string[] = event.data.changedNodeIds || [];
       const nodeId = selectedElement.getAttribute('data-figma-node');
       if (nodeId && changedIds.includes(nodeId)) {
@@ -921,7 +928,7 @@
 
   // Inspector Events
   document.addEventListener('mouseover', (e: MouseEvent) => {
-    if (!active && !measureMode) return;
+    if (!active && !isMeasuring()) return;
     let target = e.target as HTMLElement;
     // Skip measure overlay elements
     if (target.closest && target.closest('#__measure-overlay')) return;
@@ -945,14 +952,47 @@
     overlayEl.style.height = rect.height + 'px';
     overlayEl.style.display = 'block';
 
-    if (measureMode) updateMeasureOverlay(target);
+    lastHoveredElement = target;
+    if (isMeasuring()) updateMeasureOverlay(target);
   });
 
   // Hide inspector hover overlay when mouse leaves the preview window
   document.addEventListener('mouseleave', () => {
+    lastHoveredElement = null;
     const overlayEl = document.getElementById('inspector-overlay');
     if (overlayEl) overlayEl.style.display = 'none';
-    if (measureMode) clearMeasureOverlay();
+    if (isMeasuring()) clearMeasureOverlay();
+  });
+
+  // Option/Alt key hold — temporary measure mode (like Figma)
+  document.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (!active || e.key !== 'Alt') return;
+    if (optionHeld) return; // already held, avoid repeat events
+    optionHeld = true;
+    // Immediately show measurements for current state:
+    // If hovering over an element, show distances from the selected element
+    // Otherwise, show dimensions of the selected element
+    if (lastHoveredElement && lastHoveredElement !== selectedElement) {
+      updateMeasureOverlay(lastHoveredElement);
+    } else if (selectedElement) {
+      updateMeasureForSelection(selectedElement);
+    }
+  });
+
+  document.addEventListener('keyup', (e: KeyboardEvent) => {
+    if (e.key !== 'Alt') return;
+    if (!optionHeld) return;
+    optionHeld = false;
+    // Clear measure overlay if the permanent toggle is off
+    if (!measureMode) clearMeasureOverlay();
+  });
+
+  // Also clear on blur (user switches windows while holding Option)
+  window.addEventListener('blur', () => {
+    if (optionHeld) {
+      optionHeld = false;
+      if (!measureMode) clearMeasureOverlay();
+    }
   });
 
   document.addEventListener('click', (e: MouseEvent) => {
@@ -1061,7 +1101,7 @@
     showSelectionOverlay(target);
 
     // Update measure overlay for newly selected element
-    if (measureMode) updateMeasureForSelection(target);
+    if (isMeasuring()) updateMeasureForSelection(target);
 
     window.parent.postMessage({
       type: 'ELEMENT_SELECTED',

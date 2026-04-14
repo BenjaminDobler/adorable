@@ -262,6 +262,7 @@ export class ProjectService {
           next: (project) => {
             // Guard: only update projectId if we're still on the same project
             // A project switch may have happened while the save was in flight
+            const isFirstSave = !id;
             if (
               this.projectId() === id ||
               !this.projectId()
@@ -269,10 +270,21 @@ export class ProjectService {
               this.projectId.set(project.id);
             }
             this.isSaved.set(true);
+            this.selectedKitId.set(project.selectedKitId || null);
             if (!silent)
               this.toastService.show('Project saved successfully!', 'success');
             if (!silent) this.loading.set(false);
             this.saveVersion.update((v) => v + 1);
+
+            // On first save, re-mount from disk so the container switches from
+            // in-memory files to the disk-based project directory (which has the
+            // .adorable kit symlink and proper ONG setup for visual editing).
+            if (isFirstSave && this.containerEngine.mountProject) {
+              this.containerEngine.mountProject(
+                project.id,
+                project.selectedKitId || null,
+              ).catch(err => console.warn('[ProjectService] Post-save remount failed:', err));
+            }
           },
           error: (err) => {
             console.error(err);

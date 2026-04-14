@@ -111,12 +111,17 @@ export const RUNTIME_SCRIPTS = `
     (function() {
       let active = false;
       let measureMode = false;
+      let optionHeld = false;
+      let lastHoveredElement = null;
       let figmaCompareMode = false;
       let overlay = null;
       let selectionOverlay = null;
       let selectedElement = null;
       let clickTimeout = null;
       let pendingClickEvent = null;
+      function isMeasuring() {
+        return measureMode || optionHeld;
+      }
       let measureContainer = null;
       function ensureMeasureContainer() {
         const existing = document.getElementById("__measure-overlay");
@@ -437,7 +442,7 @@ export const RUNTIME_SCRIPTS = `
       }
       function updateMeasureOverlay(hoveredEl) {
         clearMeasureOverlay();
-        if (!measureMode) return;
+        if (!isMeasuring()) return;
         const container = ensureMeasureContainer();
         if (!hoveredEl || hoveredEl === document.body || hoveredEl === document.documentElement) return;
         const hovRect = hoveredEl.getBoundingClientRect();
@@ -454,7 +459,7 @@ export const RUNTIME_SCRIPTS = `
       }
       function updateMeasureForSelection(element) {
         clearMeasureOverlay();
-        if (!measureMode || !element) return;
+        if (!isMeasuring() || !element) return;
         const container = ensureMeasureContainer();
         const rect = element.getBoundingClientRect();
         showElementDimensions(container, rect);
@@ -477,7 +482,7 @@ export const RUNTIME_SCRIPTS = `
       }
       function requestFigmaComparison(element) {
         const figmaNodeId = element.getAttribute("data-figma-node");
-        if (!figmaNodeId || !measureMode) return;
+        if (!figmaNodeId || !isMeasuring()) return;
         const rect = element.getBoundingClientRect();
         const cs = window.getComputedStyle(element);
         window.parent.postMessage({
@@ -678,7 +683,7 @@ export const RUNTIME_SCRIPTS = `
           if (!active) {
             if (overlay) overlay.style.display = "none";
             hideSelectionOverlay();
-            if (!measureMode) clearMeasureOverlay();
+            if (!isMeasuring()) clearMeasureOverlay();
           }
         }
         if (event.data.type === "TOGGLE_MEASURE") {
@@ -692,7 +697,7 @@ export const RUNTIME_SCRIPTS = `
         if (event.data.type === "TOGGLE_FIGMA_COMPARE") {
           figmaCompareMode = event.data.enabled;
         }
-        if (event.data.type === "FIGMA_NODES_CHANGED" && measureMode && selectedElement) {
+        if (event.data.type === "FIGMA_NODES_CHANGED" && isMeasuring() && selectedElement) {
           const changedIds = event.data.changedNodeIds || [];
           const nodeId = selectedElement.getAttribute("data-figma-node");
           if (nodeId && changedIds.includes(nodeId)) {
@@ -911,7 +916,7 @@ export const RUNTIME_SCRIPTS = `
         }
       });
       document.addEventListener("mouseover", (e) => {
-        if (!active && !measureMode) return;
+        if (!active && !isMeasuring()) return;
         let target = e.target;
         if (target.closest && target.closest("#__measure-overlay")) return;
         const overlayEl = document.getElementById("inspector-overlay");
@@ -930,12 +935,36 @@ export const RUNTIME_SCRIPTS = `
         overlayEl.style.width = rect.width + "px";
         overlayEl.style.height = rect.height + "px";
         overlayEl.style.display = "block";
-        if (measureMode) updateMeasureOverlay(target);
+        lastHoveredElement = target;
+        if (isMeasuring()) updateMeasureOverlay(target);
       });
       document.addEventListener("mouseleave", () => {
+        lastHoveredElement = null;
         const overlayEl = document.getElementById("inspector-overlay");
         if (overlayEl) overlayEl.style.display = "none";
-        if (measureMode) clearMeasureOverlay();
+        if (isMeasuring()) clearMeasureOverlay();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (!active || e.key !== "Alt") return;
+        if (optionHeld) return;
+        optionHeld = true;
+        if (lastHoveredElement && lastHoveredElement !== selectedElement) {
+          updateMeasureOverlay(lastHoveredElement);
+        } else if (selectedElement) {
+          updateMeasureForSelection(selectedElement);
+        }
+      });
+      document.addEventListener("keyup", (e) => {
+        if (e.key !== "Alt") return;
+        if (!optionHeld) return;
+        optionHeld = false;
+        if (!measureMode) clearMeasureOverlay();
+      });
+      window.addEventListener("blur", () => {
+        if (optionHeld) {
+          optionHeld = false;
+          if (!measureMode) clearMeasureOverlay();
+        }
       });
       document.addEventListener("click", (e) => {
         if (!active) return;
@@ -1017,7 +1046,7 @@ export const RUNTIME_SCRIPTS = `
           el = el.parentElement;
         }
         showSelectionOverlay(target);
-        if (measureMode) updateMeasureForSelection(target);
+        if (isMeasuring()) updateMeasureForSelection(target);
         window.parent.postMessage({
           type: "ELEMENT_SELECTED",
           payload: {
