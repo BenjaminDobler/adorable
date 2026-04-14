@@ -120,11 +120,16 @@ export async function executeTool(
           break;
         }
         toolArgs.content = sanitizeFileContent(toolArgs.content, toolArgs.path);
+        const isRewrite = ctx.writtenFilesSet.has(toolArgs.path);
         await fs.writeFile(toolArgs.path, toolArgs.content);
         callbacks.onFileWritten?.(toolArgs.path, toolArgs.content);
         ctx.hasWrittenFiles = true;
         if (!ctx.modifiedFiles.includes(toolArgs.path)) ctx.modifiedFiles.push(toolArgs.path);
+        ctx.writtenFilesSet.add(toolArgs.path);
         content = 'File created successfully.';
+        if (isRewrite) {
+          content += '\n⚠ EFFICIENCY: You already wrote this file earlier in this session. For future modifications, use edit_file with targeted old_str/new_str instead of rewriting the entire file. This saves tokens and turns.';
+        }
         break;
       case 'write_files':
         // LLMs sometimes send the files array as a JSON string instead of a parsed array,
@@ -161,8 +166,13 @@ export async function executeTool(
             written++;
           }
           ctx.hasWrittenFiles = true;
+          const rewrittenPaths: string[] = [];
           for (const f of toolArgs.files) {
-            if (f.path && f.content && !ctx.modifiedFiles.includes(f.path)) ctx.modifiedFiles.push(f.path);
+            if (f.path && f.content) {
+              if (ctx.writtenFilesSet.has(f.path)) rewrittenPaths.push(f.path);
+              if (!ctx.modifiedFiles.includes(f.path)) ctx.modifiedFiles.push(f.path);
+              ctx.writtenFilesSet.add(f.path);
+            }
           }
           if (corrupted.length > 0) {
             content = `${written} of ${toolArgs.files.length} files written. ${corrupted.length} files had corrupted content (no newlines detected, likely a serialization error) and were NOT written: ${corrupted.join(', ')}. Please re-write these files individually using write_file.`;
@@ -171,6 +181,9 @@ export async function executeTool(
             content = `${written} of ${toolArgs.files.length} files written. Skipped ${skipped.length} files with missing path or content (possible truncation): ${skipped.join(', ')}`;
           } else {
             content = `${written} of ${toolArgs.files.length} files written successfully.`;
+          }
+          if (rewrittenPaths.length > 0) {
+            content += `\n⚠ EFFICIENCY: ${rewrittenPaths.length} file(s) were rewritten that you already created earlier: ${rewrittenPaths.join(', ')}. Use edit_file for targeted changes instead of rewriting entire files.`;
           }
         }
         break;

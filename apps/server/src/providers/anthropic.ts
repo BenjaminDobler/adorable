@@ -124,7 +124,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
 
     const ctx: AgentLoopContext = {
       fs, callbacks, skillRegistry, availableTools, logger,
-      hasRunBuild: false, hasWrittenFiles: false, modifiedFiles: [], buildNudgeSent: false, fullExplanation: '',
+      hasRunBuild: false, hasWrittenFiles: false, modifiedFiles: [], writtenFilesSet: new Set(), modifiedFilesAtTurnStart: 0,
+      buildNudgeSent: false, fullExplanation: '',
       mcpManager,
       failedBuildCount: 0, lastBuildOutput: '',
       activeKitName,
@@ -480,7 +481,40 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       }
 
       messages.push({ role: 'user', content: toolResults });
+
+      // ─── Session file tracker + turn budget (improvements 1 & 3) ───
+      const lastMsg = messages[messages.length - 1];
+      const lastContent = Array.isArray(lastMsg.content) ? lastMsg.content : [];
+
+      // Improvement 1: Session file tracker — inject after turns that wrote files
+      const filesWrittenThisTurn = ctx.modifiedFiles.length - ctx.modifiedFilesAtTurnStart;
+      if (filesWrittenThisTurn > 0 && ctx.modifiedFiles.length > 0) {
+        const fileList = ctx.modifiedFiles.map((f: string) => `  - ${f}`).join('\n');
+        lastContent.push({ type: 'text', text:
+          `[Session: ${ctx.modifiedFiles.length} files created/modified this session:\n${fileList}\n` +
+          `Use edit_file for changes to existing files. Do NOT re-read files you just wrote unless checking specific content.]`
+        });
+      }
+
+      // Improvement 3: Turn budget warnings
+      const turnsUsed = turnCount + 1;
+      if (turnsUsed === 25 && maxTurns > 30) {
+        lastContent.push({ type: 'text', text:
+          `[Progress: ${turnsUsed} turns used, ${ctx.modifiedFiles.length} files written. ` +
+          `Focus on completing the task. Use edit_file for modifications, not full rewrites.]`
+        });
+      } else if (turnsUsed === 35 && maxTurns > 40) {
+        lastContent.push({ type: 'text', text:
+          `[Progress: ${turnsUsed} turns used. Finalize your work — verify build and respond. Do NOT rewrite files from scratch.]`
+        });
+      } else if (maxTurns - turnsUsed <= 5 && maxTurns - turnsUsed > 0 && maxTurns > 10) {
+        lastContent.push({ type: 'text', text:
+          `[WARNING: Only ${maxTurns - turnsUsed} turns remaining. Complete now — verify build, take a screenshot if needed, and respond.]`
+        });
+      }
+
       turnCount++;
+      ctx.modifiedFilesAtTurnStart = ctx.modifiedFiles.length;
     }
 
     // Post-loop build check

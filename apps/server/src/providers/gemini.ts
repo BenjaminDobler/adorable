@@ -142,7 +142,8 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
 
     const ctx: AgentLoopContext = {
       fs, callbacks, skillRegistry, availableTools, logger,
-      hasRunBuild: false, hasWrittenFiles: false, modifiedFiles: [], buildNudgeSent: false, fullExplanation: '',
+      hasRunBuild: false, hasWrittenFiles: false, modifiedFiles: [], writtenFilesSet: new Set(), modifiedFilesAtTurnStart: 0,
+      buildNudgeSent: false, fullExplanation: '',
       mcpManager,
       failedBuildCount: 0, lastBuildOutput: '',
       activeKitName,
@@ -323,8 +324,38 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
         createPartFromFunctionResponse(r.id, r.name, { result: r.content })
       );
 
+      // ─── Session file tracker + turn budget (improvements 1 & 3) ───
+      const filesWrittenThisTurn = ctx.modifiedFiles.length - ctx.modifiedFilesAtTurnStart;
+
+      // Improvement 1: Session file tracker — inject after turns that wrote files
+      if (filesWrittenThisTurn > 0 && ctx.modifiedFiles.length > 0) {
+        const fileList = ctx.modifiedFiles.map((f: string) => `  - ${f}`).join('\n');
+        toolResponseParts.push({ text:
+          `[Session: ${ctx.modifiedFiles.length} files created/modified this session:\n${fileList}\n` +
+          `Use edit_file for changes to existing files. Do NOT re-read files you just wrote unless checking specific content.]`
+        });
+      }
+
+      // Improvement 3: Turn budget warnings
+      const turnsUsed = turnCount + 1;
+      if (turnsUsed === 25 && maxTurns > 30) {
+        toolResponseParts.push({ text:
+          `[Progress: ${turnsUsed} turns used, ${ctx.modifiedFiles.length} files written. ` +
+          `Focus on completing the task. Use edit_file for modifications, not full rewrites.]`
+        });
+      } else if (turnsUsed === 35 && maxTurns > 40) {
+        toolResponseParts.push({ text:
+          `[Progress: ${turnsUsed} turns used. Finalize your work — verify build and respond. Do NOT rewrite files from scratch.]`
+        });
+      } else if (maxTurns - turnsUsed <= 5 && maxTurns - turnsUsed > 0 && maxTurns > 10) {
+        toolResponseParts.push({ text:
+          `[WARNING: Only ${maxTurns - turnsUsed} turns remaining. Complete now — verify build, take a screenshot if needed, and respond.]`
+        });
+      }
+
       currentMessage = toolResponseParts;
       turnCount++;
+      ctx.modifiedFilesAtTurnStart = ctx.modifiedFiles.length;
     }
 
     // Post-loop build check

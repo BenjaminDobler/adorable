@@ -139,6 +139,8 @@ export interface AgentLoopContext {
   hasRunBuild: boolean;
   hasWrittenFiles: boolean;
   modifiedFiles: string[]; // tracks all files written/edited during generation
+  writtenFilesSet: Set<string>; // tracks files written (for dedup warnings — detects rewrites)
+  modifiedFilesAtTurnStart: number; // snapshot of modifiedFiles.length at turn start (for session tracker)
   buildNudgeSent: boolean;
   fullExplanation: string;
   mcpManager?: MCPManager;
