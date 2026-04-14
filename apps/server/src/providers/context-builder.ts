@@ -1,6 +1,9 @@
 import { FileSystemInterface, GenerateOptions, HistoryMessage, AgentLoopContext } from './types';
 import { SYSTEM_PROMPT, VISUAL_EDITING_IDS_INSTRUCTION } from './system-prompts';
-import { CORE_TOOLS, BUILD_TOOLS, LESSON_TOOLS, CDP_TOOLS, FIGMA_TOOLS, SKILL_TOOLS } from './tools/index';
+import { CORE_TOOLS, BUILD_TOOLS, LESSON_TOOLS, CDP_TOOLS, FIGMA_TOOLS, SKILL_TOOLS, Tool } from './tools/index';
+
+/** Strip internal-only fields before sending tool definitions to the LLM API */
+const toLLM = (t: Tool) => ({ name: t.definition.name, description: t.definition.description, input_schema: t.definition.input_schema });
 import { SkillRegistry } from './skills/skill-registry';
 import { DebugLogger } from './debug-logger';
 import { MCPManager } from '../mcp/mcp-manager';
@@ -167,9 +170,9 @@ Only proceed with implementation after receiving the user's answers.`;
 
   const buildCommand = options.buildCommand || 'npm run build';
 
-  const availableTools: any[] = CORE_TOOLS.map(t => t.definition);
+  const availableTools: any[] = CORE_TOOLS.map(toLLM);
   if (fs.exec) {
-    availableTools.push(...BUILD_TOOLS.map(t => t.definition));
+    availableTools.push(...BUILD_TOOLS.map(toLLM));
   }
 
   // Initialize MCP Manager if configs provided
@@ -199,19 +202,19 @@ Only proceed with implementation after receiving the user's answers.`;
 
   // Add CDP browser tools when running in desktop mode with preview active
   if (options.cdpEnabled) {
-    availableTools.push(...CDP_TOOLS.map(t => t.definition));
+    availableTools.push(...CDP_TOOLS.map(toLLM));
   }
 
   // Add Figma live bridge tools when plugin is connected
   if (options.figmaLiveConnected) {
-    availableTools.push(...FIGMA_TOOLS.map(t => t.definition));
+    availableTools.push(...FIGMA_TOOLS.map(toLLM));
   }
 
   // Add save_lesson tool when a kit is active and lessons are enabled
   // Lessons enabled when both the kit author hasn't disabled it AND the user hasn't disabled it
   const lessonsEnabled = (options.activeKit?.lessonsEnabled !== false) && (options.kitLessonsEnabled !== false);
   if (options.activeKit && lessonsEnabled) {
-    availableTools.push(...LESSON_TOOLS.map(t => t.definition));
+    availableTools.push(...LESSON_TOOLS.map(toLLM));
   }
 
   // Inject component catalog + doc files if an active kit is provided

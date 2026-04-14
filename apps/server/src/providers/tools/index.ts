@@ -117,7 +117,20 @@ export const PARALLELIZABLE_TOOL_NAMES = new Set(
 );
 
 /**
+ * Strip internal-only fields from a tool definition before sending to the LLM API.
+ * The API rejects extra fields like `isReadOnly` that are only used server-side.
+ */
+function toLLMSchema(def: ToolDefinition): { name: string; description: string; input_schema: Record<string, unknown> } {
+  return {
+    name: def.name,
+    description: def.description,
+    input_schema: def.input_schema,
+  };
+}
+
+/**
  * Get tool definitions for the LLM based on available capabilities.
+ * Strips internal-only fields (isReadOnly, etc.) that the API would reject.
  */
 export function getToolDefinitions(options?: {
   cdp?: boolean;
@@ -125,13 +138,13 @@ export function getToolDefinitions(options?: {
   skills?: boolean;
   exec?: boolean;
   lessons?: boolean;
-}): ToolDefinition[] {
-  const tools = CORE_TOOLS.map(t => t.definition);
-  if (options?.skills) tools.push(...SKILL_TOOLS.map(t => t.definition));
-  if (options?.exec) tools.push(...BUILD_TOOLS.map(t => t.definition));
-  if (options?.lessons) tools.push(...LESSON_TOOLS.map(t => t.definition));
-  if (options?.cdp) tools.push(...CDP_TOOLS.map(t => t.definition));
-  if (options?.figma) tools.push(...FIGMA_TOOLS.map(t => t.definition));
+}): { name: string; description: string; input_schema: Record<string, unknown> }[] {
+  const tools = CORE_TOOLS.map(t => toLLMSchema(t.definition));
+  if (options?.skills) tools.push(...SKILL_TOOLS.map(t => toLLMSchema(t.definition)));
+  if (options?.exec) tools.push(...BUILD_TOOLS.map(t => toLLMSchema(t.definition)));
+  if (options?.lessons) tools.push(...LESSON_TOOLS.map(t => toLLMSchema(t.definition)));
+  if (options?.cdp) tools.push(...CDP_TOOLS.map(t => toLLMSchema(t.definition)));
+  if (options?.figma) tools.push(...FIGMA_TOOLS.map(t => toLLMSchema(t.definition)));
   return tools;
 }
 
