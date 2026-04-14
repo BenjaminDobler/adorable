@@ -187,6 +187,12 @@ export class ProjectService {
       this.externalPath.set(project.externalPath || null);
       this.detectedConfig.set(project.detectedConfig || null);
 
+      // Load the kit data (commands, systemPrompt, etc.) so the dev server
+      // and build tools use the correct commands (e.g. ong instead of ng).
+      if (project.selectedKitId) {
+        await this.loadKitTemplate(project.selectedKitId);
+      }
+
       if (project.messages) {
         this.messages.set(
           project.messages.map((m: any) => ({
@@ -276,14 +282,15 @@ export class ProjectService {
             if (!silent) this.loading.set(false);
             this.saveVersion.update((v) => v + 1);
 
-            // On first save, re-mount from disk so the container switches from
-            // in-memory files to the disk-based project directory (which has the
-            // .adorable kit symlink and proper ONG setup for visual editing).
-            if (isFirstSave && this.containerEngine.mountProject) {
-              this.containerEngine.mountProject(
-                project.id,
-                project.selectedKitId || null,
-              ).catch(err => console.warn('[ProjectService] Post-save remount failed:', err));
+            // On first save, update the container engine's project ID so
+            // subsequent reloadPreview calls use the real (persisted) project ID
+            // instead of the temporary one. Do NOT call mountProject here —
+            // that would reboot the dev server mid-generation, switching the
+            // working directory and breaking build checks. The remount happens
+            // naturally on the next reloadPreview (e.g. after generation completes
+            // or the user reopens the project).
+            if (isFirstSave) {
+              this.containerEngine.currentProjectId = project.id;
             }
           },
           error: (err) => {
@@ -472,8 +479,16 @@ export class ProjectService {
 
     this.loading.set(true);
 
-    // Ensure container engine knows which project we're working with
-    this.containerEngine.currentProjectId = this.projectId() || null;
+    // Ensure container engine knows which project we're working with.
+    // For new unsaved projects (no ID yet), generate a temporary unique ID so the
+    // native agent creates a fresh directory instead of reusing the shared 'desktop'
+    // fallback — which causes cross-project contamination.
+    if (!this.projectId()) {
+      const tempId = 'new-' + crypto.randomUUID();
+      this.containerEngine.currentProjectId = tempId;
+    } else {
+      this.containerEngine.currentProjectId = this.projectId();
+    }
 
     // Yield to allow loading state to render
     await new Promise((resolve) => setTimeout(resolve, 0));

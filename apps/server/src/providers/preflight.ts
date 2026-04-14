@@ -23,6 +23,34 @@ export async function runPreflight(
     reasoningEffort: 'high',
   };
 
+  // Fast-path: skip the LLM router entirely for prompts that obviously don't need research.
+  // This saves ~1-2 seconds and avoids the "Researching codebase..." phase for simple requests.
+  const lowerPrompt = userPrompt.toLowerCase().trim();
+  const isQuestion = /^(can you|could you|please|is there|are there|what|why|how|check|show|tell|explain|debug|fix the|find the|look at)/.test(lowerPrompt);
+  const isBuildCheck = /build|error|compile|lint|test|run|serve|screenshot|preview/.test(lowerPrompt) && lowerPrompt.length < 200;
+  const isShortFollowUp = lowerPrompt.length < 100 && !!(history?.length);
+  const isSimpleChange = /^(change|update|set|make|remove|delete|hide|show|add a|move|rename|swap|replace|toggle)\b/.test(lowerPrompt) && lowerPrompt.length < 200;
+
+  if (isQuestion || isBuildCheck || isSimpleChange) {
+    console.log(`[Preflight] Fast-path: skipping research (question=${isQuestion}, buildCheck=${isBuildCheck}, simpleChange=${isSimpleChange})`);
+    return {
+      runResearch: false,
+      topicShift: false,
+      suggestClearContext: false,
+      reasoningEffort: isBuildCheck || isQuestion ? 'low' : 'medium',
+    };
+  }
+
+  if (isShortFollowUp) {
+    console.log('[Preflight] Fast-path: short follow-up, skipping research');
+    return {
+      runResearch: false,
+      topicShift: false,
+      suggestClearContext: false,
+      reasoningEffort: 'medium',
+    };
+  }
+
   // Build conversation context summary for the router
   let conversationContext = '';
   if (contextSummary) {
@@ -43,7 +71,7 @@ export async function runPreflight(
   const systemPrompt =
     `You are a request router for an AI coding assistant. Analyze the user's prompt and conversation context to make quick routing decisions.\n\n`
     + `Respond with ONLY a valid JSON object (no markdown, no explanation) with these fields:\n`
-    + `- "runResearch" (boolean): Should the AI analyze the codebase before starting? true for complex multi-file tasks (new features, new pages/routes, refactoring, integrations). false for simple changes (styling, text edits, small fixes, follow-up tweaks, questions).\n`
+    + `- "runResearch" (boolean): Should the AI analyze the codebase BEFORE starting? true ONLY for tasks that require understanding multiple existing files first (new features spanning several files, complex refactoring, integrating with existing architecture). false for: questions, build checks, debugging requests, simple changes, styling tweaks, follow-up requests, fix-it requests, adding/removing single elements, and anything where the agent can read files as needed during execution.\n`
     + `- "topicShift" (boolean): Is the user starting a completely new topic unrelated to the recent conversation? Only relevant when conversation history exists, otherwise false.\n`
     + `- "suggestClearContext" (boolean): Should we suggest clearing the conversation? true when: topic shifted AND conversation is long (many turns), or accumulated context would hurt more than help. false for normal follow-ups or short conversations.\n`
     + `- "reasoningEffort" ("low"|"medium"|"high"): How much thinking does this task need? "low" for trivial changes (rename, color change, show/hide). "medium" for moderate tasks (add a button with logic, fix a bug). "high" for complex tasks (new feature, architecture, multi-file changes).\n`

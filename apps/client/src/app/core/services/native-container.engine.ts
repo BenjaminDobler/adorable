@@ -83,7 +83,7 @@ export class NativeContainerEngine extends ContainerEngine {
 
   async mount(files: FileTree): Promise<void> {
     const needsReboot = this.status() === 'Idle' || this.status() === 'Stopped' || this.status() === 'Server stopped'
-      || (this.currentProjectId && this.currentProjectId !== this.lastBootedProjectId);
+      || (this.lastBootedProjectId && this.currentProjectId !== this.lastBootedProjectId);
     if (needsReboot) {
       await this.boot();
     }
@@ -109,8 +109,10 @@ export class NativeContainerEngine extends ContainerEngine {
   }
 
   override async mountProject(projectId: string, kitId: string | null): Promise<void> {
+    // Update currentProjectId so boot() targets the right directory
+    this.currentProjectId = projectId;
     const needsReboot = this.status() === 'Idle' || this.status() === 'Stopped' || this.status() === 'Server stopped'
-      || (this.currentProjectId && this.currentProjectId !== this.lastBootedProjectId);
+      || (this.lastBootedProjectId && this.currentProjectId !== this.lastBootedProjectId);
     if (needsReboot) {
       // Don't clean the project directory — files are already on disk and
       // mountProject only copies missing kit template files on top of them.

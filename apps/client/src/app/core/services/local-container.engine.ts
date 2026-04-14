@@ -73,7 +73,7 @@ export class LocalContainerEngine extends ContainerEngine {
   async mount(files: FileTree): Promise<void> {
     // Reboot if container isn't running or if we switched to a different project
     const needsReboot = this.status() === 'Idle' || this.status() === 'Stopped' || this.status() === 'Server stopped'
-      || (this.currentProjectId && this.currentProjectId !== this.lastBootedProjectId);
+      || (this.lastBootedProjectId && this.currentProjectId !== this.lastBootedProjectId);
     if (needsReboot) {
         await this.boot();
     }
@@ -83,8 +83,9 @@ export class LocalContainerEngine extends ContainerEngine {
   }
 
   override async mountProject(projectId: string, kitId: string | null): Promise<void> {
+    this.currentProjectId = projectId;
     const needsReboot = this.status() === 'Idle' || this.status() === 'Stopped' || this.status() === 'Server stopped'
-      || (this.currentProjectId && this.currentProjectId !== this.lastBootedProjectId);
+      || (this.lastBootedProjectId && this.currentProjectId !== this.lastBootedProjectId);
     if (needsReboot) {
         await this.boot();
     }
