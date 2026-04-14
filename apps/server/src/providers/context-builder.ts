@@ -1,6 +1,6 @@
 import { FileSystemInterface, GenerateOptions, HistoryMessage, AgentLoopContext } from './types';
 import { SYSTEM_PROMPT, VISUAL_EDITING_IDS_INSTRUCTION } from './system-prompts';
-import { TOOLS, SAVE_LESSON_TOOL, CDP_TOOLS, FIGMA_TOOLS } from './tools';
+import { CORE_TOOLS, BUILD_TOOLS, LESSON_TOOLS, CDP_TOOLS, FIGMA_TOOLS, SKILL_TOOLS } from './tools/index';
 import { SkillRegistry } from './skills/skill-registry';
 import { DebugLogger } from './debug-logger';
 import { MCPManager } from '../mcp/mcp-manager';
@@ -167,28 +167,9 @@ Only proceed with implementation after receiving the user's answers.`;
 
   const buildCommand = options.buildCommand || 'npm run build';
 
-  const availableTools: any[] = [...TOOLS];
+  const availableTools: any[] = CORE_TOOLS.map(t => t.definition);
   if (fs.exec) {
-    availableTools.push({
-      name: "run_command",
-      description: "Execute a shell command in the project environment. Use this to run tests, grep for information, or other commands. Returns stdout, stderr and exit code. Do NOT use this for build verification — use `verify_build` instead.",
-      input_schema: {
-        type: "object",
-        properties: {
-          command: { type: "string", description: "The shell command to execute (e.g. 'grep -r \"Component\" src', 'npm test')" }
-        },
-        required: ["command"]
-      }
-    });
-    availableTools.push({
-      name: "verify_build",
-      description: "Run the project's build command to check for compilation errors. Always use this after modifying files — it automatically runs the correct build command for the project type (Angular CLI, Nx monorepo, etc.).",
-      input_schema: {
-        type: "object",
-        properties: {},
-        required: []
-      }
-    });
+    availableTools.push(...BUILD_TOOLS.map(t => t.definition));
   }
 
   // Initialize MCP Manager if configs provided
@@ -218,19 +199,19 @@ Only proceed with implementation after receiving the user's answers.`;
 
   // Add CDP browser tools when running in desktop mode with preview active
   if (options.cdpEnabled) {
-    availableTools.push(...CDP_TOOLS);
+    availableTools.push(...CDP_TOOLS.map(t => t.definition));
   }
 
   // Add Figma live bridge tools when plugin is connected
   if (options.figmaLiveConnected) {
-    availableTools.push(...FIGMA_TOOLS);
+    availableTools.push(...FIGMA_TOOLS.map(t => t.definition));
   }
 
   // Add save_lesson tool when a kit is active and lessons are enabled
   // Lessons enabled when both the kit author hasn't disabled it AND the user hasn't disabled it
   const lessonsEnabled = (options.activeKit?.lessonsEnabled !== false) && (options.kitLessonsEnabled !== false);
   if (options.activeKit && lessonsEnabled) {
-    availableTools.push(SAVE_LESSON_TOOL);
+    availableTools.push(...LESSON_TOOLS.map(t => t.definition));
   }
 
   // Inject component catalog + doc files if an active kit is provided

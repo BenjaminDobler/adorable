@@ -1,8 +1,7 @@
 import { FileSystemInterface, GenerateOptions, HistoryMessage, PreflightDecision, AgentLoopContext } from './types';
 import { jsonrepair } from 'jsonrepair';
 import { PARALLELIZABLE_TOOLS } from './system-prompts';
-import { executeTool as executeToolStandalone, executeMCPTool as executeMCPToolStandalone, validateToolArgs as validateToolArgsStandalone, sanitizeFileContent as sanitizeFileContentStandalone } from './tool-executor';
-import { executeToolByName, PARALLELIZABLE_TOOL_NAMES } from './tools/index';
+import { executeToolByName, executeMCPTool, PARALLELIZABLE_TOOL_NAMES, validateToolArgs, sanitizeFileContent } from './tools/index';
 import { prepareAgentContext as prepareAgentContextStandalone, addSkillTools as addSkillToolsStandalone, generateTreeSummary as generateTreeSummaryStandalone, flattenFiles as flattenFilesStandalone } from './context-builder';
 import { runPreflight as runPreflightStandalone, runResearchPhase as runResearchPhaseStandalone } from './preflight';
 import { SkillRegistry } from './skills/skill-registry';
@@ -144,7 +143,7 @@ export abstract class BaseLLMProvider {
     toolArgs: any,
     ctx: AgentLoopContext
   ): Promise<{ content: string; isError: boolean }> {
-    return executeMCPToolStandalone(toolName, toolArgs, ctx);
+    return executeMCPTool(toolName, toolArgs, ctx);
   }
 
   /**
@@ -159,7 +158,7 @@ export abstract class BaseLLMProvider {
   ): Promise<{ content: string; isError: boolean }> {
     // MCP tools are dynamic (not in the static registry) — dispatch via MCP manager
     if (ctx.mcpManager && ctx.mcpManager.isMCPTool(toolName)) {
-      return executeMCPToolStandalone(toolName, toolArgs, ctx);
+      return executeMCPTool(toolName, toolArgs, ctx);
     }
 
     return executeToolByName(toolName, toolArgs, ctx);
@@ -508,14 +507,14 @@ export abstract class BaseLLMProvider {
    * Sanitize file content — delegates to standalone function.
    */
   protected sanitizeFileContent(content: string, filePath: string): string {
-    return sanitizeFileContentStandalone(content, filePath);
+    return sanitizeFileContent(content, filePath);
   }
 
   /**
    * Validate tool args — delegates to standalone function.
    */
   protected validateToolArgs(toolName: string, toolArgs: any, required: string[]): string | null {
-    return validateToolArgsStandalone(toolName, toolArgs, required);
+    return validateToolArgs(toolName, toolArgs, required);
   }
 
   /**

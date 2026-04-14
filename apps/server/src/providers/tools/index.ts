@@ -135,6 +135,46 @@ export function getToolDefinitions(options?: {
   return tools;
 }
 
+// ─── MCP tool execution ───
+// MCP tools are dynamic (registered at runtime by MCP servers), so they
+// can't be in the static registry. This function handles them directly.
+
+import { MCPToolResult } from '../../mcp/types';
+
+export async function executeMCPTool(
+  toolName: string,
+  toolArgs: any,
+  ctx: AgentLoopContext,
+): Promise<ToolResult> {
+  if (!ctx.mcpManager) {
+    return { content: 'MCP Manager not initialized', isError: true };
+  }
+
+  try {
+    const result: MCPToolResult = await ctx.mcpManager.callTool(toolName, toolArgs);
+
+    const formattedContent = result.content
+      .map((item: any) => {
+        if (item.type === 'text' && item.text) return item.text;
+        if (item.type === 'image' && item.data) return `[Image: ${item.mimeType || 'image/png'}]`;
+        if (item.type === 'resource') return `[Resource: ${item.mimeType || 'unknown'}]`;
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n');
+
+    return {
+      content: formattedContent || 'Tool executed successfully',
+      isError: result.isError || false,
+    };
+  } catch (error) {
+    return {
+      content: `MCP tool error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      isError: true,
+    };
+  }
+}
+
 // Re-export types
 export { Tool, ToolDefinition, ToolResult } from './types';
 export { validateToolArgs, sanitizeFileContent } from './utils';
