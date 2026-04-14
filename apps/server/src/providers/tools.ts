@@ -130,6 +130,48 @@ export const TOOLS = [
     }
   },
   {
+    name: 'patch_files',
+    description: 'Apply targeted edits to MULTIPLE files at once. Much more efficient than write_files for modifications — sends only the changed parts instead of entire file contents. Each patch specifies a file path and one or more search/replace pairs. PREREQUISITE: You MUST have read each file first.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        patches: {
+          type: 'array',
+          description: 'Array of file patches to apply.',
+          items: {
+            type: 'object',
+            properties: {
+              path: {
+                type: 'string',
+                description: 'The path to the file to patch.'
+              },
+              changes: {
+                type: 'array',
+                description: 'Array of search/replace pairs to apply in order.',
+                items: {
+                  type: 'object',
+                  properties: {
+                    old_str: {
+                      type: 'string',
+                      description: 'The exact string to find (must be unique in the file).'
+                    },
+                    new_str: {
+                      type: 'string',
+                      description: 'The string to replace it with.'
+                    }
+                  },
+                  required: ['old_str', 'new_str']
+                }
+              }
+            },
+            required: ['path', 'changes']
+          }
+        }
+      },
+      required: ['patches']
+    }
+  },
+  {
     name: 'glob',
     description: 'Find files matching a pattern',
     input_schema: {

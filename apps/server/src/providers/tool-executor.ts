@@ -202,6 +202,77 @@ export async function executeTool(
         }
         content = 'File edited successfully.';
         break;
+      case 'patch_files': {
+        if (!toolArgs.patches || !Array.isArray(toolArgs.patches)) {
+          // Handle JSON-string patches (LLMs sometimes serialize arrays as strings)
+          if (typeof toolArgs.patches === 'string') {
+            try { toolArgs.patches = JSON.parse(jsonrepair(toolArgs.patches)); } catch { /* fall through */ }
+          }
+          if (!toolArgs.patches || !Array.isArray(toolArgs.patches)) {
+            content = 'Error: No patches array provided.';
+            isError = true;
+            break;
+          }
+        }
+
+        const patchResults: string[] = [];
+        let patchedCount = 0;
+        let errorCount = 0;
+
+        for (const patch of toolArgs.patches) {
+          if (!patch.path || !Array.isArray(patch.changes) || patch.changes.length === 0) {
+            patchResults.push(`${patch.path || '?'}: skipped (missing path or changes)`);
+            continue;
+          }
+
+          const changeResults: string[] = [];
+          let fileErrored = false;
+
+          for (let i = 0; i < patch.changes.length; i++) {
+            const change = patch.changes[i];
+            if (!change.old_str || change.new_str === undefined) {
+              changeResults.push(`  change ${i + 1}: skipped (missing old_str or new_str)`);
+              continue;
+            }
+            try {
+              await fs.editFile(patch.path, change.old_str, change.new_str);
+            } catch (err: any) {
+              changeResults.push(`  change ${i + 1}: FAILED — ${err.message}`);
+              fileErrored = true;
+              errorCount++;
+              // Stop applying further changes to this file — state is now uncertain
+              break;
+            }
+          }
+
+          if (!fileErrored) {
+            // All changes applied — notify client with final content
+            const updatedContent = await fs.readFile(patch.path);
+            callbacks.onFileWritten?.(patch.path, updatedContent);
+            if (!ctx.modifiedFiles.includes(patch.path)) ctx.modifiedFiles.push(patch.path);
+            patchedCount++;
+            if (changeResults.length > 0) {
+              patchResults.push(`${patch.path}: ${patch.changes.length - changeResults.length}/${patch.changes.length} changes applied\n${changeResults.join('\n')}`);
+            }
+          } else {
+            // Partial failure — still notify with current state
+            try {
+              const currentContent = await fs.readFile(patch.path);
+              callbacks.onFileWritten?.(patch.path, currentContent);
+            } catch { /* file may not exist */ }
+            patchResults.push(`${patch.path}: FAILED\n${changeResults.join('\n')}`);
+          }
+        }
+
+        if (errorCount === 0) {
+          content = `${patchedCount} file(s) patched successfully.`;
+          if (patchResults.length > 0) content += '\n' + patchResults.join('\n');
+        } else {
+          content = `${patchedCount} file(s) patched, ${errorCount} error(s):\n${patchResults.join('\n')}`;
+          isError = errorCount > 0 && patchedCount === 0;
+        }
+        break;
+      }
       case 'read_file':
         validationError = validateToolArgs(toolName, toolArgs, ['path']);
         if (validationError) {
