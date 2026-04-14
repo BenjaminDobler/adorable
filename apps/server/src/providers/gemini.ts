@@ -215,6 +215,20 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       }
     }
 
+    // Improvement 4: Plan-before-execute — for complex prompts
+    if (preflightDecision.requiresPlan) {
+      enrichedUserMessage += '\n\n**IMPORTANT — Plan before coding:**\n'
+        + 'This is a complex task. Before writing ANY code:\n'
+        + '1. Output a brief plan listing every file you will create (path + one-line purpose)\n'
+        + '2. List the components/services and what each does\n'
+        + '3. Note the order you will write them (dependencies first)\n'
+        + '4. Then proceed to implement the plan — write each file ONCE, do NOT rewrite files from scratch\n'
+        + '5. After writing all files, verify the build\n\n'
+        + 'SCOPE DISCIPLINE: Only create files in your plan. Do NOT add features, components, or files not explicitly requested in the user\'s prompt.\n';
+      if (initialParts[0]?.text) initialParts[0].text = enrichedUserMessage;
+      console.log('[Plan] Injected plan-before-execute instruction (preflight detected complex prompt)');
+    }
+
     let turnCount = 0;
     let currentMessage: any = initialParts;
 

@@ -306,9 +306,16 @@ export abstract class BaseLLMProvider {
 
     const truncateThreshold = 2000; // chars
     const truncateTarget = 200;
+    const pruneEndIndex = messages.length - keepRecentCount;
+
+    // Improvement 5: Before truncating, extract a structured summary from the
+    // messages that are about to lose their content. This preserves knowledge
+    // about what was done (files written, tools used, key decisions) so the AI
+    // doesn't need to re-read files to recover its own output.
+    const summary = this.extractPruneSummary(messages, 1, pruneEndIndex);
 
     // Prune everything except first message and last keepRecentCount messages
-    for (let i = 1; i < messages.length - keepRecentCount; i++) {
+    for (let i = 1; i < pruneEndIndex; i++) {
       const msg = messages[i];
       if (!msg.content || !Array.isArray(msg.content)) continue;
 
@@ -355,6 +362,116 @@ export abstract class BaseLLMProvider {
         }
       }
     }
+
+    // Inject the summary as the second message (right after the initial prompt)
+    // so it's always visible and never truncated on subsequent prune passes.
+    if (summary) {
+      // Check if we already injected a summary — update it instead of stacking
+      const existingSummaryIndex = messages.findIndex((m: any, i: number) =>
+        i > 0 && i < pruneEndIndex && m.role === 'user' &&
+        Array.isArray(m.content) && m.content[0]?.text?.startsWith('[Progress summary')
+      );
+      if (existingSummaryIndex > 0) {
+        // Update existing summary in place
+        messages[existingSummaryIndex].content[0].text = summary;
+      } else if (messages.length > 2) {
+        // Insert new summary pair after the first message
+        messages.splice(1, 0,
+          { role: 'user', content: [{ type: 'text', text: summary }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'Understood. I have context about my earlier work and will continue from here.' }] },
+        );
+      }
+    }
+  }
+
+  /**
+   * Extract a structured summary from messages that are about to be pruned.
+   * Returns null if there's nothing significant to summarize.
+   */
+  private extractPruneSummary(messages: any[], startIndex: number, endIndex: number): string | null {
+    const filesWritten = new Set<string>();
+    const filesEdited = new Set<string>();
+    const filesRead = new Set<string>();
+    const toolsUsed = new Map<string, number>();
+    const keyResponses: string[] = [];
+    let buildAttempts = 0;
+    let lastBuildSuccess = false;
+
+    for (let i = startIndex; i < endIndex; i++) {
+      const msg = messages[i];
+      if (!msg.content || !Array.isArray(msg.content)) continue;
+
+      for (const block of msg.content) {
+        // Extract tool usage info
+        if (block.type === 'tool_use' && block.input) {
+          toolsUsed.set(block.name, (toolsUsed.get(block.name) || 0) + 1);
+
+          if (block.name === 'write_files' && Array.isArray(block.input.files)) {
+            for (const f of block.input.files) {
+              if (f.path) filesWritten.add(f.path);
+            }
+          } else if (block.name === 'write_file' && block.input.path) {
+            filesWritten.add(block.input.path);
+          } else if (block.name === 'edit_file' && block.input.path) {
+            filesEdited.add(block.input.path);
+          } else if (block.name === 'read_files' && Array.isArray(block.input.paths)) {
+            for (const p of block.input.paths) filesRead.add(p);
+          } else if (block.name === 'read_file' && block.input.path) {
+            filesRead.add(block.input.path);
+          } else if (block.name === 'verify_build') {
+            buildAttempts++;
+          }
+        }
+
+        // Extract key text responses (first sentence)
+        if (block.type === 'text' && typeof block.text === 'string' && block.text.length > 20 && msg.role === 'assistant') {
+          const firstSentence = block.text.replace(/\s+/g, ' ').trim().split(/[.!?\n]/)[0];
+          if (firstSentence && firstSentence.length > 10 && firstSentence.length < 200) {
+            keyResponses.push(firstSentence);
+          }
+        }
+
+        // Check build results
+        if (block.type === 'tool_result' && typeof block.content === 'string') {
+          if (block.content.includes('Build succeeded') || block.content.includes('exit code 0')) {
+            lastBuildSuccess = true;
+          } else if (block.content.includes('Build failed') || block.content.includes('exit code 1')) {
+            lastBuildSuccess = false;
+          }
+        }
+      }
+    }
+
+    // Only generate summary if there's meaningful work to summarize
+    if (filesWritten.size === 0 && filesEdited.size === 0 && toolsUsed.size === 0) return null;
+
+    const parts: string[] = ['[Progress summary of earlier turns (context was compacted):'];
+
+    if (filesWritten.size > 0) {
+      parts.push(`Files created: ${[...filesWritten].join(', ')}`);
+    }
+    if (filesEdited.size > 0) {
+      parts.push(`Files edited: ${[...filesEdited].join(', ')}`);
+    }
+    if (buildAttempts > 0) {
+      parts.push(`Build attempts: ${buildAttempts} (last: ${lastBuildSuccess ? 'succeeded' : 'failed'})`);
+    }
+
+    const toolSummary = [...toolsUsed.entries()]
+      .filter(([name]) => name !== 'read_file' && name !== 'read_files')
+      .map(([name, count]) => `${name}×${count}`)
+      .join(', ');
+    if (toolSummary) {
+      parts.push(`Tools used: ${toolSummary}`);
+    }
+
+    if (keyResponses.length > 0) {
+      parts.push(`Key decisions: ${keyResponses.slice(0, 5).map(r => `"${r}"`).join('; ')}`);
+    }
+
+    parts.push('Continue from where you left off. Do NOT re-read or rewrite files listed above — use edit_file for changes.]');
+
+    return parts.join('\n');
   }
 
   protected parseToolInput(input: string): any {

@@ -69,6 +69,7 @@ export interface PreflightDecision {
   suggestClearContext: boolean; // recommend clearing conversation history?
   reasoningEffort: 'low' | 'medium' | 'high';
   skillHint?: string;          // pre-detected skill to activate (e.g. 'angular-expert')
+  requiresPlan?: boolean;      // complex prompt — force a plan-first turn before coding
   reasoning?: string;          // brief explanation of the decision (for logging)
 }
 

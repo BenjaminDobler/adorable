@@ -50,12 +50,14 @@ export async function runPreflight(
     + (availableSkills.length > 0
       ? `- "skillHint" (string|null): If the prompt clearly matches one of these available skills, return its name: ${availableSkills.join(', ')}. Otherwise null.\n`
       : '')
+    + `- "requiresPlan" (boolean): Is this a complex multi-component task that needs a plan before coding? true when: the prompt describes 5+ distinct UI sections/components, multiple files or tabs, or a full page/dashboard with several interactive features. false for simple tasks, single-component changes, or follow-up tweaks.\n`
     + `- "reasoning" (string): One sentence explaining your decision.\n\n`
     + `Rules:\n`
     + `- Be fast and concise — this is a routing decision, not a deep analysis\n`
     + `- When in doubt about runResearch, lean towards false — the main agent can always read files itself\n`
     + `- topicShift should only be true for clear, unambiguous topic changes (e.g. "now let's work on the settings page" after 10 messages about the login page)\n`
-    + `- suggestClearContext should be rare — only when stale context would actively hurt\n`;
+    + `- suggestClearContext should be rare — only when stale context would actively hurt\n`
+    + `- requiresPlan should be true for ambitious prompts that will produce 5+ files — the plan prevents scope creep and rewrite cycles\n`;
 
   const routerPrompt = hasConversation
     ? `${conversationContext}\n---\nNew user message: ${userPrompt}`
