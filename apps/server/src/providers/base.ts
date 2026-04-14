@@ -2,6 +2,7 @@ import { FileSystemInterface, GenerateOptions, HistoryMessage, PreflightDecision
 import { jsonrepair } from 'jsonrepair';
 import { PARALLELIZABLE_TOOLS } from './system-prompts';
 import { executeTool as executeToolStandalone, executeMCPTool as executeMCPToolStandalone, validateToolArgs as validateToolArgsStandalone, sanitizeFileContent as sanitizeFileContentStandalone } from './tool-executor';
+import { executeToolByName, PARALLELIZABLE_TOOL_NAMES } from './tools/index';
 import { prepareAgentContext as prepareAgentContextStandalone, addSkillTools as addSkillToolsStandalone, generateTreeSummary as generateTreeSummaryStandalone, flattenFiles as flattenFilesStandalone } from './context-builder';
 import { runPreflight as runPreflightStandalone, runResearchPhase as runResearchPhaseStandalone } from './preflight';
 import { SkillRegistry } from './skills/skill-registry';
@@ -36,7 +37,7 @@ export abstract class BaseLLMProvider {
     const batches: Batch[] = [];
 
     for (const tool of toolCalls) {
-      const isParallel = PARALLELIZABLE_TOOLS.has(tool.name);
+      const isParallel = PARALLELIZABLE_TOOL_NAMES.has(tool.name) || PARALLELIZABLE_TOOLS.has(tool.name);
       const lastBatch = batches[batches.length - 1];
 
       if (lastBatch && lastBatch.parallel === isParallel) {
@@ -147,14 +148,30 @@ export abstract class BaseLLMProvider {
   }
 
   /**
-   * Execute a tool — delegates to standalone function.
+   * Execute a tool — uses the new modular tool registry.
+   * Falls back to the legacy switch-based executor for MCP tools or
+   * any tools not yet migrated to the registry.
    */
   protected async executeTool(
     toolName: string,
     toolArgs: any,
     ctx: AgentLoopContext
   ): Promise<{ content: string; isError: boolean }> {
-    return executeToolStandalone(toolName, toolArgs, ctx);
+    // MCP tools are handled by the MCP manager, not the tool registry
+    if (ctx.mcpManager && ctx.mcpManager.isMCPTool(toolName)) {
+      return executeMCPToolStandalone(toolName, toolArgs, ctx);
+    }
+
+    // Try the new modular registry first
+    const result = await executeToolByName(toolName, toolArgs, ctx);
+
+    // If the registry returned "Unknown tool", fall back to the legacy executor
+    // (safety net during migration — can be removed once all tools are verified)
+    if (result.isError && result.content.startsWith('Error: Unknown tool')) {
+      return executeToolStandalone(toolName, toolArgs, ctx);
+    }
+
+    return result;
   }
 
   protected async postLoopBuildCheck(
