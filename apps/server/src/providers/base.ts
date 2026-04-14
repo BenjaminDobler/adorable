@@ -148,30 +148,21 @@ export abstract class BaseLLMProvider {
   }
 
   /**
-   * Execute a tool — uses the new modular tool registry.
-   * Falls back to the legacy switch-based executor for MCP tools or
-   * any tools not yet migrated to the registry.
+   * Execute a tool — uses the modular tool registry (providers/tools/).
+   * MCP tools (dynamic, registered at runtime by MCP servers) are handled
+   * separately via the MCP manager.
    */
   protected async executeTool(
     toolName: string,
     toolArgs: any,
     ctx: AgentLoopContext
   ): Promise<{ content: string; isError: boolean }> {
-    // MCP tools are handled by the MCP manager, not the tool registry
+    // MCP tools are dynamic (not in the static registry) — dispatch via MCP manager
     if (ctx.mcpManager && ctx.mcpManager.isMCPTool(toolName)) {
       return executeMCPToolStandalone(toolName, toolArgs, ctx);
     }
 
-    // Try the new modular registry first
-    const result = await executeToolByName(toolName, toolArgs, ctx);
-
-    // If the registry returned "Unknown tool", fall back to the legacy executor
-    // (safety net during migration — can be removed once all tools are verified)
-    if (result.isError && result.content.startsWith('Error: Unknown tool')) {
-      return executeToolStandalone(toolName, toolArgs, ctx);
-    }
-
-    return result;
+    return executeToolByName(toolName, toolArgs, ctx);
   }
 
   protected async postLoopBuildCheck(
