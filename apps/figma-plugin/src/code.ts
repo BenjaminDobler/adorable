@@ -1,8 +1,14 @@
 // Adorable Figma Export Plugin
 // Exports selected frames as JSON + images for use with Adorable AI App Generator
 
-// Show the UI
-figma.showUI(__html__, { width: 360, height: 580 });
+// Show the UI — works in both Design mode (floating window) and Dev mode (inspect panel)
+if (figma.editorType === 'dev') {
+  // Dev mode: show as inspect panel in the right sidebar
+  figma.showUI(__html__, { width: 360, height: 580, position: { x: 0, y: 0 }, themeColors: true });
+} else {
+  // Design mode: show as floating window
+  figma.showUI(__html__, { width: 360, height: 580 });
+}
 
 const BRIDGE_TOKEN_KEY = 'adorable-bridge-token';
 const BRIDGE_URL_KEY = 'adorable-bridge-url';
