@@ -550,13 +550,13 @@ figma.ui.onmessage = async (msg: { type: string; scale?: number; requestId?: str
               const style = s.fontStyle || 'Regular';
               try {
                 await figma.loadFontAsync({ family, style });
-              } catch {
+              } catch (_e) {
                 // Fallback to Inter if the requested font isn't available
-                try { await figma.loadFontAsync({ family: 'Inter', style: 'Regular' }); } catch {}
+                try { await figma.loadFontAsync({ family: 'Inter', style: 'Regular' }); } catch (_e2) { /* ignore */ }
               }
               text.characters = s.characters;
               text.fontSize = s.fontSize || 14;
-              try { text.fontName = { family, style }; } catch { /* keep default */ }
+              try { text.fontName = { family, style }; } catch (_e) { /* keep default */ }
               if (s.textAlignHorizontal) text.textAlignHorizontal = s.textAlignHorizontal;
               if (s.lineHeight) text.lineHeight = { value: s.lineHeight, unit: 'PIXELS' };
               if (s.letterSpacing) text.letterSpacing = { value: s.letterSpacing, unit: 'PIXELS' };
