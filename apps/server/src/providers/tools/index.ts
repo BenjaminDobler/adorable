@@ -38,6 +38,7 @@ import {
 import {
   figmaGetSelection, figmaGetNode, figmaExportNode, figmaSelectNode,
   figmaSearchNodes, figmaGetFonts, figmaGetVariables,
+  figmaCreateFromElement,
 } from './figma';
 
 // ─── Tool groups ───
@@ -73,6 +74,7 @@ export const CDP_TOOLS: Tool[] = [
 export const FIGMA_TOOLS: Tool[] = [
   figmaGetSelection, figmaGetNode, figmaExportNode, figmaSelectNode,
   figmaSearchNodes, figmaGetFonts, figmaGetVariables,
+  figmaCreateFromElement,
 ];
 
 // ─── Registry ───

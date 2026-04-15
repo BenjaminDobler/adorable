@@ -538,6 +538,127 @@ figma.ui.onmessage = async (msg: { type: string; scale?: number; requestId?: str
           break;
         }
 
+        case 'create_node': {
+          const spec = command.spec;
+          if (!spec) { error = 'No spec provided'; break; }
+
+          async function createFromSpec(s: any, parent: BaseNode & ChildrenMixin): Promise<SceneNode> {
+            if (s.type === 'text' && s.characters) {
+              const text = figma.createText();
+              // Load font before setting characters
+              const family = s.fontFamily || 'Inter';
+              const style = s.fontStyle || 'Regular';
+              try {
+                await figma.loadFontAsync({ family, style });
+              } catch {
+                // Fallback to Inter if the requested font isn't available
+                try { await figma.loadFontAsync({ family: 'Inter', style: 'Regular' }); } catch {}
+              }
+              text.characters = s.characters;
+              text.fontSize = s.fontSize || 14;
+              try { text.fontName = { family, style }; } catch { /* keep default */ }
+              if (s.textAlignHorizontal) text.textAlignHorizontal = s.textAlignHorizontal;
+              if (s.lineHeight) text.lineHeight = { value: s.lineHeight, unit: 'PIXELS' };
+              if (s.letterSpacing) text.letterSpacing = { value: s.letterSpacing, unit: 'PIXELS' };
+              if (s.textDecoration) text.textDecoration = s.textDecoration;
+              if (s.textCase) text.textCase = s.textCase;
+              if (s.textColor) {
+                text.fills = [{
+                  type: 'SOLID',
+                  color: { r: s.textColor.r, g: s.textColor.g, b: s.textColor.b },
+                  opacity: s.textColor.a !== undefined ? s.textColor.a : 1,
+                }];
+              }
+              text.name = s.name || 'Text';
+              parent.appendChild(text);
+              return text;
+            }
+
+            // Frame node
+            const frame = figma.createFrame();
+            frame.name = s.name || 'Frame';
+            frame.resize(Math.max(1, s.width || 100), Math.max(1, s.height || 100));
+
+            // Fills
+            if (s.fills !== undefined) frame.fills = s.fills;
+            else frame.fills = [];
+
+            // Strokes
+            if (s.strokes && s.strokes.length > 0) {
+              frame.strokes = s.strokes;
+              frame.strokeWeight = s.strokeWeight || 1;
+            }
+
+            // Corner radius
+            if (s.cornerRadius !== undefined) {
+              frame.cornerRadius = s.cornerRadius;
+            } else if (s.cornerRadii) {
+              frame.topLeftRadius = s.cornerRadii.topLeft || 0;
+              frame.topRightRadius = s.cornerRadii.topRight || 0;
+              frame.bottomLeftRadius = s.cornerRadii.bottomLeft || 0;
+              frame.bottomRightRadius = s.cornerRadii.bottomRight || 0;
+            }
+
+            // Effects
+            if (s.effects && s.effects.length > 0) {
+              frame.effects = s.effects;
+            }
+
+            // Opacity
+            if (s.opacity !== undefined) frame.opacity = s.opacity;
+
+            // Clip content
+            if (s.clipsContent) frame.clipsContent = true;
+
+            // Visibility
+            if (s.visible === false) frame.visible = false;
+
+            // Auto-layout
+            if (s.layoutMode && s.layoutMode !== 'NONE') {
+              frame.layoutMode = s.layoutMode;
+              if (s.itemSpacing !== undefined) frame.itemSpacing = s.itemSpacing;
+              if (s.paddingTop !== undefined) frame.paddingTop = s.paddingTop;
+              if (s.paddingRight !== undefined) frame.paddingRight = s.paddingRight;
+              if (s.paddingBottom !== undefined) frame.paddingBottom = s.paddingBottom;
+              if (s.paddingLeft !== undefined) frame.paddingLeft = s.paddingLeft;
+              if (s.primaryAxisAlignItems) frame.primaryAxisAlignItems = s.primaryAxisAlignItems;
+              if (s.counterAxisAlignItems) frame.counterAxisAlignItems = s.counterAxisAlignItems;
+              if (s.primaryAxisSizingMode) frame.primaryAxisSizingMode = s.primaryAxisSizingMode;
+              if (s.counterAxisSizingMode) frame.counterAxisSizingMode = s.counterAxisSizingMode;
+            }
+
+            // Recursively create children
+            if (s.children && s.children.length > 0) {
+              for (const childSpec of s.children) {
+                await createFromSpec(childSpec, frame);
+              }
+            }
+
+            parent.appendChild(frame);
+            return frame;
+          }
+
+          const created = await createFromSpec(spec, figma.currentPage);
+
+          // Position at viewport center
+          const center = figma.viewport.center;
+          created.x = Math.round(center.x - (spec.width || 100) / 2);
+          created.y = Math.round(center.y - (spec.height || 100) / 2);
+
+          // Select and zoom to the created node
+          figma.currentPage.selection = [created];
+          figma.viewport.scrollAndZoomIntoView([created]);
+
+          responseData = {
+            nodeId: created.id,
+            name: created.name,
+            type: created.type,
+            width: Math.round('width' in created ? created.width : 0),
+            height: Math.round('height' in created ? created.height : 0),
+          };
+          break;
+        }
+
         default:
           error = `Unknown command: ${command.action}`;
       }

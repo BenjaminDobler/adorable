@@ -85,7 +85,8 @@ export type FigmaCommand =
   | { action: 'scroll_to_node'; nodeId: string }
   | { action: 'search_nodes'; query: string; types?: string[] }
   | { action: 'get_variables' }
-  | { action: 'get_fonts' };
+  | { action: 'get_fonts' }
+  | { action: 'create_node'; spec: any; parentId?: string };
 
 // Figma design token representation (extracted via get_variables)
 export interface FigmaVariableToken {
