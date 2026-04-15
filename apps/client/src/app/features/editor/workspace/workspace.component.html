@@ -205,7 +205,8 @@
           [visualEditorData]="visualEditorData"
           (closeEditor)="visualEditorData.set(null)"
           (aiChangeRequested)="onVisualEditAiChange($event)"
-          (goToCode)="onGoToCode($event)">
+          (goToCode)="onGoToCode($event)"
+          (selectBreadcrumb)="onSelectBreadcrumb($event)">
         </app-visual-editor-panel>
       </div>
     }

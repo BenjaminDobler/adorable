@@ -807,6 +807,15 @@ export class WorkspaceComponent implements AfterViewChecked {
     }
   }
 
+  onSelectBreadcrumb(event: { elementId: string; tagName: string; index: number }) {
+    this.sendToPreview({
+      type: 'SELECT_ELEMENT',
+      elementId: event.elementId,
+      tagName: event.tagName,
+      index: event.index,
+    });
+  }
+
   async onAnnotationDone(result: AnnotationResult) {
     this.isAnnotating.set(false);
     const iframeScreenshot = await this.screenshotService.captureThumbnail();

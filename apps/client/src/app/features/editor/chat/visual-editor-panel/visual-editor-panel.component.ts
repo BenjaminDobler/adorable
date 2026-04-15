@@ -27,6 +27,7 @@ export class VisualEditorPanelComponent {
   @Output() closeEditor = new EventEmitter<void>();
   @Output() aiChangeRequested = new EventEmitter<string>();
   @Output() goToCode = new EventEmitter<ElementFingerprint>();
+  @Output() selectBreadcrumb = new EventEmitter<{ elementId: string; tagName: string; index: number }>();
 
   // Visual Edit State
   editText = '';
@@ -206,15 +207,11 @@ export class VisualEditorPanelComponent {
   }
 
   selectFromBreadcrumb(item: any, index: number) {
-    const iframe = document.querySelector('iframe');
-    if (iframe && iframe.contentWindow) {
-      iframe.contentWindow.postMessage({
-        type: 'SELECT_ELEMENT',
-        elementId: item.elementId,
-        tagName: item.tagName,
-        index: index
-      }, '*');
-    }
+    this.selectBreadcrumb.emit({
+      elementId: item.elementId,
+      tagName: item.tagName,
+      index,
+    });
   }
 
   setFontSize(size: string) {
