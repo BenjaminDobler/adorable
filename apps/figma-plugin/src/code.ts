@@ -579,9 +579,27 @@ figma.ui.onmessage = async (msg: { type: string; scale?: number; requestId?: str
             frame.name = s.name || 'Frame';
             frame.resize(Math.max(1, s.width || 100), Math.max(1, s.height || 100));
 
-            // Fills
-            if (s.fills !== undefined) frame.fills = s.fills;
-            else frame.fills = [];
+            // Fills — use screenshot as image fill if available, otherwise use CSS-mapped fills
+            if (s.imageData) {
+              try {
+                // Decode base64 screenshot to Uint8Array
+                const raw = figma.base64Decode(s.imageData);
+                const img = figma.createImage(raw);
+                frame.fills = [{
+                  type: 'IMAGE',
+                  scaleMode: 'FILL',
+                  imageHash: img.hash,
+                }];
+              } catch (_e) {
+                // Fallback to CSS-mapped fills if image creation fails
+                if (s.fills !== undefined) frame.fills = s.fills;
+                else frame.fills = [];
+              }
+            } else if (s.fills !== undefined) {
+              frame.fills = s.fills;
+            } else {
+              frame.fills = [];
+            }
 
             // Strokes
             if (s.strokes && s.strokes.length > 0) {
