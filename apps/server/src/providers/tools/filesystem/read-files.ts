@@ -1,5 +1,7 @@
 import { Tool } from '../types';
-import { validateToolArgs, tryParseJsonArray } from '../utils';
+import { validateToolArgs, tryParseJsonArray, contentHash } from '../utils';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 export const readFiles: Tool = {
   definition: {
@@ -29,10 +31,26 @@ export const readFiles: Tool = {
       try {
         const fileContent = await ctx.fs.readFile(p);
         results.push(`--- ${p} ---\n${fileContent}`);
+
+        // Track read for staleness detection
+        try {
+          const fullPath = path.resolve((ctx.fs as any).projectPath || '.', p);
+          const stat = await fs.stat(fullPath);
+          ctx.readFileState.set(p, {
+            mtime: stat.mtimeMs,
+            contentHash: contentHash(fileContent),
+            partial: false,
+          });
+        } catch { /* non-disk FS, skip tracking */ }
       } catch (e: any) {
         results.push(`--- ${p} ---\nError: ${e.message}`);
       }
     }
     return { content: results.join('\n\n'), isError: false };
-  }
+  },
+
+  getActivityDescription(args) {
+    const count = Array.isArray(args.paths) ? args.paths.length : '?';
+    return `Reading ${count} files`;
+  },
 };

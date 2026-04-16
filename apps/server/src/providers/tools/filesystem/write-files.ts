@@ -78,5 +78,10 @@ export const writeFiles: Tool = {
     }
 
     return { content, isError: corrupted.length > 0 && written === 0 };
-  }
+  },
+
+  getActivityDescription(args) {
+    const count = Array.isArray(args.files) ? args.files.length : '?';
+    return `Writing ${count} files`;
+  },
 };

@@ -153,6 +153,8 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       cdpEnabled: options.cdpEnabled,
       hasVerifiedWithBrowser: false,
       buildCommand,
+      readFileState: new Map(),
+      fileHistory: new Map(),
     };
 
     // Research phase: LLM-based agent reads relevant files before main loop
@@ -323,9 +325,9 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       }));
 
       const batchedResults = await this.executeToolsBatched(parsedToolCalls, ctx, {
-        onToolCall: (name, args) => {
-          callbacks.onToolCall?.(0, name, args);
-          logger.log('EXECUTING_TOOL', { name, args });
+        onToolCall: (name, args, activityDescription) => {
+          callbacks.onToolCall?.(0, name, args, activityDescription);
+          logger.log('EXECUTING_TOOL', { name, args, activityDescription });
         },
         onToolResult: (id, content, name, isError) => {
           logger.log('TOOL_RESULT', { name, result: content, isError });

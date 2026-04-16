@@ -4,7 +4,10 @@ import { execFile } from 'child_process';
 import { FileSystemInterface } from '../types';
 import { minimatch } from 'minimatch';
 
-const EXCLUDED_DIRS = new Set(['node_modules', '.git', '.angular', 'dist', '.cache', 'tmp', '.nx']);
+const EXCLUDED_DIRS = new Set([
+  'node_modules', '.git', '.svn', '.hg', '.bzr', '.jj',
+  '.angular', 'dist', '.cache', 'tmp', '.nx',
+]);
 
 export type ExecDelegate = (command: string) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
 

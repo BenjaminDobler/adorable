@@ -23,5 +23,9 @@ export const copyFile: Tool = {
     await ctx.fs.writeFile(args.destination_path, fileContent);
     ctx.callbacks.onFileWritten?.(args.destination_path, fileContent);
     return { content: `File copied from ${args.source_path} to ${args.destination_path}`, isError: false };
-  }
+  },
+
+  getActivityDescription(args) {
+    return `Copying ${args.source_path || 'file'}`;
+  },
 };

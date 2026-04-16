@@ -16,4 +16,7 @@ export interface ToolResult {
 export interface Tool {
   definition: ToolDefinition;
   execute: (args: any, ctx: AgentLoopContext) => Promise<ToolResult>;
+  /** Short description of what this tool call is doing, shown in UI spinners.
+   *  E.g. "Reading src/app.ts", "Searching for 'UserService'" */
+  getActivityDescription?: (args: any) => string;
 }

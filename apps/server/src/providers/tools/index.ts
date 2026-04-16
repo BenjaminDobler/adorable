@@ -15,7 +15,7 @@ import { AgentLoopContext } from '../types';
 import { Tool, ToolDefinition, ToolResult } from './types';
 
 // --- Filesystem tools ---
-import { readFile, readFiles, writeFile, writeFiles, editFile, patchFiles, deleteFile, renameFile, copyFile, listDir, glob, grep } from './filesystem';
+import { readFile, readFiles, writeFile, writeFiles, editFile, patchFiles, deleteFile, renameFile, copyFile, listDir, glob, grep, undoEdit } from './filesystem';
 
 // --- Build tools ---
 import { verifyBuild, runCommand } from './build';
@@ -46,7 +46,7 @@ import {
 /** Core tools — always available */
 export const CORE_TOOLS: Tool[] = [
   readFile, readFiles, writeFile, writeFiles, editFile, patchFiles,
-  deleteFile, renameFile, copyFile, listDir, glob, grep,
+  deleteFile, renameFile, copyFile, listDir, glob, grep, undoEdit,
   takeScreenshot, askUser,
 ];
 
@@ -106,6 +106,15 @@ export async function executeToolByName(
   } catch (err: any) {
     return { content: `Error: ${err.message}`, isError: true };
   }
+}
+
+/**
+ * Get the activity description for a tool call (e.g. "Reading src/app.ts").
+ * Returns undefined if the tool doesn't provide one.
+ */
+export function getToolActivityDescription(toolName: string, args: any): string | undefined {
+  const tool = registry.get(toolName);
+  return tool?.getActivityDescription?.(args);
 }
 
 /**

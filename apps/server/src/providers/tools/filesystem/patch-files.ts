@@ -99,5 +99,10 @@ export const patchFiles: Tool = {
     }
 
     return { content, isError: errorCount > 0 && patchedCount === 0 };
-  }
+  },
+
+  getActivityDescription(args) {
+    const count = Array.isArray(args.patches) ? args.patches.length : '?';
+    return `Patching ${count} files`;
+  },
 };

@@ -10,3 +10,4 @@ export { copyFile } from './copy-file';
 export { listDir } from './list-dir';
 export { glob } from './glob';
 export { grep } from './grep';
+export { undoEdit } from './undo-edit';

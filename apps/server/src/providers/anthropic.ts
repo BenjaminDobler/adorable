@@ -135,6 +135,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       cdpEnabled: options.cdpEnabled,
       hasVerifiedWithBrowser: false,
       buildCommand,
+      readFileState: new Map(),
+      fileHistory: new Map(),
     };
 
     let effort = options.reasoningEffort || 'high';
@@ -453,9 +455,9 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       }));
 
       const batchedResults = await this.executeToolsBatched(parsedToolCalls, ctx, {
-        onToolCall: (name, args) => {
-          callbacks.onToolCall?.(0, name, args);
-          logger.log('EXECUTING_TOOL', { name, args });
+        onToolCall: (name, args, activityDescription) => {
+          callbacks.onToolCall?.(0, name, args, activityDescription);
+          logger.log('EXECUTING_TOOL', { name, args, activityDescription });
         },
         onToolResult: (id, content, name, isError) => {
           logger.logText('TOOL_RESULT', content, { id, isError });

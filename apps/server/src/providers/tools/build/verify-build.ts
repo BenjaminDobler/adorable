@@ -41,5 +41,9 @@ export const verifyBuild: Tool = {
     }
 
     return { content, isError };
-  }
+  },
+
+  getActivityDescription() {
+    return 'Verifying build';
+  },
 };

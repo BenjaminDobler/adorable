@@ -1,7 +1,7 @@
 import { FileSystemInterface, GenerateOptions, HistoryMessage, PreflightDecision, AgentLoopContext } from './types';
 import { jsonrepair } from 'jsonrepair';
 import { PARALLELIZABLE_TOOLS } from './system-prompts';
-import { executeToolByName, executeMCPTool, PARALLELIZABLE_TOOL_NAMES, validateToolArgs, sanitizeFileContent } from './tools/index';
+import { executeToolByName, executeMCPTool, PARALLELIZABLE_TOOL_NAMES, validateToolArgs, sanitizeFileContent, getToolActivityDescription } from './tools/index';
 import { prepareAgentContext as prepareAgentContextStandalone, addSkillTools as addSkillToolsStandalone, generateTreeSummary as generateTreeSummaryStandalone, flattenFiles as flattenFilesStandalone } from './context-builder';
 import { runPreflight as runPreflightStandalone, runResearchPhase as runResearchPhaseStandalone } from './preflight';
 import { SkillRegistry } from './skills/skill-registry';
@@ -25,7 +25,7 @@ export abstract class BaseLLMProvider {
     toolCalls: { name: string; args: any; id: string }[],
     ctx: AgentLoopContext,
     options?: {
-      onToolCall?: (name: string, args: any) => void;
+      onToolCall?: (name: string, args: any, activityDescription?: string) => void;
       onToolResult?: (id: string, content: string, name: string, isError: boolean) => void;
     }
   ): Promise<{ id: string; name: string; content: string; isError: boolean }[]> {
@@ -53,7 +53,8 @@ export abstract class BaseLLMProvider {
       if (batch.parallel && batch.tools.length > 1) {
         // Fire all onToolCall callbacks immediately
         for (const tool of batch.tools) {
-          options?.onToolCall?.(tool.name, tool.args);
+          const desc = getToolActivityDescription(tool.name, tool.args);
+          options?.onToolCall?.(tool.name, tool.args, desc);
         }
 
         // Execute in parallel
@@ -68,7 +69,8 @@ export abstract class BaseLLMProvider {
       } else {
         // Execute sequentially (mutations or single-item batches)
         for (const tool of batch.tools) {
-          options?.onToolCall?.(tool.name, tool.args);
+          const desc = getToolActivityDescription(tool.name, tool.args);
+          options?.onToolCall?.(tool.name, tool.args, desc);
           const { content, isError } = await this.executeTool(tool.name, tool.args, ctx);
           options?.onToolResult?.(tool.id, content, tool.name, isError);
           results.push({ id: tool.id, name: tool.name, content, isError });

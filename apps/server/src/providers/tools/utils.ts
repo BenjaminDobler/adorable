@@ -1,4 +1,5 @@
 import { jsonrepair } from 'jsonrepair';
+import { createHash } from 'crypto';
 
 /**
  * Validates that required arguments are present for a tool call.
@@ -52,6 +53,22 @@ export function tryParseJsonArray(value: unknown): unknown[] | null {
     } catch { /* fall through */ }
   }
   return null;
+}
+
+/**
+ * Compute a short content hash for staleness detection.
+ */
+export function contentHash(content: string): string {
+  return createHash('sha256').update(content).digest('hex').slice(0, 16);
+}
+
+/**
+ * Normalize curly quotes to straight quotes for fuzzy matching.
+ */
+export function normalizeQuotes(s: string): string {
+  return s
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"');
 }
 
 /**

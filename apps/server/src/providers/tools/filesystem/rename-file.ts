@@ -24,5 +24,9 @@ export const renameFile: Tool = {
     ctx.callbacks.onFileWritten?.(args.new_path, fileContent);
     await ctx.fs.deleteFile(args.old_path);
     return { content: `File renamed from ${args.old_path} to ${args.new_path}`, isError: false };
-  }
+  },
+
+  getActivityDescription(args) {
+    return `Renaming ${args.old_path || 'file'}`;
+  },
 };

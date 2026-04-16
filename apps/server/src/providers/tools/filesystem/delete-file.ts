@@ -26,5 +26,9 @@ export const deleteFile: Tool = {
 
     await ctx.fs.deleteFile(args.path);
     return { content: `File deleted: ${args.path}`, isError: false };
-  }
+  },
+
+  getActivityDescription(args) {
+    return `Deleting ${args.path || 'file'}`;
+  },
 };

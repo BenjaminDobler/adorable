@@ -2,6 +2,18 @@ import { Tool } from '../types';
 import { validateToolArgs } from '../utils';
 import { sanitizeCommandOutput } from '../../sanitize-output';
 
+const SEARCH_COMMANDS = new Set(['find', 'grep', 'rg', 'ag', 'ack', 'locate', 'which', 'whereis']);
+const READ_COMMANDS = new Set(['cat', 'head', 'tail', 'less', 'wc', 'stat', 'file', 'jq', 'awk', 'sort', 'diff']);
+const LIST_COMMANDS = new Set(['ls', 'tree', 'du', 'df', 'pwd', 'echo', 'env', 'printenv']);
+
+function categorizeCommand(command: string): 'search' | 'read' | 'list' | 'mutation' {
+  const firstWord = command.trim().split(/\s+/)[0];
+  if (SEARCH_COMMANDS.has(firstWord)) return 'search';
+  if (READ_COMMANDS.has(firstWord)) return 'read';
+  if (LIST_COMMANDS.has(firstWord)) return 'list';
+  return 'mutation';
+}
+
 export const runCommand: Tool = {
   definition: {
     name: 'run_command',
@@ -49,5 +61,10 @@ export const runCommand: Tool = {
     }
 
     return { content, isError };
-  }
+  },
+
+  getActivityDescription(args) {
+    const cmd = (args.command || '').split(/\s+/).slice(0, 3).join(' ');
+    return `Running: ${cmd}`;
+  },
 };

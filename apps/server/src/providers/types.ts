@@ -77,7 +77,7 @@ export interface StreamCallbacks {
   onText?: (text: string) => void;
   onToolStart?: (index: number, name: string) => void;
   onToolDelta?: (index: number, delta: string) => void;
-  onToolCall?: (index: number, name: string, args: any) => void;
+  onToolCall?: (index: number, name: string, args: any, activityDescription?: string) => void;
   onToolResult?: (tool_use_id: string, result: any, name?: string) => void;
   onTokenUsage?: (usage: TokenUsage) => void;
   // Progressive streaming callbacks
@@ -131,6 +131,22 @@ export interface SkillReference {
   content: string;
 }
 
+/** Snapshot of a file at the time it was read — used for staleness detection */
+export interface ReadFileSnapshot {
+  /** File modification time at read */
+  mtime: number;
+  /** SHA-256 hash of the content at read (first 16 chars) */
+  contentHash: string;
+  /** Whether only a partial read was performed (offset/limit) */
+  partial: boolean;
+}
+
+/** Snapshot of a file before it was edited — used for undo */
+export interface FileHistoryEntry {
+  content: string;
+  timestamp: number;
+}
+
 export interface AgentLoopContext {
   fs: FileSystemInterface;
   callbacks: StreamCallbacks;
@@ -154,4 +170,8 @@ export interface AgentLoopContext {
   cdpEnabled?: boolean;
   hasVerifiedWithBrowser?: boolean;
   buildCommand: string; // The resolved build command (e.g. "npm run build" or "npx @richapps/ong build --project apps/my-app")
+  /** Tracks when files were last read — for staleness detection in edit_file/write_file */
+  readFileState: Map<string, ReadFileSnapshot>;
+  /** Stores previous file content before edits — for undo_edit */
+  fileHistory: Map<string, FileHistoryEntry>;
 }
