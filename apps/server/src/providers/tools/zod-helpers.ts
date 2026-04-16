@@ -13,7 +13,8 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
  * Strips the $schema and additionalProperties fields that the LLM API doesn't need.
  */
 export function zodToToolSchema(schema: z.ZodType): Record<string, unknown> {
-  const jsonSchema = zodToJsonSchema(schema, { target: 'openApi3' }) as Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod 4 types don't match zod-to-json-schema's Zod 3 type expectations, but runtime works fine
+  const jsonSchema = zodToJsonSchema(schema as any, { target: 'openApi3' }) as Record<string, unknown>;
   delete jsonSchema.$schema;
   return jsonSchema;
 }
