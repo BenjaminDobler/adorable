@@ -572,30 +572,30 @@ For grep, add `--glob '!.git'` (or equivalent) to the underlying search command.
 
 ## Implementation checklist
 
-### Phase 1 (~1-2 days)
-- [ ] 1.1 Input validation for edit-file and write-file (staleness + prerequisite)
-- [ ] 1.2 Path validation for glob, grep, list-dir
-- [ ] 1.3 Output pagination for grep and glob
-- [ ] 1.4 Multiple output modes for grep
-- [ ] 1.5 Path relativization in results
+### Phase 1 (~1-2 days) ✅ DONE
+- [x] 1.1 Input validation for edit-file and write-file (staleness + prerequisite)
+- [x] 1.2 Path validation for glob, grep, list-dir
+- [x] 1.3 Output pagination for grep and glob
+- [x] 1.4 Multiple output modes for grep
+- [x] 1.5 Path relativization in results (already relative — no change needed)
 
-### Phase 2 (~3-5 days)
-- [ ] 2.1 Migrate to Zod schemas (add dep, convert tools incrementally)
-- [ ] 2.2 Semantic input validators (semanticNumber, semanticBoolean)
-- [ ] 2.3 Structured diff output for edits
-- [ ] 2.4 Quote normalization in edit-file
-- [ ] 2.5 Activity descriptions for UI spinners
+### Phase 2 (~3-5 days) ✅ DONE
+- [x] 2.1 Migrate to Zod schemas (infrastructure + core tools: grep, glob, read-file, list-dir)
+- [x] 2.2 Semantic input validators (semanticNumber, semanticBoolean)
+- [x] 2.3 Structured diff output for edits
+- [x] 2.4 Quote normalization in edit-file
+- [x] 2.5 Activity descriptions for UI spinners
 
-### Phase 3 (~1-2 weeks)
-- [ ] 3.1 Skill discovery on file edit
-- [ ] 3.2 LSP integration on file changes
-- [ ] 3.3 File history tracking for undo
+### Phase 3 (~1-2 weeks) — partially done
+- [x] 3.1 Skill discovery on file edit
+- [ ] 3.2 LSP integration on file changes (needs Angular LS setup — 2-3 days)
+- [x] 3.3 File history tracking for undo
 
-### Phase 4 (~1-2 weeks)
-- [ ] 4.1 Permission rule matching per tool
-- [ ] 4.2 Search/read command detection for run-command
-- [ ] 4.3 Tool-specific concurrency flags based on input
-- [ ] 4.4 VCS directory auto-exclusion
+### Phase 4 (~1-2 weeks) — partially done
+- [ ] 4.1 Permission rule matching per tool (needs UI design — 3-5 days)
+- [x] 4.2 Search/read command detection for run-command
+- [x] 4.3 Tool-specific concurrency flags based on input (getActivityDescription added; dynamic isReadOnly deferred)
+- [x] 4.4 VCS directory auto-exclusion
 
 ## Files reference
 
@@ -607,4 +607,7 @@ For grep, add `--glob '!.git'` (or equivalent) to the underlying search command.
 - Provider loop: `apps/server/src/providers/anthropic.ts`, `gemini.ts`
 - Base provider: `apps/server/src/providers/base.ts`
 - Filesystem: `apps/server/src/providers/filesystem/disk-filesystem.ts`
+- Zod helpers: `apps/server/src/providers/tools/zod-helpers.ts`
+- Skill discovery: `apps/server/src/providers/tools/filesystem/skill-discovery.ts`
+- Undo tool: `apps/server/src/providers/tools/filesystem/undo-edit.ts`
 - Companion docs: `internal-docs/tool-architecture-refactor.md`, `internal-docs/provider-context-management-improvements.md`
