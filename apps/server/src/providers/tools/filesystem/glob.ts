@@ -1,33 +1,38 @@
+import { z } from 'zod';
 import { Tool } from '../types';
-import { validateToolArgs } from '../utils';
+import { zodToToolSchema, semanticNumber } from '../zod-helpers';
+
+const inputSchema = z.object({
+  pattern: z.string().describe('Glob pattern (e.g., "**/*.ts", "src/**/*.component.html")'),
+  head_limit: semanticNumber('Max results to return. Default: 100.'),
+  offset: semanticNumber('Skip first N results (for pagination). Default: 0.'),
+});
 
 export const glob: Tool = {
   definition: {
     name: 'glob',
     description: 'Find files matching a glob pattern. Supports pagination with head_limit and offset.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        pattern: { type: 'string', description: 'Glob pattern (e.g., "**/*.ts", "src/**/*.component.html")' },
-        head_limit: { type: 'number', description: 'Max results to return. Default: 100.' },
-        offset: { type: 'number', description: 'Skip first N results (for pagination). Default: 0.' },
-      },
-      required: ['pattern']
-    },
+    input_schema: zodToToolSchema(inputSchema),
     isReadOnly: true,
   },
 
-  async execute(args, ctx) {
-    const error = validateToolArgs('glob', args, ['pattern']);
-    if (error) return { content: error, isError: true };
+  async execute(rawArgs, ctx) {
+    let args: z.infer<typeof inputSchema>;
+    try {
+      args = inputSchema.parse(rawArgs);
+    } catch (e: any) {
+      return { content: `Invalid arguments: ${e.message}`, isError: true };
+    }
+
+    if (!args.pattern) return { content: "Error: 'pattern' is required.", isError: true };
 
     const matches = await ctx.fs.glob(args.pattern);
     if (matches.length === 0) {
       return { content: 'No files matched the pattern.', isError: false };
     }
 
-    const limit = typeof args.head_limit === 'number' ? args.head_limit : 100;
-    const offset = typeof args.offset === 'number' ? args.offset : 0;
+    const limit = args.head_limit ?? 100;
+    const offset = args.offset ?? 0;
     const total = matches.length;
     const page = matches.slice(offset, offset + limit);
 

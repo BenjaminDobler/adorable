@@ -1,5 +1,6 @@
 import { Tool } from '../types';
 import { validateToolArgs, contentHash, normalizeQuotes } from '../utils';
+import { discoverRelevantDocs } from './skill-discovery';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -111,8 +112,11 @@ export const editFile: Tool = {
     const lineDelta = newLines - oldLines;
     const deltaStr = lineDelta === 0 ? 'same line count' : lineDelta > 0 ? `+${lineDelta} lines` : `${lineDelta} lines`;
 
+    // Skill discovery — suggest relevant kit docs
+    const docHint = await discoverRelevantDocs(args.path, updatedContent, ctx);
+
     return {
-      content: `File edited successfully. (${oldLines} → ${newLines} lines, ${deltaStr})`,
+      content: `File edited successfully. (${oldLines} → ${newLines} lines, ${deltaStr})${docHint}`,
       isError: false,
     };
   },

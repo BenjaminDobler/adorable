@@ -1,5 +1,6 @@
 import { Tool } from '../types';
 import { validateToolArgs, sanitizeFileContent, contentHash } from '../utils';
+import { discoverRelevantDocs } from './skill-discovery';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -74,6 +75,11 @@ export const writeFile: Tool = {
     if (warnings.length > 0) {
       content += '\n' + warnings.join('\n');
     }
+
+    // Skill discovery — suggest relevant kit docs
+    const docHint = await discoverRelevantDocs(args.path, args.content, ctx);
+    content += docHint;
+
     return { content, isError: false };
   },
 

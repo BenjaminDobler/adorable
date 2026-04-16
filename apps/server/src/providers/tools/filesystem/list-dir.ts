@@ -1,23 +1,26 @@
+import { z } from 'zod';
 import { Tool } from '../types';
-import { validateToolArgs } from '../utils';
+import { zodToToolSchema } from '../zod-helpers';
+
+const inputSchema = z.object({
+  path: z.string().describe('The directory path to list.'),
+});
 
 export const listDir: Tool = {
   definition: {
     name: 'list_dir',
     description: 'Lists the files and folders in a directory to explore the project structure.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        path: { type: 'string', description: 'The directory path to list.' }
-      },
-      required: ['path']
-    },
+    input_schema: zodToToolSchema(inputSchema),
     isReadOnly: true,
   },
 
-  async execute(args, ctx) {
-    const error = validateToolArgs('list_dir', args, ['path']);
-    if (error) return { content: error, isError: true };
+  async execute(rawArgs, ctx) {
+    let args: z.infer<typeof inputSchema>;
+    try {
+      args = inputSchema.parse(rawArgs);
+    } catch (e: any) {
+      return { content: `Invalid arguments: ${e.message}`, isError: true };
+    }
 
     const items = await ctx.fs.listDir(args.path);
     if (items.length === 0) {
