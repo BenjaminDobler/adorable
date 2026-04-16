@@ -549,20 +549,69 @@ figma.ui.onmessage = async (msg: { type: string; scale?: number; requestId?: str
           if (!spec) { error = 'No spec provided'; break; }
 
           async function createFromSpec(s: any, parent: BaseNode & ChildrenMixin): Promise<SceneNode> {
+            // Image node — fetch and create image fill
+            if (s.type === 'image' && s.imageSrc) {
+              const frame = figma.createFrame();
+              frame.name = s.name || 'image';
+              frame.resize(Math.max(1, s.width || 100), Math.max(1, s.height || 100));
+              try {
+                // Fetch image data via the UI bridge
+                const response = await fetch(s.imageSrc);
+                const buffer = await response.arrayBuffer();
+                const img = figma.createImage(new Uint8Array(buffer));
+                frame.fills = [{
+                  type: 'IMAGE',
+                  scaleMode: 'FILL',
+                  imageHash: img.hash,
+                }];
+              } catch (_e) {
+                frame.fills = [{ type: 'SOLID', color: { r: 0.85, g: 0.85, b: 0.85 } }];
+              }
+              parent.appendChild(frame);
+              if (s.x !== undefined) frame.x = s.x;
+              if (s.y !== undefined) frame.y = s.y;
+              return frame;
+            }
+
+            // SVG vector node — use Figma's native SVG parser
+            if (s.type === 'vector' && s.svgMarkup) {
+              try {
+                const svgNode = figma.createNodeFromSvg(s.svgMarkup);
+                svgNode.name = s.name || 'svg';
+                svgNode.resize(Math.max(1, s.width || 24), Math.max(1, s.height || 24));
+                parent.appendChild(svgNode);
+                if (s.x !== undefined) svgNode.x = s.x;
+                if (s.y !== undefined) svgNode.y = s.y;
+                return svgNode;
+              } catch (_e) {
+                // Fallback: create an empty frame placeholder if SVG parsing fails
+                const placeholder = figma.createFrame();
+                placeholder.name = s.name || 'svg (failed)';
+                placeholder.resize(Math.max(1, s.width || 24), Math.max(1, s.height || 24));
+                placeholder.fills = [];
+                parent.appendChild(placeholder);
+                if (s.x !== undefined) placeholder.x = s.x;
+                if (s.y !== undefined) placeholder.y = s.y;
+                return placeholder;
+              }
+            }
+
             if (s.type === 'text' && s.characters) {
               const text = figma.createText();
-              // Load font before setting characters
-              const family = s.fontFamily || 'Inter';
-              const style = s.fontStyle || 'Regular';
-              try {
-                await figma.loadFontAsync({ family, style });
-              } catch (_e) {
-                // Fallback to Inter if the requested font isn't available
-                try { await figma.loadFontAsync({ family: 'Inter', style: 'Regular' }); } catch (_e2) { /* ignore */ }
-              }
+              // Always load Inter Regular first — it's the default font on new text nodes.
+              // We must load the current font before we can set characters.
+              await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
               text.characters = s.characters;
               text.fontSize = s.fontSize || 14;
-              try { text.fontName = { family, style }; } catch (_e) { /* keep default */ }
+              // Now load and apply the target font if different
+              const family = s.fontFamily || 'Inter';
+              const style = s.fontStyle || 'Regular';
+              if (family !== 'Inter' || style !== 'Regular') {
+                try {
+                  await figma.loadFontAsync({ family, style });
+                  text.fontName = { family, style };
+                } catch (_e) { /* keep Inter Regular */ }
+              }
               if (s.textAlignHorizontal) text.textAlignHorizontal = s.textAlignHorizontal;
               if (s.lineHeight) text.lineHeight = { value: s.lineHeight, unit: 'PIXELS' };
               if (s.letterSpacing) text.letterSpacing = { value: s.letterSpacing, unit: 'PIXELS' };
@@ -575,8 +624,13 @@ figma.ui.onmessage = async (msg: { type: string; scale?: number; requestId?: str
                   opacity: s.textColor.a !== undefined ? s.textColor.a : 1,
                 }];
               }
+              // Auto-resize text to prevent clipping
+              if (s.textAutoResize) text.textAutoResize = s.textAutoResize;
               text.name = s.name || 'Text';
               parent.appendChild(text);
+              // Position relative to parent (ignored in auto-layout)
+              if (s.x !== undefined) text.x = s.x;
+              if (s.y !== undefined) text.y = s.y;
               return text;
             }
 
@@ -585,23 +639,8 @@ figma.ui.onmessage = async (msg: { type: string; scale?: number; requestId?: str
             frame.name = s.name || 'Frame';
             frame.resize(Math.max(1, s.width || 100), Math.max(1, s.height || 100));
 
-            // Fills — use screenshot as image fill if available, otherwise use CSS-mapped fills
-            if (s.imageData) {
-              try {
-                // Decode base64 screenshot to Uint8Array
-                const raw = figma.base64Decode(s.imageData);
-                const img = figma.createImage(raw);
-                frame.fills = [{
-                  type: 'IMAGE',
-                  scaleMode: 'FILL',
-                  imageHash: img.hash,
-                }];
-              } catch (_e) {
-                // Fallback to CSS-mapped fills if image creation fails
-                if (s.fills !== undefined) frame.fills = s.fills;
-                else frame.fills = [];
-              }
-            } else if (s.fills !== undefined) {
+            // Fills
+            if (s.fills !== undefined) {
               frame.fills = s.fills;
             } else {
               frame.fills = [];
@@ -640,6 +679,7 @@ figma.ui.onmessage = async (msg: { type: string; scale?: number; requestId?: str
             // Auto-layout
             if (s.layoutMode && s.layoutMode !== 'NONE') {
               frame.layoutMode = s.layoutMode;
+              if (s.layoutWrap) frame.layoutWrap = s.layoutWrap;
               if (s.itemSpacing !== undefined) frame.itemSpacing = s.itemSpacing;
               if (s.paddingTop !== undefined) frame.paddingTop = s.paddingTop;
               if (s.paddingRight !== undefined) frame.paddingRight = s.paddingRight;
@@ -659,6 +699,9 @@ figma.ui.onmessage = async (msg: { type: string; scale?: number; requestId?: str
             }
 
             parent.appendChild(frame);
+            // Position relative to parent (ignored in auto-layout)
+            if (s.x !== undefined) frame.x = s.x;
+            if (s.y !== undefined) frame.y = s.y;
             return frame;
           }
 

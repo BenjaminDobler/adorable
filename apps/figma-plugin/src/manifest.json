@@ -7,7 +7,6 @@
   "capabilities": ["inspect"],
   "enableProposedApi": false,
   "editorType": ["figma", "dev"],
-  "inspectDescription": "Connect to Adorable for live design-to-code sync",
   "documentAccess": "dynamic-page",
   "networkAccess": {
     "allowedDomains": [

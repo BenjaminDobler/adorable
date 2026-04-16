@@ -102,7 +102,42 @@ function buildExtractionExpression(selector: string, maxDepth: number): string {
 
     function extractNode(el, depth) {
       var rect = el.getBoundingClientRect();
-      if (rect.width === 0 && rect.height === 0) return null;
+      var cs = getComputedStyle(el);
+
+      // Skip hidden elements: collapsed overflow containers (dropdowns, accordions)
+      if (cs.overflow !== 'visible' && rect.height < 1) return null;
+
+      // Elements with display:contents or zero-size Angular host elements:
+      // skip the wrapper but recurse into children so content isn't lost.
+      if ((rect.width === 0 && rect.height === 0) || cs.display === 'contents') {
+        if (depth > 0 || depth < 0) {
+          var passthrough = [];
+          var kids = getVisualChildren(el);
+          for (var k = 0; k < kids.length; k++) {
+            if (!kids[k].tagName) continue;
+            var child = extractNode(kids[k], depth - 1);
+            if (child) passthrough.push(child);
+          }
+          // Return children as a virtual wrapper if there are any
+          if (passthrough.length === 1) return passthrough[0];
+          if (passthrough.length > 1) {
+            return {
+              tag: el.tagName.toLowerCase(),
+              type: 'frame',
+              name: null,
+              bounds: {
+                x: Math.round(passthrough[0].bounds.x),
+                y: Math.round(passthrough[0].bounds.y),
+                width: Math.round(passthrough.reduce(function(max, c) { return Math.max(max, c.bounds.x + c.bounds.width); }, 0) - passthrough[0].bounds.x),
+                height: Math.round(passthrough.reduce(function(max, c) { return Math.max(max, c.bounds.y + c.bounds.height); }, 0) - passthrough[0].bounds.y)
+              },
+              styles: getStyles(el),
+              children: passthrough
+            };
+          }
+        }
+        return null;
+      }
 
       var styles = getStyles(el);
       var componentName = null;
@@ -157,6 +192,110 @@ function buildExtractionExpression(selector: string, maxDepth: number): string {
       }
 
       var tag = el.tagName ? el.tagName.toLowerCase() : 'span';
+
+      // SVG elements: clone, inline all computed styles as attributes, then serialize.
+      // This ensures CSS-applied fills, strokes, transforms etc. survive serialization.
+      // Figma's createNodeFromSvg() handles the resulting self-contained SVG natively.
+      if (tag === 'svg') {
+        var svgMarkup = (function serializeSvg(svgEl) {
+          var SVG_STYLE_PROPS = ['fill','stroke','stroke-width','stroke-linecap','stroke-linejoin',
+            'stroke-dasharray','stroke-dashoffset','stroke-opacity','fill-opacity','opacity',
+            'stop-color','stop-opacity','fill-rule','clip-rule'];
+
+          var clone = svgEl.cloneNode(true);
+
+          // Resolve <use> references — Figma's createNodeFromSvg chokes on unresolved <use>
+          var useEls = clone.querySelectorAll('use');
+          for (var ui = 0; ui < useEls.length; ui++) {
+            var useEl = useEls[ui];
+            var href = useEl.href ? useEl.href.baseVal : (useEl.getAttribute('href') || useEl.getAttribute('xlink:href'));
+            if (href) {
+              var symbol = svgEl.querySelector(href) || document.querySelector(href);
+              if (symbol) {
+                useEl.outerHTML = symbol.innerHTML;
+              }
+            }
+          }
+
+          // Ensure the clone has xmlns and viewBox for Figma compatibility
+          clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+          if (!clone.getAttribute('viewBox') && svgEl.viewBox && svgEl.viewBox.baseVal) {
+            var vb = svgEl.viewBox.baseVal;
+            if (vb.width > 0) {
+              clone.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.width + ' ' + vb.height);
+            }
+          }
+          // Set explicit width/height
+          var svgRect = svgEl.getBoundingClientRect();
+          clone.setAttribute('width', Math.round(svgRect.width));
+          clone.setAttribute('height', Math.round(svgRect.height));
+
+          // Walk all elements in the original and inline computed styles to the clone
+          var origElements = svgEl.querySelectorAll('*');
+          var cloneElements = clone.querySelectorAll('*');
+          for (var si = 0; si < origElements.length; si++) {
+            var origChild = origElements[si];
+            var cloneChild = cloneElements[si];
+            if (!cloneChild) continue;
+            var svgCs = getComputedStyle(origChild);
+            for (var sp = 0; sp < SVG_STYLE_PROPS.length; sp++) {
+              var prop = SVG_STYLE_PROPS[sp];
+              var val = svgCs.getPropertyValue(prop);
+              if (val && val !== 'none' && val !== 'normal' && val !== '0' && val !== '0px') {
+                // Always use computed value — it reflects CSS overrides and animations
+                cloneChild.setAttribute(prop, val);
+              }
+            }
+            // Handle currentColor — resolve to actual color
+            if (svgCs.fill === 'currentcolor' || origChild.getAttribute('fill') === 'currentColor') {
+              cloneChild.setAttribute('fill', svgCs.color);
+            }
+            if (svgCs.stroke === 'currentcolor' || origChild.getAttribute('stroke') === 'currentColor') {
+              cloneChild.setAttribute('stroke', svgCs.color);
+            }
+            // Remove style attribute — we've inlined everything as SVG attributes.
+            // Keeping it could cause conflicts with Figma's SVG parser.
+            cloneChild.removeAttribute('style');
+            cloneChild.removeAttribute('class');
+          }
+
+          return clone.outerHTML;
+        })(el);
+
+        return {
+          tag: 'svg',
+          type: 'svg',
+          name: el.className && typeof el.className === 'object' ? (el.className.baseVal || 'svg') : (el.className || 'svg'),
+          svgMarkup: svgMarkup,
+          bounds: {
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height)
+          },
+          styles: styles,
+          children: []
+        };
+      }
+
+      // IMG elements: capture the actual displayed source (handles srcset, <picture>)
+      if (tag === 'img' && el.currentSrc) {
+        return {
+          tag: 'img',
+          type: 'image',
+          name: el.alt || el.className || 'image',
+          imageSrc: el.currentSrc,
+          bounds: {
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height)
+          },
+          styles: styles,
+          children: []
+        };
+      }
+
       var node = {
         tag: tag,
         type: isText ? 'text' : 'frame',
@@ -174,15 +313,29 @@ function buildExtractionExpression(selector: string, maxDepth: number): string {
         ongId: el.getAttribute ? el.getAttribute('_ong') || undefined : undefined
       };
 
-      // Recurse into visual children
-      if (depth > 0 && !isText) {
+      // Recurse into visual children (depth < 0 means unlimited)
+      if ((depth > 0 || depth < 0) && !isText) {
+        // If this element has direct text AND child elements, create a synthetic
+        // text child so the text isn't lost (e.g. <div>Label <span>icon</span></div>)
+        if (directText && children.length > 0) {
+          node.children.push({
+            tag: 'span',
+            type: 'text',
+            text: directText.substring(0, 500),
+            name: undefined,
+            bounds: { x: Math.round(rect.x), y: Math.round(rect.y), width: 0, height: 0 },
+            styles: styles,
+            children: []
+          });
+        }
+
         for (var i = 0; i < children.length; i++) {
           var child = children[i];
           if (!child.tagName) continue;
           var ctag = child.tagName.toLowerCase();
           if (ctag === 'script' || ctag === 'style' || ctag === 'link' || ctag === 'noscript') continue;
-          var cs = getComputedStyle(child);
-          if (cs.display === 'none') continue;
+          var ccs = getComputedStyle(child);
+          if (ccs.display === 'none') continue;
           var childNode = extractNode(child, depth - 1);
           if (childNode) node.children.push(childNode);
         }
@@ -261,51 +414,17 @@ export const figmaCreateFromElement: Tool = {
       return { content: `CDP request failed: ${err.message}`, isError: true };
     }
 
-    // Step 2: Capture a screenshot of the element for image-fill fallback.
-    // This ensures the Figma node looks correct even when CSS extraction
-    // misses shadow DOM styles or complex visual properties.
-    let screenshotBase64: string | undefined;
-    try {
-      const sel2 = selector.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-      const clipExpr = `(function(){
-        var el = document.querySelector('${sel2}') || document.querySelector('[_ong="${sel2}"]');
-        if (!el) return null;
-        var r = el.getBoundingClientRect();
-        return { x: r.x, y: r.y, width: r.width, height: r.height };
-      })()`;
-      const clipResp = await fetch(`${agentUrl}/api/native/cdp/evaluate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ expression: clipExpr }),
-      });
-      const clipData = await clipResp.json();
-      const clip = clipData.result?.value ?? clipData.result;
+    // Debug: dump raw DOM extraction tree
+    const rawTree = dumpRawTree(nodeSpec);
+    console.log('[figma_create_from_element] Raw DOM tree:\n' + rawTree);
 
-      if (clip && clip.width > 0 && clip.height > 0) {
-        // Use CDP Page.captureScreenshot with clip region
-        const ssResp = await fetch(`${agentUrl}/api/native/cdp/screenshot`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clip, quality: 95 }),
-        });
-        const ssData = await ssResp.json();
-        if (ssData.image) {
-          screenshotBase64 = ssData.image;
-        }
-      }
-    } catch (_e) {
-      // Screenshot is optional — continue without it
-    }
-
-    // Step 3: Map CSS → Figma properties (deterministic)
+    // Step 2: Map CSS → Figma properties (deterministic)
     const figmaSpec = cssToFigma(nodeSpec);
 
-    // Attach screenshot as image data on the root node
-    if (screenshotBase64) {
-      (figmaSpec as any).imageData = screenshotBase64;
-    }
+    // Build a debug tree showing the extracted structure
+    const debugTree = dumpTree(figmaSpec);
 
-    // Step 4: Send to Figma bridge
+    // Step 3: Send to Figma bridge
     try {
       const result = await figmaBridge.sendCommand(userId, {
         action: 'create_node',
@@ -314,15 +433,47 @@ export const figmaCreateFromElement: Tool = {
 
       const childCount = countNodes(figmaSpec) - 1;
       return {
-        content: `Created "${figmaSpec.name}" in Figma (${figmaSpec.width}×${figmaSpec.height}${childCount > 0 ? `, ${childCount} child nodes` : ''}). Node ID: ${result.nodeId || 'created'}`,
+        content: `Created "${figmaSpec.name}" in Figma (${figmaSpec.width}×${figmaSpec.height}${childCount > 0 ? `, ${childCount} child nodes` : ''}). Node ID: ${result.nodeId || 'created'}\n\nSelector: "${selector}", depth: ${depth}\n\nDOM extraction:\n${rawTree}\nFigma spec:\n${debugTree}`,
         isError: false,
       };
     } catch (err: any) {
-      return { content: `Figma creation failed: ${err.message}`, isError: true };
+      return { content: `Figma creation failed: ${err.message}\n\nSelector: "${selector}", depth: ${depth}\n\nDOM extraction:\n${rawTree}\nFigma spec:\n${debugTree}`, isError: true };
     }
   }
 };
 
 function countNodes(spec: { children: any[] }): number {
   return 1 + spec.children.reduce((sum: number, child: any) => sum + countNodes(child), 0);
+}
+
+function dumpRawTree(node: any, indent = 0): string {
+  const pad = '  '.repeat(indent);
+  const text = node.text ? ` "${node.text.substring(0, 30)}"` : '';
+  const b = node.bounds;
+  const size = b ? `${b.width}×${b.height}` : '?';
+  const display = node.styles?.display || '?';
+  const svg = node.type === 'svg' ? ' [SVG]' : '';
+  let line = `${pad}<${node.tag}> ${node.type} ${size} display:${display}${text}${svg}\n`;
+  if (node.children) {
+    for (const child of node.children) {
+      line += dumpRawTree(child, indent + 1);
+    }
+  }
+  return line;
+}
+
+function dumpTree(spec: any, indent = 0): string {
+  const pad = '  '.repeat(indent);
+  const type = spec.type === 'vector' ? 'V' : spec.type === 'text' ? 'T' : 'F';
+  const chars = spec.characters ? ` "${spec.characters.substring(0, 30)}"` : '';
+  const size = `${spec.width}×${spec.height}`;
+  const pos = `@(${spec.x},${spec.y})`;
+  const layout = spec.layoutMode && spec.layoutMode !== 'NONE' ? ` [${spec.layoutMode}]` : '';
+  let line = `${pad}${type} ${spec.name || '?'} ${size} ${pos}${layout}${chars}\n`;
+  if (spec.children) {
+    for (const child of spec.children) {
+      line += dumpTree(child, indent + 1);
+    }
+  }
+  return line;
 }

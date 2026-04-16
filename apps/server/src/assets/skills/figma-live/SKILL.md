@@ -43,6 +43,18 @@ A live WebSocket connection to the user's Figma Desktop is active. You have dire
   ```
 - **Never substitute icon fonts** (e.g., don't replace Line Awesome with Font Awesome)
 
+## Code-to-Figma Sync (Reverse Sync)
+
+When the user asks to "recreate in Figma", "push to Figma", "sync to Figma", or "create this element in Figma":
+
+- **Use `figma_create_from_element`** — this is the ONLY tool for this task
+- **Do NOT edit source code** — the user wants to create a Figma design node from the running preview, not modify code
+- Provide a CSS selector or ONG annotation ID for the target element
+- The tool extracts the DOM element's styles via CDP, maps CSS to Figma properties, and creates the node in Figma automatically
+- Use `depth: -1` for full depth extraction, or a lower number to limit nesting
+
+Example: if the user says "recreate the card in Figma", call `figma_create_from_element` with the card's selector.
+
 ## Finding Matching Elements (Bidirectional)
 
 When the user asks "find/select the matching element in Figma":

@@ -8,9 +8,11 @@
 
 export interface NodeSpec {
   tag: string;
-  type: 'frame' | 'text' | 'image';
+  type: 'frame' | 'text' | 'image' | 'svg';
   name?: string;
   text?: string;
+  svgMarkup?: string;
+  imageSrc?: string;
   bounds: { x: number; y: number; width: number; height: number };
   styles: Record<string, string>;
   children: NodeSpec[];
@@ -38,6 +40,7 @@ export interface FigmaFill {
 export interface FigmaStroke {
   type: 'SOLID';
   color: FigmaColor;
+  opacity?: number;
 }
 
 export interface FigmaEffect {
@@ -46,11 +49,14 @@ export interface FigmaEffect {
   offset: { x: number; y: number };
   radius: number;
   visible: boolean;
+  blendMode: string;
 }
 
 export interface FigmaNodeSpec {
   type: 'frame' | 'text';
   name: string;
+  x: number;
+  y: number;
   width: number;
   height: number;
 
@@ -76,8 +82,10 @@ export interface FigmaNodeSpec {
   paddingLeft?: number;
   primaryAxisSizingMode?: 'FIXED' | 'AUTO';
   counterAxisSizingMode?: 'FIXED' | 'AUTO';
+  layoutWrap?: 'WRAP' | 'NO_WRAP';
 
   // Text
+  textAutoResize?: 'WIDTH_AND_HEIGHT' | 'HEIGHT' | 'NONE';
   characters?: string;
   fontSize?: number;
   fontFamily?: string;
@@ -197,16 +205,17 @@ function mapBoxShadow(shadow: string): FigmaEffect | null {
 
   return {
     type: 'DROP_SHADOW',
-    color,
+    color: { r: color.r, g: color.g, b: color.b, a: color.a ?? 1 },
     offset: { x: parseFloat(match[1]), y: parseFloat(match[2]) },
     radius: parseFloat(match[3]),
     visible: true,
+    blendMode: 'NORMAL',
   };
 }
 
 // ─── Main Converter ───
 
-export function cssToFigma(node: NodeSpec): FigmaNodeSpec {
+export function cssToFigma(node: NodeSpec, parentBounds?: { x: number; y: number }): FigmaNodeSpec {
   const s = node.styles;
   const isText = node.type === 'text' && node.text;
 
@@ -216,9 +225,43 @@ export function cssToFigma(node: NodeSpec): FigmaNodeSpec {
     || node.name
     || node.tag;
 
+  // Compute position relative to parent (absolute for root node)
+  const relX = parentBounds ? Math.round(node.bounds.x - parentBounds.x) : 0;
+  const relY = parentBounds ? Math.round(node.bounds.y - parentBounds.y) : 0;
+
+  // Image elements: pass through with the source URL
+  if (node.type === 'image' && node.imageSrc) {
+    return {
+      type: 'image' as any,
+      name: name || 'image',
+      x: relX,
+      y: relY,
+      width: Math.max(1, Math.round(node.bounds.width)),
+      height: Math.max(1, Math.round(node.bounds.height)),
+      imageSrc: node.imageSrc,
+      children: [],
+    } as any;
+  }
+
+  // SVG elements: pass through as vector type with the raw markup
+  if (node.type === 'svg' && node.svgMarkup) {
+    return {
+      type: 'vector' as any,
+      name: name || 'svg',
+      x: relX,
+      y: relY,
+      width: Math.max(1, Math.round(node.bounds.width)),
+      height: Math.max(1, Math.round(node.bounds.height)),
+      svgMarkup: node.svgMarkup,
+      children: [],
+    } as any;
+  }
+
   const result: FigmaNodeSpec = {
     type: isText ? 'text' : 'frame',
     name,
+    x: relX,
+    y: relY,
     width: Math.max(1, Math.round(node.bounds.width)),
     height: Math.max(1, Math.round(node.bounds.height)),
     children: [],
@@ -242,7 +285,11 @@ export function cssToFigma(node: NodeSpec): FigmaNodeSpec {
   const borderColor = parseColor(s.borderColor || s.borderTopColor);
   const borderWidth = parsePx(s.borderWidth || s.borderTopWidth);
   if (borderColor && borderWidth > 0) {
-    result.strokes = [{ type: 'SOLID', color: borderColor }];
+    result.strokes = [{
+      type: 'SOLID',
+      color: { r: borderColor.r, g: borderColor.g, b: borderColor.b },
+      opacity: borderColor.a !== undefined && borderColor.a < 1 ? borderColor.a : undefined,
+    }];
     result.strokeWeight = borderWidth;
   }
 
@@ -264,8 +311,15 @@ export function cssToFigma(node: NodeSpec): FigmaNodeSpec {
 
   // ─── Box Shadow / Effects ───
   if (s.boxShadow && s.boxShadow !== 'none') {
-    const effect = mapBoxShadow(s.boxShadow);
-    if (effect) result.effects = [effect];
+    // CSS box-shadow can have multiple shadows separated by commas.
+    // Split carefully — commas inside rgba() shouldn't split.
+    const shadows = s.boxShadow.split(/,(?![^(]*\))/);
+    const effects: FigmaEffect[] = [];
+    for (const shadow of shadows) {
+      const effect = mapBoxShadow(shadow.trim());
+      if (effect) effects.push(effect);
+    }
+    if (effects.length > 0) result.effects = effects;
   }
 
   // ─── Opacity ───
@@ -284,7 +338,7 @@ export function cssToFigma(node: NodeSpec): FigmaNodeSpec {
     result.visible = false;
   }
 
-  // ─── Flexbox → Auto-layout ───
+  // ─── Flexbox / Grid → Auto-layout ───
   if (s.display === 'flex' || s.display === 'inline-flex') {
     result.layoutMode = s.flexDirection === 'column' || s.flexDirection === 'column-reverse'
       ? 'VERTICAL'
@@ -295,7 +349,13 @@ export function cssToFigma(node: NodeSpec): FigmaNodeSpec {
 
     const gap = parsePx(s.gap || s.rowGap || s.columnGap);
     if (gap > 0) result.itemSpacing = Math.round(gap);
+
+    // Use FIXED sizing so space-between/center work correctly
+    result.primaryAxisSizingMode = 'FIXED';
+    result.counterAxisSizingMode = 'FIXED';
   }
+  // CSS grid: don't map to auto-layout — grid layouts are too complex.
+  // Children will be positioned by their absolute x/y coordinates instead.
 
   // ─── Padding ───
   const pt = parsePx(s.paddingTop);
@@ -311,6 +371,7 @@ export function cssToFigma(node: NodeSpec): FigmaNodeSpec {
 
   // ─── Text Properties ───
   if (isText) {
+    result.textAutoResize = 'WIDTH_AND_HEIGHT';
     result.characters = node.text || '';
 
     const textColor = parseColor(s.color);
@@ -342,7 +403,7 @@ export function cssToFigma(node: NodeSpec): FigmaNodeSpec {
   }
 
   // ─── Recursively map children ───
-  result.children = node.children.map(child => cssToFigma(child));
+  result.children = node.children.map(child => cssToFigma(child, node.bounds));
 
   return result;
 }
