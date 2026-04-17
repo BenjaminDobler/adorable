@@ -254,7 +254,8 @@ export class NativeContainerEngine extends ContainerEngine {
 
   async startDevServer(commands?: KitCommands): Promise<void> {
     this.status.set('Starting dev server...');
-    const { cmd, args: devArgs } = commands?.dev ?? { cmd: 'npm', args: ['start'] };
+    // Default to ONG in desktop/native mode — enables template annotations for visual editing
+    const { cmd, args: devArgs } = commands?.dev ?? { cmd: 'npx', args: ['@richapps/ong', 'serve'] };
     const port = this.fixedPort();
     const fullArgs = [...devArgs, '--', `--port=${port}`];
     const res = await this.exec(cmd, fullArgs, {
@@ -262,7 +263,7 @@ export class NativeContainerEngine extends ContainerEngine {
     });
 
     // Resolve readiness patterns from preset or custom
-    const preset = commands?.devServerPreset ?? 'angular-cli';
+    const preset = commands?.devServerPreset ?? 'ong';
     const presetPatterns = DEV_SERVER_PRESETS[preset];
     const urlPattern = presetPatterns.urlPattern;
     const readyPattern = preset === 'custom' && commands?.devReadyPattern
