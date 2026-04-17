@@ -15,7 +15,7 @@ interface FigmaConnection {
   fileName: string;
 }
 
-const REQUEST_TIMEOUT_MS = 15_000;
+const REQUEST_TIMEOUT_MS = 30_000;
 
 class FigmaBridgeService extends EventEmitter {
   private connections = new Map<string, FigmaConnection>();

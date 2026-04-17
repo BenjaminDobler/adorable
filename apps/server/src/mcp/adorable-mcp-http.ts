@@ -29,29 +29,26 @@ function slimReplacer(key: string, val: unknown): unknown {
   return val;
 }
 
-const MAX_FIGMA_RESPONSE_KB = 100;
+const MAX_FIGMA_RESPONSE_KB = 200;
 
 /**
  * Truncate a Figma result to stay within token limits.
  * Removes deep children first, then truncates the JSON string.
  */
-function truncateFigmaResult(result: unknown): string {
+function truncateFigmaResult(result: unknown, maxKB = MAX_FIGMA_RESPONSE_KB): string {
   // First try full slim result
   let json = JSON.stringify(result, slimReplacer);
-  if (json.length <= MAX_FIGMA_RESPONSE_KB * 1024) return json;
+  if (json.length <= maxKB * 1024) return json;
 
-  // Too large — limit children depth by removing nested children
-  const pruned = pruneDepth(result, 4);
-  json = JSON.stringify(pruned, slimReplacer);
-  if (json.length <= MAX_FIGMA_RESPONSE_KB * 1024) return json;
-
-  // Still too large — prune more aggressively
-  const pruned2 = pruneDepth(result, 2);
-  json = JSON.stringify(pruned2, slimReplacer);
-  if (json.length <= MAX_FIGMA_RESPONSE_KB * 1024) return json;
+  // Too large — limit children depth progressively
+  for (const depth of [8, 6, 4, 3]) {
+    const pruned = pruneDepth(result, depth);
+    json = JSON.stringify(pruned, slimReplacer);
+    if (json.length <= maxKB * 1024) return json;
+  }
 
   // Last resort — hard truncate
-  return json.substring(0, MAX_FIGMA_RESPONSE_KB * 1024) + '...[TRUNCATED — selection too complex, try selecting a smaller element]';
+  return json.substring(0, maxKB * 1024) + '...[TRUNCATED — selection too complex, try selecting a smaller element]';
 }
 
 function pruneDepth(obj: unknown, maxDepth: number, depth = 0): unknown {
@@ -307,7 +304,8 @@ const tools: ToolDef[] = [
     async handler(args, userId) {
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
       const result = await figmaBridge.sendCommand(userId, { action: 'get_node', nodeId: args.nodeId as string, depth: args.depth as number | undefined });
-      return textResult(truncateFigmaResult(result));
+      // Higher limit for explicit node requests — user asked for this specific node
+      return textResult(truncateFigmaResult(result, 500));
     },
   },
   {
