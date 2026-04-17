@@ -36,6 +36,8 @@ async function connectSSE() {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let eventType = '';
+    let eventData = '';
 
     const read = async () => {
       while (true) {
@@ -52,8 +54,6 @@ async function connectSSE() {
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
 
-        let eventType = '';
-        let eventData = '';
         for (const line of lines) {
           if (line.startsWith('event: ')) {
             eventType = line.slice(7).trim();

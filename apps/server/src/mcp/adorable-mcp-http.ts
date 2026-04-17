@@ -395,13 +395,13 @@ interface Session {
   writeQueue: Promise<void>;
 }
 
-/** Serialize writes to an SSE session to prevent interleaved responses */
+/** Write to SSE session — synchronous, Node handles buffering */
 function sessionWrite(session: Session, data: string): void {
-  session.writeQueue = session.writeQueue.then(() => {
-    return new Promise<void>((resolve) => {
-      session.res.write(data, () => resolve());
-    });
-  }).catch(() => {});
+  try {
+    session.res.write(data);
+  } catch {
+    // Connection closed
+  }
 }
 
 const sessions = new Map<string, Session>();
@@ -451,6 +451,7 @@ router.post('/message', async (req: any, res) => {
     const response = await handleJsonRpc(msg, session.userId);
     if (response) {
       const json = JSON.stringify(response);
+      console.log(`[MCP] SSE write: id=${response.id} size=${json.length}`);
       sessionWrite(session, `event: message\ndata: ${json}\n\n`);
     }
     res.status(202).send('Accepted');
