@@ -236,6 +236,19 @@
           </p>
         </div>
 
+        <div class="form-group" style="margin-top: 12px;">
+          <label>Model</label>
+          <select
+            name="claude-code-model"
+            [ngModel]="claudeCodeProfile()?.model || 'claude-sonnet-4-6'"
+            (ngModelChange)="profileUpdated.emit({id: 'claude-code', updates: {model: $event}})"
+          >
+            @for (m of claudeCodeModels; track m.id) {
+              <option [value]="m.id">{{ m.label }}</option>
+            }
+          </select>
+        </div>
+
         @if (claudeCodeStatus(); as status) {
           <div class="test-result" [class.success]="status.available" [class.error]="!status.available" style="margin-top: 12px;">
             @if (status.available) {

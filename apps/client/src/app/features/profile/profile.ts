@@ -80,7 +80,7 @@ export class ProfileComponent implements OnInit {
         name: 'Claude Code (Local)',
         provider: 'claude-code',
         apiKey: '',
-        model: ''
+        model: 'claude-sonnet-4-6'
       }
     ],
     activeProfileId: 'anthropic',

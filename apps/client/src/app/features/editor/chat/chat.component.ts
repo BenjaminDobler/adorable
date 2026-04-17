@@ -337,7 +337,22 @@ export class ChatComponent {
     if (!profiles || profiles.length === 0) return;
 
     profiles.forEach((profile: any) => {
-       if (profile.provider === 'figma' || profile.provider === 'claude-code') return;
+       if (profile.provider === 'figma') return;
+
+       // Claude Code: add static model list (no API call)
+       if (profile.provider === 'claude-code') {
+         const ccModels = [
+           { id: 'claude-sonnet-4-6', name: 'Claude Code - Sonnet', provider: 'claude-code' },
+           { id: 'claude-opus-4-6', name: 'Claude Code - Opus', provider: 'claude-code' },
+           { id: 'claude-haiku-4-5-20251001', name: 'Claude Code - Haiku', provider: 'claude-code' },
+         ];
+         this.availableModels.update(current => {
+           const existingIds = new Set(current.map(c => c.id));
+           const toAdd = ccModels.filter(n => !existingIds.has(n.id));
+           return [...current, ...toAdd];
+         });
+         return;
+       }
 
        if (profile.apiKey) {
           let providerParam = profile.provider;
@@ -850,19 +865,24 @@ Analyze the attached design images carefully and create matching Angular compone
       }
     }
 
-    // Model selector override (skip for claude-code — it manages its own model)
-    if (provider !== 'claude-code') {
-      const currentSelection = this.selectedModel();
-      if (currentSelection && currentSelection.id) {
-          provider = currentSelection.provider;
+    // Model selector override
+    const currentSelection = this.selectedModel();
+    if (currentSelection && currentSelection.id) {
+      if (provider === 'claude-code') {
+        // Claude Code: only update model, keep provider as claude-code
+        if (currentSelection.provider === 'claude-code') {
           model = currentSelection.id;
-          if (settings?.profiles) {
-             const profileForProvider = settings.profiles.find((p: any) => p.provider === provider);
-             if (profileForProvider) {
-                 apiKey = profileForProvider.apiKey;
-                 builtInTools = profileForProvider.builtInTools;
-             }
-          }
+        }
+      } else {
+        provider = currentSelection.provider;
+        model = currentSelection.id;
+        if (settings?.profiles) {
+           const profileForProvider = settings.profiles.find((p: any) => p.provider === provider);
+           if (profileForProvider) {
+               apiKey = profileForProvider.apiKey;
+               builtInTools = profileForProvider.builtInTools;
+           }
+        }
       }
     }
 
@@ -1139,12 +1159,16 @@ Analyze the attached design images carefully and create matching Angular compone
       }
     }
 
-    // Model selector override (skip for claude-code — it manages its own model)
-    if (provider !== 'claude-code') {
-      const currentSelection = this.selectedModel();
-      if (currentSelection && currentSelection.id) {
-        provider = currentSelection.provider;
-        model = currentSelection.id;
+    // Model selector override
+    const currentSelection2 = this.selectedModel();
+    if (currentSelection2 && currentSelection2.id) {
+      if (provider === 'claude-code') {
+        if (currentSelection2.provider === 'claude-code') {
+          model = currentSelection2.id;
+        }
+      } else {
+        provider = currentSelection2.provider;
+        model = currentSelection2.id;
         if (settings?.profiles) {
           const profileForProvider = settings.profiles.find((p: any) => p.provider === provider);
           if (profileForProvider) {

@@ -38,6 +38,12 @@ export class ProvidersTabComponent {
     'gemini-2.5-pro'
   ];
 
+  claudeCodeModels = [
+    { id: 'claude-sonnet-4-6', label: 'Sonnet (default)' },
+    { id: 'claude-opus-4-6', label: 'Opus' },
+    { id: 'claude-haiku-4-5-20251001', label: 'Haiku' },
+  ];
+
   // Claude Code status
   claudeCodeStatus = signal<{ available: boolean; version?: string; desktopMode: boolean } | null>(null);
   claudeCodeStatusLoading = signal(false);
