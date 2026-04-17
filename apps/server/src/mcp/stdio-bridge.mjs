@@ -53,19 +53,27 @@ async function connectSSE() {
         buffer = lines.pop() || '';
 
         let eventType = '';
+        let eventData = '';
         for (const line of lines) {
           if (line.startsWith('event: ')) {
             eventType = line.slice(7).trim();
           } else if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (eventType === 'endpoint') {
-              messageEndpoint = new URL(data, MCP_URL).href;
-              sseConnected = true;
-              process.stderr.write(`[mcp-bridge] Connected, endpoint: ${messageEndpoint}\n`);
-              flushQueue();
-            } else if (eventType === 'message') {
-              process.stdout.write(data + '\n');
+            eventData += line.slice(6);
+          } else if (line === '') {
+            // Empty line = end of SSE event — dispatch it
+            if (eventType && eventData) {
+              if (eventType === 'endpoint') {
+                messageEndpoint = new URL(eventData, MCP_URL).href;
+                sseConnected = true;
+                process.stderr.write(`[mcp-bridge] Connected, endpoint: ${messageEndpoint}\n`);
+                flushQueue();
+              } else if (eventType === 'message') {
+                process.stdout.write(eventData + '\n');
+              }
             }
+            // Reset for next event
+            eventType = '';
+            eventData = '';
           } else if (line.startsWith(':')) {
             // SSE comment (keepalive) — ignore
           }
