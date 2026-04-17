@@ -57,7 +57,11 @@ export class ClaudeCodeProvider implements LLMProvider {
     this.syncSkills(projectPath, options);
 
     // ── 6. Build the prompt ────────────────────────────────────────
-    const fullPrompt = this.buildPrompt(options);
+    // When resuming a session, Claude Code already has the full history.
+    // Only send the bare user prompt — don't duplicate context/history.
+    const fullPrompt = sessionId
+      ? options.prompt
+      : this.buildPrompt(options);
 
     // ── 7. Handle images ───────────────────────────────────────────
     const tempImagePaths: string[] = [];
