@@ -67,6 +67,27 @@
   }
 }
 
+.claude-code-card {
+  grid-column: 1 / -1;
+}
+
+.info-box {
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+
+  code {
+    background: rgba(255, 255, 255, 0.08);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    font-size: 0.8rem;
+  }
+}
+
 .active-badge {
   font-size: 0.65rem;
   text-transform: uppercase;

@@ -337,7 +337,7 @@ export class ChatComponent {
     if (!profiles || profiles.length === 0) return;
 
     profiles.forEach((profile: any) => {
-       if (profile.provider === 'figma') return;
+       if (profile.provider === 'figma' || profile.provider === 'claude-code') return;
 
        if (profile.apiKey) {
           let providerParam = profile.provider;
@@ -850,17 +850,20 @@ Analyze the attached design images carefully and create matching Angular compone
       }
     }
 
-    const currentSelection = this.selectedModel();
-    if (currentSelection && currentSelection.id) {
-        provider = currentSelection.provider;
-        model = currentSelection.id;
-        if (settings?.profiles) {
-           const profileForProvider = settings.profiles.find((p: any) => p.provider === provider);
-           if (profileForProvider) {
-               apiKey = profileForProvider.apiKey;
-               builtInTools = profileForProvider.builtInTools;
-           }
-        }
+    // Model selector override (skip for claude-code — it manages its own model)
+    if (provider !== 'claude-code') {
+      const currentSelection = this.selectedModel();
+      if (currentSelection && currentSelection.id) {
+          provider = currentSelection.provider;
+          model = currentSelection.id;
+          if (settings?.profiles) {
+             const profileForProvider = settings.profiles.find((p: any) => p.provider === provider);
+             if (profileForProvider) {
+                 apiKey = profileForProvider.apiKey;
+                 builtInTools = profileForProvider.builtInTools;
+             }
+          }
+      }
     }
 
     const allImages: string[] = [];
@@ -1136,15 +1139,18 @@ Analyze the attached design images carefully and create matching Angular compone
       }
     }
 
-    const currentSelection = this.selectedModel();
-    if (currentSelection && currentSelection.id) {
-      provider = currentSelection.provider;
-      model = currentSelection.id;
-      if (settings?.profiles) {
-        const profileForProvider = settings.profiles.find((p: any) => p.provider === provider);
-        if (profileForProvider) {
-          apiKey = profileForProvider.apiKey;
-          builtInTools = profileForProvider.builtInTools;
+    // Model selector override (skip for claude-code — it manages its own model)
+    if (provider !== 'claude-code') {
+      const currentSelection = this.selectedModel();
+      if (currentSelection && currentSelection.id) {
+        provider = currentSelection.provider;
+        model = currentSelection.id;
+        if (settings?.profiles) {
+          const profileForProvider = settings.profiles.find((p: any) => p.provider === provider);
+          if (profileForProvider) {
+            apiKey = profileForProvider.apiKey;
+            builtInTools = profileForProvider.builtInTools;
+          }
         }
       }
     }

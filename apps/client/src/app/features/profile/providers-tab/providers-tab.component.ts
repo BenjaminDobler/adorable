@@ -1,4 +1,4 @@
-import { Component, inject, input, output, signal } from '@angular/core';
+import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api';
 import { AppSettings, AIProfile, BuiltInToolConfig, SapAiCoreConfig } from '../profile.types';
@@ -38,8 +38,30 @@ export class ProvidersTabComponent {
     'gemini-2.5-pro'
   ];
 
+  // Claude Code status
+  claudeCodeStatus = signal<{ available: boolean; version?: string; desktopMode: boolean } | null>(null);
+  claudeCodeStatusLoading = signal(false);
+
   getAIProfiles(): AIProfile[] {
-    return this.settings().profiles.filter(p => p.provider !== 'figma');
+    return this.settings().profiles.filter(p => p.provider !== 'figma' && p.provider !== 'claude-code');
+  }
+
+  claudeCodeProfile = computed(() =>
+    this.settings().profiles.find(p => p.provider === 'claude-code') || null
+  );
+
+  checkClaudeCodeStatus() {
+    this.claudeCodeStatusLoading.set(true);
+    this.apiService.getClaudeCodeStatus().subscribe({
+      next: (status) => {
+        this.claudeCodeStatus.set(status);
+        this.claudeCodeStatusLoading.set(false);
+      },
+      error: () => {
+        this.claudeCodeStatus.set({ available: false, desktopMode: false });
+        this.claudeCodeStatusLoading.set(false);
+      },
+    });
   }
 
   testProviderConnection(profile: AIProfile) {

@@ -1,6 +1,6 @@
 import { ThemeCombined, ThemeSettings } from '../../core/services/theme';
 
-export type ProviderType = 'anthropic' | 'gemini' | 'figma';
+export type ProviderType = 'anthropic' | 'gemini' | 'figma' | 'claude-code';
 export type MCPAuthType = 'none' | 'bearer';
 export type MCPTransport = 'http' | 'stdio';
 

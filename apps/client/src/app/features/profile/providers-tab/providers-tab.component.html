@@ -211,5 +211,52 @@
         </div>
       }
     </div>
+
+    <!-- Claude Code (Local) -->
+    <div class="provider-card claude-code-card" [class.active]="settings().activeProfileId === 'claude-code'" style="margin-top: 16px;">
+      <div class="provider-header" (click)="setActive.emit('claude-code')">
+        <div class="header-left">
+          <div class="radio-circle">
+            @if (settings().activeProfileId === 'claude-code') {
+              <div class="radio-inner"></div>
+            }
+          </div>
+          <span class="provider-name">Claude Code (Local)</span>
+        </div>
+        @if (settings().activeProfileId === 'claude-code') {
+          <span class="badge active-badge">Active</span>
+        }
+      </div>
+
+      <div class="provider-body">
+        <div class="info-box">
+          <p>Uses your local Claude Code CLI subscription. No API key needed. Desktop app only.</p>
+          <p style="margin-top: 8px; opacity: 0.7; font-size: 12px;">
+            All Adorable tools (browser preview, Figma, visual editing) are available via MCP.
+          </p>
+        </div>
+
+        @if (claudeCodeStatus(); as status) {
+          <div class="test-result" [class.success]="status.available" [class.error]="!status.available" style="margin-top: 12px;">
+            @if (status.available) {
+              <span>Claude Code installed (v{{ status.version }})</span>
+            } @else if (status.desktopMode) {
+              <span>Claude Code not found. Install it and run <code>claude login</code>.</span>
+            } @else {
+              <span>Only available in the desktop app.</span>
+            }
+          </div>
+        } @else {
+          <button
+            class="btn-test"
+            (click)="checkClaudeCodeStatus()"
+            [disabled]="claudeCodeStatusLoading()"
+            style="margin-top: 12px;"
+          >
+            {{ claudeCodeStatusLoading() ? 'Checking...' : 'Check Availability' }}
+          </button>
+        }
+      </div>
+    </div>
   </div>
 </section>

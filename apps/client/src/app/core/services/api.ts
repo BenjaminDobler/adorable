@@ -155,6 +155,11 @@ export class ApiService {
     return this.http.post<{ success: boolean; message?: string; error?: string }>(`${this.apiUrl}/test-provider`, config);
   }
 
+  // Claude Code status
+  getClaudeCodeStatus(): Observable<{ available: boolean; version?: string; desktopMode: boolean }> {
+    return this.http.get<{ available: boolean; version?: string; desktopMode: boolean }>(`${this.apiUrl}/system/claude-code-status`);
+  }
+
   // MCP Server methods
   testMcpConnection(config: {
     transport?: 'http' | 'stdio';

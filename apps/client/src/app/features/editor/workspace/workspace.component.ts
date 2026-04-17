@@ -197,6 +197,9 @@ export class WorkspaceComponent implements AfterViewChecked {
   constructor() {
     this.fetchSettings();
 
+    // Re-fetch settings when saved from the settings dialog
+    window.addEventListener('adorable-settings-saved', () => this.fetchSettings());
+
     // Track devtools panel visibility for DOM observer
     effect(() => {
       this.devtoolsService.setPanelVisible(this.activeTab() === 'devtools');
