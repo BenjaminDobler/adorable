@@ -295,10 +295,17 @@ figma.ui.onmessage = async (msg: { type: string; scale?: number; requestId?: str
         }
 
         case 'export_node': {
+          const exportScale = command.scale || 1;
+          console.log(`[Bridge] export_node: nodeId=${command.nodeId} format=${command.format || 'PNG'} scale=${exportScale}`);
           const node = await figma.getNodeByIdAsync(command.nodeId);
           if (node && 'exportAsync' in node) {
+            const sceneNode = node as SceneNode;
+            const bounds = 'absoluteBoundingBox' in sceneNode ? (sceneNode as any).absoluteBoundingBox : null;
+            console.log(`[Bridge] export_node: found "${node.name}" ${bounds ? `${bounds.width}x${bounds.height}px` : ''} at scale=${exportScale}`);
             var exportFormat = (command.format === 'SVG') ? 'SVG' as const : 'PNG' as const;
-            var exported = await exportNodeAsImage(node as SceneNode, command.scale || 2, exportFormat);
+            console.log(`[Bridge] export_node: calling exportAsync...`);
+            var exported = await exportNodeAsImage(sceneNode, exportScale, exportFormat);
+            console.log(`[Bridge] export_node: exportAsync done, result size=${exported ? exported.length : 0} bytes`);
             if (exportFormat === 'SVG') {
               responseData = { svg: exported, format: 'SVG' };
             } else {
@@ -730,9 +737,12 @@ figma.ui.onmessage = async (msg: { type: string; scale?: number; requestId?: str
           error = `Unknown command: ${command.action}`;
       }
     } catch (err: any) {
+      console.error(`[Bridge] Command failed: ${command.action}`, err);
       error = err.message || 'Command execution failed';
     }
 
+    const responseSize = responseData ? JSON.stringify(responseData).length : 0;
+    console.log(`[Bridge] Responding: requestId=${requestId} action=${command.action} size=${Math.round(responseSize / 1024)}KB error=${error || 'none'}`);
     figma.ui.postMessage({
       type: 'bridge-response',
       requestId,
