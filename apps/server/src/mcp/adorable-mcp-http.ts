@@ -39,27 +39,28 @@ function slimReplacer(key: string, val: unknown): unknown {
   return val;
 }
 
-// Claude Code handles large contexts well — don't truncate aggressively.
-// The built-in provider sends the full node tree without truncation.
-const MAX_FIGMA_RESPONSE_KB = 1024; // 1MB — generous, Claude Code can handle it
+// Claude Code has a built-in tool result size limit (~100K characters / ~25K tokens).
+// Results exceeding this get saved to a file, forcing an Agent subagent to read
+// it in chunks (35+ tool calls, very slow). Keep responses under this limit.
+const MAX_FIGMA_RESPONSE_CHARS = 90_000; // ~90K chars — safely under Claude Code's limit
 
 /**
- * Truncate a Figma result only if truly massive.
- * With the SSE fixes in place, large responses flow through reliably.
+ * Truncate a Figma result to stay under Claude Code's tool result limit.
+ * Progressively reduces tree depth until it fits.
  */
-function truncateFigmaResult(result: unknown, maxKB = MAX_FIGMA_RESPONSE_KB): string {
+function truncateFigmaResult(result: unknown, maxChars = MAX_FIGMA_RESPONSE_CHARS): string {
   const json = JSON.stringify(result, slimReplacer);
-  if (json.length <= maxKB * 1024) return json;
+  if (json.length <= maxChars) return json;
 
-  // Only prune if over 1MB — progressively reduce depth
-  for (const depth of [12, 10, 8, 6]) {
+  // Too large — progressively reduce depth
+  for (const depth of [10, 8, 6, 5, 4]) {
     const pruned = pruneDepth(result, depth);
     const prunedJson = JSON.stringify(pruned, slimReplacer);
-    if (prunedJson.length <= maxKB * 1024) return prunedJson;
+    if (prunedJson.length <= maxChars) return prunedJson;
   }
 
   // Last resort — hard truncate
-  return json.substring(0, maxKB * 1024) + '...[TRUNCATED — selection too complex, try selecting a smaller element]';
+  return json.substring(0, maxChars) + '...[TRUNCATED — selection too complex, try selecting a smaller element or use figma_get_node on child IDs]';
 }
 
 function pruneDepth(obj: unknown, maxDepth: number, depth = 0): unknown {
