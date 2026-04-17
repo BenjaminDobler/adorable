@@ -434,6 +434,7 @@ export class ClaudeCodeProvider implements LLMProvider {
       '--output-format', 'stream-json',
       '--verbose',
       '--dangerously-skip-permissions',
+      '--include-partial-messages',
     ];
 
     // Pass MCP config explicitly so Claude Code loads it without approval prompts

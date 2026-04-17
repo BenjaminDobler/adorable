@@ -87,9 +87,10 @@ export class ClaudeCodeStreamParser {
 
   private handleEvent(event: any): void {
     const type = event.type;
-
     if (type === 'system') {
       this.handleSystemEvent(event);
+    } else if (type === 'stream_event') {
+      this.handleStreamEvent(event);
     } else if (type === 'assistant') {
       this.handleAssistantEvent(event);
     } else if (type === 'user') {
@@ -97,7 +98,36 @@ export class ClaudeCodeStreamParser {
     } else if (type === 'result') {
       this.handleResultEvent(event);
     }
-    // Ignore unknown event types (e.g. content_block_delta for streaming)
+    // Ignore: rate_limit_event, etc.
+  }
+
+  /**
+   * Handle incremental streaming events (--include-partial-messages).
+   * These contain Anthropic-style content_block_delta events for real-time text streaming.
+   */
+  private handleStreamEvent(event: any): void {
+    const inner = event.event;
+    if (!inner) return;
+
+    if (inner.type === 'content_block_delta') {
+      const delta = inner.delta;
+      if (delta?.type === 'text_delta' && delta.text) {
+        this.fullExplanation += delta.text;
+        this.callbacks.onText?.(delta.text);
+      } else if (delta?.type === 'input_json_delta' && delta.partial_json) {
+        // Streaming tool input — emit as tool delta for UI status
+        this.callbacks.onToolDelta?.(inner.index ?? this.toolIndex, delta.partial_json);
+      }
+    } else if (inner.type === 'content_block_start') {
+      const block = inner.content_block;
+      if (block?.type === 'tool_use') {
+        // Tool use started — record it
+        const index = this.toolIndex++;
+        this.toolNames.set(block.id, block.name);
+        const adorableName = this.translateToolName(block.name);
+        this.callbacks.onToolStart?.(index, adorableName);
+      }
+    }
   }
 
   private handleSystemEvent(event: any): void {
