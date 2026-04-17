@@ -240,7 +240,7 @@
           <label>Model</label>
           <select
             name="claude-code-model"
-            [ngModel]="claudeCodeProfile()?.model || 'claude-sonnet-4-6'"
+            [ngModel]="claudeCodeProfile()?.model || 'sonnet'"
             (ngModelChange)="profileUpdated.emit({id: 'claude-code', updates: {model: $event}})"
           >
             @for (m of claudeCodeModels; track m.id) {

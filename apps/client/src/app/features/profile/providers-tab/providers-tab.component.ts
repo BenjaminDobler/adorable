@@ -39,9 +39,13 @@ export class ProvidersTabComponent {
   ];
 
   claudeCodeModels = [
-    { id: 'claude-sonnet-4-6', label: 'Sonnet (default)' },
-    { id: 'claude-opus-4-6', label: 'Opus' },
-    { id: 'claude-haiku-4-5-20251001', label: 'Haiku' },
+    { id: 'sonnet', label: 'Sonnet (latest)' },
+    { id: 'opus', label: 'Opus (latest)' },
+    { id: 'haiku', label: 'Haiku (latest)' },
+    { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+    { id: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5' },
+    { id: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
+    { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
   ];
 
   // Claude Code status

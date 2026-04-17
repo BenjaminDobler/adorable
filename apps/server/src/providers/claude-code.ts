@@ -446,16 +446,10 @@ export class ClaudeCodeProvider implements LLMProvider {
     }
 
     if (model && model !== 'claude-code') {
-      // Map Adorable model names to Claude Code model flags if needed
-      // Claude Code supports --model opus, --model sonnet, --model haiku
-      const modelMap: Record<string, string> = {
-        'claude-opus-4-6': 'opus',
-        'claude-sonnet-4-5-20250929': 'sonnet',
-        'claude-sonnet-4-6': 'sonnet',
-        'claude-haiku-4-5-20251001': 'haiku',
-      };
-      const ccModel = modelMap[model] || model;
-      args.push('--model', ccModel);
+      // Claude Code --model accepts short names (opus, sonnet, haiku)
+      // and full model IDs (claude-opus-4-6, claude-sonnet-4-5-20250929, etc.)
+      // Pass through directly — no mapping needed.
+      args.push('--model', model);
     }
 
     // Attach images if present

@@ -342,9 +342,13 @@ export class ChatComponent {
        // Claude Code: add static model list (no API call)
        if (profile.provider === 'claude-code') {
          const ccModels = [
-           { id: 'claude-sonnet-4-6', name: 'Claude Code - Sonnet', provider: 'claude-code' },
-           { id: 'claude-opus-4-6', name: 'Claude Code - Opus', provider: 'claude-code' },
-           { id: 'claude-haiku-4-5-20251001', name: 'Claude Code - Haiku', provider: 'claude-code' },
+           { id: 'sonnet', name: 'Claude Code - Sonnet (latest)', provider: 'claude-code' },
+           { id: 'opus', name: 'Claude Code - Opus (latest)', provider: 'claude-code' },
+           { id: 'haiku', name: 'Claude Code - Haiku (latest)', provider: 'claude-code' },
+           { id: 'claude-sonnet-4-6', name: 'Claude Code - Sonnet 4.6', provider: 'claude-code' },
+           { id: 'claude-sonnet-4-5-20250929', name: 'Claude Code - Sonnet 4.5', provider: 'claude-code' },
+           { id: 'claude-opus-4-6', name: 'Claude Code - Opus 4.6', provider: 'claude-code' },
+           { id: 'claude-haiku-4-5-20251001', name: 'Claude Code - Haiku 4.5', provider: 'claude-code' },
          ];
          this.availableModels.update(current => {
            const existingIds = new Set(current.map(c => c.id));
