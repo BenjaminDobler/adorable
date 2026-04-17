@@ -90,7 +90,8 @@ class FigmaBridgeService extends EventEmitter {
       }
 
       case 'figma:response': {
-        logger.info('Figma bridge: received response', { userId, requestId: msg.requestId, hasError: !!msg.error });
+        const rawSize = JSON.stringify(msg.data || '').length;
+        logger.info('Figma bridge: received response', { userId, requestId: msg.requestId, hasError: !!msg.error, sizeKB: Math.round(rawSize / 1024) });
         const pending = this.pendingRequests.get(msg.requestId);
         if (pending) {
           this.pendingRequests.delete(msg.requestId);

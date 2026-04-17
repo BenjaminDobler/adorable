@@ -29,6 +29,49 @@ function slimReplacer(key: string, val: unknown): unknown {
   return val;
 }
 
+const MAX_FIGMA_RESPONSE_KB = 100;
+
+/**
+ * Truncate a Figma result to stay within token limits.
+ * Removes deep children first, then truncates the JSON string.
+ */
+function truncateFigmaResult(result: unknown): string {
+  // First try full slim result
+  let json = JSON.stringify(result, slimReplacer);
+  if (json.length <= MAX_FIGMA_RESPONSE_KB * 1024) return json;
+
+  // Too large — limit children depth by removing nested children
+  const pruned = pruneDepth(result, 4);
+  json = JSON.stringify(pruned, slimReplacer);
+  if (json.length <= MAX_FIGMA_RESPONSE_KB * 1024) return json;
+
+  // Still too large — prune more aggressively
+  const pruned2 = pruneDepth(result, 2);
+  json = JSON.stringify(pruned2, slimReplacer);
+  if (json.length <= MAX_FIGMA_RESPONSE_KB * 1024) return json;
+
+  // Last resort — hard truncate
+  return json.substring(0, MAX_FIGMA_RESPONSE_KB * 1024) + '...[TRUNCATED — selection too complex, try selecting a smaller element]';
+}
+
+function pruneDepth(obj: unknown, maxDepth: number, depth = 0): unknown {
+  if (obj === null || obj === undefined || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) {
+    if (depth >= maxDepth) return obj.length > 0 ? [`...(${obj.length} items)`] : [];
+    return obj.map(item => pruneDepth(item, maxDepth, depth + 1));
+  }
+  const result: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
+    if (key === 'children' && depth >= maxDepth) {
+      const arr = Array.isArray(val) ? val : [];
+      result[key] = arr.length > 0 ? [`...(${arr.length} children, depth limited)`] : [];
+    } else {
+      result[key] = pruneDepth(val, maxDepth, depth + 1);
+    }
+  }
+  return result;
+}
+
 // ── Configuration ────────────────────────────────────────────────────
 
 const AGENT_PORT = () => process.env['ADORABLE_AGENT_PORT'] || '3334';
@@ -249,7 +292,9 @@ const tools: ToolDef[] = [
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
       try {
         const result = await figmaBridge.sendCommand(userId, { action: 'get_selection' });
-        return textResult(JSON.stringify(result, slimReplacer, 2));
+        const truncated = truncateFigmaResult(result);
+        console.log(`[MCP] figma_get_selection response: ${Math.round(truncated.length / 1024)}KB`);
+        return textResult(truncated);
       } catch (err: unknown) {
         return textResult(`Figma error: ${err instanceof Error ? err.message : String(err)}`, true);
       }
@@ -262,7 +307,7 @@ const tools: ToolDef[] = [
     async handler(args, userId) {
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
       const result = await figmaBridge.sendCommand(userId, { action: 'get_node', nodeId: args.nodeId as string, depth: args.depth as number | undefined });
-      return textResult(JSON.stringify(result, slimReplacer, 2));
+      return textResult(truncateFigmaResult(result));
     },
   },
   {
@@ -276,7 +321,7 @@ const tools: ToolDef[] = [
         const b64 = String(result.image).replace(/^data:image\/\w+;base64,/, '');
         return imageResult(b64, 'image/png');
       }
-      return textResult(JSON.stringify(result, slimReplacer, 2));
+      return textResult(JSON.stringify(result, slimReplacer));
     },
   },
   {
@@ -373,8 +418,9 @@ router.post('/message', async (req: any, res) => {
   try {
     const response = await handleJsonRpc(msg, session.userId);
     if (response) {
-      // Send response via SSE
-      session.res.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`);
+      // Send response via SSE — use compact JSON (no pretty-print)
+      const json = JSON.stringify(response);
+      session.res.write(`event: message\ndata: ${json}\n\n`);
     }
     res.status(202).send('Accepted');
   } catch (err: unknown) {
