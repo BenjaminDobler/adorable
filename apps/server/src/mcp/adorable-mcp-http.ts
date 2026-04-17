@@ -310,16 +310,26 @@ const tools: ToolDef[] = [
   },
   {
     name: 'figma_export_node',
-    description: 'Export a Figma node as PNG or SVG.',
-    inputSchema: { type: 'object', properties: { nodeId: { type: 'string' }, format: { type: 'string', enum: ['PNG', 'SVG'] }, scale: { type: 'number' } }, required: ['nodeId'] },
+    description: 'Export a Figma node as PNG or SVG. WARNING: Exporting very large root components (full pages/dashboards) may timeout. Export smaller child sections instead.',
+    inputSchema: { type: 'object', properties: { nodeId: { type: 'string' }, format: { type: 'string', enum: ['PNG', 'SVG'] }, scale: { type: 'number', description: 'Export scale. Default 0.5. Use 1 only for small elements.' } }, required: ['nodeId'] },
     async handler(args, userId) {
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
-      const result = await figmaBridge.sendCommand(userId, { action: 'export_node', nodeId: args.nodeId as string, format: args.format as 'PNG' | 'SVG' | undefined, scale: args.scale as number | undefined });
-      if (result?.image) {
-        const b64 = String(result.image).replace(/^data:image\/\w+;base64,/, '');
-        return imageResult(b64, 'image/png');
+      // Default to 0.5 scale to prevent huge images. Cap at 1.
+      const scale = Math.min(args.scale as number || 0.5, 1);
+      try {
+        const result = await figmaBridge.sendCommand(userId, { action: 'export_node', nodeId: args.nodeId as string, format: args.format as 'PNG' | 'SVG' | undefined, scale });
+        if (result?.image) {
+          const b64 = String(result.image).replace(/^data:image\/\w+;base64,/, '');
+          return imageResult(b64, 'image/png');
+        }
+        return textResult(JSON.stringify(result, slimReplacer));
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('timed out')) {
+          return textResult(`Export timed out — the element is too large. Try exporting a smaller child node, or use scale=0.5.`, true);
+        }
+        return textResult(`Figma export error: ${msg}`, true);
       }
-      return textResult(JSON.stringify(result, slimReplacer));
     },
   },
   {
