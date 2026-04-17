@@ -31,6 +31,13 @@ export class ClaudeCodeStreamParser {
    */
   private toolNames = new Map<string, string>();
 
+  /**
+   * Whether we've received stream_event deltas for the current assistant message.
+   * If true, skip emitting text/tool_call from the complete assistant message
+   * (it was already streamed incrementally).
+   */
+  private streamedCurrentMessage = false;
+
   constructor(
     private callbacks: StreamCallbacks,
     private projectPath: string
@@ -112,21 +119,25 @@ export class ClaudeCodeStreamParser {
     if (inner.type === 'content_block_delta') {
       const delta = inner.delta;
       if (delta?.type === 'text_delta' && delta.text) {
+        this.streamedCurrentMessage = true;
         this.fullExplanation += delta.text;
         this.callbacks.onText?.(delta.text);
       } else if (delta?.type === 'input_json_delta' && delta.partial_json) {
-        // Streaming tool input — emit as tool delta for UI status
+        this.streamedCurrentMessage = true;
         this.callbacks.onToolDelta?.(inner.index ?? this.toolIndex, delta.partial_json);
       }
     } else if (inner.type === 'content_block_start') {
       const block = inner.content_block;
       if (block?.type === 'tool_use') {
-        // Tool use started — record it
+        this.streamedCurrentMessage = true;
         const index = this.toolIndex++;
         this.toolNames.set(block.id, block.name);
         const adorableName = this.translateToolName(block.name);
         this.callbacks.onToolStart?.(index, adorableName);
       }
+    } else if (inner.type === 'message_start') {
+      // New message starting — reset streamed flag
+      this.streamedCurrentMessage = false;
     }
   }
 
@@ -141,11 +152,19 @@ export class ClaudeCodeStreamParser {
     const message = event.message;
     if (!message?.content) return;
 
+    // If this message was already streamed via stream_events, skip text/tool_use
+    // to avoid double-emitting. Only process tool_use blocks for tracking
+    // (pendingWrites) since stream_events don't carry full tool input.
+    const alreadyStreamed = this.streamedCurrentMessage;
+    this.streamedCurrentMessage = false;
+
     for (const block of message.content) {
       if (block.type === 'text') {
-        this.handleTextBlock(block);
+        if (!alreadyStreamed) {
+          this.handleTextBlock(block);
+        }
       } else if (block.type === 'tool_use') {
-        this.handleToolUseBlock(block);
+        this.handleToolUseBlock(block, alreadyStreamed);
       }
     }
   }
@@ -158,18 +177,20 @@ export class ClaudeCodeStreamParser {
     }
   }
 
-  private handleToolUseBlock(block: any): void {
+  private handleToolUseBlock(block: any, alreadyStreamed = false): void {
     const { id, name, input } = block;
-    const index = this.toolIndex++;
 
-    // Record tool name for result mapping
-    this.toolNames.set(id, name);
-
-    // Translate Claude Code tool names to Adorable tool names for display
-    const adorableName = this.translateToolName(name);
-    const activityDesc = this.getActivityDescription(name, input);
-
-    this.callbacks.onToolCall?.(index, adorableName, input, activityDesc);
+    // If already streamed, don't increment toolIndex or emit onToolCall again
+    if (!alreadyStreamed) {
+      const index = this.toolIndex++;
+      this.toolNames.set(id, name);
+      const adorableName = this.translateToolName(name);
+      const activityDesc = this.getActivityDescription(name, input);
+      this.callbacks.onToolCall?.(index, adorableName, input, activityDesc);
+    } else {
+      // Still record tool name for result mapping
+      this.toolNames.set(id, name);
+    }
 
     // Track file writes for onFileWritten callbacks
     if (this.isFileWriteTool(name)) {
