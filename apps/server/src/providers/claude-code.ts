@@ -52,6 +52,10 @@ export class ClaudeCodeProvider implements LLMProvider {
     // across crashes, so we don't need to restore the original.
     await this.writeClaudeMd(projectPath, options);
 
+    // ── 5b. Copy Adorable skills into .claude/skills/ ────────────
+    // Claude Code auto-discovers skills from .claude/skills/ in the project root.
+    this.syncSkills(projectPath, options);
+
     // ── 6. Build the prompt ────────────────────────────────────────
     const fullPrompt = this.buildPrompt(options);
 
@@ -235,7 +239,7 @@ export class ClaudeCodeProvider implements LLMProvider {
     fs.writeFileSync(mcpJsonPath, JSON.stringify(merged, null, 2));
 
     // Ensure .mcp.json and .adorable/ are in .gitignore
-    this.ensureGitignore(projectPath, ['.mcp.json', '.adorable/mcp-bridge.mjs']);
+    this.ensureGitignore(projectPath, ['.mcp.json', '.adorable/mcp-bridge.mjs', '.claude/skills/']);
 
     return mcpJsonPath;
   }
@@ -477,6 +481,58 @@ export class ClaudeCodeProvider implements LLMProvider {
       return tmpPath;
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * Copy Adorable's built-in skills into the project's .claude/skills/ directory
+   * so Claude Code auto-discovers them via its native skill system.
+   * Only copies skills relevant to the current context (e.g., figma-live only if connected).
+   */
+  private syncSkills(projectPath: string, options: GenerateOptions): void {
+    const workspaceRoot = this.findWorkspaceRoot();
+    const srcSkillsDir = path.join(workspaceRoot, 'apps/server/src/assets/skills');
+    const destSkillsDir = path.join(projectPath, '.claude', 'skills');
+
+    if (!fs.existsSync(srcSkillsDir)) return;
+
+    try {
+      const skillDirs = fs.readdirSync(srcSkillsDir, { withFileTypes: true })
+        .filter(d => d.isDirectory());
+
+      for (const dir of skillDirs) {
+        // Only copy figma-live skill if Figma is connected
+        if (dir.name === 'figma-live' && !options.figmaLiveConnected) continue;
+
+        const srcDir = path.join(srcSkillsDir, dir.name);
+        const destDir = path.join(destSkillsDir, dir.name);
+
+        // Create skill directory
+        fs.mkdirSync(destDir, { recursive: true });
+
+        // Copy all files in the skill directory
+        const files = fs.readdirSync(srcDir, { withFileTypes: true })
+          .filter(f => f.isFile());
+
+        for (const file of files) {
+          const srcFile = path.join(srcDir, file.name);
+          const destFile = path.join(destDir, file.name);
+          fs.copyFileSync(srcFile, destFile);
+        }
+
+        // Copy references/ subdirectory if it exists
+        const refsDir = path.join(srcDir, 'references');
+        if (fs.existsSync(refsDir)) {
+          const destRefsDir = path.join(destDir, 'references');
+          fs.mkdirSync(destRefsDir, { recursive: true });
+          const refs = fs.readdirSync(refsDir, { withFileTypes: true }).filter(f => f.isFile());
+          for (const ref of refs) {
+            fs.copyFileSync(path.join(refsDir, ref.name), path.join(destRefsDir, ref.name));
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[ClaudeCode] Failed to sync skills:', (err as Error).message);
     }
   }
 
