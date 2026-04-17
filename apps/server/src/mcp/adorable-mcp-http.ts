@@ -14,6 +14,21 @@ import { figmaBridge } from '../services/figma-bridge.service';
 
 const router = Router();
 
+// ── Figma JSON slimmer — strips empty/default values to reduce token usage ──
+
+function slimReplacer(key: string, val: unknown): unknown {
+  if (Array.isArray(val) && val.length === 0) return undefined;
+  if (key === 'visible' && val === true) return undefined;
+  if (key === 'opacity' && val === 1) return undefined;
+  if (key === 'cornerRadius' && val === 0) return undefined;
+  if ((key === 'fills' || key === 'strokes') && Array.isArray(val)) {
+    const visible = val.filter((f: Record<string, unknown>) => f.visible !== false);
+    return visible.length > 0 ? visible : undefined;
+  }
+  if (key === 'boundVariables' && typeof val === 'object' && val !== null && Object.keys(val).length === 0) return undefined;
+  return val;
+}
+
 // ── Configuration ────────────────────────────────────────────────────
 
 const AGENT_PORT = () => process.env['ADORABLE_AGENT_PORT'] || '3334';
@@ -234,7 +249,7 @@ const tools: ToolDef[] = [
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
       try {
         const result = await figmaBridge.sendCommand(userId, { action: 'get_selection' });
-        return textResult(JSON.stringify(result, null, 2));
+        return textResult(JSON.stringify(result, slimReplacer, 2));
       } catch (err: unknown) {
         return textResult(`Figma error: ${err instanceof Error ? err.message : String(err)}`, true);
       }
@@ -247,7 +262,7 @@ const tools: ToolDef[] = [
     async handler(args, userId) {
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
       const result = await figmaBridge.sendCommand(userId, { action: 'get_node', nodeId: args.nodeId as string, depth: args.depth as number | undefined });
-      return textResult(JSON.stringify(result, null, 2));
+      return textResult(JSON.stringify(result, slimReplacer, 2));
     },
   },
   {
@@ -261,7 +276,7 @@ const tools: ToolDef[] = [
         const b64 = String(result.image).replace(/^data:image\/\w+;base64,/, '');
         return imageResult(b64, 'image/png');
       }
-      return textResult(JSON.stringify(result, null, 2));
+      return textResult(JSON.stringify(result, slimReplacer, 2));
     },
   },
   {
@@ -270,7 +285,7 @@ const tools: ToolDef[] = [
     inputSchema: { type: 'object', properties: { nodeId: { type: 'string' } }, required: ['nodeId'] },
     async handler(args, userId) {
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
-      return textResult(JSON.stringify(await figmaBridge.sendCommand(userId, { action: 'select_node', nodeId: args.nodeId as string }), null, 2));
+      return textResult(JSON.stringify(await figmaBridge.sendCommand(userId, { action: 'select_node', nodeId: args.nodeId as string }), slimReplacer, 2));
     },
   },
   {
@@ -279,7 +294,7 @@ const tools: ToolDef[] = [
     inputSchema: { type: 'object', properties: { query: { type: 'string' }, types: { type: 'array', items: { type: 'string' } } }, required: ['query'] },
     async handler(args, userId) {
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
-      return textResult(JSON.stringify(await figmaBridge.sendCommand(userId, { action: 'search_nodes', query: args.query as string, types: args.types as string[] | undefined }), null, 2));
+      return textResult(JSON.stringify(await figmaBridge.sendCommand(userId, { action: 'search_nodes', query: args.query as string, types: args.types as string[] | undefined }), slimReplacer, 2));
     },
   },
   {
@@ -288,7 +303,7 @@ const tools: ToolDef[] = [
     inputSchema: { type: 'object', properties: {} },
     async handler(_args, userId) {
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
-      return textResult(JSON.stringify(await figmaBridge.sendCommand(userId, { action: 'get_fonts' }), null, 2));
+      return textResult(JSON.stringify(await figmaBridge.sendCommand(userId, { action: 'get_fonts' }), slimReplacer, 2));
     },
   },
   {
@@ -297,7 +312,7 @@ const tools: ToolDef[] = [
     inputSchema: { type: 'object', properties: {} },
     async handler(_args, userId) {
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
-      return textResult(JSON.stringify(await figmaBridge.sendCommand(userId, { action: 'get_variables' }), null, 2));
+      return textResult(JSON.stringify(await figmaBridge.sendCommand(userId, { action: 'get_variables' }), slimReplacer, 2));
     },
   },
 ];
