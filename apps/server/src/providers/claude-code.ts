@@ -48,7 +48,8 @@ export class ClaudeCodeProvider implements LLMProvider {
     const mcpJsonPath = await this.writeMcpConfig(projectPath, bridgeToken, options.userId);
 
     // ── 5. Generate/update CLAUDE.md ───────────────────────────────
-    const originalClaudeMd = await this.readExistingClaudeMd(projectPath);
+    // The adorable section is idempotent (replaced on each run) and persists
+    // across crashes, so we don't need to restore the original.
     await this.writeClaudeMd(projectPath, options);
 
     // ── 6. Build the prompt ────────────────────────────────────────
@@ -99,7 +100,6 @@ export class ClaudeCodeProvider implements LLMProvider {
 
         // ── 11. Cleanup ──────────────────────────────────────────
         this.cleanupTempImages(tempImagePaths);
-        await this.restoreClaudeMd(projectPath, originalClaudeMd);
 
         if (code !== 0 && code !== null) {
           // Check if session expired
@@ -233,7 +233,27 @@ export class ClaudeCodeProvider implements LLMProvider {
     };
 
     fs.writeFileSync(mcpJsonPath, JSON.stringify(merged, null, 2));
+
+    // Ensure .mcp.json and .adorable/ are in .gitignore
+    this.ensureGitignore(projectPath, ['.mcp.json', '.adorable/mcp-bridge.mjs']);
+
     return mcpJsonPath;
+  }
+
+  private ensureGitignore(projectPath: string, entries: string[]): void {
+    const gitignorePath = path.join(projectPath, '.gitignore');
+    try {
+      let content = '';
+      try { content = fs.readFileSync(gitignorePath, 'utf-8'); } catch { /* new file */ }
+      const lines = content.split('\n');
+      const toAdd = entries.filter(e => !lines.some(l => l.trim() === e));
+      if (toAdd.length > 0) {
+        const suffix = content.endsWith('\n') || content === '' ? '' : '\n';
+        fs.writeFileSync(gitignorePath, content + suffix + toAdd.join('\n') + '\n');
+      }
+    } catch {
+      // Best effort
+    }
   }
 
   private async readExistingClaudeMd(projectPath: string): Promise<string | null> {
@@ -353,23 +373,13 @@ export class ClaudeCodeProvider implements LLMProvider {
     return parts.join('\n');
   }
 
-  private async restoreClaudeMd(projectPath: string, original: string | null): Promise<void> {
-    const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
-    try {
-      if (original === null) {
-        // We created it — remove it
-        fs.unlinkSync(claudeMdPath);
-      } else {
-        // Restore original content
-        fs.writeFileSync(claudeMdPath, original);
-      }
-    } catch {
-      // Best effort
-    }
-  }
-
   private buildPrompt(options: GenerateOptions): string {
     const parts: string[] = [];
+
+    // Plan mode: ask clarifying questions before coding
+    if (options.planMode) {
+      parts.push('[PLAN MODE] Before writing any code, analyze the request and ask clarifying questions. Create a detailed implementation plan. Only proceed with code changes after laying out the approach.\n\n');
+    }
 
     // Main user prompt
     parts.push(options.prompt);

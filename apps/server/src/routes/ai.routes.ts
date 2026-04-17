@@ -369,7 +369,16 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
       const { figmaBridge } = await import('../services/figma-bridge.service');
       const figmaLiveConnected = figmaBridge.isConnected(user.id);
 
-      const result = await llm.streamGenerate({
+      // Wire up cancellation for Claude Code (kill child process on client disconnect)
+      let generationPromise: any;
+      req.on('close', () => {
+        if (generationPromise?.__killChild) {
+          console.log('[ClaudeCode] Client disconnected, killing claude process');
+          generationPromise.__killChild();
+        }
+      });
+
+      const result = await (generationPromise = llm.streamGenerate({
           prompt,
           previousFiles, // Still passed for fallback or initial context
           apiKey: effectiveApiKey,
@@ -415,9 +424,16 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
               res.write(`data: ${JSON.stringify({ type: 'tool_result', tool_use_id, result, name })}\n\n`);
           },
           onTokenUsage: (usage) => {
-              const cost = calculateCost(usage, finalModel, userSettings.customPricing);
-              console.log(`[Cost] model=${finalModel} totalCost=${cost.totalCost.toFixed(6)} input=${usage.inputTokens} output=${usage.outputTokens}`);
-              res.write(`data: ${JSON.stringify({ type: 'usage', usage, cost })}\n\n`);
+              if (provider === 'claude-code') {
+                // Subscription-based — no dollar cost, just token counts
+                const cost = { totalCost: 0, inputCost: 0, outputCost: 0, cacheCreationCost: 0, cacheReadCost: 0, subscription: true };
+                console.log(`[Cost] model=claude-code subscription input=${usage.inputTokens} output=${usage.outputTokens}`);
+                res.write(`data: ${JSON.stringify({ type: 'usage', usage, cost })}\n\n`);
+              } else {
+                const cost = calculateCost(usage, finalModel, userSettings.customPricing);
+                console.log(`[Cost] model=${finalModel} totalCost=${cost.totalCost.toFixed(6)} input=${usage.inputTokens} output=${usage.outputTokens}`);
+                res.write(`data: ${JSON.stringify({ type: 'usage', usage, cost })}\n\n`);
+              }
           },
           onFileWritten: (path, content) => {
               res.write(`data: ${JSON.stringify({ type: 'file_written', path, content })}\n\n`);
@@ -434,7 +450,7 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
           onPreflightDecision: (decision) => {
               res.write(`data: ${JSON.stringify({ type: 'preflight_decision', decision })}\n\n`);
           }
-      });
+      }));
       
       // Send result to client immediately — don't block on git.
       // DiskFileSystem already wrote all files to disk during the agentic loop,
@@ -540,6 +556,20 @@ router.post('/question/:requestId', async (req: any, res) => {
 
     const resolved = questionManager.resolveAnswers(requestId, answers);
     res.json({ success: resolved, message: resolved ? 'Answers received' : 'No pending request found' });
+});
+
+// Clear Claude Code session (for "clear context" action)
+router.post('/clear-claude-session/:projectId', async (req: any, res) => {
+  const { projectId } = req.params;
+  try {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { claudeCodeSessionId: null },
+    });
+    res.json({ success: true });
+  } catch {
+    res.json({ success: false });
+  }
 });
 
 // Test AI provider connection

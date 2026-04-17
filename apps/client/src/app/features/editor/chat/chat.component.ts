@@ -1201,6 +1201,12 @@ Analyze the attached design images carefully and create matching Angular compone
   clearContext() {
     this.contextSummary.set(null);
     this.contextCleared.set(true);
+
+    // Clear Claude Code session so next turn starts fresh
+    const projectId = this.projectService.projectId();
+    if (projectId) {
+      this.apiService.clearClaudeCodeSession(projectId).subscribe();
+    }
   }
 
   cancelGeneration() {
