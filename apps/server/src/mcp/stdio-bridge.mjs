@@ -6,6 +6,8 @@
  * This script connects to Adorable's HTTP MCP endpoint and bridges
  * JSON-RPC messages between stdio and HTTP.
  *
+ * Auto-reconnects if the SSE connection drops.
+ *
  * Environment: ADORABLE_MCP_URL (e.g. http://localhost:3333/mcp)
  */
 
@@ -14,6 +16,7 @@ import * as readline from 'readline';
 const MCP_URL = process.env.ADORABLE_MCP_URL || 'http://localhost:3333/mcp';
 let messageEndpoint = null;
 let sseConnected = false;
+let reconnecting = false;
 
 // ── Connect to SSE endpoint ──────────────────────────────────────────
 
@@ -25,9 +28,11 @@ async function connectSSE() {
 
     if (!res.ok || !res.body) {
       process.stderr.write(`[mcp-bridge] SSE connection failed: ${res.status}\n`);
-      process.exit(1);
+      scheduleReconnect();
+      return;
     }
 
+    reconnecting = false;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -35,7 +40,13 @@ async function connectSSE() {
     const read = async () => {
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          process.stderr.write('[mcp-bridge] SSE stream ended, reconnecting...\n');
+          sseConnected = false;
+          messageEndpoint = null;
+          scheduleReconnect();
+          return;
+        }
         buffer += decoder.decode(value, { stream: true });
 
         const lines = buffer.split('\n');
@@ -48,16 +59,15 @@ async function connectSSE() {
           } else if (line.startsWith('data: ')) {
             const data = line.slice(6);
             if (eventType === 'endpoint') {
-              // Server tells us where to POST messages
               messageEndpoint = new URL(data, MCP_URL).href;
               sseConnected = true;
-              process.stderr.write(`[mcp-bridge] Connected, message endpoint: ${messageEndpoint}\n`);
-              // Process any queued messages
+              process.stderr.write(`[mcp-bridge] Connected, endpoint: ${messageEndpoint}\n`);
               flushQueue();
             } else if (eventType === 'message') {
-              // Server sends a JSON-RPC response
               process.stdout.write(data + '\n');
             }
+          } else if (line.startsWith(':')) {
+            // SSE comment (keepalive) — ignore
           }
         }
       }
@@ -65,12 +75,23 @@ async function connectSSE() {
 
     read().catch(err => {
       process.stderr.write(`[mcp-bridge] SSE read error: ${err.message}\n`);
-      process.exit(1);
+      sseConnected = false;
+      messageEndpoint = null;
+      scheduleReconnect();
     });
   } catch (err) {
     process.stderr.write(`[mcp-bridge] SSE connect error: ${err.message}\n`);
-    process.exit(1);
+    scheduleReconnect();
   }
+}
+
+function scheduleReconnect() {
+  if (reconnecting) return;
+  reconnecting = true;
+  setTimeout(() => {
+    reconnecting = false;
+    connectSSE();
+  }, 2000);
 }
 
 // ── Send JSON-RPC message to server ──────────────────────────────────
@@ -91,13 +112,21 @@ async function sendMessage(msg) {
   }
 
   try {
-    await fetch(messageEndpoint, {
+    const res = await fetch(messageEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(msg),
     });
+    if (!res.ok) {
+      process.stderr.write(`[mcp-bridge] POST failed: ${res.status}\n`);
+    }
   } catch (err) {
     process.stderr.write(`[mcp-bridge] POST error: ${err.message}\n`);
+    // Connection lost — queue the message and reconnect
+    messageQueue.push(msg);
+    sseConnected = false;
+    messageEndpoint = null;
+    scheduleReconnect();
   }
 }
 

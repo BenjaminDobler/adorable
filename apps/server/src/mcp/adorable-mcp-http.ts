@@ -318,13 +318,24 @@ router.get('/', (req: any, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
 
   // Send the endpoint URI for posting messages
   res.write(`event: endpoint\ndata: /mcp/message?sessionId=${sessionId}\n\n`);
 
   sessions.set(sessionId, { res, userId });
 
+  // SSE keepalive — send a comment every 15s to prevent connection timeout
+  const keepalive = setInterval(() => {
+    try {
+      res.write(': keepalive\n\n');
+    } catch {
+      clearInterval(keepalive);
+    }
+  }, 15_000);
+
   req.on('close', () => {
+    clearInterval(keepalive);
     sessions.delete(sessionId);
   });
 });
