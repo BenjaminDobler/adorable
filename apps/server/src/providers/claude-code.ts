@@ -84,20 +84,35 @@ export class ClaudeCodeProvider implements LLMProvider {
     const parser = new ClaudeCodeStreamParser(callbacks, projectPath);
     let stderrBuffer = '';
 
+    // Debug log: write raw claude output to a file for inspection
+    const logPath = path.join(projectPath, '.adorable', 'claude-debug.log');
+    const logStream = fs.createWriteStream(logPath, { flags: 'w' });
+    logStream.write(`[${new Date().toISOString()}] Claude Code started\n`);
+    logStream.write(`[args] ${args.join(' ')}\n\n`);
+    console.log(`[ClaudeCode] Debug log: ${logPath}`);
+
     const resultPromise = new Promise<any>((resolve, reject) => {
       child.stdout.on('data', (chunk: Buffer) => {
-        parser.feed(chunk.toString());
+        const text = chunk.toString();
+        logStream.write(`[stdout] ${text}\n`);
+        parser.feed(text);
       });
 
       child.stderr.on('data', (chunk: Buffer) => {
-        stderrBuffer += chunk.toString();
+        const text = chunk.toString();
+        stderrBuffer += text;
+        logStream.write(`[stderr] ${text}\n`);
       });
 
       child.on('error', (err) => {
+        logStream.write(`[error] ${err.message}\n`);
+        logStream.end();
         reject(new Error(`Failed to spawn claude: ${err.message}`));
       });
 
       child.on('close', async (code) => {
+        logStream.write(`\n[${new Date().toISOString()}] Process exited with code ${code}\n`);
+        logStream.end();
         parser.flush();
 
         // ── 10. Save session ID ──────────────────────────────────
