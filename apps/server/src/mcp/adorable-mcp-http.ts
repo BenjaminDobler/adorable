@@ -27,15 +27,38 @@ function serialFigmaCall<T>(fn: () => Promise<T>): Promise<T> {
 // ── Figma JSON slimmer — strips empty/default values to reduce token usage ──
 
 function slimReplacer(key: string, val: unknown): unknown {
+  // Strip empty arrays
   if (Array.isArray(val) && val.length === 0) return undefined;
+  // Strip default visual values
   if (key === 'visible' && val === true) return undefined;
   if (key === 'opacity' && val === 1) return undefined;
   if (key === 'cornerRadius' && val === 0) return undefined;
+  if (key === 'blendMode' && val === 'NORMAL') return undefined;
+  if (key === 'blendMode' && val === 'PASS_THROUGH') return undefined;
+  // Strip fills/strokes that are invisible
   if ((key === 'fills' || key === 'strokes') && Array.isArray(val)) {
     const visible = val.filter((f: Record<string, unknown>) => f.visible !== false);
     return visible.length > 0 ? visible : undefined;
   }
+  // Strip empty objects
   if (key === 'boundVariables' && typeof val === 'object' && val !== null && Object.keys(val).length === 0) return undefined;
+  // Strip verbose unit objects — convert {value: N, unit: "PIXELS"} to just N
+  if ((key === 'letterSpacing' || key === 'lineHeight') && typeof val === 'object' && val !== null) {
+    const obj = val as Record<string, unknown>;
+    if (obj.unit === 'PIXELS' && typeof obj.value === 'number') return obj.value;
+    if (obj.unit === 'PERCENT' && typeof obj.value === 'number') return `${obj.value}%`;
+    if (obj.unit === 'AUTO') return 'auto';
+  }
+  // Convert color objects {r, g, b, a} to hex strings inline
+  if (key === 'color' && typeof val === 'object' && val !== null) {
+    const c = val as Record<string, number>;
+    if (typeof c.r === 'number' && typeof c.g === 'number' && typeof c.b === 'number') {
+      const hex = (n: number) => Math.round(n * 255).toString(16).padStart(2, '0');
+      const a = c.a != null ? c.a : 1;
+      if (a < 1) return `rgba(${Math.round(c.r*255)},${Math.round(c.g*255)},${Math.round(c.b*255)},${a.toFixed(2)})`;
+      return `#${hex(c.r)}${hex(c.g)}${hex(c.b)}`;
+    }
+  }
   return val;
 }
 
