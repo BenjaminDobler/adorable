@@ -90,6 +90,7 @@ class FigmaBridgeService extends EventEmitter {
       }
 
       case 'figma:response': {
+        logger.info('Figma bridge: received response', { userId, requestId: msg.requestId, hasError: !!msg.error });
         const pending = this.pendingRequests.get(msg.requestId);
         if (pending) {
           this.pendingRequests.delete(msg.requestId);
@@ -99,6 +100,8 @@ class FigmaBridgeService extends EventEmitter {
           } else {
             pending.resolve(msg.data);
           }
+        } else {
+          logger.warn('Figma bridge: response for unknown request', { userId, requestId: msg.requestId });
         }
         break;
       }
@@ -128,11 +131,13 @@ class FigmaBridgeService extends EventEmitter {
       this.pendingRequests.set(requestId, { resolve, reject, timer });
 
       try {
-        conn.ws.send(JSON.stringify({
+        const payload = JSON.stringify({
           type: 'figma:request',
           requestId,
           command,
-        }));
+        });
+        logger.info('Figma bridge: sending command', { userId, requestId, action: command.action });
+        conn.ws.send(payload);
       } catch (err) {
         this.pendingRequests.delete(requestId);
         clearTimeout(timer);

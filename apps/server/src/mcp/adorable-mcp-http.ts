@@ -232,8 +232,12 @@ const tools: ToolDef[] = [
     inputSchema: { type: 'object', properties: {} },
     async handler(_args, userId) {
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
-      const result = await figmaBridge.sendCommand(userId, { action: 'get_selection' });
-      return textResult(JSON.stringify(result, null, 2));
+      try {
+        const result = await figmaBridge.sendCommand(userId, { action: 'get_selection' });
+        return textResult(JSON.stringify(result, null, 2));
+      } catch (err: unknown) {
+        return textResult(`Figma error: ${err instanceof Error ? err.message : String(err)}`, true);
+      }
     },
   },
   {
