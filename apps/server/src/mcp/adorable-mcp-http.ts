@@ -39,22 +39,23 @@ function slimReplacer(key: string, val: unknown): unknown {
   return val;
 }
 
-const MAX_FIGMA_RESPONSE_KB = 200;
+// Claude Code handles large contexts well — don't truncate aggressively.
+// The built-in provider sends the full node tree without truncation.
+const MAX_FIGMA_RESPONSE_KB = 1024; // 1MB — generous, Claude Code can handle it
 
 /**
- * Truncate a Figma result to stay within token limits.
- * Removes deep children first, then truncates the JSON string.
+ * Truncate a Figma result only if truly massive.
+ * With the SSE fixes in place, large responses flow through reliably.
  */
 function truncateFigmaResult(result: unknown, maxKB = MAX_FIGMA_RESPONSE_KB): string {
-  // First try full slim result
-  let json = JSON.stringify(result, slimReplacer);
+  const json = JSON.stringify(result, slimReplacer);
   if (json.length <= maxKB * 1024) return json;
 
-  // Too large — limit children depth progressively
-  for (const depth of [8, 6, 4, 3]) {
+  // Only prune if over 1MB — progressively reduce depth
+  for (const depth of [12, 10, 8, 6]) {
     const pruned = pruneDepth(result, depth);
-    json = JSON.stringify(pruned, slimReplacer);
-    if (json.length <= maxKB * 1024) return json;
+    const prunedJson = JSON.stringify(pruned, slimReplacer);
+    if (prunedJson.length <= maxKB * 1024) return prunedJson;
   }
 
   // Last resort — hard truncate
@@ -317,7 +318,7 @@ const tools: ToolDef[] = [
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
       return serialFigmaCall(async () => {
         const result = await figmaBridge.sendCommand(userId, { action: 'get_node', nodeId: args.nodeId as string, depth: args.depth as number | undefined });
-        return textResult(truncateFigmaResult(result, 500));
+        return textResult(truncateFigmaResult(result));
       });
     },
   },
