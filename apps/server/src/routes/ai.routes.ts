@@ -225,6 +225,11 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
       effectiveApiKey = 'sap-managed';
     }
 
+    // Claude Code uses the user's local CLI subscription — no API key needed
+    if (provider === 'claude-code') {
+      effectiveApiKey = 'claude-code-local';
+    }
+
     if (!effectiveApiKey) {
       return res.status(400).send({ error: `No API Key provided for ${provider}. Please enter one in settings.` });
     }

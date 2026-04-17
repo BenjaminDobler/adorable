@@ -22,8 +22,16 @@ class FigmaBridgeService extends EventEmitter {
   private pendingRequests = new Map<string, PendingRequest>();
 
   handleConnection(ws: WebSocket, userId: string) {
-    // Close existing connection for this user
+    // If there's an active, healthy connection for this user, reject the new one
+    // to prevent reconnection loops (e.g. when Claude Code opens a WebSocket via Bash)
     const existing = this.connections.get(userId);
+    if (existing && existing.ws.readyState === WebSocket.OPEN) {
+      logger.info('Figma bridge: rejecting duplicate connection', { userId });
+      ws.close(1000, 'Existing connection is active');
+      return;
+    }
+
+    // Close stale connection if any
     if (existing) {
       existing.ws.close(1000, 'Replaced by new connection');
     }

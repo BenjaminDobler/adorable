@@ -92,6 +92,9 @@ model Project {
   // External project (desktop only — open existing folder)
   externalPath        String?   // Absolute path to external project directory
 
+  // Claude Code integration (desktop only)
+  claudeCodeSessionId String?   // Claude Code CLI session ID for --resume
+
   // Cloud Sync (desktop ↔ cloud)
   cloudProjectId      String?   // On desktop: the cloud project's ID
   cloudCommitSha      String?   // Last synced cloud commit SHA
