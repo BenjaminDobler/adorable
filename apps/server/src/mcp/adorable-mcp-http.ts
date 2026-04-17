@@ -392,6 +392,16 @@ const toolMap = new Map(tools.map(t => [t.name, t]));
 interface Session {
   res: any;
   userId?: string;
+  writeQueue: Promise<void>;
+}
+
+/** Serialize writes to an SSE session to prevent interleaved responses */
+function sessionWrite(session: Session, data: string): void {
+  session.writeQueue = session.writeQueue.then(() => {
+    return new Promise<void>((resolve) => {
+      session.res.write(data, () => resolve());
+    });
+  }).catch(() => {});
 }
 
 const sessions = new Map<string, Session>();
@@ -409,7 +419,7 @@ router.get('/', (req: any, res) => {
   // Send the endpoint URI for posting messages
   res.write(`event: endpoint\ndata: /mcp/message?sessionId=${sessionId}\n\n`);
 
-  sessions.set(sessionId, { res, userId });
+  sessions.set(sessionId, { res, userId, writeQueue: Promise.resolve() });
 
   // SSE keepalive — send a comment every 15s to prevent connection timeout
   const keepalive = setInterval(() => {
@@ -440,9 +450,8 @@ router.post('/message', async (req: any, res) => {
   try {
     const response = await handleJsonRpc(msg, session.userId);
     if (response) {
-      // Send response via SSE — use compact JSON (no pretty-print)
       const json = JSON.stringify(response);
-      session.res.write(`event: message\ndata: ${json}\n\n`);
+      sessionWrite(session, `event: message\ndata: ${json}\n\n`);
     }
     res.status(202).send('Accepted');
   } catch (err: unknown) {
