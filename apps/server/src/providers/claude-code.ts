@@ -142,6 +142,16 @@ export class ClaudeCodeProvider implements LLMProvider {
       }
     };
 
+    // ── Safety timeout: kill if process runs too long (5 min) ────
+    const processTimeout = setTimeout(() => {
+      if (!child.killed) {
+        console.warn('[ClaudeCode] Process timeout (5 min), killing');
+        callbacks.onText?.('\n\n*[Generation timed out after 5 minutes]*');
+        killChild();
+      }
+    }, 5 * 60 * 1000);
+    child.on('close', () => clearTimeout(processTimeout));
+
     // Store kill function so the route can call it on disconnect
     (resultPromise as any).__killChild = killChild;
 
@@ -443,6 +453,7 @@ export class ClaudeCodeProvider implements LLMProvider {
       '--verbose',
       '--dangerously-skip-permissions',
       '--include-partial-messages',
+      '--max-budget-usd', '5',
     ];
 
     // Pass MCP config explicitly so Claude Code loads it without approval prompts
