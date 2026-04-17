@@ -369,16 +369,18 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
       const { figmaBridge } = await import('../services/figma-bridge.service');
       const figmaLiveConnected = figmaBridge.isConnected(user.id);
 
-      // Wire up cancellation for Claude Code (kill child process on client disconnect)
-      let generationPromise: any;
-      req.on('close', () => {
-        if (generationPromise?.__killChild) {
-          console.log('[ClaudeCode] Client disconnected, killing claude process');
-          generationPromise.__killChild();
+      // Wire up cancellation — kill claude process on client disconnect
+      const killFns: Array<() => void> = [];
+      const onClose = () => {
+        for (const fn of killFns) {
+          try { fn(); } catch { /* ignore */ }
         }
-      });
+        console.log(`[ClaudeCode] Client disconnected, killed ${killFns.length} process(es)`);
+      };
+      req.on('close', onClose);
+      res.on('close', onClose);
 
-      const result = await (generationPromise = llm.streamGenerate({
+      const generationPromise = llm.streamGenerate({
           prompt,
           previousFiles, // Still passed for fallback or initial context
           apiKey: effectiveApiKey,
@@ -450,8 +452,15 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
           onPreflightDecision: (decision) => {
               res.write(`data: ${JSON.stringify({ type: 'preflight_decision', decision })}\n\n`);
           }
-      }));
-      
+      });
+
+      // Capture kill function for cancellation
+      if ((generationPromise as any).__killChild) {
+        killFns.push((generationPromise as any).__killChild);
+      }
+
+      const result = await generationPromise;
+
       // Send result to client immediately — don't block on git.
       // DiskFileSystem already wrote all files to disk during the agentic loop,
       // so writeProjectFiles is unnecessary.
