@@ -14,6 +14,16 @@ import { figmaBridge } from '../services/figma-bridge.service';
 
 const router = Router();
 
+// ── Figma command serializer — the plugin can't handle parallel requests ──
+
+let figmaQueue: Promise<unknown> = Promise.resolve();
+
+function serialFigmaCall<T>(fn: () => Promise<T>): Promise<T> {
+  const next = figmaQueue.then(fn, fn); // always chain, even after errors
+  figmaQueue = next.catch(() => {}); // swallow to keep chain alive
+  return next;
+}
+
 // ── Figma JSON slimmer — strips empty/default values to reduce token usage ──
 
 function slimReplacer(key: string, val: unknown): unknown {
@@ -287,14 +297,16 @@ const tools: ToolDef[] = [
     inputSchema: { type: 'object', properties: {} },
     async handler(_args, userId) {
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
-      try {
-        const result = await figmaBridge.sendCommand(userId, { action: 'get_selection' });
-        const truncated = truncateFigmaResult(result);
-        console.log(`[MCP] figma_get_selection response: ${Math.round(truncated.length / 1024)}KB`);
-        return textResult(truncated);
-      } catch (err: unknown) {
-        return textResult(`Figma error: ${err instanceof Error ? err.message : String(err)}`, true);
-      }
+      return serialFigmaCall(async () => {
+        try {
+          const result = await figmaBridge.sendCommand(userId, { action: 'get_selection' });
+          const truncated = truncateFigmaResult(result);
+          console.log(`[MCP] figma_get_selection response: ${Math.round(truncated.length / 1024)}KB`);
+          return textResult(truncated);
+        } catch (err: unknown) {
+          return textResult(`Figma error: ${err instanceof Error ? err.message : String(err)}`, true);
+        }
+      });
     },
   },
   {
@@ -303,9 +315,10 @@ const tools: ToolDef[] = [
     inputSchema: { type: 'object', properties: { nodeId: { type: 'string' }, includeImage: { type: 'boolean' } }, required: ['nodeId'] },
     async handler(args, userId) {
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
-      const result = await figmaBridge.sendCommand(userId, { action: 'get_node', nodeId: args.nodeId as string, depth: args.depth as number | undefined });
-      // Higher limit for explicit node requests — user asked for this specific node
-      return textResult(truncateFigmaResult(result, 500));
+      return serialFigmaCall(async () => {
+        const result = await figmaBridge.sendCommand(userId, { action: 'get_node', nodeId: args.nodeId as string, depth: args.depth as number | undefined });
+        return textResult(truncateFigmaResult(result, 500));
+      });
     },
   },
   {
@@ -314,22 +327,23 @@ const tools: ToolDef[] = [
     inputSchema: { type: 'object', properties: { nodeId: { type: 'string' }, format: { type: 'string', enum: ['PNG', 'SVG'] }, scale: { type: 'number', description: 'Export scale. Default 0.5. Use 1 only for small elements.' } }, required: ['nodeId'] },
     async handler(args, userId) {
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
-      // Default to 0.5 scale to prevent huge images. Cap at 1.
-      const scale = Math.min(args.scale as number || 0.5, 1);
-      try {
-        const result = await figmaBridge.sendCommand(userId, { action: 'export_node', nodeId: args.nodeId as string, format: args.format as 'PNG' | 'SVG' | undefined, scale });
-        if (result?.image) {
-          const b64 = String(result.image).replace(/^data:image\/\w+;base64,/, '');
-          return imageResult(b64, 'image/png');
+      return serialFigmaCall(async () => {
+        const scale = Math.min(args.scale as number || 0.5, 1);
+        try {
+          const result = await figmaBridge.sendCommand(userId, { action: 'export_node', nodeId: args.nodeId as string, format: args.format as 'PNG' | 'SVG' | undefined, scale });
+          if (result?.image) {
+            const b64 = String(result.image).replace(/^data:image\/\w+;base64,/, '');
+            return imageResult(b64, 'image/png');
+          }
+          return textResult(JSON.stringify(result, slimReplacer));
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes('timed out')) {
+            return textResult(`Export timed out — the element is too large. Try exporting a smaller child node, or use scale=0.5.`, true);
+          }
+          return textResult(`Figma export error: ${msg}`, true);
         }
-        return textResult(JSON.stringify(result, slimReplacer));
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes('timed out')) {
-          return textResult(`Export timed out — the element is too large. Try exporting a smaller child node, or use scale=0.5.`, true);
-        }
-        return textResult(`Figma export error: ${msg}`, true);
-      }
+      });
     },
   },
   {
@@ -338,7 +352,7 @@ const tools: ToolDef[] = [
     inputSchema: { type: 'object', properties: { nodeId: { type: 'string' } }, required: ['nodeId'] },
     async handler(args, userId) {
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
-      return textResult(JSON.stringify(await figmaBridge.sendCommand(userId, { action: 'select_node', nodeId: args.nodeId as string }), slimReplacer, 2));
+      return serialFigmaCall(async () => textResult(JSON.stringify(await figmaBridge.sendCommand(userId, { action: 'select_node', nodeId: args.nodeId as string }), slimReplacer)));
     },
   },
   {
@@ -347,7 +361,7 @@ const tools: ToolDef[] = [
     inputSchema: { type: 'object', properties: { query: { type: 'string' }, types: { type: 'array', items: { type: 'string' } } }, required: ['query'] },
     async handler(args, userId) {
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
-      return textResult(JSON.stringify(await figmaBridge.sendCommand(userId, { action: 'search_nodes', query: args.query as string, types: args.types as string[] | undefined }), slimReplacer, 2));
+      return serialFigmaCall(async () => textResult(JSON.stringify(await figmaBridge.sendCommand(userId, { action: 'search_nodes', query: args.query as string, types: args.types as string[] | undefined }), slimReplacer)));
     },
   },
   {
@@ -356,7 +370,7 @@ const tools: ToolDef[] = [
     inputSchema: { type: 'object', properties: {} },
     async handler(_args, userId) {
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
-      return textResult(JSON.stringify(await figmaBridge.sendCommand(userId, { action: 'get_fonts' }), slimReplacer, 2));
+      return serialFigmaCall(async () => textResult(JSON.stringify(await figmaBridge.sendCommand(userId, { action: 'get_fonts' }), slimReplacer)));
     },
   },
   {
@@ -365,7 +379,7 @@ const tools: ToolDef[] = [
     inputSchema: { type: 'object', properties: {} },
     async handler(_args, userId) {
       if (!userId || !figmaBridge.isConnected(userId)) return textResult('Figma not connected', true);
-      return textResult(JSON.stringify(await figmaBridge.sendCommand(userId, { action: 'get_variables' }), slimReplacer, 2));
+      return serialFigmaCall(async () => textResult(JSON.stringify(await figmaBridge.sendCommand(userId, { action: 'get_variables' }), slimReplacer)));
     },
   },
 ];
