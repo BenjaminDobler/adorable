@@ -417,7 +417,24 @@ export class ClaudeCodeProvider implements LLMProvider {
     // === Kit ===
     if (options.activeKit) {
       parts.push(`### Component Kit: ${options.activeKit.name}`);
-      parts.push('Check `.adorable/components/` for component documentation and usage examples.');
+      parts.push('');
+      parts.push('This project uses a component library. **You MUST read the docs before using any component.**');
+      parts.push('');
+      parts.push('**Step 1:** Read `.adorable/components/README.md` — lists all available component docs.');
+      parts.push('**Step 2:** Read the doc for EVERY component you plan to use: `.adorable/components/{ComponentName}.md`');
+      parts.push('**Step 3:** Copy import paths and selectors exactly from the docs — NEVER guess them.');
+      parts.push('');
+      parts.push('**CRITICAL:** Import paths and HTML tags often DO NOT match (e.g., import `/list-item-standard` but tag is `<ui5-li>`). Always use BOTH the import path AND the selector from the docs.');
+      parts.push('');
+      parts.push('**If a build fails** on a component error: re-read its doc file. NEVER remove a library component and replace with plain HTML.');
+      if (options.activeKit.designTokens) {
+        parts.push('**Design tokens:** `.adorable/design-tokens.md`');
+      }
+      if (options.activeKit.systemPrompt) {
+        parts.push('');
+        parts.push('**Kit-specific instructions:**');
+        parts.push(options.activeKit.systemPrompt);
+      }
       parts.push('');
     }
 
