@@ -914,7 +914,10 @@ export class WorkspaceComponent implements AfterViewChecked {
 
   onMouseMove(event: MouseEvent) {
     if (this.isResizingSidebar) {
-      const newWidth = Math.max(250, Math.min(event.clientX, 800));
+      // Subtract the side-nav width so the resize handle stays under the cursor
+      const sidebar = document.querySelector('.sidebar') as HTMLElement;
+      const offset = sidebar ? sidebar.getBoundingClientRect().left : 0;
+      const newWidth = Math.max(250, Math.min(event.clientX - offset, 800));
       this.sidebarWidth.set(newWidth);
       return;
     }
