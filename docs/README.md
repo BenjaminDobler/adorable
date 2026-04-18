@@ -24,6 +24,7 @@ Welcome to Adorable — the AI-powered IDE for Angular. This guide covers all th
 ### Integrations
 - [Figma Integration](features/figma-integration.md) — Import designs from Figma
 - [Translations](features/translations.md) — Manage multi-language content
+- [Claude Code](features/claude-code.md) — Use Claude Code CLI as an AI provider (desktop)
 
 ### Desktop
 - [Desktop App](features/desktop-app.md) — Features specific to the desktop version
