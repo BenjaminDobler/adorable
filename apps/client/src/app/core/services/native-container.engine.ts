@@ -259,7 +259,8 @@ export class NativeContainerEngine extends ContainerEngine {
     const port = this.fixedPort();
     const fullArgs = [...devArgs, '--', `--port=${port}`];
     const res = await this.exec(cmd, fullArgs, {
-      stream: true
+      stream: true,
+      env: { ONG_ANNOTATE_TEMPLATES: 'true' },
     });
 
     // Resolve readiness patterns from preset or custom
