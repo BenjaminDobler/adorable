@@ -335,72 +335,86 @@ export class ClaudeCodeProvider implements LLMProvider {
 
   private buildClaudeMdSection(options: GenerateOptions): string {
     const parts: string[] = [];
+    const buildCommand = options.buildCommand || 'npx @richapps/ong build';
 
     parts.push('## Adorable IDE Context');
     parts.push('');
-    parts.push('This project is managed by Adorable IDE. You have access to MCP tools for browser inspection, Figma integration, and more.');
+    parts.push('You are working inside **Adorable IDE**, an AI-powered IDE for Angular.');
+    parts.push('Adorable manages the project scaffolding, dev server, and live preview.');
+    parts.push('**You are NOT building the IDE itself** — you are building the user\'s Angular app.');
     parts.push('');
 
-    // Angular project info
-    parts.push('### Project');
-    parts.push('- Framework: Angular 21 (standalone components, signals, zoneless change detection)');
-    parts.push('- Styling: SCSS');
+    // === Environment ===
+    parts.push('### Environment');
+    parts.push('- **Framework:** Angular 21 (standalone components, signals, zoneless change detection)');
+    parts.push('- **Styling:** SCSS (external stylesheets, not inline)');
+    parts.push('- **Templates:** External HTML files (not inline)');
+    parts.push(`- **Dev server:** Managed by Adorable (ONG). It auto-reloads on file changes. Do NOT start your own dev server.`);
+    parts.push(`- **Build command:** \`${buildCommand}\` — run this after changes to verify compilation.`);
+    parts.push('- **This is NOT an Electron app.** Adorable itself runs in Electron, but the project you\'re building is a standard Angular web app.');
     if (options.selectedApp) {
-      parts.push(`- Nx workspace app: ${options.selectedApp}`);
+      parts.push(`- **Nx workspace app:** ${options.selectedApp}`);
     }
     parts.push('');
 
-    // Build command
-    const buildCommand = options.buildCommand || 'npx @richapps/ong build';
-    parts.push('### Build');
-    parts.push(`- Build command: \`${buildCommand}\``);
-    parts.push('- **Always run the build command after making changes** to verify they compile correctly.');
+    // === Critical Rules ===
+    parts.push('### Critical Rules');
+    parts.push('');
+    parts.push('**RESTRICTED FILES — do NOT modify unless explicitly asked:**');
+    parts.push('- `package.json`, `angular.json`, `tsconfig.json`, `tsconfig.app.json`');
+    parts.push('- `src/index.html` contains Adorable runtime scripts between `<!-- ADORABLE_RUNTIME_SCRIPTS -->` markers. **NEVER modify or remove these.** You may add `<link>` tags for fonts/CSS in `<head>`.');
+    parts.push('');
+    parts.push('**CODE RULES:**');
+    parts.push('- Root component: `src/app/app.component.ts` with selector `app-root`');
+    parts.push('- Use standalone components with `imports` array (no NgModules)');
+    parts.push('- Use `inject()` for dependency injection (not constructor injection)');
+    parts.push('- Use signals for reactive state (`signal()`, `computed()`, `effect()`)');
+    parts.push('- Use `provideZonelessChangeDetection()` — all state must use signals for change detection to work');
+    parts.push('- Break complex UIs into smaller components. Avoid monolithic app.component.');
+    parts.push('- Use `write_files` (plural) to write all files in one batch when possible');
+    parts.push('- **ALWAYS run the build** after changes. Do NOT end without verifying compilation.');
+    parts.push('- **STOP when done.** Once the build passes, stop. Do not refactor or improve working code.');
     parts.push('');
 
-    // MCP Tools guidance
+    // === MCP Tools ===
     parts.push('### Available MCP Tools (via adorable server)');
     parts.push('');
-    parts.push('**Browser Preview Tools** — inspect the live preview of this Angular app:');
-    parts.push('- `browse_screenshot` — take a screenshot of the live preview');
-    parts.push('- `browse_evaluate` — run JavaScript in the preview');
-    parts.push('- `browse_console` — read console logs/errors');
+    parts.push('**Browser Preview** — the app is already running in Adorable\'s preview panel:');
+    parts.push('- `browse_screenshot` — capture the live preview (use after build to verify)');
+    parts.push('- `browse_console` — check for runtime errors');
+    parts.push('- `browse_evaluate` — run JS in the preview context');
     parts.push('- `browse_navigate` — navigate to a route');
-    parts.push('- `browse_click`, `type_text` — interact with the preview');
-    parts.push('- `inspect_component` — inspect Angular components (ONG annotations)');
+    parts.push('- `browse_click`, `type_text` — interact with the UI');
+    parts.push('- `inspect_component` — inspect Angular component tree (ONG annotations with source locations)');
     parts.push('- `inspect_styles`, `inspect_dom`, `measure_element` — inspect elements');
-    parts.push('- `inspect_routes`, `inspect_signals`, `inspect_errors` — inspect Angular runtime');
+    parts.push('- `inspect_routes`, `inspect_signals`, `inspect_errors` — inspect runtime');
     parts.push('');
 
-    // Figma tools
     if (options.figmaLiveConnected) {
-      parts.push('**Figma Live Bridge** — Figma is connected! You can read design specs directly:');
-      parts.push('- `figma_get_selection` — get the currently selected Figma nodes');
-      parts.push('- `figma_get_node` — get a specific node by ID');
-      parts.push('- `figma_export_node` — export as PNG or SVG');
+      parts.push('**Figma Live Bridge** — connected! Read design specs directly:');
+      parts.push('- `figma_get_fonts` — **call first** for correct CSS font-family/weight (Figma names ≠ CSS names)');
+      parts.push('- `figma_get_selection` — current selection structure');
+      parts.push('- `figma_get_node` — specific node by ID');
+      parts.push('- `figma_export_node` — export as PNG/SVG (use scale=0.5 for large nodes)');
       parts.push('- `figma_search_nodes` — search by name');
-      parts.push('- `figma_get_fonts` — get fonts with CSS equivalents (use cssFontFamily, not Figma names)');
-      parts.push('- `figma_get_variables` — get design tokens');
+      parts.push('- `figma_get_variables` — design tokens');
       parts.push('');
     }
 
-    // Skills
-    parts.push('**Skills & Lessons:**');
-    parts.push('- `activate_skill` — activate specialized instructions (e.g., "figma-bridge")');
-    parts.push('- `save_lesson` — save lessons learned about component patterns');
-    parts.push('');
-
-    // Preview route
     if (options.previewRoute) {
       parts.push(`### Current Preview Route: \`${options.previewRoute}\``);
       parts.push('');
     }
 
-    // Visual editing (ONG annotations)
-    parts.push('### Visual Editing (ONG Annotations)');
-    parts.push('Elements in the preview have ONG annotations with source file locations. Use `inspect_component` to find exact file:line:col for any element, then edit the source directly.');
-    parts.push('');
+    // === Visual Editing ===
+    if (!options.skipVisualEditingIds) {
+      parts.push('### Visual Editing');
+      parts.push('The preview uses ONG annotations for visual editing. Elements have source file locations.');
+      parts.push('Use `inspect_component` to find exact file:line:col for any element.');
+      parts.push('');
+    }
 
-    // Kit info
+    // === Kit ===
     if (options.activeKit) {
       parts.push(`### Component Kit: ${options.activeKit.name}`);
       parts.push('Check `.adorable/components/` for component documentation and usage examples.');
