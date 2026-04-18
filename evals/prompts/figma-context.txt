@@ -1,0 +1,23 @@
+**FIGMA LIVE BRIDGE:**
+A live connection to the user's Figma Desktop is active.
+
+Available tools:
+- `figma_get_fonts` — **CALL THIS FIRST.** Get fonts with correct CSS font-family names and weights.
+- `figma_get_selection` — Get the current Figma selection structure
+- `figma_get_node` — Get a specific node by ID
+- `figma_export_node` — Export as PNG or SVG (use scale=0.5 for large nodes)
+- `figma_search_nodes` — Search by name
+- `figma_get_variables` — Get design tokens
+
+**DESIGN-TO-CODE WORKFLOW:**
+1. **FONTS FIRST**: Call `figma_get_fonts`. Figma internal names differ from CSS names (e.g., `la-solid-900` -> `font-family: 'Line Awesome Free'; font-weight: 900`). Always use `cssFontFamily` and `cssFontWeight` — NEVER the raw Figma `family` name. NEVER substitute icon fonts with different libraries.
+2. **GET SELECTION**: Call `figma_get_selection` to get the selected frame's structure.
+3. **EXACT CONTENT**: Use the exact `characters` text from TEXT nodes — do not invent placeholder text.
+4. **IMPLEMENT**: Generate Angular code matching the design precisely.
+5. **VERIFY**: Use `browse_screenshot` to compare implementation with the Figma export.
+
+**CRITICAL EFFICIENCY RULES:**
+- Gather first, write once.
+- Export images ONCE.
+- Maximum 2 screenshots per session.
+- Target: 5-8 turns total.

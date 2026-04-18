@@ -1,0 +1,282 @@
+# Adorable AI Prompt Evaluation Suite
+# Run: npx promptfoo eval -c evals/promptfooconfig.yaml
+# View: npx promptfoo view
+
+description: "Adorable IDE — AI prompt quality and regression tests"
+
+prompts:
+  - id: adorable-system
+    raw: "{{system_prompt}}\n\n{{context}}\n\nUser request: {{prompt}}"
+
+providers:
+  - id: anthropic:messages:claude-sonnet-4-5-20250929
+    config:
+      max_tokens: 4096
+      temperature: 0
+
+# Default test variables — can be overridden per test
+defaultTest:
+  vars:
+    system_prompt: file://prompts/system-prompt.txt
+    context: file://prompts/default-context.txt
+
+tests:
+  # ═══════════════════════════════════════════════════════════════
+  # Angular Conventions
+  # ═══════════════════════════════════════════════════════════════
+
+  - description: "angular-conventions: Uses standalone components"
+    vars:
+      prompt: "Create a user profile component that shows a name, email, and avatar"
+    assert:
+      - type: contains
+        value: "standalone: true"
+      - type: not-contains
+        value: "NgModule"
+      - type: contains
+        value: "signal"
+      - type: llm-rubric
+        value: "The code uses Angular standalone components (not NgModules) with the imports array on the @Component decorator"
+
+  - description: "angular-conventions: Uses inject() not constructor DI"
+    vars:
+      prompt: "Create a service that fetches user data from an API and a component that uses it"
+    assert:
+      - type: contains
+        value: "inject("
+      - type: not-contains
+        value: "constructor(private"
+      - type: llm-rubric
+        value: "The code uses inject() function for dependency injection, not constructor parameter injection"
+
+  - description: "angular-conventions: Uses signals for state"
+    vars:
+      prompt: "Create a counter component with increment, decrement, and reset buttons"
+    assert:
+      - type: contains
+        value: "signal("
+      - type: not-contains
+        value: "BehaviorSubject"
+        metric: prefer-signals
+      - type: llm-rubric
+        value: "The component uses Angular signals (signal(), computed()) for reactive state, not RxJS BehaviorSubject or plain properties"
+
+  - description: "angular-conventions: Uses new control flow syntax"
+    vars:
+      prompt: "Create a component that shows a list of items with a loading state and empty state"
+    assert:
+      - type: contains
+        value: "@if"
+      - type: contains
+        value: "@for"
+      - type: not-contains
+        value: "*ngIf"
+      - type: not-contains
+        value: "*ngFor"
+
+  - description: "angular-conventions: External templates and styles"
+    vars:
+      prompt: "Create a dashboard component with a header, sidebar, and main content area"
+    assert:
+      - type: llm-rubric
+        value: "The component uses external template file (templateUrl pointing to .html) and external stylesheet (styleUrl pointing to .scss or .css), NOT inline template or inline styles"
+
+  # ═══════════════════════════════════════════════════════════════
+  # Restricted Files
+  # ═══════════════════════════════════════════════════════════════
+
+  - description: "restricted-files: Does not modify package.json"
+    vars:
+      prompt: "Add a chart library and create a bar chart component"
+    assert:
+      - type: not-contains
+        value: '"dependencies"'
+      - type: not-contains
+        value: "package.json"
+        metric: avoids-package-json
+      - type: llm-rubric
+        value: "The response does NOT include modifications to package.json. It should create Angular components using available tools, not modify project configuration files."
+
+  - description: "restricted-files: Preserves runtime scripts in index.html"
+    vars:
+      prompt: "Add a Google Fonts link to index.html for the Inter font"
+      context: |
+        file://prompts/default-context.txt
+
+        Current src/index.html:
+        ```html
+        <!doctype html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>My App</title>
+        </head>
+        <body>
+          <app-root></app-root>
+          <!-- ADORABLE_RUNTIME_SCRIPTS -->
+          <script>/* adorable runtime */</script>
+          <!-- /ADORABLE_RUNTIME_SCRIPTS -->
+        </body>
+        </html>
+        ```
+    assert:
+      - type: contains
+        value: "ADORABLE_RUNTIME_SCRIPTS"
+      - type: contains
+        value: "fonts.googleapis.com"
+      - type: llm-rubric
+        value: "The response adds a font link in the <head> while preserving the ADORABLE_RUNTIME_SCRIPTS block completely unchanged in the <body>"
+
+  # ═══════════════════════════════════════════════════════════════
+  # Kit Usage
+  # ═══════════════════════════════════════════════════════════════
+
+  - description: "kit-usage: Reads component docs before coding"
+    vars:
+      prompt: "Create a data table showing a list of products with name, price, and stock columns"
+      context: |
+        file://prompts/default-context.txt
+
+        --- Component Library: UI5 Web Components ---
+        This project uses the UI5 Web Components library.
+
+        **MANDATORY — Component Documentation (READ BEFORE CODING):**
+        **Step 1: Read docs BEFORE writing any code.**
+        - Read `.adorable/components/README.md` first
+        - Then read the docs for EVERY component you plan to use
+        **Step 2: Only use components whose docs you have read.**
+        - NEVER guess import paths, export names, selectors, or APIs.
+        **CRITICAL: Import paths and HTML tags often DO NOT match.**
+    assert:
+      - type: llm-rubric
+        value: "The response mentions reading or referencing .adorable/components/ documentation files BEFORE writing the component code. It should NOT guess import paths."
+
+  - description: "kit-usage: Does not guess import paths"
+    vars:
+      prompt: "Create a form with a text input and a date picker using the component library"
+      context: |
+        file://prompts/default-context.txt
+
+        --- Component Library: UI5 Web Components ---
+        **CRITICAL: Import paths and HTML tags often DO NOT match.**
+        For example, the import path might be `/text-area` while the HTML tag is `<ui5-textarea>`.
+        Always copy BOTH the import path AND the selector exactly from the doc.
+
+        **Step 3: Fix build errors by reading docs, NEVER by removing components.**
+    assert:
+      - type: llm-rubric
+        value: "The response either references reading component documentation first, or uses import paths that look like they came from docs (not guessed). It should NOT remove or replace library components with plain HTML."
+
+  # ═══════════════════════════════════════════════════════════════
+  # Figma Workflow
+  # ═══════════════════════════════════════════════════════════════
+
+  - description: "figma-workflow: Calls get_fonts before coding"
+    vars:
+      prompt: "Recreate the selected Figma element as an Angular component"
+      context: |
+        file://prompts/default-context.txt
+        file://prompts/figma-context.txt
+    assert:
+      - type: llm-rubric
+        value: "The response plan mentions calling figma_get_fonts FIRST before writing any code, and mentions using cssFontFamily (not Figma's internal font names) for CSS font-family values"
+
+  - description: "figma-workflow: Does not substitute icon fonts"
+    vars:
+      prompt: "The Figma design uses Line Awesome icons. Implement the navigation with the correct icons."
+      context: |
+        file://prompts/default-context.txt
+        file://prompts/figma-context.txt
+
+        Font data from figma_get_fonts:
+        - family: "la-solid-900", cssFontFamily: "Line Awesome Free", cssFontWeight: 900
+        - cdn: "https://cdnjs.cloudflare.com/ajax/libs/line-awesome/1.3.0/line-awesome/css/line-awesome.min.css"
+    assert:
+      - type: contains
+        value: "Line Awesome"
+      - type: not-contains
+        value: "Font Awesome"
+      - type: not-contains
+        value: "Material Icons"
+      - type: llm-rubric
+        value: "Uses Line Awesome Free (from cssFontFamily), NOT Font Awesome or Material Icons. Uses the provided CDN URL."
+
+  - description: "figma-workflow: Uses exact text content from design"
+    vars:
+      prompt: |
+        Implement this Figma element. The TEXT nodes contain:
+        - "Welcome back, Sarah" (characters field)
+        - "Dashboard Overview" (characters field)
+        - "$12,450.00" (characters field)
+      context: |
+        file://prompts/default-context.txt
+        file://prompts/figma-context.txt
+    assert:
+      - type: contains
+        value: "Welcome back, Sarah"
+      - type: contains
+        value: "Dashboard Overview"
+      - type: contains
+        value: "$12,450.00"
+      - type: llm-rubric
+        value: "Uses the EXACT text content from the Figma TEXT nodes. Does NOT invent placeholder text like 'Lorem ipsum' or 'John Doe'."
+
+  # ═══════════════════════════════════════════════════════════════
+  # Efficiency
+  # ═══════════════════════════════════════════════════════════════
+
+  - description: "efficiency: Batches file writes"
+    vars:
+      prompt: "Create a product catalog with a list component, detail component, and a shared product service"
+    assert:
+      - type: llm-rubric
+        value: "The response creates all files (component .ts, .html, .scss, service .ts) in as few write operations as possible — ideally one batch write_files call, not individual write_file calls for each file"
+
+  - description: "efficiency: Does not over-explore"
+    vars:
+      prompt: "Change the primary button color to #3B82F6"
+      context: |
+        file://prompts/default-context.txt
+
+        Current File Structure:
+        src/app/app.component.ts
+        src/app/app.component.html
+        src/app/app.component.scss
+        src/app/app.routes.ts
+        src/app/app.config.ts
+    assert:
+      - type: llm-rubric
+        value: "For this simple style change, the response should directly modify the relevant .scss file without listing directories, reading unrelated files, or doing unnecessary exploration. It should start writing code quickly."
+
+  # ═══════════════════════════════════════════════════════════════
+  # Claude Code CLAUDE.md Context
+  # ═══════════════════════════════════════════════════════════════
+
+  - description: "claude-code-context: Understands it's not building Electron"
+    vars:
+      prompt: "How is this app served? What kind of app is this?"
+      context: file://prompts/claude-md-context.txt
+    assert:
+      - type: not-contains
+        value: "Electron"
+        metric: no-electron-confusion
+      - type: llm-rubric
+        value: "The response correctly identifies this as a standard Angular web app served by Adorable IDE's dev server (ONG). It should NOT say this is an Electron app."
+
+  - description: "claude-code-context: Knows dev server is managed"
+    vars:
+      prompt: "Start the dev server for this project"
+      context: file://prompts/claude-md-context.txt
+    assert:
+      - type: llm-rubric
+        value: "The response should explain that the dev server is already managed by Adorable IDE and the user does NOT need to start it manually. It should NOT run ng serve or npm start."
+
+  - description: "claude-code-context: Knows about MCP tools"
+    vars:
+      prompt: "Can you take a screenshot of the running app?"
+      context: file://prompts/claude-md-context.txt
+    assert:
+      - type: contains
+        value: "browse_screenshot"
+      - type: llm-rubric
+        value: "The response mentions using the browse_screenshot MCP tool to capture the live preview, NOT taking a screenshot via Bash/Chrome/puppeteer"

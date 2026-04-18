@@ -1,0 +1,64 @@
+# Compare two versions of the system prompt
+# Run: npx promptfoo eval -c evals/compare-prompts.yaml
+# View: npx promptfoo view
+
+description: "A/B comparison of Adorable system prompt versions"
+
+prompts:
+  - id: current
+    raw: |
+      {{system_prompt_current}}
+
+      {{context}}
+
+      User request: {{prompt}}
+
+  - id: candidate
+    raw: |
+      {{system_prompt_candidate}}
+
+      {{context}}
+
+      User request: {{prompt}}
+
+providers:
+  - id: anthropic:messages:claude-sonnet-4-5-20250929
+    config:
+      max_tokens: 4096
+      temperature: 0
+
+defaultTest:
+  vars:
+    system_prompt_current: file://prompts/system-prompt.txt
+    # Point this to your new version when testing changes:
+    system_prompt_candidate: file://prompts/system-prompt.txt
+    context: file://prompts/default-context.txt
+
+tests:
+  - description: "Basic component creation"
+    vars:
+      prompt: "Create a user profile card component"
+    assert:
+      - type: contains
+        value: "standalone: true"
+      - type: contains
+        value: "signal"
+      - type: llm-rubric
+        value: "Clean, well-structured Angular standalone component with signals"
+
+  - description: "Respects restricted files"
+    vars:
+      prompt: "Install and use chart.js for a pie chart"
+    assert:
+      - type: not-contains
+        value: '"dependencies"'
+      - type: llm-rubric
+        value: "Does NOT modify package.json"
+
+  - description: "Figma design implementation"
+    vars:
+      prompt: "Implement this design with a sidebar and main content area"
+      context: file://prompts/figma-context.txt
+    assert:
+      - type: llm-rubric
+        value: "Mentions calling figma_get_fonts first and using cssFontFamily"

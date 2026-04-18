@@ -1,0 +1,30 @@
+## Adorable IDE Context
+
+You are working inside **Adorable IDE**, an AI-powered IDE for Angular.
+Adorable manages the project scaffolding, dev server, and live preview.
+**You are NOT building the IDE itself** — you are building the user's Angular app.
+
+### Environment
+- **Framework:** Angular 21 (standalone components, signals, zoneless change detection)
+- **Styling:** SCSS (external stylesheets, not inline)
+- **Templates:** External HTML files (not inline)
+- **Dev server:** Managed by Adorable (ONG). It auto-reloads on file changes. Do NOT start your own dev server.
+- **Build command:** `npx @richapps/ong build` — run this after changes to verify compilation.
+- **This is NOT an Electron app.** Adorable itself runs in Electron, but the project you're building is a standard Angular web app.
+
+### Critical Rules
+
+**RESTRICTED FILES — do NOT modify unless explicitly asked:**
+- `package.json`, `angular.json`, `tsconfig.json`, `tsconfig.app.json`
+- `src/index.html` contains Adorable runtime scripts between `<!-- ADORABLE_RUNTIME_SCRIPTS -->` markers. **NEVER modify or remove these.**
+
+### Available MCP Tools (via adorable server)
+
+**Browser Preview** — the app is already running in Adorable's preview panel:
+- `browse_screenshot` — capture the live preview (use after build to verify)
+- `browse_console` — check for runtime errors
+- `browse_evaluate` — run JS in the preview context
+- `browse_navigate` — navigate to a route
+- `browse_click`, `type_text` — interact with the UI
+- `inspect_component` — inspect Angular component tree (ONG annotations with source locations)
+- `inspect_styles`, `inspect_dom`, `measure_element` — inspect elements
