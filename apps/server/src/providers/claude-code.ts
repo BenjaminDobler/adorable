@@ -64,10 +64,14 @@ export class ClaudeCodeProvider implements LLMProvider {
       : this.buildPrompt(options);
 
     // ── 7. Handle images ───────────────────────────────────────────
+    // Write images to project's .adorable/ dir so Claude Code can read them.
+    // Claude Code has no --image flag — reference them in the prompt instead.
     const tempImagePaths: string[] = [];
     if (options.images?.length) {
+      const imgDir = path.join(projectPath, '.adorable', 'images');
+      if (!fs.existsSync(imgDir)) fs.mkdirSync(imgDir, { recursive: true });
       for (let i = 0; i < options.images.length; i++) {
-        const imgPath = await this.writeImageToTemp(options.images[i], i);
+        const imgPath = await this.writeImageToProject(options.images[i], imgDir, i);
         if (imgPath) tempImagePaths.push(imgPath);
       }
     }
@@ -443,6 +447,18 @@ export class ClaudeCodeProvider implements LLMProvider {
       parts.push('\n</open_files>');
     }
 
+    // Add image references (Claude Code reads them via its Read tool)
+    if (options.images?.length) {
+      const imgDir = path.join('.adorable', 'images');
+      parts.push('\n\n<attached_images>');
+      parts.push('The user attached the following images. Use the Read tool to view them:');
+      for (let i = 0; i < options.images.length; i++) {
+        const ext = options.images[i].match(/^data:image\/(\w+)/)?.[1] || 'png';
+        parts.push(`- ${imgDir}/image-${i}.${ext}`);
+      }
+      parts.push('</attached_images>');
+    }
+
     // Add history context
     if (options.history?.length) {
       parts.push('\n\n<previous_conversation>');
@@ -487,28 +503,22 @@ export class ClaudeCodeProvider implements LLMProvider {
       args.push('--model', model);
     }
 
-    // Attach images if present
-    if (imagePaths?.length) {
-      for (const imgPath of imagePaths) {
-        args.push('--image', imgPath);
-      }
-    }
+    // Images are referenced in the prompt, not via CLI flags
 
     return args;
   }
 
-  private async writeImageToTemp(dataUri: string, index: number): Promise<string | null> {
+  private async writeImageToProject(dataUri: string, imgDir: string, index: number): Promise<string | null> {
     try {
-      // Parse data URI: data:image/png;base64,<data>
       const match = dataUri.match(/^data:image\/(\w+);base64,(.+)$/);
       if (!match) return null;
 
       const ext = match[1];
       const base64 = match[2];
       const buffer = Buffer.from(base64, 'base64');
-      const tmpPath = path.join(os.tmpdir(), `adorable-img-${Date.now()}-${index}.${ext}`);
-      fs.writeFileSync(tmpPath, buffer);
-      return tmpPath;
+      const imgPath = path.join(imgDir, `image-${index}.${ext}`);
+      fs.writeFileSync(imgPath, buffer);
+      return imgPath;
     } catch {
       return null;
     }
