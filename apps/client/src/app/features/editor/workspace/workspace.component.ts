@@ -140,6 +140,8 @@ export class WorkspaceComponent implements AfterViewChecked {
   selectedFilePath = signal('');
 
   sidebarWidth = signal(400);
+  sidebarCollapsed = signal(false);
+  private lastSidebarWidth = 400;
   sidebarPopoverOpen = signal(false);
   editorHeight = signal(50);
   editorSplitDirection = signal<'horizontal' | 'vertical'>('horizontal');
@@ -893,6 +895,21 @@ export class WorkspaceComponent implements AfterViewChecked {
   startResizing(event: MouseEvent) {
     this.isResizingEditor = true;
     event.preventDefault();
+  }
+
+  toggleTab(tab: 'chat' | 'terminal' | 'files' | 'figma' | 'versions' | 'insights' | 'translations' | 'devtools' | 'tools' | 'settings') {
+    if (this.activeTab() === tab && !this.sidebarCollapsed()) {
+      // Clicking the active tab — collapse
+      this.lastSidebarWidth = this.sidebarWidth();
+      this.sidebarCollapsed.set(true);
+    } else {
+      // Clicking a different tab or re-opening
+      this.activeTab.set(tab);
+      if (this.sidebarCollapsed()) {
+        this.sidebarWidth.set(this.lastSidebarWidth);
+        this.sidebarCollapsed.set(false);
+      }
+    }
   }
 
   startSidebarResizing(event: MouseEvent) {

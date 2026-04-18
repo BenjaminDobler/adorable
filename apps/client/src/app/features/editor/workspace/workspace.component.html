@@ -10,7 +10,7 @@
     <button
       class="nav-icon-btn"
       [class.active]="activeTab() === 'chat'"
-      (click)="activeTab.set('chat')"
+      (click)="toggleTab('chat')"
       title="Chat"
     >
       <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -20,7 +20,7 @@
     <button
       class="nav-icon-btn"
       [class.active]="activeTab() === 'terminal'"
-      (click)="activeTab.set('terminal')"
+      (click)="toggleTab('terminal')"
       title="Terminal"
     >
       <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -31,7 +31,7 @@
     <button
       class="nav-icon-btn"
       [class.active]="activeTab() === 'files'"
-      (click)="activeTab.set('files')"
+      (click)="toggleTab('files')"
       title="Files"
     >
       <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -41,7 +41,7 @@
     <button
       class="nav-icon-btn"
       [class.active]="activeTab() === 'figma'"
-      (click)="activeTab.set('figma')"
+      (click)="toggleTab('figma')"
       title="Figma"
     >
       <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -55,7 +55,7 @@
     <button
       class="nav-icon-btn"
       [class.active]="activeTab() === 'versions'"
-      (click)="activeTab.set('versions')"
+      (click)="toggleTab('versions')"
       title="Versions"
     >
       <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -66,7 +66,7 @@
     <button
       class="nav-icon-btn"
       [class.active]="activeTab() === 'insights'"
-      (click)="activeTab.set('insights')"
+      (click)="toggleTab('insights')"
       title="Insights"
     >
       <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -78,7 +78,7 @@
     <button
       class="nav-icon-btn"
       [class.active]="activeTab() === 'translations'"
-      (click)="activeTab.set('translations')"
+      (click)="toggleTab('translations')"
       title="i18n"
     >
       <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -91,7 +91,7 @@
     <button
       class="nav-icon-btn"
       [class.active]="activeTab() === 'devtools'"
-      (click)="activeTab.set('devtools')"
+      (click)="toggleTab('devtools')"
       title="DevTools"
     >
       <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -101,7 +101,7 @@
     <button
       class="nav-icon-btn"
       [class.active]="activeTab() === 'tools'"
-      (click)="activeTab.set('tools')"
+      (click)="toggleTab('tools')"
       title="Tool Tester"
     >
       <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -114,7 +114,7 @@
     <button
       class="nav-icon-btn"
       [class.active]="activeTab() === 'settings'"
-      (click)="activeTab.set('settings')"
+      (click)="toggleTab('settings')"
       title="Settings"
     >
       <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -124,7 +124,7 @@
     </button>
   </nav>
 
-  <aside class="sidebar" [style.width.px]="sidebarWidth()" [class.popover-open]="sidebarPopoverOpen()">
+  <aside class="sidebar" [style.width.px]="sidebarCollapsed() ? 0 : sidebarWidth()" [style.display]="sidebarCollapsed() ? 'none' : 'flex'" [class.popover-open]="sidebarPopoverOpen()">
     <div class="chat-section">
 
       @if (activeTab() === 'chat') {
@@ -226,7 +226,9 @@
     }
   </aside>
 
-  <div class="resizer-sidebar" (mousedown)="startSidebarResizing($event)"></div>
+  @if (!sidebarCollapsed()) {
+    <div class="resizer-sidebar" (mousedown)="startSidebarResizing($event)"></div>
+  }
 
   <main class="preview-area" [class.split-vertical]="activeTab() === 'files' && editorSplitDirection() === 'vertical'">
     <div
