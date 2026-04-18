@@ -70,6 +70,7 @@ export interface ChatMessage {
       cacheCreationCost: number;
       cacheReadCost: number;
       totalCost: number;
+      subscription?: boolean;
     };
   };
   status?: string;

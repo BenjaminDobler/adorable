@@ -35,6 +35,9 @@ import { sitesAuthRouter } from './routes/sites-auth.routes';
 import { sitesAccessControl } from './middleware/sites-auth';
 import { figmaBridge } from './services/figma-bridge.service';
 import { socialAuthRouter } from './routes/social-auth.routes';
+import { systemRouter } from './routes/system.routes';
+import { bridgeRouter } from './routes/bridge.routes';
+import { mcpAdorableRouter } from './mcp/adorable-mcp-http';
 // Native routes are handled by the desktop local agent, not the cloud server
 // import { nativeRouter } from './routes/native.routes';
 
@@ -55,6 +58,7 @@ app.use(async (req: any, res, next) => {
   // Skip proxy for API routes (except /api/proxy), static sites, assets, and client routes
   if (req.path.startsWith('/api/auth') ||
       (req.path.startsWith('/api') && !req.path.startsWith('/api/proxy')) ||
+      req.path.startsWith('/mcp') ||
       req.path.startsWith('/sites') ||
       req.path.startsWith('/api/sites') ||
       req.path.startsWith('/assets') ||
@@ -150,6 +154,13 @@ app.use('/api/admin', adminPublicRouter); // Public export download (no auth, to
 app.use('/api/admin', adminRouter);
 app.use('/api/sessions', sessionAnalyzerRouter);
 app.use('/api/teams', teamRouter);
+app.use('/api/system', systemRouter);
+// Adorable MCP server (always-on, Claude Code connects via URL)
+app.use('/mcp', mcpAdorableRouter);
+// Internal bridge API (desktop only — called by MCP server process)
+if (process.env['ADORABLE_DESKTOP_MODE'] === 'true') {
+  app.use('/api/internal/bridge', bridgeRouter);
+}
 // app.use('/api/native', nativeRouter); // Handled by desktop local agent
 
 // Production SPA fallback: serve client index.html for non-API, non-proxy routes.
@@ -225,7 +236,8 @@ server.on('upgrade', async (req, socket, head) => {
         figmaWss.handleUpgrade(req, socket, head, (ws) => {
           figmaBridge.handleConnection(ws, decoded.userId);
         });
-      } catch {
+      } catch (err) {
+        logger.error('Figma bridge: JWT verification failed', { error: (err as Error).message });
         socket.destroy();
       }
     } else if (code) {
@@ -239,11 +251,18 @@ server.on('upgrade', async (req, socket, head) => {
           ws.send(JSON.stringify({ type: 'figma:auth', token: result.token }));
         });
       } else {
+        logger.warn('Figma bridge: invalid connection code');
         socket.destroy();
       }
     } else {
       socket.destroy();
     }
+    return;
+  }
+
+  // Skip non-proxy paths (e.g. /mcp) — only proxy container-bound paths
+  if (!url.pathname.startsWith('/') || url.pathname.startsWith('/mcp') || url.pathname.startsWith('/api/')) {
+    socket.destroy();
     return;
   }
 

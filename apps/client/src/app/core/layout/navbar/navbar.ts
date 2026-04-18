@@ -555,7 +555,8 @@ export class NavbarComponent {
     profiles: [
       { id: 'anthropic', name: 'Anthropic (Claude)', provider: 'anthropic', apiKey: '', model: 'claude-sonnet-4-5-20250929' },
       { id: 'gemini', name: 'Google (Gemini)', provider: 'gemini', apiKey: '', model: 'gemini-2.5-flash' },
-      { id: 'figma', name: 'Figma', provider: 'figma', apiKey: '', model: '' }
+      { id: 'figma', name: 'Figma', provider: 'figma', apiKey: '', model: '' },
+      { id: 'claude-code', name: 'Claude Code (Local)', provider: 'claude-code', apiKey: '', model: 'sonnet' }
     ],
     activeProfileId: 'anthropic',
     themeSettings: this.themeService.getSettings()
@@ -610,7 +611,7 @@ export class NavbarComponent {
           });
 
           mergedProfiles.forEach(p => {
-            if (p.apiKey && p.provider !== 'figma') this.fetchSettingsModels(p);
+            if (p.apiKey && p.provider !== 'figma' && p.provider !== 'claude-code') this.fetchSettingsModels(p);
           });
         }
         this.settingsLoading.set(false);
@@ -709,6 +710,8 @@ export class NavbarComponent {
         this.toastService.show('Settings saved!', 'success');
         this.settingsSaving.set(false);
         this.settingsDialogOpen.set(false);
+        // Broadcast settings change so workspace picks it up
+        window.dispatchEvent(new CustomEvent('adorable-settings-saved'));
       },
       error: () => {
         this.toastService.show('Failed to save settings', 'error');

@@ -1,4 +1,4 @@
-import { Component, inject, input, output, signal } from '@angular/core';
+import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api';
 import { AppSettings, AIProfile, BuiltInToolConfig, SapAiCoreConfig } from '../profile.types';
@@ -38,8 +38,40 @@ export class ProvidersTabComponent {
     'gemini-2.5-pro'
   ];
 
+  claudeCodeModels = [
+    { id: 'sonnet', label: 'Sonnet (latest)' },
+    { id: 'opus', label: 'Opus (latest)' },
+    { id: 'haiku', label: 'Haiku (latest)' },
+    { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+    { id: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5' },
+    { id: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
+    { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
+  ];
+
+  // Claude Code status
+  claudeCodeStatus = signal<{ available: boolean; version?: string; desktopMode: boolean } | null>(null);
+  claudeCodeStatusLoading = signal(false);
+
   getAIProfiles(): AIProfile[] {
-    return this.settings().profiles.filter(p => p.provider !== 'figma');
+    return this.settings().profiles.filter(p => p.provider !== 'figma' && p.provider !== 'claude-code');
+  }
+
+  claudeCodeProfile = computed(() =>
+    this.settings().profiles.find(p => p.provider === 'claude-code') || null
+  );
+
+  checkClaudeCodeStatus() {
+    this.claudeCodeStatusLoading.set(true);
+    this.apiService.getClaudeCodeStatus().subscribe({
+      next: (status) => {
+        this.claudeCodeStatus.set(status);
+        this.claudeCodeStatusLoading.set(false);
+      },
+      error: () => {
+        this.claudeCodeStatus.set({ available: false, desktopMode: false });
+        this.claudeCodeStatusLoading.set(false);
+      },
+    });
   }
 
   testProviderConnection(profile: AIProfile) {

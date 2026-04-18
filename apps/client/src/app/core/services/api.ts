@@ -155,6 +155,15 @@ export class ApiService {
     return this.http.post<{ success: boolean; message?: string; error?: string }>(`${this.apiUrl}/test-provider`, config);
   }
 
+  // Claude Code
+  getClaudeCodeStatus(): Observable<{ available: boolean; version?: string; desktopMode: boolean }> {
+    return this.http.get<{ available: boolean; version?: string; desktopMode: boolean }>(`${this.apiUrl}/system/claude-code-status`);
+  }
+
+  clearClaudeCodeSession(projectId: string): Observable<{ success: boolean }> {
+    return this.http.post<{ success: boolean }>(`${this.apiUrl}/clear-claude-session/${projectId}`, {});
+  }
+
   // MCP Server methods
   testMcpConnection(config: {
     transport?: 'http' | 'stdio';

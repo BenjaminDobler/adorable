@@ -19,7 +19,7 @@ export interface DatabaseInitResult {
 // Bump LATEST_VERSION and add a new entry to `migrations` whenever the
 // Prisma schema changes.  Each migration is idempotent (uses addColumn /
 // tryExec helpers) so it's safe to re-run on any database state.
-const LATEST_VERSION = 11;
+const LATEST_VERSION = 12;
 
 type MigrationFn = (db: Database.Database) => void;
 
@@ -161,6 +161,13 @@ const migrations: Migration[] = [
       addColumn(db, 'Project', 'externalPath', 'TEXT');
     },
   },
+  {
+    version: 12,
+    name: 'Claude Code session tracking',
+    up(db) {
+      addColumn(db, 'Project', 'claudeCodeSessionId', 'TEXT');
+    },
+  },
 ];
 
 // ── Public API ──────────────────────────────────────────────────────
@@ -269,6 +276,7 @@ function createFreshSchema(db: Database.Database): void {
       "githubSyncEnabled" BOOLEAN NOT NULL DEFAULT 0,
       "githubPagesUrl" TEXT,
       "externalPath" TEXT,
+      "claudeCodeSessionId" TEXT,
       "cloudProjectId" TEXT,
       "cloudCommitSha" TEXT,
       "cloudLastSyncAt" DATETIME,

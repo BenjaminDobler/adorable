@@ -339,6 +339,25 @@ export class ChatComponent {
     profiles.forEach((profile: any) => {
        if (profile.provider === 'figma') return;
 
+       // Claude Code: add static model list (no API call)
+       if (profile.provider === 'claude-code') {
+         const ccModels = [
+           { id: 'sonnet', name: 'Claude Code - Sonnet (latest)', provider: 'claude-code' },
+           { id: 'opus', name: 'Claude Code - Opus (latest)', provider: 'claude-code' },
+           { id: 'haiku', name: 'Claude Code - Haiku (latest)', provider: 'claude-code' },
+           { id: 'claude-sonnet-4-6', name: 'Claude Code - Sonnet 4.6', provider: 'claude-code' },
+           { id: 'claude-sonnet-4-5-20250929', name: 'Claude Code - Sonnet 4.5', provider: 'claude-code' },
+           { id: 'claude-opus-4-6', name: 'Claude Code - Opus 4.6', provider: 'claude-code' },
+           { id: 'claude-haiku-4-5-20251001', name: 'Claude Code - Haiku 4.5', provider: 'claude-code' },
+         ];
+         this.availableModels.update(current => {
+           const existingIds = new Set(current.map(c => c.id));
+           const toAdd = ccModels.filter(n => !existingIds.has(n.id));
+           return [...current, ...toAdd];
+         });
+         return;
+       }
+
        if (profile.apiKey) {
           let providerParam = profile.provider;
           if (providerParam === 'gemini') providerParam = 'google';
@@ -850,8 +869,15 @@ Analyze the attached design images carefully and create matching Angular compone
       }
     }
 
+    // Model selector override
     const currentSelection = this.selectedModel();
     if (currentSelection && currentSelection.id) {
+      if (provider === 'claude-code') {
+        // Claude Code: only update model, keep provider as claude-code
+        if (currentSelection.provider === 'claude-code') {
+          model = currentSelection.id;
+        }
+      } else {
         provider = currentSelection.provider;
         model = currentSelection.id;
         if (settings?.profiles) {
@@ -861,6 +887,7 @@ Analyze the attached design images carefully and create matching Angular compone
                builtInTools = profileForProvider.builtInTools;
            }
         }
+      }
     }
 
     const allImages: string[] = [];
@@ -1136,15 +1163,22 @@ Analyze the attached design images carefully and create matching Angular compone
       }
     }
 
-    const currentSelection = this.selectedModel();
-    if (currentSelection && currentSelection.id) {
-      provider = currentSelection.provider;
-      model = currentSelection.id;
-      if (settings?.profiles) {
-        const profileForProvider = settings.profiles.find((p: any) => p.provider === provider);
-        if (profileForProvider) {
-          apiKey = profileForProvider.apiKey;
-          builtInTools = profileForProvider.builtInTools;
+    // Model selector override
+    const currentSelection2 = this.selectedModel();
+    if (currentSelection2 && currentSelection2.id) {
+      if (provider === 'claude-code') {
+        if (currentSelection2.provider === 'claude-code') {
+          model = currentSelection2.id;
+        }
+      } else {
+        provider = currentSelection2.provider;
+        model = currentSelection2.id;
+        if (settings?.profiles) {
+          const profileForProvider = settings.profiles.find((p: any) => p.provider === provider);
+          if (profileForProvider) {
+            apiKey = profileForProvider.apiKey;
+            builtInTools = profileForProvider.builtInTools;
+          }
         }
       }
     }
@@ -1195,6 +1229,12 @@ Analyze the attached design images carefully and create matching Angular compone
   clearContext() {
     this.contextSummary.set(null);
     this.contextCleared.set(true);
+
+    // Clear Claude Code session so next turn starts fresh
+    const projectId = this.projectService.projectId();
+    if (projectId) {
+      this.apiService.clearClaudeCodeSession(projectId).subscribe();
+    }
   }
 
   cancelGeneration() {

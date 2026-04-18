@@ -140,6 +140,8 @@ export class WorkspaceComponent implements AfterViewChecked {
   selectedFilePath = signal('');
 
   sidebarWidth = signal(400);
+  sidebarCollapsed = signal(false);
+  private lastSidebarWidth = 400;
   sidebarPopoverOpen = signal(false);
   editorHeight = signal(50);
   editorSplitDirection = signal<'horizontal' | 'vertical'>('horizontal');
@@ -196,6 +198,9 @@ export class WorkspaceComponent implements AfterViewChecked {
 
   constructor() {
     this.fetchSettings();
+
+    // Re-fetch settings when saved from the settings dialog
+    window.addEventListener('adorable-settings-saved', () => this.fetchSettings());
 
     // Track devtools panel visibility for DOM observer
     effect(() => {
@@ -892,6 +897,21 @@ export class WorkspaceComponent implements AfterViewChecked {
     event.preventDefault();
   }
 
+  toggleTab(tab: 'chat' | 'terminal' | 'files' | 'figma' | 'versions' | 'insights' | 'translations' | 'devtools' | 'tools' | 'settings') {
+    if (this.activeTab() === tab && !this.sidebarCollapsed()) {
+      // Clicking the active tab — collapse
+      this.lastSidebarWidth = this.sidebarWidth();
+      this.sidebarCollapsed.set(true);
+    } else {
+      // Clicking a different tab or re-opening
+      this.activeTab.set(tab);
+      if (this.sidebarCollapsed()) {
+        this.sidebarWidth.set(this.lastSidebarWidth);
+        this.sidebarCollapsed.set(false);
+      }
+    }
+  }
+
   startSidebarResizing(event: MouseEvent) {
     this.isResizingSidebar = true;
     event.preventDefault();
@@ -911,7 +931,10 @@ export class WorkspaceComponent implements AfterViewChecked {
 
   onMouseMove(event: MouseEvent) {
     if (this.isResizingSidebar) {
-      const newWidth = Math.max(250, Math.min(event.clientX, 800));
+      // Subtract the side-nav width so the resize handle stays under the cursor
+      const sidebar = document.querySelector('.sidebar') as HTMLElement;
+      const offset = sidebar ? sidebar.getBoundingClientRect().left : 0;
+      const newWidth = Math.max(250, Math.min(event.clientX - offset, 800));
       this.sidebarWidth.set(newWidth);
       return;
     }

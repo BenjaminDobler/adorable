@@ -15,15 +15,23 @@ interface FigmaConnection {
   fileName: string;
 }
 
-const REQUEST_TIMEOUT_MS = 15_000;
+const REQUEST_TIMEOUT_MS = 30_000;
 
 class FigmaBridgeService extends EventEmitter {
   private connections = new Map<string, FigmaConnection>();
   private pendingRequests = new Map<string, PendingRequest>();
 
   handleConnection(ws: WebSocket, userId: string) {
-    // Close existing connection for this user
+    // If there's an active, healthy connection for this user, reject the new one
+    // to prevent reconnection loops (e.g. when Claude Code opens a WebSocket via Bash)
     const existing = this.connections.get(userId);
+    if (existing && existing.ws.readyState === WebSocket.OPEN) {
+      logger.info('Figma bridge: rejecting duplicate connection', { userId });
+      ws.close(1000, 'Existing connection is active');
+      return;
+    }
+
+    // Close stale connection if any
     if (existing) {
       existing.ws.close(1000, 'Replaced by new connection');
     }
@@ -82,6 +90,8 @@ class FigmaBridgeService extends EventEmitter {
       }
 
       case 'figma:response': {
+        const rawSize = JSON.stringify(msg.data || '').length;
+        logger.info('Figma bridge: received response', { userId, requestId: msg.requestId, hasError: !!msg.error, sizeKB: Math.round(rawSize / 1024) });
         const pending = this.pendingRequests.get(msg.requestId);
         if (pending) {
           this.pendingRequests.delete(msg.requestId);
@@ -91,6 +101,8 @@ class FigmaBridgeService extends EventEmitter {
           } else {
             pending.resolve(msg.data);
           }
+        } else {
+          logger.warn('Figma bridge: response for unknown request', { userId, requestId: msg.requestId });
         }
         break;
       }
@@ -105,7 +117,7 @@ class FigmaBridgeService extends EventEmitter {
    */
   async sendCommand(userId: string, command: FigmaCommand): Promise<any> {
     const conn = this.connections.get(userId);
-    if (!conn) {
+    if (!conn || conn.ws.readyState !== WebSocket.OPEN) {
       throw new Error('Figma is not connected');
     }
 
@@ -119,11 +131,19 @@ class FigmaBridgeService extends EventEmitter {
 
       this.pendingRequests.set(requestId, { resolve, reject, timer });
 
-      conn.ws.send(JSON.stringify({
-        type: 'figma:request',
-        requestId,
-        command,
-      }));
+      try {
+        const payload = JSON.stringify({
+          type: 'figma:request',
+          requestId,
+          command,
+        });
+        logger.info('Figma bridge: sending command', { userId, requestId, action: command.action });
+        conn.ws.send(payload);
+      } catch (err) {
+        this.pendingRequests.delete(requestId);
+        clearTimeout(timer);
+        reject(new Error(`Figma WebSocket send failed: ${(err as Error).message}`));
+      }
     });
   }
 

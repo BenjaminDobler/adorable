@@ -74,6 +74,13 @@ export class ProfileComponent implements OnInit {
         provider: 'figma',
         apiKey: '',
         model: ''
+      },
+      {
+        id: 'claude-code',
+        name: 'Claude Code (Local)',
+        provider: 'claude-code',
+        apiKey: '',
+        model: 'sonnet'
       }
     ],
     activeProfileId: 'anthropic',
@@ -151,7 +158,7 @@ export class ProfileComponent implements OnInit {
         this.settings.set(newSettings);
 
         this.settings().profiles.forEach(p => {
-          if (p.apiKey && p.provider !== 'figma') this.fetchModels(p);
+          if (p.apiKey && p.provider !== 'figma' && p.provider !== 'claude-code') this.fetchModels(p);
         });
       }
     });

@@ -24,9 +24,10 @@ A live WebSocket connection to the user's Figma Desktop is active. You have dire
 3. **Analyze the structure**: The node tree maps roughly to HTML hierarchy — pay attention to auto-layout direction (horizontal = flexbox row, vertical = column), spacing/gap, padding, and alignment
 4. **Handle icon fonts**: TEXT nodes with `isIconFont: true` and `iconCodepoint` (e.g., `"U+F015"`) are icon glyphs. Render them using the `cssFontFamily` from `figma_get_fonts` and the codepoint as CSS `content` (e.g., `content: '\f015'`). Do NOT substitute with a different icon library.
 5. **Extract design tokens**: Use `figma_get_variables` to get theme colors, spacing, and typography tokens when available
-6. **Implement the component**: Write Angular code that matches the design precisely
-7. **Compare visually**: Use `browse_screenshot` to capture your implementation, then compare side-by-side with `figma_export_node`
-8. **Iterate**: Fix discrepancies and re-check until the implementation matches
+6. **Export carefully**: Do NOT export the full root component as PNG if it's large (>1000px). Instead, export individual child sections. Use `scale=0.5` for any exports. Large exports WILL timeout and hang the session.
+7. **Implement the component**: Write Angular code that matches the design precisely
+8. **Compare visually**: Use `browse_screenshot` to capture your implementation, then compare side-by-side with smaller child node exports
+9. **Iterate**: Fix discrepancies and re-check until the implementation matches
 
 ## Font Rules (Critical)
 
