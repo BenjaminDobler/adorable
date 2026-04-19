@@ -25,7 +25,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import * as crypto from 'crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -67,61 +66,19 @@ async function login() {
     process.exit(1);
   }
 
-  // Read JWT secret from .env and user ID from the SQLite database,
-  // then generate a valid JWT — no manual token setup needed.
-  const envPath = path.join(__dirname, '../../.env');
+  // Get a fresh token from the server's benchmark endpoint
   try {
-    const envContent = fs.readFileSync(envPath, 'utf-8');
-    const secretMatch = envContent.match(/JWT_SECRET="?([^"\n]+)"?/);
-    if (!secretMatch) throw new Error('JWT_SECRET not found in .env');
-    const secret = secretMatch[1];
-
-    // Find user ID from the desktop database
-    let userId = '';
-    const dbPaths = [
-      path.join(process.env.HOME || '', 'Library/Application Support/adorable-desktop/adorable.db'),
-      path.join(process.env.HOME || '', 'Library/Application Support/Electron/adorable.db'),
-    ];
-
-    for (const dbPath of dbPaths) {
-      if (!fs.existsSync(dbPath)) continue;
-      // Read the SQLite file and find the local user ID
-      // SQLite stores text fields that we can grep for
-      const raw = fs.readFileSync(dbPath, 'latin1');
-      const match = raw.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}).*?local@adorable\.desktop/);
-      if (match) {
-        userId = match[1];
-        break;
-      }
+    const res = await fetch(`${SERVER}/api/system/benchmark-token`);
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`${res.status}: ${body}`);
     }
-
-    if (!userId) {
-      // Fallback: use the Prisma dev database
-      const devDbPath = path.join(__dirname, '../../prisma/dev.db');
-      if (fs.existsSync(devDbPath)) {
-        const raw = fs.readFileSync(devDbPath, 'latin1');
-        const match = raw.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/);
-        if (match) userId = match[1];
-      }
-    }
-
-    if (!userId) throw new Error('Could not find user ID in database');
-
-    // Generate JWT
-    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-    const payload = Buffer.from(JSON.stringify({
-      userId,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    })).toString('base64url');
-    const signature = crypto.createHmac('sha256', secret)
-      .update(`${header}.${payload}`)
-      .digest('base64url');
-    authToken = `${header}.${payload}.${signature}`;
-    console.log(`Generated auth token for user ${userId}`);
+    const data = await res.json();
+    authToken = data.token;
+    console.log(`Got benchmark token for ${data.email} (${data.userId})`);
   } catch (err) {
     console.error(`Auth failed: ${err.message}`);
-    console.error('Set ADORABLE_TOKEN env var or ensure .env has JWT_SECRET and the database is accessible.');
+    console.error('Make sure the Adorable desktop app is running. Or set ADORABLE_TOKEN env var.');
     process.exit(1);
   }
 }

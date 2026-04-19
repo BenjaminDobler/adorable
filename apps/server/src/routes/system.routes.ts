@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { execFile } from 'child_process';
+import jwt from 'jsonwebtoken';
 import { authenticate } from '../middleware/auth';
+import { JWT_SECRET } from '../config';
+import { prisma } from '../db/prisma';
 
 const router = Router();
 
@@ -59,5 +62,27 @@ function getClaudeVersion(): Promise<string> {
     });
   });
 }
+
+/**
+ * GET /api/system/benchmark-token
+ *
+ * Returns a short-lived JWT for benchmark/eval scripts.
+ * Desktop mode only — uses the first local user.
+ */
+router.get('/benchmark-token', async (_req, res) => {
+  if (process.env['ADORABLE_DESKTOP_MODE'] !== 'true') {
+    return res.status(403).json({ error: 'Only available in desktop mode' });
+  }
+
+  try {
+    const user = await prisma.user.findFirst({ select: { id: true, email: true } });
+    if (!user) return res.status(500).json({ error: 'No users found' });
+
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token, userId: user.id, email: user.email });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 export { router as systemRouter };
