@@ -142,6 +142,7 @@ app.use('/api/projects', projectRouter);
 app.use('/api/github', githubRouter);  // Must be before aiRouter (which has global auth)
 app.use('/api/webhooks', webhooksRouter);  // Webhooks also don't need auth
 app.use('/api/context-preview', contextPreviewRouter);
+app.use('/api/system', systemRouter);  // Before aiRouter (which has global auth)
 app.use('/api', aiRouter);
 app.use('/api/container', containerRouter);
 app.use('/api/profile', profileRouter);
@@ -154,7 +155,6 @@ app.use('/api/admin', adminPublicRouter); // Public export download (no auth, to
 app.use('/api/admin', adminRouter);
 app.use('/api/sessions', sessionAnalyzerRouter);
 app.use('/api/teams', teamRouter);
-app.use('/api/system', systemRouter);
 // Adorable MCP server (always-on, Claude Code connects via URL)
 app.use('/mcp', mcpAdorableRouter);
 // Internal bridge API (desktop only — called by MCP server process)
