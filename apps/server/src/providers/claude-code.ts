@@ -88,9 +88,10 @@ export class ClaudeCodeProvider implements LLMProvider {
     const parser = new ClaudeCodeStreamParser(callbacks, projectPath);
     let stderrBuffer = '';
 
-    // Debug log: write raw claude output to a file for inspection
+    // Debug log: append raw claude output for inspection (preserves history across generations)
     const logPath = path.join(projectPath, '.adorable', 'claude-debug.log');
-    const logStream = fs.createWriteStream(logPath, { flags: 'w' });
+    const logStream = fs.createWriteStream(logPath, { flags: 'a' });
+    logStream.write(`\n${'='.repeat(80)}\n`);
     logStream.write(`[${new Date().toISOString()}] Claude Code started\n`);
     logStream.write(`[args] ${args.join(' ')}\n\n`);
     console.log(`[ClaudeCode] Debug log: ${logPath}`);
