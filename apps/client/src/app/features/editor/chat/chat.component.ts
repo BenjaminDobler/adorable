@@ -851,6 +851,7 @@ Analyze the attached design images carefully and create matching Angular compone
     let apiKey = '';
     let model = '';
     let builtInTools: { webSearch?: boolean, urlContext?: boolean } | undefined;
+    let hasFileWrites = false;
 
     const settings = this.appSettings();
     if (settings) {
@@ -1027,6 +1028,7 @@ Analyze the attached design images carefully and create matching Angular compone
              return newMsgs;
            });
         } else if (event.type === 'file_written') {
+           hasFileWrites = true;
            this.hmrTrigger.triggerUpdate(event.path, event.content);
            this.progressiveStore.updateProgress(event.path, event.content, true);
            this.projectService.fileStore.updateFile(event.path, event.content);
@@ -1084,6 +1086,12 @@ Analyze the attached design images carefully and create matching Angular compone
 
             this.projectService.fileStore.setFiles(projectFiles);
             this.loading.set(false);
+
+            // Claude Code writes files directly to disk — the dev server's HMR may get
+            // stuck on intermediate broken states. Force a preview reload after generation.
+            if (provider === 'claude-code' && hasFileWrites) {
+              setTimeout(() => this.hmrTrigger.forceReload(), 1500);
+            }
 
             // Background: summarize context if conversation is getting long
             const allMsgs = this.messages();
