@@ -25,6 +25,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import * as crypto from 'crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -55,39 +56,72 @@ const prompts = PROMPT_IDS.length > 0
 let authToken = process.env.ADORABLE_TOKEN || '';
 
 async function login() {
-  if (authToken) return; // already have a token
+  if (authToken) return;
 
-  // Desktop mode: read the token from Electron's localStorage DB
-  const dbPaths = [
-    path.join(process.env.HOME || '', 'Library/Application Support/adorable-desktop/Local Storage/leveldb'),
-    path.join(process.env.HOME || '', 'Library/Application Support/Electron/Local Storage/leveldb'),
-  ];
-
-  for (const dbPath of dbPaths) {
-    try {
-      // The token is stored in localStorage as 'adorable_token'
-      const files = fs.readdirSync(dbPath).filter(f => f.endsWith('.log') || f.endsWith('.ldb'));
-      for (const file of files) {
-        const content = fs.readFileSync(path.join(dbPath, file), 'latin1');
-        const match = content.match(/adorable_token[^\w]+(eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/);
-        if (match) {
-          authToken = match[1];
-          console.log('Found auth token from desktop app storage');
-          return;
-        }
-      }
-    } catch { /* not found */ }
-  }
-
-  // Last resort: try the health endpoint to verify server is reachable
+  // Verify server is reachable
   try {
     const res = await fetch(`${SERVER}/api/health`);
-    if (res.ok) {
-      console.warn('Warning: No auth token found. Requests may fail if server requires authentication.');
-      return;
+    if (!res.ok) throw new Error(`Health check failed: ${res.status}`);
+  } catch (err) {
+    console.error(`Cannot reach server at ${SERVER}: ${err.message}`);
+    process.exit(1);
+  }
+
+  // Read JWT secret from .env and user ID from the SQLite database,
+  // then generate a valid JWT — no manual token setup needed.
+  const envPath = path.join(__dirname, '../../.env');
+  try {
+    const envContent = fs.readFileSync(envPath, 'utf-8');
+    const secretMatch = envContent.match(/JWT_SECRET="?([^"\n]+)"?/);
+    if (!secretMatch) throw new Error('JWT_SECRET not found in .env');
+    const secret = secretMatch[1];
+
+    // Find user ID from the desktop database
+    let userId = '';
+    const dbPaths = [
+      path.join(process.env.HOME || '', 'Library/Application Support/adorable-desktop/adorable.db'),
+      path.join(process.env.HOME || '', 'Library/Application Support/Electron/adorable.db'),
+    ];
+
+    for (const dbPath of dbPaths) {
+      if (!fs.existsSync(dbPath)) continue;
+      // Read the SQLite file and find the local user ID
+      // SQLite stores text fields that we can grep for
+      const raw = fs.readFileSync(dbPath, 'latin1');
+      const match = raw.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}).*?local@adorable\.desktop/);
+      if (match) {
+        userId = match[1];
+        break;
+      }
     }
-  } catch {
-    console.error(`Cannot reach server at ${SERVER}`);
+
+    if (!userId) {
+      // Fallback: use the Prisma dev database
+      const devDbPath = path.join(__dirname, '../../prisma/dev.db');
+      if (fs.existsSync(devDbPath)) {
+        const raw = fs.readFileSync(devDbPath, 'latin1');
+        const match = raw.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/);
+        if (match) userId = match[1];
+      }
+    }
+
+    if (!userId) throw new Error('Could not find user ID in database');
+
+    // Generate JWT
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({
+      userId,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    })).toString('base64url');
+    const signature = crypto.createHmac('sha256', secret)
+      .update(`${header}.${payload}`)
+      .digest('base64url');
+    authToken = `${header}.${payload}.${signature}`;
+    console.log(`Generated auth token for user ${userId}`);
+  } catch (err) {
+    console.error(`Auth failed: ${err.message}`);
+    console.error('Set ADORABLE_TOKEN env var or ensure .env has JWT_SECRET and the database is accessible.');
     process.exit(1);
   }
 }
