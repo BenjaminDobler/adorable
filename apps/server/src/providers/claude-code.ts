@@ -374,7 +374,8 @@ export class ClaudeCodeProvider implements LLMProvider {
     parts.push('- Break complex UIs into smaller components. Avoid monolithic app.component.');
     parts.push('- Use `write_files` (plural) to write all files in one batch when possible');
     parts.push('- **ALWAYS run the build** after changes. Do NOT end without verifying compilation.');
-    parts.push('- **STOP when done.** Once the build passes, stop. Do not refactor or improve working code.');
+    parts.push('- **ALWAYS verify visually** after a successful build: use `browse_screenshot` to check the preview, and `browse_console` to check for runtime errors. If something looks wrong or there are errors, fix it before finishing.');
+    parts.push('- **STOP when done.** Once the build passes AND the screenshot looks correct, stop. Do not refactor or improve working code.');
     parts.push('');
 
     // === MCP Tools ===
@@ -423,11 +424,19 @@ export class ClaudeCodeProvider implements LLMProvider {
       parts.push('');
       parts.push('**Step 1:** Read `.adorable/components/README.md` — lists all available component docs.');
       parts.push('**Step 2:** Read the doc for EVERY component you plan to use: `.adorable/components/{ComponentName}.md`');
-      parts.push('**Step 3:** Copy import paths and selectors exactly from the docs — NEVER guess them.');
+      parts.push('**Step 3:** Pay attention to **all** doc sections — especially:');
+      parts.push('  - **Selector** — the exact HTML tag to use');
+      parts.push('  - **Import path** — often different from the tag name');
+      parts.push('  - **Slots** — named slots and default slot usage (wrong slot names cause silent failures)');
+      parts.push('  - **Properties/Attributes** — available inputs and their types');
+      parts.push('  - **Events** — available outputs and their payloads');
+      parts.push('**Step 4:** Copy import paths, selectors, and slot names exactly from the docs — NEVER guess them.');
       parts.push('');
       parts.push('**CRITICAL:** Import paths and HTML tags often DO NOT match (e.g., import `/list-item-standard` but tag is `<ui5-li>`). Always use BOTH the import path AND the selector from the docs.');
       parts.push('');
       parts.push('**If a build fails** on a component error: re-read its doc file. NEVER remove a library component and replace with plain HTML.');
+      parts.push('');
+      parts.push('**Lessons learned:** Check `.adorable/lessons/` for previously saved lessons about this kit — they contain fixes for common gotchas (wrong slots, missing imports, theme setup, etc.). After you discover a non-obvious fix, use the `save_lesson` MCP tool to save it for future reference.');
       if (options.activeKit.designTokens) {
         parts.push('**Design tokens:** `.adorable/design-tokens.md`');
       }
