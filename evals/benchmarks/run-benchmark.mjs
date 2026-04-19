@@ -52,28 +52,44 @@ const prompts = PROMPT_IDS.length > 0
 
 // ── Auth ─────────────────────────────────────────────────────────────
 
-let authToken = '';
+let authToken = process.env.ADORABLE_TOKEN || '';
 
 async function login() {
-  // For desktop mode, use the auto-login endpoint
-  const res = await fetch(`${SERVER}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: 'local@adorable.desktop', password: 'unused' }),
-  });
+  if (authToken) return; // already have a token
 
-  if (!res.ok) {
-    // Try getting token from env
-    authToken = process.env.ADORABLE_TOKEN || '';
-    if (!authToken) {
-      console.error('Auth failed and no ADORABLE_TOKEN env var set');
-      process.exit(1);
-    }
-    return;
+  // Desktop mode: read the token from Electron's localStorage DB
+  const dbPaths = [
+    path.join(process.env.HOME || '', 'Library/Application Support/adorable-desktop/Local Storage/leveldb'),
+    path.join(process.env.HOME || '', 'Library/Application Support/Electron/Local Storage/leveldb'),
+  ];
+
+  for (const dbPath of dbPaths) {
+    try {
+      // The token is stored in localStorage as 'adorable_token'
+      const files = fs.readdirSync(dbPath).filter(f => f.endsWith('.log') || f.endsWith('.ldb'));
+      for (const file of files) {
+        const content = fs.readFileSync(path.join(dbPath, file), 'latin1');
+        const match = content.match(/adorable_token[^\w]+(eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/);
+        if (match) {
+          authToken = match[1];
+          console.log('Found auth token from desktop app storage');
+          return;
+        }
+      }
+    } catch { /* not found */ }
   }
 
-  const data = await res.json();
-  authToken = data.token;
+  // Last resort: try the health endpoint to verify server is reachable
+  try {
+    const res = await fetch(`${SERVER}/api/health`);
+    if (res.ok) {
+      console.warn('Warning: No auth token found. Requests may fail if server requires authentication.');
+      return;
+    }
+  } catch {
+    console.error(`Cannot reach server at ${SERVER}`);
+    process.exit(1);
+  }
 }
 
 // ── Create project ───────────────────────────────────────────────────
