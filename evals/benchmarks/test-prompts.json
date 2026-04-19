@@ -1,0 +1,62 @@
+[
+  {
+    "id": "simple-component",
+    "name": "Simple Component",
+    "category": "basic",
+    "prompt": "Create a user profile card component that shows an avatar (circular image), full name, email, a short bio, and a row of social media icon links. Use clean, modern styling with subtle shadows and rounded corners.",
+    "expectedOutcome": "A single component with external template and SCSS, using signals"
+  },
+  {
+    "id": "crud-feature",
+    "name": "CRUD Feature",
+    "category": "feature",
+    "prompt": "Create a task management feature with: 1) A task list showing title, status (todo/in-progress/done), and due date. 2) An add task form with validation. 3) Ability to toggle task status by clicking. 4) A filter bar to show all/active/completed tasks. Use Angular signals for state management.",
+    "expectedOutcome": "Multiple components with routing, signals-based state, form validation"
+  },
+  {
+    "id": "dashboard-layout",
+    "name": "Dashboard Layout",
+    "category": "layout",
+    "prompt": "Create a dashboard layout with: 1) A fixed sidebar navigation with icons and labels (Home, Analytics, Users, Settings). 2) A top header bar with a search input and user avatar. 3) A main content area with a 2x2 grid of stat cards showing metric name, value, and a trend arrow (up/down). Use CSS Grid and Flexbox.",
+    "expectedOutcome": "Multi-component layout with sidebar, header, and grid content"
+  },
+  {
+    "id": "form-validation",
+    "name": "Complex Form",
+    "category": "feature",
+    "prompt": "Create a multi-step registration form with 3 steps: 1) Personal info (name, email with validation). 2) Address (street, city, country dropdown). 3) Review and submit. Include a progress indicator, back/next buttons, and form validation that prevents advancing with invalid data.",
+    "expectedOutcome": "Multi-step form with reactive forms or signals, validation, stepper UI"
+  },
+  {
+    "id": "figma-simple",
+    "name": "Figma Simple Card",
+    "category": "figma",
+    "prompt": "Recreate the selected Figma element as an Angular component",
+    "requiresFigma": true,
+    "figmaSetup": "Select a simple card component in Figma before running",
+    "expectedOutcome": "Component matching the Figma design with correct fonts and colors"
+  },
+  {
+    "id": "figma-dashboard",
+    "name": "Figma Dashboard",
+    "category": "figma",
+    "prompt": "Recreate the selected Figma element as an Angular route in this app",
+    "requiresFigma": true,
+    "figmaSetup": "Select a dashboard/page layout in Figma before running",
+    "expectedOutcome": "Full page layout matching the Figma design"
+  },
+  {
+    "id": "responsive-page",
+    "name": "Responsive Landing Page",
+    "category": "layout",
+    "prompt": "Create a responsive landing page with: 1) A hero section with a headline, subtitle, and CTA button. 2) A features section with 3 feature cards in a row (stacking on mobile). 3) A testimonials section with a horizontal scrolling card carousel. 4) A footer with links organized in columns. Make it fully responsive.",
+    "expectedOutcome": "Responsive layout with media queries, flexbox/grid, scroll behavior"
+  },
+  {
+    "id": "data-table",
+    "name": "Data Table with Sorting",
+    "category": "feature",
+    "prompt": "Create a data table component showing a list of employees (name, department, role, salary, start date). Include: column sorting (click header to sort asc/desc), a search filter input, pagination (10 per page), and alternating row colors. Generate 50 mock employee records.",
+    "expectedOutcome": "Table with sorting, filtering, pagination, mock data generation"
+  }
+]
