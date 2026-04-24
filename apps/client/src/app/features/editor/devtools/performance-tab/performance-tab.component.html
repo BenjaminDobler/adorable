@@ -1,0 +1,59 @@
+<div class="profiler-panel">
+  <div class="profiler-controls">
+    <button
+      class="btn-profiler"
+      [class.recording]="devtools.profilerRecording()"
+      (click)="toggleProfiler()"
+    >
+      @if (devtools.profilerRecording()) {
+        <span class="rec-dot"></span> Stop Recording
+      } @else {
+        <app-icon name="record" [size]="12" [strokeWidth]="0" fill="currentColor" />
+        Start Recording
+      }
+    </button>
+    @if (devtools.profilerCycles().length > 0) {
+      <button class="btn-icon" (click)="exportProfile()" title="Export JSON">
+        <app-icon name="download" />
+      </button>
+    }
+  </div>
+
+  @if (devtools.profilerCycles().length === 0) {
+    <div class="devtools-empty">
+      <app-icon name="bar-chart" [size]="32" [strokeWidth]="1.5" />
+      <p>No profile data</p>
+      <span>Click "Start Recording", interact with your app, then stop to see change detection timing.</span>
+    </div>
+  } @else {
+    <div class="profiler-summary">
+      <span class="summary-stat">{{ devtools.profilerCycles().length }} cycles</span>
+    </div>
+    <div class="profiler-chart">
+      @for (cycle of devtools.profilerCycles(); track cycle.id) {
+        <div class="cycle-row" [title]="'Cycle ' + cycle.id + ': ' + formatDuration(cycle.duration)">
+          <span class="cycle-label">{{ cycle.id }}</span>
+          <div class="cycle-bar-track">
+            <div
+              class="cycle-bar"
+              [style.width.%]="cycleBarWidth(cycle)"
+              [style.background]="cycleBarColor(cycle)"
+            ></div>
+          </div>
+          <span class="cycle-time">{{ formatDuration(cycle.duration) }}</span>
+        </div>
+      }
+    </div>
+    @if (devtools.profilerCycles().length > 0) {
+      <div class="component-breakdown">
+        <div class="section-title">Slowest Components</div>
+        @for (comp of devtools.profilerCycles()[devtools.profilerCycles().length - 1].components; track comp.name) {
+          <div class="breakdown-row">
+            <span class="breakdown-name">{{ comp.name }}</span>
+            <span class="breakdown-time">{{ formatDuration(comp.duration) }}</span>
+          </div>
+        }
+      </div>
+    }
+  }
+</div>

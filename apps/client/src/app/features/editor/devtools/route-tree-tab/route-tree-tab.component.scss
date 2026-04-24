@@ -1,0 +1,102 @@
+@use '../shared' as *;
+
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.route-tree-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.active-route-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(62, 207, 142, 0.05);
+  border-bottom: 1px solid var(--panel-border);
+  font-size: 0.72rem;
+}
+
+.active-label {
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+}
+
+.active-path {
+  color: var(--accent-color);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.route-tree-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.route-node-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  transition: background 0.1s;
+
+  &:hover {
+    background: var(--bg-surface-2);
+  }
+
+  &.active {
+    background: rgba(62, 207, 142, 0.08);
+
+    .route-path {
+      color: var(--accent-color);
+      font-weight: 600;
+    }
+  }
+}
+
+.route-path {
+  color: #7cacf8;
+  white-space: nowrap;
+}
+
+.route-component {
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.route-badge {
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 8px;
+  flex-shrink: 0;
+
+  &.lazy {
+    background: rgba(139, 92, 246, 0.15);
+    color: #8b5cf6;
+  }
+
+  &.guard {
+    background: rgba(234, 179, 8, 0.15);
+    color: #eab308;
+  }
+}

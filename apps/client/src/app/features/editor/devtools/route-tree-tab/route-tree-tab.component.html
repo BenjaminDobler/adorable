@@ -1,0 +1,47 @@
+@if (devtools.loading()) {
+  <div class="devtools-loading">
+    <div class="spinner"></div>
+    <span>Loading route configuration...</span>
+  </div>
+} @else if (devtools.routeTree().length === 0) {
+  <div class="devtools-empty">
+    <app-icon name="compass" [size]="32" [strokeWidth]="1.5" />
+    <p>No routes found</p>
+    <span>Could not read route configuration from the running app. Make sure the Router is configured.</span>
+    <button class="btn-retry" (click)="loadRoutes()">Retry</button>
+  </div>
+} @else {
+  <div class="route-tree-panel">
+    @if (devtools.activeRoute()) {
+      <div class="active-route-banner">
+        <span class="active-label">Active:</span>
+        <span class="active-path">{{ devtools.activeRoute() }}</span>
+      </div>
+    }
+    <div class="route-tree-list">
+      <ng-container *ngTemplateOutlet="routeNodes; context: { $implicit: devtools.routeTree(), depth: 0 }"></ng-container>
+    </div>
+  </div>
+}
+
+<ng-template #routeNodes let-routes let-depth="depth">
+  @for (route of routes; track route.path) {
+    <div class="route-node" [style.padding-left.px]="depth * 16 + 12">
+      <div class="route-node-row" [class.active]="route.active">
+        <span class="route-path">/{{ route.path }}</span>
+        @if (route.component) {
+          <span class="route-component">{{ route.component }}</span>
+        }
+        @if (route.lazy) {
+          <span class="route-badge lazy">lazy</span>
+        }
+        @for (guard of route.guards; track guard) {
+          <span class="route-badge guard">{{ guard }}</span>
+        }
+      </div>
+      @if (route.children?.length > 0) {
+        <ng-container *ngTemplateOutlet="routeNodes; context: { $implicit: route.children, depth: depth + 1 }"></ng-container>
+      }
+    </div>
+  }
+</ng-template>

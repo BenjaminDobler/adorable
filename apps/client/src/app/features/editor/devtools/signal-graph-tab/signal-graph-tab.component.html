@@ -1,0 +1,70 @@
+@if (devtools.loading()) {
+  <div class="devtools-loading">
+    <div class="spinner"></div>
+    <span>Loading signal graph...</span>
+  </div>
+} @else if (!devtools.signalGraphAvailable()) {
+  <div class="devtools-empty">
+    <app-icon name="git-branch" [size]="32" [strokeWidth]="1.5" />
+    <p>Signal graph unavailable</p>
+    <span>Requires Angular 19+ with signal graph debug APIs. Make sure the app uses signals and is running in dev mode.</span>
+    <button class="btn-retry" (click)="loadSignalGraph()">Retry</button>
+  </div>
+} @else if (devtools.signalNodes().length === 0) {
+  <div class="devtools-empty">
+    <p>No signals detected</p>
+    <span>No signal nodes found in the dependency graph.</span>
+    <button class="btn-retry" (click)="loadSignalGraph()">Refresh</button>
+  </div>
+} @else {
+  <div class="signal-graph-panel">
+    <div class="signal-legend">
+      <span class="legend-item"><span class="legend-dot" style="background: #3b82f6"></span> Signal</span>
+      <span class="legend-item"><span class="legend-dot" style="background: #8b5cf6"></span> Computed</span>
+      <span class="legend-item"><span class="legend-dot" style="background: #ef4444"></span> Effect</span>
+    </div>
+    <div class="signal-nodes-list">
+      @for (node of devtools.signalNodes(); track node.id) {
+        <div
+          class="signal-node-row"
+          [class.selected]="devtools.selectedSignalNode()?.id === node.id"
+          (click)="selectSignalNode(node)"
+        >
+          <span class="signal-type-dot" [style.background]="signalNodeColor(node.type)"></span>
+          <span class="signal-label">{{ node.label }}</span>
+          <span class="signal-type-badge">{{ node.type }}</span>
+        </div>
+      }
+    </div>
+    @if (devtools.selectedSignalNode(); as node) {
+      <div class="signal-detail">
+        <div class="section-title">{{ node.label }}</div>
+        <div class="prop-row">
+          <span class="prop-name">Type</span>
+          <span class="prop-value">{{ node.type }}</span>
+        </div>
+        @if (node.value) {
+          <div class="prop-row">
+            <span class="prop-name">Value</span>
+            <span class="prop-value" [title]="node.value">{{ truncate(node.value, 80) }}</span>
+          </div>
+        }
+        <div class="section-title" style="margin-top: 8px">Dependencies</div>
+        @for (edge of devtools.signalEdges(); track edge.from + edge.to) {
+          @if (edge.to === node.id) {
+            <div class="dep-row incoming">
+              <span class="dep-arrow">&#8592;</span>
+              <span>{{ edge.from }}</span>
+            </div>
+          }
+          @if (edge.from === node.id) {
+            <div class="dep-row outgoing">
+              <span class="dep-arrow">&#8594;</span>
+              <span>{{ edge.to }}</span>
+            </div>
+          }
+        }
+      </div>
+    }
+  </div>
+}
