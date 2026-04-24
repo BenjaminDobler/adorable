@@ -7,6 +7,7 @@ export interface ComponentTreeNode {
   tag: string;
   componentName: string;
   selector: string;
+  displayName: string;
   file: string;
   line: number;
   isComponent: boolean;
@@ -27,6 +28,7 @@ export interface ComponentDetail {
   ongId: string;
   componentName: string;
   selector: string;
+  displayName: string;
   file: string;
   line: number;
   properties: PropertyInfo[];
@@ -216,18 +218,48 @@ export class DevtoolsService {
           if (!window.ng || !window.ng.getComponent) return [];
 
           var annotations = window.__ong_annotations || {};
-          var seenEls = new Set();
+          var seenComps = new Set(); // track seen component instances to avoid duplicates
           var nodeList = []; // flat list, we build the tree at the end
+          var ongIdCounts = {}; // tracks how many times each _ong ID has been seen
+
+          // Build a stable unique ID from the _ong value + occurrence index.
+          // Elements in a @for loop share the same _ong, so we append _0, _1, etc.
+          // Elements without _ong get a fallback based on tag + index.
+          function makeStableId(ongAttr, fallbackTag, nodeIndex) {
+            if (ongAttr) {
+              var count = ongIdCounts[ongAttr] || 0;
+              ongIdCounts[ongAttr] = count + 1;
+              // First occurrence keeps the raw _ong (no suffix) for backwards compat
+              return count === 0 ? ongAttr : ongAttr + '_' + count;
+            }
+            return '__' + fallbackTag + '_' + nodeIndex;
+          }
 
           // Walk the DOM to find components AND directive-bearing elements
           function walkDOM(el, parentCompIdx) {
-            if (!el || seenEls.has(el)) return;
-            seenEls.add(el);
+            if (!el) return;
+            if (!(el instanceof Element)) return;
 
             var comp = null;
             var dirs = [];
             var myCompIdx = parentCompIdx;
             try { comp = window.ng.getComponent(el); } catch(e) {}
+
+            // Verify this element is actually the component's host element.
+            // ng.getComponent() can return a component for non-host elements
+            // in some Angular builds. Cross-check with ng.getHostElement().
+            if (comp) {
+              try {
+                if (window.ng.getHostElement) {
+                  var hostEl = window.ng.getHostElement(comp);
+                  if (hostEl !== el) comp = null; // not the real host
+                }
+              } catch(e) {}
+              // Also deduplicate — same component instance shouldn't appear twice
+              if (comp && seenComps.has(comp)) comp = null;
+              if (comp) seenComps.add(comp);
+            }
+
             try {
               var d = window.ng.getDirectives(el);
               if (d && d.length > 0) {
@@ -239,16 +271,47 @@ export class DevtoolsService {
 
             if (comp) {
               // Component host element
-              var ongId = el.getAttribute('_ong') || '';
-              var ann = ongId ? (annotations[ongId] || {}) : {};
+              var ongAttr = el.getAttribute('_ong') || '';
+              var ann = ongAttr ? (annotations[ongAttr] || {}) : {};
+
+              // Create a stable unique ID and stamp it on the element
+              var stableId = makeStableId(ongAttr, el.tagName.toLowerCase(), nodeList.length);
+              el.setAttribute('data-adt-id', stableId);
+
+              // Determine the selector to display
+              var displaySelector = el.tagName.toLowerCase();
+              var compName = comp.constructor.name || '';
+              try {
+                if (window.ng.getDirectiveMetadata) {
+                  var meta = window.ng.getDirectiveMetadata(comp);
+                  if (meta && meta.name) compName = meta.name;
+                  if (meta && meta.selector) displaySelector = meta.selector;
+                }
+              } catch(e) {}
+
+              // The ONG annotation's selector is only valid if the annotation's tag
+              // matches this element's actual tag (meaning this IS the component host)
+              if (ann.selector && ann.tag === el.tagName.toLowerCase()) {
+                displaySelector = ann.selector;
+              }
+
+              // For source info, only use annotation if it describes THIS element
+              var file = '';
+              var line = 0;
+              if (ann.tag === el.tagName.toLowerCase()) {
+                file = ann.file || '';
+                line = ann.line || 0;
+              }
+
               myCompIdx = nodeList.length;
               nodeList.push({
-                ongId: ongId || ('__comp_' + myCompIdx),
+                ongId: stableId,
                 tag: el.tagName.toLowerCase(),
-                componentName: comp.constructor.name || ann.component || '',
-                selector: ann.selector || el.tagName.toLowerCase(),
-                file: ann.file || '',
-                line: ann.line || 0,
+                componentName: compName,
+                selector: displaySelector,
+                displayName: el.tagName.toLowerCase(),
+                file: file,
+                line: line,
                 isComponent: true,
                 directives: dirs,
                 parentIdx: parentCompIdx,
@@ -257,14 +320,18 @@ export class DevtoolsService {
               });
             } else if (dirs.length > 0) {
               // Non-component element with directives (e.g. a[RouterLink])
-              var dOngId = el.getAttribute('_ong') || '';
-              var dAnn = dOngId ? (annotations[dOngId] || {}) : {};
-              var dIdx = nodeList.length;
+              var dOngAttr = el.getAttribute('_ong') || '';
+              var dAnn = dOngAttr ? (annotations[dOngAttr] || {}) : {};
+
+              var dStableId = makeStableId(dOngAttr, el.tagName.toLowerCase(), nodeList.length);
+              el.setAttribute('data-adt-id', dStableId);
+
               nodeList.push({
-                ongId: dOngId || ('__dir_' + dIdx),
+                ongId: dStableId,
                 tag: el.tagName.toLowerCase(),
                 componentName: '',
                 selector: el.tagName.toLowerCase(),
+                displayName: el.tagName.toLowerCase(),
                 file: dAnn.file || '',
                 line: dAnn.line || 0,
                 isComponent: false,
@@ -343,7 +410,7 @@ export class DevtoolsService {
     try {
       const expression = `
         (function() {
-          var el = document.querySelector('[_ong="${ongId}"]');
+          var el = document.querySelector('[data-adt-id="${ongId}"]') || document.querySelector('[_ong="${ongId}"]');
           if (!el) return null;
 
           // Walk up to find the nearest element that has an Angular component
@@ -357,8 +424,10 @@ export class DevtoolsService {
             compEl = compEl.parentElement;
           }
 
-          // Use the annotation from the original element for source info
-          var ann = (window.__ong_annotations || {})[\"${ongId}\"] || {};
+          // Use the annotation from the original element for source info.
+          // The ongId may be a runtime data-adt-id, so read the actual _ong attr for annotation lookup.
+          var realOngId = el.getAttribute('_ong') || '';
+          var ann = realOngId ? ((window.__ong_annotations || {})[realOngId] || {}) : {};
           // But if we walked up, also check the component element's annotation
           if (compEl && compEl !== el) {
             var compOngId = compEl.getAttribute('_ong');
@@ -427,20 +496,92 @@ export class DevtoolsService {
             return t === 'string' || t === 'number' || t === 'boolean';
           }
 
+          // Known Angular framework internals to exclude from properties
+          var FRAMEWORK_INTERNALS = {
+            'elementRef': true, 'el': true, 'elRef': true,
+            'zone': true, 'ngZone': true, '_ngZone': true,
+            'cdr': true, 'cd': true, 'changeDetectorRef': true, 'cdRef': true,
+            'renderer': true, 'renderer2': true,
+            'injector': true,
+            'destroyRef': true,
+            'viewContainerRef': true, 'vcRef': true, 'vcr': true,
+            '__ngContext__': true, '__ngSimpleChanges__': true
+          };
+
+          function isFrameworkInternal(name, raw) {
+            if (FRAMEWORK_INTERNALS[name]) return true;
+            if (!raw || typeof raw !== 'object') return false;
+            var cn = raw.constructor ? raw.constructor.name : '';
+            if (cn === 'ElementRef' || cn === 'NgZone' || cn === 'Renderer2' ||
+                cn === 'ChangeDetectorRef' || cn === 'Injector' || cn === 'ViewContainerRef' ||
+                cn === 'DestroyRef' || cn === 'EnvironmentInjector' || cn === 'NodeInjector' ||
+                cn === 'R3Injector' || cn === 'ChainedInjector') return true;
+            return false;
+          }
+
           try {
             if (comp) {
               componentName = comp.constructor.name;
 
-              // Collect all component properties, categorize them
-              var inputNames = {};  // track which props are inputs
-              var outputNames = {}; // track which props are outputs
-              var keys = Object.keys(comp);
+              // Use ng.getDirectiveMetadata to get proper input/output classification
+              var metaInputs = {};
+              var metaOutputs = {};
+              try {
+                if (window.ng.getDirectiveMetadata) {
+                  var meta = window.ng.getDirectiveMetadata(comp);
+                  if (meta) {
+                    if (meta.inputs) {
+                      // inputs is a map of {propertyName: publicName}
+                      var ik = Object.keys(meta.inputs);
+                      for (var mi = 0; mi < ik.length; mi++) {
+                        var inputPropName = ik[mi];
+                        var inputPublicName = meta.inputs[inputPropName];
+                        // The value can be a string (public name) or an object with publicName
+                        if (typeof inputPublicName === 'object' && inputPublicName !== null) {
+                          metaInputs[inputPublicName.publicName || inputPropName] = true;
+                        } else {
+                          metaInputs[typeof inputPublicName === 'string' ? inputPublicName : inputPropName] = true;
+                        }
+                        metaInputs[inputPropName] = true;
+                      }
+                    }
+                    if (meta.outputs) {
+                      var ok = Object.keys(meta.outputs);
+                      for (var moi = 0; moi < ok.length; moi++) {
+                        var outputPropName = ok[moi];
+                        var outputPublicName = meta.outputs[outputPropName];
+                        if (typeof outputPublicName === 'object' && outputPublicName !== null) {
+                          metaOutputs[outputPublicName.publicName || outputPropName] = true;
+                        } else {
+                          metaOutputs[typeof outputPublicName === 'string' ? outputPublicName : outputPropName] = true;
+                        }
+                        metaOutputs[outputPropName] = true;
+                      }
+                    }
+                  }
+                }
+              } catch(e) {}
 
-              for (var i = 0; i < keys.length; i++) {
-                var k = keys[i];
-                if (k.startsWith('_') || k.startsWith('__') || k === 'constructor') continue;
+              // Also use annotation bindings as fallback
+              var bindings = ann.bindings || {};
+              var annInputKeys = bindings.inputs ? Object.keys(bindings.inputs) : [];
+              var annOutputKeys = bindings.outputs ? Object.keys(bindings.outputs) : [];
+              for (var aii = 0; aii < annInputKeys.length; aii++) metaInputs[annInputKeys[aii]] = true;
+              for (var aoi = 0; aoi < annOutputKeys.length; aoi++) metaOutputs[annOutputKeys[aoi]] = true;
+
+              // Collect all component properties using Object.getOwnPropertyNames for better coverage
+              var outputNames = {};
+              var allKeys = Object.getOwnPropertyNames(comp);
+
+              for (var i = 0; i < allKeys.length; i++) {
+                var k = allKeys[i];
+                if (k.startsWith('__') || k === 'constructor') continue;
+
                 try {
                   var raw = comp[k];
+
+                  // Skip framework internals (injected Angular services)
+                  if (isFrameworkInternal(k, raw)) continue;
 
                   // Check if it's an output (EventEmitter or OutputEmitterRef)
                   if (isOutput(raw)) {
@@ -454,28 +595,39 @@ export class DevtoolsService {
                     var val = readSignal(raw);
                     var writable = isWritableSignal(raw);
                     var sigType = writable ? 'signal' : 'readonly';
-
-                    properties.push({
+                    var prop = {
                       name: k,
                       value: serialize(val),
                       type: sigType,
                       valueType: typeof val,
                       editable: writable && isEditable(val)
-                    });
+                    };
+
+                    // Classify as input or property based on metadata
+                    if (metaInputs[k]) {
+                      inputs.push(prop);
+                    } else {
+                      properties.push(prop);
+                    }
                     continue;
                   }
 
                   // Skip regular methods
                   if (typeof raw === 'function') continue;
 
-                  // Plain property
-                  properties.push({
+                  // Plain property — classify based on metadata
+                  var prop = {
                     name: k,
                     value: serialize(raw),
                     type: 'property',
                     valueType: typeof raw,
                     editable: isEditable(raw)
-                  });
+                  };
+                  if (metaInputs[k]) {
+                    inputs.push(prop);
+                  } else {
+                    properties.push(prop);
+                  }
                 } catch(e) {
                   properties.push({
                     name: k,
@@ -487,61 +639,44 @@ export class DevtoolsService {
                 }
               }
 
-              // Now separate inputs from properties using annotation bindings
-              var bindings = ann.bindings || {};
-              var annInputs = bindings.inputs ? Object.keys(bindings.inputs) : [];
-              var annOutputs = bindings.outputs ? Object.keys(bindings.outputs) : [];
-
-              // Move annotated inputs from properties to inputs list
-              for (var ai = 0; ai < annInputs.length; ai++) {
-                var inputName = annInputs[ai];
-                // Find in properties
-                var found = false;
-                for (var pi = 0; pi < properties.length; pi++) {
-                  if (properties[pi].name === inputName) {
-                    inputs.push(properties[pi]);
-                    properties.splice(pi, 1);
-                    found = true;
-                    break;
+              // Check for inputs from metadata that weren't found on the instance (may be on prototype)
+              var foundInputNames = {};
+              for (var fi = 0; fi < inputs.length; fi++) foundInputNames[inputs[fi].name] = true;
+              var allMetaInputKeys = Object.keys(metaInputs);
+              for (var ri = 0; ri < allMetaInputKeys.length; ri++) {
+                var rin = allMetaInputKeys[ri];
+                if (foundInputNames[rin]) continue;
+                try {
+                  var rawInput = comp[rin];
+                  if (rawInput === undefined) continue;
+                  if (isAnySignal(rawInput)) {
+                    inputs.push({
+                      name: rin,
+                      value: serialize(readSignal(rawInput)),
+                      type: isWritableSignal(rawInput) ? 'signal' : 'readonly',
+                      valueType: typeof readSignal(rawInput),
+                      editable: isWritableSignal(rawInput) && isEditable(readSignal(rawInput))
+                    });
+                  } else if (typeof rawInput !== 'function') {
+                    inputs.push({
+                      name: rin,
+                      value: serialize(rawInput),
+                      type: 'property',
+                      valueType: typeof rawInput,
+                      editable: isEditable(rawInput)
+                    });
                   }
-                }
-                if (!found) {
-                  // Input not found in properties — try reading directly
-                  try {
-                    var rawInput = comp[inputName];
-                    if (isAnySignal(rawInput)) {
-                      inputs.push({
-                        name: inputName,
-                        value: serialize(readSignal(rawInput)),
-                        type: isWritableSignal(rawInput) ? 'signal' : 'readonly',
-                        valueType: typeof readSignal(rawInput),
-                        editable: isWritableSignal(rawInput) && isEditable(readSignal(rawInput))
-                      });
-                    } else if (rawInput !== undefined) {
-                      inputs.push({
-                        name: inputName,
-                        value: serialize(rawInput),
-                        type: 'property',
-                        valueType: typeof rawInput,
-                        editable: isEditable(rawInput)
-                      });
-                    } else {
-                      inputs.push({ name: inputName, value: '', type: 'property', valueType: 'string', editable: false });
-                    }
-                  } catch(e) {
-                    inputs.push({ name: inputName, value: '', type: 'property', valueType: 'string', editable: false });
-                  }
-                }
+                } catch(e) {}
               }
 
-              // Also add annotated outputs not already found
-              for (var ao = 0; ao < annOutputs.length; ao++) {
-                if (!outputNames[annOutputs[ao]]) {
-                  outputs.push(annOutputs[ao]);
+              // Mark metadata-known outputs and remove from properties
+              var allMetaOutputKeys = Object.keys(metaOutputs);
+              for (var roi = 0; roi < allMetaOutputKeys.length; roi++) {
+                if (!outputNames[allMetaOutputKeys[roi]]) {
+                  outputs.push(allMetaOutputKeys[roi]);
+                  outputNames[allMetaOutputKeys[roi]] = true;
                 }
               }
-
-              // Remove outputs from properties list
               properties = properties.filter(function(p) { return !outputNames[p.name]; });
             }
           } catch(e) {}
@@ -559,6 +694,7 @@ export class DevtoolsService {
             ongId: \"${ongId}\",
             componentName: componentName || ann.component || '',
             selector: ann.selector || el.tagName.toLowerCase(),
+            displayName: el.tagName.toLowerCase(),
             file: ann.file || '',
             line: ann.line || 0,
             properties: properties,
@@ -588,7 +724,7 @@ export class DevtoolsService {
         var prev = document.getElementById('__adorable_devtools_highlight');
         if (prev) prev.remove();
 
-        var el = document.querySelector('[_ong="${ongId}"]');
+        var el = document.querySelector('[data-adt-id="${ongId}"]') || document.querySelector('[_ong="${ongId}"]');
         if (!el) return;
 
         var rect = el.getBoundingClientRect();
@@ -621,7 +757,7 @@ export class DevtoolsService {
     // Parse the value string into a JS literal
     const expression = `
       (function() {
-        var el = document.querySelector('[_ong="${ongId}"]');
+        var el = document.querySelector('[data-adt-id="${ongId}"]') || document.querySelector('[_ong="${ongId}"]');
         if (!el) return { success: false, error: 'Element not found' };
         // Walk up to find nearest component
         var compEl = el;
