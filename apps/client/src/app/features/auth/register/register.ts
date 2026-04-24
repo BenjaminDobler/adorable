@@ -1,4 +1,5 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, DestroyRef, inject, signal, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -17,6 +18,7 @@ export class RegisterComponent implements OnInit {
   private authService = inject(AuthService);
   private router = inject(Router);
   private toastService = inject(ToastService);
+  private destroyRef = inject(DestroyRef);
 
   name = '';
   email = '';
@@ -31,7 +33,7 @@ export class RegisterComponent implements OnInit {
   googleLoginEnabled = signal(false);
 
   ngOnInit() {
-    this.authService.getRegistrationConfig().subscribe({
+    this.authService.getRegistrationConfig().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (config) => {
         this.requireInviteCode.set(config.registrationMode === 'invite-only');
         this.githubLoginEnabled.set(config.githubLoginEnabled);
@@ -42,7 +44,7 @@ export class RegisterComponent implements OnInit {
   }
 
   socialLogin(provider: 'github' | 'google') {
-    this.authService.getSocialAuthUrl(provider).subscribe({
+    this.authService.getSocialAuthUrl(provider).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         window.location.href = res.url;
       },
@@ -77,6 +79,7 @@ export class RegisterComponent implements OnInit {
     }
 
     this.authService.register(payload).pipe(
+      takeUntilDestroyed(this.destroyRef),
       finalize(() => this.loading.set(false))
     ).subscribe({
       next: (res: any) => {

@@ -1,4 +1,5 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -15,6 +16,7 @@ import { TeamMember, TeamInvite, TeamRole } from '@adorable/shared-types';
   styleUrl: './team-settings.scss',
 })
 export class TeamSettingsComponent implements OnInit {
+  private destroyRef = inject(DestroyRef);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private teamService = inject(TeamService);
@@ -47,7 +49,7 @@ export class TeamSettingsComponent implements OnInit {
 
   loadTeam() {
     this.loading.set(true);
-    this.teamService.getTeam(this.teamId).subscribe({
+    this.teamService.getTeam(this.teamId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.teamName.set(res.team.name);
         this.teamSlug.set(res.team.slug);
@@ -61,7 +63,7 @@ export class TeamSettingsComponent implements OnInit {
       }
     });
 
-    this.teamService.getInvites(this.teamId).subscribe({
+    this.teamService.getInvites(this.teamId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (invites) => this.invites.set(invites),
       error: () => {} // Non-critical, may fail if not admin
     });
@@ -84,7 +86,7 @@ export class TeamSettingsComponent implements OnInit {
       this.editingName.set(false);
       return;
     }
-    this.teamService.updateTeam(this.teamId, { name }).subscribe({
+    this.teamService.updateTeam(this.teamId, { name }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (team) => {
         this.teamName.set(team.name);
         this.teamSlug.set(team.slug);
@@ -98,7 +100,7 @@ export class TeamSettingsComponent implements OnInit {
   // ---- Members ----
 
   changeRole(member: TeamMember, newRole: TeamRole) {
-    this.teamService.changeMemberRole(this.teamId, member.id, newRole).subscribe({
+    this.teamService.changeMemberRole(this.teamId, member.id, newRole).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show('Role updated', 'success');
         this.loadTeam();
@@ -113,7 +115,7 @@ export class TeamSettingsComponent implements OnInit {
     const confirmed = await this.confirmService.confirm(label, isSelf ? 'Leave' : 'Remove', 'Cancel');
     if (!confirmed) return;
 
-    this.teamService.removeMember(this.teamId, member.id).subscribe({
+    this.teamService.removeMember(this.teamId, member.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show(isSelf ? 'Left team' : 'Member removed', 'success');
         if (isSelf) {
@@ -135,7 +137,7 @@ export class TeamSettingsComponent implements OnInit {
     );
     if (!confirmed) return;
 
-    this.teamService.transferOwnership(this.teamId, member.id).subscribe({
+    this.teamService.transferOwnership(this.teamId, member.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show('Ownership transferred', 'success');
         this.loadTeam();
@@ -151,7 +153,7 @@ export class TeamSettingsComponent implements OnInit {
     if (this.inviteEmail().trim()) {
       data.email = this.inviteEmail().trim();
     }
-    this.teamService.createInvite(this.teamId, data).subscribe({
+    this.teamService.createInvite(this.teamId, data).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (invite) => {
         this.toastService.show(`Invite code: ${invite.code}`, 'success');
         this.inviteEmail.set('');
@@ -164,7 +166,7 @@ export class TeamSettingsComponent implements OnInit {
   async revokeInvite(invite: TeamInvite) {
     const confirmed = await this.confirmService.confirm('Revoke this invite?', 'Revoke', 'Cancel');
     if (!confirmed) return;
-    this.teamService.revokeInvite(this.teamId, invite.id).subscribe({
+    this.teamService.revokeInvite(this.teamId, invite.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show('Invite revoked', 'success');
         this.loadTeam();
@@ -188,7 +190,7 @@ export class TeamSettingsComponent implements OnInit {
     );
     if (!confirmed) return;
 
-    this.teamService.deleteTeam(this.teamId).subscribe({
+    this.teamService.deleteTeam(this.teamId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show('Team deleted', 'success');
         this.router.navigate(['/dashboard']);

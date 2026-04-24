@@ -1,4 +1,5 @@
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api';
 import { AppSettings, AIProfile, BuiltInToolConfig, SapAiCoreConfig } from '../profile.types';
@@ -12,6 +13,7 @@ import { AppSettings, AIProfile, BuiltInToolConfig, SapAiCoreConfig } from '../p
 })
 export class ProvidersTabComponent {
   private apiService = inject(ApiService);
+  private destroyRef = inject(DestroyRef);
 
   settings = input.required<AppSettings>();
   fetchedModels = input<Record<string, string[]>>({});
@@ -62,7 +64,7 @@ export class ProvidersTabComponent {
 
   checkClaudeCodeStatus() {
     this.claudeCodeStatusLoading.set(true);
-    this.apiService.getClaudeCodeStatus().subscribe({
+    this.apiService.getClaudeCodeStatus().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (status) => {
         this.claudeCodeStatus.set(status);
         this.claudeCodeStatusLoading.set(false);
@@ -87,7 +89,7 @@ export class ProvidersTabComponent {
       apiKey: profile.apiKey,
       baseUrl: profile.baseUrl,
       sapAiCore: profile.sapAiCore,
-    }).subscribe({
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         this.providerTestResult.update(r => ({ ...r, [profile.id]: result }));
         this.testingProvider.set(null);

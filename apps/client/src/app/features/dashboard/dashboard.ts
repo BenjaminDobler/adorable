@@ -1,4 +1,5 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
@@ -23,6 +24,7 @@ import { TeamService } from '../teams/services/team.service';
   styleUrl: './dashboard.scss',
 })
 export class DashboardComponent {
+  private destroyRef = inject(DestroyRef);
   private apiService = inject(ApiService);
   private skillsService = inject(SkillsService);
   private authService = inject(AuthService);
@@ -191,14 +193,14 @@ export class DashboardComponent {
       this.activeTab.set(tab);
     }
     this.loadData();
-    this.teamService.loadTeams().subscribe();
+    this.teamService.loadTeams().pipe(takeUntilDestroyed()).subscribe();
     if (this.isCloudConnected()) {
       this.loadCloudProjects();
     }
 
     // Check cloud editor access (cloud only)
     if (!isDesktopApp()) {
-      this.authService.checkCloudAccess().subscribe({
+      this.authService.checkCloudAccess().pipe(takeUntilDestroyed()).subscribe({
         next: (res) => this.cloudEditorBlocked.set(!res.allowed),
         error: () => {} // Fail open
       });
@@ -216,7 +218,7 @@ export class DashboardComponent {
   loadData() {
     this.loading.set(true);
     // Parallel load
-    this.apiService.listProjects().subscribe({
+    this.apiService.listProjects().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (list) => {
         this.projects.set(list);
         this.checkLoading();
@@ -227,7 +229,7 @@ export class DashboardComponent {
       }
     });
 
-    this.skillsService.getSkills().subscribe({
+    this.skillsService.getSkills().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (list) => {
             this.skills.set(list);
         },
@@ -238,7 +240,7 @@ export class DashboardComponent {
     });
 
     // Load kits
-    this.apiService.getKits().subscribe({
+    this.apiService.getKits().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (list) => {
         this.kits.set(list);
       },
@@ -376,7 +378,7 @@ export class DashboardComponent {
       save$ = this.skillsService.saveSkill(skillData);
     }
 
-    save$.subscribe({
+    save$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show('Skill saved successfully!', 'success');
         this.showSkillDialog.set(false);
@@ -393,7 +395,7 @@ export class DashboardComponent {
     event.stopPropagation();
     const confirmed = await this.confirmService.confirm(`Are you sure you want to delete the skill "${name}"?`, 'Delete', 'Cancel');
     if (confirmed) {
-      this.skillsService.deleteSkill(name).subscribe({
+      this.skillsService.deleteSkill(name).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: () => {
           this.toastService.show('Skill deleted', 'success');
           this.loadData();
@@ -407,7 +409,7 @@ export class DashboardComponent {
     event.stopPropagation();
     const confirmed = await this.confirmService.confirm('Are you sure you want to delete this project?', 'Delete', 'Cancel');
     if (confirmed) {
-      this.apiService.deleteProject(id).subscribe({
+      this.apiService.deleteProject(id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: () => {
           this.toastService.show('Project deleted', 'success');
           this.loadData();
@@ -434,7 +436,7 @@ export class DashboardComponent {
     const target = this.cloneTargetProject();
     if (!target) return;
 
-    this.apiService.cloneProject(target.id, this.cloneName(), this.cloneIncludeMessages()).subscribe({
+    this.apiService.cloneProject(target.id, this.cloneName(), this.cloneIncludeMessages()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (clonedProject) => {
         this.toastService.show(`Created "${clonedProject.name}"`, 'success');
         this.showCloneDialog.set(false);
@@ -463,7 +465,7 @@ export class DashboardComponent {
     event.stopPropagation();
     const confirmed = await this.confirmService.confirm('Are you sure you want to delete this kit?', 'Delete', 'Cancel');
     if (confirmed) {
-      this.apiService.deleteKit(id).subscribe({
+      this.apiService.deleteKit(id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: () => {
           this.toastService.show('Kit deleted', 'success');
           this.loadData();
@@ -702,7 +704,7 @@ export class DashboardComponent {
   confirmCreateTeam() {
     const name = this.createTeamName().trim();
     if (!name) return;
-    this.teamService.createTeam(name).subscribe({
+    this.teamService.createTeam(name).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (team) => {
         this.toastService.show(`Team "${team.name}" created!`, 'success');
         this.showCreateTeamDialog.set(false);
@@ -724,7 +726,7 @@ export class DashboardComponent {
   confirmJoinTeam() {
     const code = this.joinTeamCode().trim();
     if (!code) return;
-    this.teamService.joinTeam(code).subscribe({
+    this.teamService.joinTeam(code).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show('Joined team!', 'success');
         this.showJoinTeamDialog.set(false);
@@ -748,7 +750,7 @@ export class DashboardComponent {
     const obs = target.type === 'project'
       ? this.teamService.moveProjectToTeam(teamId, target.id)
       : this.teamService.moveKitToTeam(teamId, target.id);
-    obs.subscribe({
+    obs.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show(`Moved to team!`, 'success');
         this.showMoveToTeamDialog.set(null);
@@ -765,7 +767,7 @@ export class DashboardComponent {
     const obs = type === 'project'
       ? this.teamService.removeProjectFromTeam(teamId, id)
       : this.teamService.removeKitFromTeam(teamId, id);
-    obs.subscribe({
+    obs.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show('Moved back to personal', 'success');
         this.loadData();

@@ -1,4 +1,5 @@
-import { Component, inject, signal, effect, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { Component, DestroyRef, inject, signal, effect, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -31,6 +32,7 @@ interface PricingRow {
 export class AnalyticsComponent implements AfterViewInit {
   private api = inject(ApiService);
   private themeService = inject(ThemeService);
+  private destroyRef = inject(DestroyRef);
 
   @ViewChild('barChartCanvas') barChartCanvas?: ElementRef<HTMLCanvasElement>;
   @ViewChild('donutChartCanvas') donutChartCanvas?: ElementRef<HTMLCanvasElement>;
@@ -76,7 +78,7 @@ export class AnalyticsComponent implements AfterViewInit {
 
   loadData() {
     this.loading.set(true);
-    this.api.getUsageAnalytics(this.selectedRange()).subscribe({
+    this.api.getUsageAnalytics(this.selectedRange()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         this.data.set(result);
         this.loading.set(false);
@@ -98,7 +100,7 @@ export class AnalyticsComponent implements AfterViewInit {
   }
 
   loadPricing() {
-    this.api.getPricing().subscribe({
+    this.api.getPricing().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: ({ defaults, custom }) => {
         const rows: PricingRow[] = Object.entries(defaults).map(([model, def]: [string, any]) => {
           const cust = custom[model];
@@ -170,10 +172,10 @@ export class AnalyticsComponent implements AfterViewInit {
     this.pricingSaving.set(true);
 
     // Read current settings, merge customPricing, save
-    this.api.getSettings().subscribe({
+    this.api.getSettings().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (settings) => {
         const updated = { ...settings, customPricing };
-        this.api.updateProfile({ settings: updated }).subscribe({
+        this.api.updateProfile({ settings: updated }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
           next: () => {
             this.pricingSaving.set(false);
             this.pricingDirty.set(false);

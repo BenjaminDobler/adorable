@@ -1,4 +1,5 @@
-import { Component, inject, signal, output, input, effect, computed, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, output, input, effect, computed, OnInit, OnDestroy, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DecimalPipe, KeyValuePipe, NgStyle, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FigmaService, FigmaNodeInfo, FigmaPageInfo } from '../../../core/services/figma.service';
@@ -13,6 +14,7 @@ import { FigmaImportPayload, FigmaVariablesPayload } from '@adorable/shared-type
   styleUrls: ['./figma-panel.component.scss']
 })
 export class FigmaPanelComponent implements OnInit, OnDestroy {
+  private destroyRef = inject(DestroyRef);
   figmaService = inject(FigmaService);
   figmaBridge = inject(FigmaBridgeService);
 
@@ -36,7 +38,7 @@ export class FigmaPanelComponent implements OnInit, OnDestroy {
       }
     });
     // Check Figma status on init
-    this.figmaService.checkStatus().subscribe();
+    this.figmaService.checkStatus().pipe(takeUntilDestroyed()).subscribe();
   }
 
   ngOnInit() {
@@ -117,7 +119,7 @@ export class FigmaPanelComponent implements OnInit, OnDestroy {
   pullTokens() {
     this.pullingTokens.set(true);
     this.tokensResult.set(null);
-    this.figmaBridge.getVariables().subscribe({
+    this.figmaBridge.getVariables().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         this.tokensResult.set(result);
         this.pullingTokens.set(false);
@@ -235,7 +237,7 @@ export class FigmaPanelComponent implements OnInit, OnDestroy {
 
   grabFigmaSelection() {
     this.grabbingSelection.set(true);
-    this.figmaBridge.grabSelection().subscribe({
+    this.figmaBridge.grabSelection().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (payload) => {
         this.storePayload(payload);
         this.grabbingSelection.set(false);
@@ -249,7 +251,7 @@ export class FigmaPanelComponent implements OnInit, OnDestroy {
 
   useFigmaSelectionInChat() {
     this.grabbingSelection.set(true);
-    this.figmaBridge.grabSelection().subscribe({
+    this.figmaBridge.grabSelection().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (payload) => {
         this.storePayload(payload);
         this.importToChat.emit(payload);
@@ -306,14 +308,14 @@ export class FigmaPanelComponent implements OnInit, OnDestroy {
     const nodeIdMatch = url.match(/[?&]node-id=([^&]+)/);
     const nodeId = nodeIdMatch ? nodeIdMatch[1].replace(/-/g, ':') : null;
 
-    this.figmaService.parseUrl(url).subscribe({
+    this.figmaService.parseUrl(url).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: ({ fileKey }) => {
         this.currentFileKey.set(fileKey);
 
         if (nodeId) {
           // Node-URL flow: fetch just this node's metadata
           this.pendingNodeLoading.set(true);
-          this.figmaService.getNodes(fileKey, [nodeId]).subscribe({
+          this.figmaService.getNodes(fileKey, [nodeId]).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (result: any) => {
               this.pendingNodeLoading.set(false);
               // Figma nodes response: { nodes: { [nodeId]: { document: { name, type, ... } } } }
@@ -332,7 +334,7 @@ export class FigmaPanelComponent implements OnInit, OnDestroy {
           });
         } else {
           // Normal flow: load full file tree
-          this.figmaService.getFile(fileKey).subscribe({
+          this.figmaService.getFile(fileKey).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
             error: (err) => this.error.set(err.error?.error || 'Failed to load file')
           });
         }
@@ -348,7 +350,7 @@ export class FigmaPanelComponent implements OnInit, OnDestroy {
     this.importing.set(true);
     this.error.set(null);
 
-    this.figmaService.importSelection(node.fileKey, [node.nodeId]).subscribe({
+    this.figmaService.importSelection(node.fileKey, [node.nodeId]).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (payload) => {
         this.importing.set(false);
         this.pendingNode.set(null);
@@ -368,7 +370,7 @@ export class FigmaPanelComponent implements OnInit, OnDestroy {
     if (!node) return;
     this.pendingNode.set(null);
     this.error.set(null);
-    this.figmaService.getFile(node.fileKey).subscribe({
+    this.figmaService.getFile(node.fileKey).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       error: (err) => this.error.set(err.error?.error || 'Failed to load file')
     });
   }
@@ -425,7 +427,7 @@ export class FigmaPanelComponent implements OnInit, OnDestroy {
     this.importing.set(true);
     this.error.set(null);
 
-    this.figmaService.importSelection(fileKey, selectedIds).subscribe({
+    this.figmaService.importSelection(fileKey, selectedIds).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (payload) => {
         this.importing.set(false);
         this.storePayload(payload);

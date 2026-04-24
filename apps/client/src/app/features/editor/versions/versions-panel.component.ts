@@ -1,4 +1,5 @@
-import { Component, inject, signal, effect, OnDestroy } from '@angular/core';
+import { Component, inject, signal, effect, OnDestroy, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../../core/services/api';
 import { ProjectService } from '../../../core/services/project';
@@ -20,6 +21,7 @@ interface Commit {
   styleUrl: './versions-panel.component.scss'
 })
 export class VersionsPanelComponent implements OnDestroy {
+  private destroyRef = inject(DestroyRef);
   private apiService = inject(ApiService);
   private projectService = inject(ProjectService);
   private confirmService = inject(ConfirmService);
@@ -64,7 +66,7 @@ export class VersionsPanelComponent implements OnDestroy {
     this.error.set(null);
     this.sub?.unsubscribe();
 
-    this.sub = this.apiService.getProjectHistory(projectId).subscribe({
+    this.sub = this.apiService.getProjectHistory(projectId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         this.commits.set(result.commits);
         this.loading.set(false);

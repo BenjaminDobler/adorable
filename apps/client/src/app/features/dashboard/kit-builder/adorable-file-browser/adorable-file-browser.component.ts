@@ -1,4 +1,5 @@
-import { Component, signal, computed, inject, input, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, signal, computed, inject, input, OnChanges, SimpleChanges, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../../core/services/api';
@@ -29,6 +30,7 @@ interface TreeEntry {
   styleUrl: './adorable-file-browser.component.scss'
 })
 export class AdorableFileBrowserComponent implements OnChanges {
+  private destroyRef = inject(DestroyRef);
   private apiService = inject(ApiService);
   private toastService = inject(ToastService);
   kitId = input<string | null>(null);
@@ -163,7 +165,7 @@ export class AdorableFileBrowserComponent implements OnChanges {
     const id = this.kitId();
     if (!id) return;
     this.loadingAdorableFiles.set(true);
-    this.apiService.getKitFiles(id).subscribe({
+    this.apiService.getKitFiles(id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         this.adorableFiles.set(result.files || []);
         const expanded = new Set<string>();
@@ -190,7 +192,7 @@ export class AdorableFileBrowserComponent implements OnChanges {
   openAdorableFile(filePath: string) {
     const id = this.kitId();
     if (!id) return;
-    this.apiService.getKitFile(id, filePath).subscribe({
+    this.apiService.getKitFile(id, filePath).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         this.editingAdorableFile.set({ path: result.path, content: result.content });
       },
@@ -209,7 +211,7 @@ export class AdorableFileBrowserComponent implements OnChanges {
     const id = this.kitId();
     if (!file || !id) return;
     this.savingAdorableFile.set(true);
-    this.apiService.updateKitFile(id, file.path, file.content).subscribe({
+    this.apiService.updateKitFile(id, file.path, file.content).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.savingAdorableFile.set(false);
         this.editingAdorableFile.set(null);
@@ -233,7 +235,7 @@ export class AdorableFileBrowserComponent implements OnChanges {
   deleteAdorableFile(filePath: string) {
     const id = this.kitId();
     if (!id) return;
-    this.apiService.deleteKitFile(id, filePath).subscribe({
+    this.apiService.deleteKitFile(id, filePath).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show('File deleted', 'success');
         this.loadAdorableFiles();
@@ -247,7 +249,7 @@ export class AdorableFileBrowserComponent implements OnChanges {
   deleteAdorableFolder(folderPath: string) {
     const id = this.kitId();
     if (!id) return;
-    this.apiService.deleteKitFolder(id, folderPath).subscribe({
+    this.apiService.deleteKitFolder(id, folderPath).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         this.toastService.show(`Deleted ${result.deletedCount} file(s)`, 'success');
         this.loadAdorableFiles();
@@ -425,7 +427,7 @@ export class AdorableFileBrowserComponent implements OnChanges {
     this.pendingUploadFiles.set([]);
     this.selectedUploadPaths.set(new Set());
 
-    this.apiService.uploadKitFiles(id, filesToUpload).subscribe({
+    this.apiService.uploadKitFiles(id, filesToUpload).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show(`${filesToUpload.length} file(s) uploaded`, 'success');
         this.uploadingFiles.set(false);
@@ -441,7 +443,7 @@ export class AdorableFileBrowserComponent implements OnChanges {
   regenerateDocs() {
     const id = this.kitId();
     if (!id) return;
-    this.apiService.regenerateKitDocs(id, false).subscribe({
+    this.apiService.regenerateKitDocs(id, false).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         this.toastService.show(`Regenerated ${result.fileCount} doc files`, 'success');
         this.loadAdorableFiles();

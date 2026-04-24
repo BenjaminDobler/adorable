@@ -8,7 +8,9 @@ import {
   AfterViewChecked,
   HostListener,
   NO_ERRORS_SCHEMA,
+  DestroyRef,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api';
@@ -78,6 +80,7 @@ import { FigmaBridgeService } from '../../../core/services/figma-bridge.service'
   schemas: [NO_ERRORS_SCHEMA],
 })
 export class WorkspaceComponent implements AfterViewChecked {
+  private destroyRef = inject(DestroyRef);
   private apiService = inject(ApiService);
   public containerEngine = inject(ContainerEngine);
   public projectService = inject(ProjectService);
@@ -208,7 +211,7 @@ export class WorkspaceComponent implements AfterViewChecked {
     });
 
     // Reload preview (webview/undocked) on demand from HMRTriggerService
-    this.hmrTriggerService.reloadPreview$.subscribe(() => this.reloadIframe());
+    this.hmrTriggerService.reloadPreview$.pipe(takeUntilDestroyed()).subscribe(() => this.reloadIframe());
 
     // Figma Live Bridge: when nodes change in Figma, invalidate comparison cache
     // and notify the preview to re-compare if those nodes are visible
@@ -232,13 +235,13 @@ export class WorkspaceComponent implements AfterViewChecked {
 
     // Send RELOAD_TRANSLATIONS to the preview — runtime scripts try smart reload first,
     // then fall back to window.location.reload() if no translation service is found.
-    this.hmrTriggerService.reloadTranslations$.subscribe(({ content }) => {
+    this.hmrTriggerService.reloadTranslations$.pipe(takeUntilDestroyed()).subscribe(({ content }) => {
       console.log('[Workspace] reloadTranslations$ → sendToPreview | webview:', !!this._webviewElement, '| undocked:', this.isPreviewUndocked());
       this.sendToPreview({ type: 'RELOAD_TRANSLATIONS', content });
     });
 
     // Re-fetch settings when navigating back from profile
-    this.router.events.subscribe((event) => {
+    this.router.events.pipe(takeUntilDestroyed()).subscribe((event) => {
       if (event instanceof NavigationEnd && event.url === '/dashboard') {
         this.fetchSettings();
       }
@@ -273,7 +276,7 @@ export class WorkspaceComponent implements AfterViewChecked {
     });
 
     // Handle Route Params
-    this.route.params.subscribe(async (params) => {
+    this.route.params.pipe(takeUntilDestroyed()).subscribe(async (params) => {
       const projectId = params['id'];
       if (projectId && projectId !== 'new') {
         console.log('before load project');
@@ -872,7 +875,7 @@ export class WorkspaceComponent implements AfterViewChecked {
   }
 
   fetchSettings() {
-    this.apiService.getProfile().subscribe((user) => {
+    this.apiService.getProfile().pipe(takeUntilDestroyed(this.destroyRef)).subscribe((user) => {
       if (user.settings) {
         this.appSettings =
           typeof user.settings === 'string'

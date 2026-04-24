@@ -1,4 +1,5 @@
-import { Component, inject, computed, signal, OnInit, OnDestroy, NgZone } from '@angular/core';
+import { Component, DestroyRef, inject, computed, signal, OnInit, OnDestroy, NgZone } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterModule } from '@angular/router';
 import { NavbarComponent } from './core/layout/navbar/navbar';
 import { LayoutService } from './core/services/layout';
@@ -27,6 +28,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private toastService = inject(ToastService);
   private router = inject(Router);
   private ngZone = inject(NgZone);
+  private destroyRef = inject(DestroyRef);
 
   githubReleasesUrl = 'https://github.com/BenjaminDobler/adorable/releases/latest';
   private isDesktop = isDesktopApp();
@@ -99,7 +101,7 @@ export class AppComponent implements OnInit, OnDestroy {
   async openExternalProject() {
     const folderPath = await (window as any).electronAPI?.openFolderDialog();
     if (!folderPath) return;
-    this.apiService.openExternalProject(folderPath).subscribe({
+    this.apiService.openExternalProject(folderPath).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result: any) => {
         if (result.needsAppSelection && result.apps) {
           this.nxApps.set(result.apps);
@@ -123,7 +125,7 @@ export class AppComponent implements OnInit, OnDestroy {
     if (!folderPath) return;
     this.showNxAppSelection.set(false);
     const config = this.selectedNxConfiguration()[appRoot];
-    this.apiService.openExternalProject(folderPath, undefined, appRoot, config).subscribe({
+    this.apiService.openExternalProject(folderPath, undefined, appRoot, config).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (project: any) => {
         if (project.id) this.router.navigate(['/editor', project.id]);
       },

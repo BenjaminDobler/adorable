@@ -1,4 +1,5 @@
-import { Component, output, inject, signal } from '@angular/core';
+import { Component, output, inject, signal, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { SkillsService } from '../../../core/services/skills';
 import { ToastService } from '../../../core/services/toast';
@@ -21,6 +22,7 @@ export class GitHubSkillDialogComponent {
   close = output<void>();
   installed = output<string[]>();
 
+  private destroyRef = inject(DestroyRef);
   private skillsService = inject(SkillsService);
   private toastService = inject(ToastService);
 
@@ -42,7 +44,7 @@ export class GitHubSkillDialogComponent {
     this.error.set('');
     this.availableSkills.set([]);
 
-    this.skillsService.listFromGitHub(this.repoUrl).subscribe({
+    this.skillsService.listFromGitHub(this.repoUrl).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         this.loading.set(false);
         if (result.skills.length === 0) {
@@ -80,7 +82,7 @@ export class GitHubSkillDialogComponent {
     const skillNames = selected.map(s => s.name);
 
     // For simplicity, install all at once (the API handles it)
-    this.skillsService.installFromGitHub(this.repoUrl).subscribe({
+    this.skillsService.installFromGitHub(this.repoUrl).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         this.installing.set(false);
         this.toastService.show(`Installed ${result.installed.length} skill(s)`, 'success');

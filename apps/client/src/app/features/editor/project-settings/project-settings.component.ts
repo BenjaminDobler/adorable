@@ -1,4 +1,5 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ContainerEngine } from '../../../core/services/container-engine';
@@ -304,6 +305,7 @@ import { ApiService } from '../../../core/services/api';
   `],
 })
 export class ProjectSettingsComponent {
+  private destroyRef = inject(DestroyRef);
   private containerEngine = inject(ContainerEngine);
   private projectService = inject(ProjectService);
   private toastService = inject(ToastService);
@@ -326,7 +328,7 @@ export class ProjectSettingsComponent {
   }
 
   private loadKits() {
-    this.apiService.getKits().subscribe({
+    this.apiService.getKits().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (kits) => this.availableKits.set(kits),
     });
   }
@@ -338,7 +340,7 @@ export class ProjectSettingsComponent {
 
     const newKitId = kitId || null;
     this.projectService.selectedKitId.set(newKitId);
-    this.apiService.setProjectKit(projectId, newKitId).subscribe({
+    this.apiService.setProjectKit(projectId, newKitId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         console.log('[ProjectSettings] Kit saved successfully:', result);
         this.toastService.show(kitId ? 'Kit associated with project' : 'Kit removed from project', 'success');

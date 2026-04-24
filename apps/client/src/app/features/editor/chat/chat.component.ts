@@ -232,14 +232,14 @@ export class ChatComponent {
   // ===== Data Loading =====
 
   loadSkills() {
-    this.skillsService.getSkills().subscribe({
+    this.skillsService.getSkills().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (skills) => this.availableSkills.set(skills),
       error: () => console.warn('Failed to load skills for chat')
     });
   }
 
   loadKits() {
-    this.apiService.listKits().subscribe({
+    this.apiService.listKits().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => this.availableKits.set(result.kits || []),
       error: () => console.warn('Failed to load kits for chat')
     });
@@ -248,7 +248,7 @@ export class ChatComponent {
   loadProjectCommands() {
     const projectId = this.projectService.projectId();
     if (!projectId) return;
-    this.apiService.getProjectCommands(projectId).subscribe({
+    this.apiService.getProjectCommands(projectId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => this.projectCommands.set(result.commands || []),
       error: () => console.warn('Failed to load project commands')
     });
@@ -297,7 +297,7 @@ export class ChatComponent {
 
   loadMcpTools() {
     this.mcpToolsLoading.set(true);
-    this.apiService.getAvailableMcpTools().subscribe({
+    this.apiService.getAvailableMcpTools().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         this.mcpServers.set(result.servers);
         this.mcpTools.set(result.tools);
@@ -362,7 +362,7 @@ export class ChatComponent {
           let providerParam = profile.provider;
           if (providerParam === 'gemini') providerParam = 'google';
 
-          this.apiService.getModels(providerParam, profile.apiKey).subscribe({
+          this.apiService.getModels(providerParam, profile.apiKey).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
              next: (fetched) => {
                 const newModels = fetched.map((m: string) => ({
                    id: m,
@@ -521,7 +521,7 @@ export class ChatComponent {
 
     const { requestId, answers } = msg.pendingQuestion;
 
-    this.apiService.submitQuestionAnswers(requestId, answers).subscribe({
+    this.apiService.submitQuestionAnswers(requestId, answers).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         console.log('[Question] Answers submitted:', result);
         this.messages.update(msgs => {
@@ -545,7 +545,7 @@ export class ChatComponent {
 
     const { requestId } = msg.pendingQuestion;
 
-    this.apiService.cancelQuestion(requestId).subscribe({
+    this.apiService.cancelQuestion(requestId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         console.log('[Question] Request cancelled:', result);
         this.messages.update(msgs => {
@@ -1098,7 +1098,7 @@ Analyze the attached design images carefully and create matching Angular compone
             const textMsgs = allMsgs.filter(m => m.role !== 'system' && m.text?.trim());
             if (textMsgs.length > 10 && !this.contextSummary()) {
               const toSummarize = textMsgs.slice(0, -6).map(m => ({ role: m.role, text: m.text }));
-              this.apiService.summarizeContext(toSummarize).subscribe({
+              this.apiService.summarizeContext(toSummarize).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
                 next: (res) => { if (res.summary) this.contextSummary.set(res.summary); },
                 error: () => {} // Non-fatal
               });
@@ -1211,6 +1211,7 @@ Analyze the attached design images carefully and create matching Angular compone
 
     this.contextPreviewLoading.set(true);
     this.apiService.previewContext(currentPrompt, previousFiles, {
+
       provider, apiKey, model,
       openFiles: this.getContextFiles(),
       forcedSkill: this.selectedSkill()?.name,
@@ -1221,7 +1222,7 @@ Analyze the attached design images carefully and create matching Angular compone
       reasoningEffort: this.reasoningEffort(),
       history: historyToSend?.length ? historyToSend : undefined,
       contextSummary: summaryToSend,
-    }).subscribe({
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (data: ContextPreviewData) => {
         this.contextPreviewData.set(data);
         this.contextPreviewLoading.set(false);
@@ -1241,7 +1242,7 @@ Analyze the attached design images carefully and create matching Angular compone
     // Clear Claude Code session so next turn starts fresh
     const projectId = this.projectService.projectId();
     if (projectId) {
-      this.apiService.clearClaudeCodeSession(projectId).subscribe();
+      this.apiService.clearClaudeCodeSession(projectId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
     }
   }
 

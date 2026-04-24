@@ -1,4 +1,5 @@
-import { Component, inject, signal, OnInit, computed } from '@angular/core';
+import { Component, DestroyRef, inject, signal, OnInit, computed } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { ApiService } from '../../core/services/api';
@@ -41,6 +42,7 @@ export class ProfileComponent implements OnInit {
   private toastService = inject(ToastService);
   private githubService = inject(GitHubService);
   public cloudSyncService = inject(CloudSyncService);
+  private destroyRef = inject(DestroyRef);
 
   user = signal<any>(null);
   name = signal('');
@@ -96,21 +98,21 @@ export class ProfileComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.route.queryParams.subscribe(params => {
+    this.route.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       if (params['github_connected'] === 'true') {
         this.toastService.show('GitHub account connected!', 'success');
-        this.githubService.getConnection().subscribe();
+        this.githubService.getConnection().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
       }
       if (params['github_error']) {
         this.toastService.show(`GitHub error: ${params['github_error']}`, 'error');
       }
     });
 
-    this.githubService.getConnection().subscribe();
+    this.githubService.getConnection().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
   }
 
   loadData() {
-    this.apiService.getProfile().subscribe(user => {
+    this.apiService.getProfile().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(user => {
       this.user.set(user);
       this.name.set(user.name || '');
 
@@ -170,7 +172,7 @@ export class ProfileComponent implements OnInit {
     let providerParam = profile.provider;
     if (providerParam === 'gemini') providerParam = 'google' as any;
 
-    this.apiService.getModels(providerParam, profile.apiKey).subscribe({
+    this.apiService.getModels(providerParam, profile.apiKey).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (models) => {
         this.fetchedModels.update(current => ({
           ...current,
@@ -287,7 +289,7 @@ export class ProfileComponent implements OnInit {
       settings: current
     };
 
-    this.apiService.updateProfile(data).subscribe({
+    this.apiService.updateProfile(data).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show('Profile and settings saved!', 'success');
         this.loading.set(false);

@@ -1,4 +1,5 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, DestroyRef, inject, signal, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule, ActivatedRoute } from '@angular/router';
@@ -16,6 +17,7 @@ export class ResetPasswordComponent implements OnInit {
   private authService = inject(AuthService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
+  private destroyRef = inject(DestroyRef);
 
   token = '';
   password = '';
@@ -44,6 +46,7 @@ export class ResetPasswordComponent implements OnInit {
     this.error.set('');
 
     this.authService.resetPassword(this.token, this.password).pipe(
+      takeUntilDestroyed(this.destroyRef),
       finalize(() => this.loading.set(false))
     ).subscribe({
       next: () => {

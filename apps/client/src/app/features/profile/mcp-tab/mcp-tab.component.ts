@@ -1,4 +1,5 @@
-import { Component, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, inject, input, output, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api';
 import { MCPServerConfig } from '../profile.types';
@@ -12,6 +13,7 @@ import { MCPServerConfig } from '../profile.types';
 })
 export class McpTabComponent {
   private apiService = inject(ApiService);
+  private destroyRef = inject(DestroyRef);
 
   mcpServers = input<MCPServerConfig[]>([]);
   angularMcpEnabled = input(true);
@@ -68,7 +70,7 @@ export class McpTabComponent {
       command: server.command,
       args: server.args,
       env: server.env
-    }).subscribe({
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         this.connectionTestResult.set(result);
         this.testingConnection.set(false);

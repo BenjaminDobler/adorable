@@ -1,4 +1,5 @@
-import { Component, inject, input, output } from '@angular/core';
+import { Component, DestroyRef, inject, input, output } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { GitHubService } from '../../../core/services/github.service';
 import { ToastService } from '../../../core/services/toast';
@@ -14,6 +15,7 @@ import { AppSettings, AIProfile } from '../profile.types';
 export class IntegrationsTabComponent {
   githubService = inject(GitHubService);
   private toastService = inject(ToastService);
+  private destroyRef = inject(DestroyRef);
 
   settings = input.required<AppSettings>();
 
@@ -24,7 +26,7 @@ export class IntegrationsTabComponent {
   }
 
   disconnectGitHub() {
-    this.githubService.disconnect().subscribe({
+    this.githubService.disconnect().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => this.toastService.show('GitHub disconnected', 'success'),
       error: () => this.toastService.show('Failed to disconnect GitHub', 'error')
     });

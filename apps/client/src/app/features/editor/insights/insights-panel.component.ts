@@ -1,4 +1,5 @@
-import { Component, inject, signal, effect, computed, OnDestroy } from '@angular/core';
+import { Component, inject, signal, effect, computed, OnDestroy, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../../core/services/api';
 import { ProjectService } from '../../../core/services/project';
@@ -19,6 +20,7 @@ import {
   styleUrl: './insights-panel.component.scss'
 })
 export class InsightsPanelComponent implements OnDestroy {
+  private destroyRef = inject(DestroyRef);
   private apiService = inject(ApiService);
   private projectService = inject(ProjectService);
   private toastService = inject(ToastService);
@@ -64,7 +66,7 @@ export class InsightsPanelComponent implements OnDestroy {
     this.loadingSessions.set(true);
     this.sub?.unsubscribe();
 
-    this.sub = this.apiService.listSessions(projectId).subscribe({
+    this.sub = this.apiService.listSessions(projectId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         this.sessions.set(result.sessions);
         this.loadingSessions.set(false);
@@ -88,7 +90,7 @@ export class InsightsPanelComponent implements OnDestroy {
     const kitId = this.projectService.selectedKitId() || undefined;
 
     this.sub?.unsubscribe();
-    this.sub = this.apiService.analyzeSession(session.filename, session.projectId, kitId).subscribe({
+    this.sub = this.apiService.analyzeSession(session.filename, session.projectId, kitId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (event) => {
         switch (event.type) {
           case 'progress':
@@ -124,7 +126,7 @@ export class InsightsPanelComponent implements OnDestroy {
 
   applySuggestion(suggestion: SessionSuggestion) {
     this.applying.set(true);
-    this.apiService.applySuggestion(suggestion).subscribe({
+    this.apiService.applySuggestion(suggestion).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         if (result.success) {
           this.suggestions.update(prev =>

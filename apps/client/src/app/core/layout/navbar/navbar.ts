@@ -1,4 +1,5 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -42,6 +43,7 @@ interface ContainerInfo {
   styleUrl: './navbar.scss',
 })
 export class NavbarComponent {
+  private destroyRef = inject(DestroyRef);
   public authService = inject(AuthService);
   public projectService = inject(ProjectService);
   public containerEngine = inject(ContainerEngine);
@@ -89,7 +91,7 @@ export class NavbarComponent {
 
   constructor() {
     // Load GitHub connection status on startup
-    this.githubService.getConnection().subscribe();
+    this.githubService.getConnection().pipe(takeUntilDestroyed()).subscribe();
   }
 
   isProjectView() {
@@ -139,7 +141,7 @@ export class NavbarComponent {
     const projectId = this.projectService.projectId();
     if (!projectId || !this.projectService.isSaved()) return;
 
-    this.githubService.getSyncStatus(projectId).subscribe({
+    this.githubService.getSyncStatus(projectId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (status) => {
         this.githubSyncStatus.set(status);
         if (status.enabled) {
@@ -151,7 +153,7 @@ export class NavbarComponent {
   }
 
   loadGitHubRepos() {
-    this.githubService.listRepositories().subscribe({
+    this.githubService.listRepositories().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (repos) => this.githubRepos.set(repos),
       error: (err) => {
         console.error('Failed to load repos:', err);
@@ -167,7 +169,7 @@ export class NavbarComponent {
     if (!projectId || !repoFullName) return;
 
     this.githubSyncing.set(true);
-    this.githubService.connectProject(projectId, repoFullName).subscribe({
+    this.githubService.connectProject(projectId, repoFullName).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.toastService.show(`Connected to ${res.repoFullName}`, 'success');
         this.loadGitHubSyncStatus();
@@ -188,9 +190,9 @@ export class NavbarComponent {
     if (!projectId || !repoName) return;
 
     this.githubSyncing.set(true);
-    this.githubService.createRepository(repoName, true, `Created by Adorable`).subscribe({
+    this.githubService.createRepository(repoName, true, `Created by Adorable`).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (repo) => {
-        this.githubService.connectProject(projectId, repo.full_name).subscribe({
+        this.githubService.connectProject(projectId, repo.full_name).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
           next: () => {
             this.toastService.show(`Created and connected to ${repo.full_name}`, 'success');
             this.loadGitHubSyncStatus();
@@ -221,7 +223,7 @@ export class NavbarComponent {
     if (!confirmed) return;
 
     this.githubSyncing.set(true);
-    this.githubService.disconnectProject(projectId).subscribe({
+    this.githubService.disconnectProject(projectId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show('Disconnected from GitHub', 'success');
         this.githubSyncStatus.set(null);
@@ -240,7 +242,7 @@ export class NavbarComponent {
     if (!projectId) return;
 
     this.githubSyncing.set(true);
-    this.githubService.pushToGitHub(projectId, `Update from Adorable`).subscribe({
+    this.githubService.pushToGitHub(projectId, `Update from Adorable`).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show('Pushed to GitHub', 'success');
         this.loadGitHubSyncStatus();
@@ -259,7 +261,7 @@ export class NavbarComponent {
     if (!projectId) return;
 
     this.githubSyncing.set(true);
-    this.githubService.pullFromGitHub(projectId).subscribe({
+    this.githubService.pullFromGitHub(projectId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: async (res) => {
         this.toastService.show('Pulled from GitHub', 'success');
         await this.projectService.reloadPreview(res.files);
@@ -279,7 +281,7 @@ export class NavbarComponent {
     if (!projectId) return;
 
     this.githubPagesDeploying.set(true);
-    this.githubService.deployToPages(projectId).subscribe({
+    this.githubService.deployToPages(projectId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.githubPagesUrl.set(res.url);
         this.toastService.show('GitHub Pages deployment started! Site will be live in a few minutes.', 'success');
@@ -297,7 +299,7 @@ export class NavbarComponent {
     const projectId = this.projectService.projectId();
     if (!projectId || !this.projectService.isSaved()) return;
 
-    this.githubService.getPagesStatus(projectId).subscribe({
+    this.githubService.getPagesStatus(projectId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (status) => {
         if (status.enabled && status.url) {
           this.githubPagesUrl.set(status.url);
@@ -316,7 +318,7 @@ export class NavbarComponent {
     this.vscodePanelOpen.set(false);
     if (this.isNativeMode()) {
       const nativeUrl = ((window as any).electronAPI?.nativeAgentUrl || 'http://localhost:3334') + '/api/native/info';
-      this.http.get<{ projectPath: string }>(nativeUrl).subscribe({
+      this.http.get<{ projectPath: string }>(nativeUrl).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (info) => {
           const uri = `vscode://file/${info.projectPath}?windowId=_blank`;
           window.open(uri, '_blank');
@@ -327,7 +329,7 @@ export class NavbarComponent {
         }
       });
     } else {
-      this.http.get<ContainerInfo>(`${getServerUrl()}/api/container/info`).subscribe({
+      this.http.get<ContainerInfo>(`${getServerUrl()}/api/container/info`).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (info) => {
           const uri = `vscode://file/${info.hostProjectPath}?windowId=_blank`;
           window.open(uri, '_blank');
@@ -342,7 +344,7 @@ export class NavbarComponent {
 
   openInVSCodeContainer() {
     this.vscodePanelOpen.set(false);
-    this.http.get<ContainerInfo>(`${getServerUrl()}/api/container/info`).subscribe({
+    this.http.get<ContainerInfo>(`${getServerUrl()}/api/container/info`).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (info) => {
         // Hex-encode the container ID for the Dev Containers URI
         const hexId = Array.from(new TextEncoder().encode(info.containerId))
@@ -406,7 +408,7 @@ export class NavbarComponent {
     const projectId = this.projectService.projectId();
     if (!projectId || !this.projectService.isSaved()) return;
 
-    this.apiService.loadProject(projectId).subscribe({
+    this.apiService.loadProject(projectId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (project) => {
         this.currentPublishStatus.set({
           isPublished: project.isPublished,
@@ -499,7 +501,7 @@ export class NavbarComponent {
     const projectId = this.projectService.projectId();
     if (!projectId) return;
 
-    this.apiService.unpublish(projectId).subscribe({
+    this.apiService.unpublish(projectId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show('Site unpublished', 'success');
         this.currentPublishStatus.set(null);
@@ -520,7 +522,7 @@ export class NavbarComponent {
     // Only update on server if already published
     const status = this.currentPublishStatus();
     if (status?.isPublished) {
-      this.apiService.updatePublishVisibility(projectId, visibility).subscribe({
+      this.apiService.updatePublishVisibility(projectId, visibility).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: () => {
           this.currentPublishStatus.set({ ...status!, publishVisibility: visibility });
           this.toastService.show(`Visibility changed to ${visibility}`, 'success');
@@ -575,7 +577,7 @@ export class NavbarComponent {
 
   private loadSettings() {
     this.settingsLoading.set(true);
-    this.apiService.getProfile().subscribe({
+    this.apiService.getProfile().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (user) => {
         this.settingsUser.set(user);
         this.settingsName.set(user.name || '');
@@ -626,7 +628,7 @@ export class NavbarComponent {
   private fetchSettingsModels(profile: AIProfile) {
     let providerParam = profile.provider;
     if (providerParam === 'gemini') providerParam = 'google' as any;
-    this.apiService.getModels(providerParam, profile.apiKey).subscribe({
+    this.apiService.getModels(providerParam, profile.apiKey).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (models) => {
         this.settingsFetchedModels.update(current => ({ ...current, [profile.id]: models }));
       },
@@ -705,7 +707,7 @@ export class NavbarComponent {
     if (!current.profiles.find(p => p.id === current.activeProfileId)) {
       current.activeProfileId = current.profiles[0]?.id;
     }
-    this.apiService.updateProfile({ name: this.settingsName(), settings: current }).subscribe({
+    this.apiService.updateProfile({ name: this.settingsName(), settings: current }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show('Settings saved!', 'success');
         this.settingsSaving.set(false);

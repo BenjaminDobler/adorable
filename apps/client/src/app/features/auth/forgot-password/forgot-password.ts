@@ -1,4 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -14,6 +15,7 @@ import { AuthService } from '../../../core/services/auth';
 })
 export class ForgotPasswordComponent {
   private authService = inject(AuthService);
+  private destroyRef = inject(DestroyRef);
 
   email = '';
   error = signal('');
@@ -31,6 +33,7 @@ export class ForgotPasswordComponent {
     this.successMessage.set('');
 
     this.authService.forgotPassword(this.email).pipe(
+      takeUntilDestroyed(this.destroyRef),
       finalize(() => this.loading.set(false))
     ).subscribe({
       next: (res) => {

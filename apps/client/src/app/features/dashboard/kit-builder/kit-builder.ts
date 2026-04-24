@@ -1,4 +1,5 @@
-import { Component, signal, inject, computed, viewChild } from '@angular/core';
+import { Component, signal, inject, computed, viewChild, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
@@ -27,6 +28,7 @@ interface TemplateFileEntry {
   styleUrl: './kit-builder.scss'
 })
 export class KitBuilderComponent {
+  private destroyRef = inject(DestroyRef);
   private apiService = inject(ApiService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
@@ -189,13 +191,13 @@ export class KitBuilderComponent {
     }
 
     // Load default system prompt for the override textarea
-    this.apiService.getDefaultSystemPrompt().subscribe({
+    this.apiService.getDefaultSystemPrompt().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => this.defaultSystemPrompt.set(result.prompt),
       error: () => {} // silently ignore
     });
 
     // Load MCP servers
-    this.apiService.getSettings().subscribe({
+    this.apiService.getSettings().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (settings) => {
         if (settings?.mcpServers) {
           this.mcpServers = settings.mcpServers.map((s: any) => ({
@@ -212,7 +214,7 @@ export class KitBuilderComponent {
       // Edit mode: load kit from API
       this.kitId = id;
       this.loadLessons();
-      this.apiService.getKit(id).subscribe({
+      this.apiService.getKit(id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (response) => {
           this.kit = response.kit;
           this.populateForm(this.kit!);
@@ -842,7 +844,7 @@ export class KitBuilderComponent {
   loadLessons() {
     if (!this.kitId) return;
     this.lessonsLoading.set(true);
-    this.apiService.getKitLessons(this.kitId).subscribe({
+    this.apiService.getKitLessons(this.kitId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.lessons.set(res.lessons || []);
         this.lessonsLoading.set(false);
@@ -911,7 +913,7 @@ export class KitBuilderComponent {
     };
 
     if (lesson.id) {
-      this.apiService.updateKitLesson(this.kitId, lesson.id, data).subscribe({
+      this.apiService.updateKitLesson(this.kitId, lesson.id, data).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: () => {
           this.toastService.show('Lesson updated', 'success');
           this.editingLesson.set(null);
@@ -920,7 +922,7 @@ export class KitBuilderComponent {
         error: () => this.toastService.show('Failed to update lesson', 'error')
       });
     } else {
-      this.apiService.createKitLesson(this.kitId, data as any).subscribe({
+      this.apiService.createKitLesson(this.kitId, data as any).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: () => {
           this.toastService.show('Lesson created', 'success');
           this.editingLesson.set(null);
@@ -933,7 +935,7 @@ export class KitBuilderComponent {
 
   deleteLesson(lesson: any) {
     if (!this.kitId) return;
-    this.apiService.deleteKitLesson(this.kitId, lesson.id).subscribe({
+    this.apiService.deleteKitLesson(this.kitId, lesson.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show('Lesson deleted', 'success');
         this.loadLessons();
@@ -944,7 +946,7 @@ export class KitBuilderComponent {
 
   promoteLesson(lesson: any) {
     if (!this.kitId) return;
-    this.apiService.promoteKitLesson(this.kitId, lesson.id).subscribe({
+    this.apiService.promoteKitLesson(this.kitId, lesson.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toastService.show('Lesson promoted to shared', 'success');
         this.loadLessons();

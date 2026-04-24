@@ -1,4 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule, ActivatedRoute } from '@angular/router';
 import { finalize } from 'rxjs';
@@ -15,6 +16,7 @@ export class LoginComponent {
   private authService = inject(AuthService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
+  private destroyRef = inject(DestroyRef);
 
   email = '';
   password = '';
@@ -59,7 +61,7 @@ export class LoginComponent {
     }
 
     // Fetch config to show/hide social buttons
-    this.authService.getRegistrationConfig().subscribe({
+    this.authService.getRegistrationConfig().pipe(takeUntilDestroyed()).subscribe({
       next: (config) => {
         this.githubLoginEnabled.set(config.githubLoginEnabled);
         this.googleLoginEnabled.set(config.googleLoginEnabled);
@@ -82,6 +84,7 @@ export class LoginComponent {
     this.loading.set(true);
     this.error.set('');
     this.authService.login({ email: this.email, password: this.password }).pipe(
+      takeUntilDestroyed(this.destroyRef),
       finalize(() => this.loading.set(false))
     ).subscribe({
       next: () => this.router.navigate(['/dashboard']),
@@ -92,7 +95,7 @@ export class LoginComponent {
   }
 
   socialLogin(provider: 'github' | 'google') {
-    this.authService.getSocialAuthUrl(provider).subscribe({
+    this.authService.getSocialAuthUrl(provider).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         window.location.href = res.url;
       },
