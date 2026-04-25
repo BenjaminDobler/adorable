@@ -1,6 +1,5 @@
 import { Component, inject, signal, effect, computed, OnDestroy, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
 import { ApiService } from '../../../core/services/api';
 import { ProjectService } from '../../../core/services/project';
 import { ToastService } from '../../../core/services/toast';
@@ -14,7 +13,7 @@ import {
 
 @Component({
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   selector: 'app-insights-panel',
   templateUrl: './insights-panel.component.html',
   styleUrl: './insights-panel.component.scss'

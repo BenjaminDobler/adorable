@@ -1,5 +1,5 @@
 import { Component, EventEmitter, Output, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FileTree, FileNode, DirectoryNode } from '../../../core/services/kit-types';
 import { svgIcon } from '../../../shared/ui/icons';
@@ -28,7 +28,7 @@ interface FileEntry {
 @Component({
   selector: 'app-folder-import',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [NgTemplateOutlet, FormsModule],
   templateUrl: './folder-import.html',
   styleUrl: './folder-import.scss'
 })

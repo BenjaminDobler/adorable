@@ -1,5 +1,5 @@
 import { Component, input, output, signal, computed, Injectable, inject, ElementRef, ViewChild, HostListener } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 
 export interface FileAction {
   type: 'create-file' | 'create-folder' | 'delete' | 'rename' | 'upload';
@@ -63,7 +63,7 @@ interface FileNode {
 @Component({
   selector: 'app-file-explorer',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   templateUrl: './file-explorer.html',
   styleUrl: './file-explorer.scss'
 })

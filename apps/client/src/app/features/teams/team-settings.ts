@@ -1,6 +1,5 @@
 import { Component, inject, signal, computed, OnInit, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { TeamService } from './services/team.service';
@@ -11,7 +10,7 @@ import { TeamMember, TeamInvite, TeamRole } from '@adorable/shared-types';
 @Component({
   selector: 'app-team-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [FormsModule, RouterModule],
   templateUrl: './team-settings.html',
   styleUrl: './team-settings.scss',
 })

@@ -1,5 +1,4 @@
 import { Component, inject, signal, output } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CloudSyncService } from '../../../core/services/cloud-sync.service';
 import { ToastService } from '../../../core/services/toast';
@@ -7,7 +6,7 @@ import { ToastService } from '../../../core/services/toast';
 @Component({
   selector: 'app-cloud-connect',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   templateUrl: './cloud-connect.component.html',
   styleUrl: './cloud-connect.component.scss',
 })

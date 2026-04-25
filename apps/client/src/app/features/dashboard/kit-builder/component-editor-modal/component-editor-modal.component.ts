@@ -1,12 +1,11 @@
 import { Component, signal, computed, input, output } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { StorybookComponent, ComponentExample } from '../../../../core/services/kit-types';
 
 @Component({
   selector: 'app-component-editor-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   templateUrl: './component-editor-modal.component.html',
   styleUrl: './component-editor-modal.component.scss'
 })

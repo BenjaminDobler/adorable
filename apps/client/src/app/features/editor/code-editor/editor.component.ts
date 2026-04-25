@@ -1,5 +1,4 @@
 import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, input, output, effect, untracked, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { ProgressiveEditorStore } from '../services/progressive-editor.store';
 import { MonacoIntelliSenseService } from './monaco-intellisense.service';
 
@@ -8,7 +7,7 @@ declare const monaco: any;
 @Component({
   selector: 'app-editor',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   templateUrl: './editor.component.html',
   styleUrl: './editor.component.scss'
 })

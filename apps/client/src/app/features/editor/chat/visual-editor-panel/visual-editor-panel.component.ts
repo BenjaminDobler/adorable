@@ -1,5 +1,4 @@
 import { Component, Input, Output, EventEmitter, signal, computed, effect, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TemplateService, ElementFingerprint } from '../../services/template';
 import { ProjectService } from '../../../../core/services/project';
@@ -11,7 +10,7 @@ import { getConflictPrefix, getPrefixedCategories, stripPrefix } from './tailwin
 @Component({
   selector: 'app-visual-editor-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   templateUrl: './visual-editor-panel.html',
   styleUrls: ['./visual-editor-panel.scss']
 })

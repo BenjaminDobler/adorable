@@ -1,6 +1,6 @@
 import { Component, signal, inject, computed, viewChild, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+import { KeyValuePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { ApiService } from '../../../core/services/api';
@@ -11,6 +11,7 @@ import { FolderImportComponent } from '../folder-import/folder-import';
 import { ComponentEditorModalComponent } from './component-editor-modal/component-editor-modal.component';
 import { ToolTesterComponent } from './tool-tester/tool-tester.component';
 import { AdorableFileBrowserComponent } from './adorable-file-browser/adorable-file-browser.component';
+import { firstValueFrom } from 'rxjs';
 
 interface TemplateFileEntry {
   path: string;
@@ -23,7 +24,7 @@ interface TemplateFileEntry {
 @Component({
   selector: 'app-kit-builder',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, FolderImportComponent, ComponentEditorModalComponent, ToolTesterComponent, AdorableFileBrowserComponent],
+  imports: [KeyValuePipe, FormsModule, RouterModule, FolderImportComponent, ComponentEditorModalComponent, ToolTesterComponent, AdorableFileBrowserComponent],
   templateUrl: './kit-builder.html',
   styleUrl: './kit-builder.scss'
 })
@@ -361,7 +362,7 @@ export class KitBuilderComponent {
     this.discoveryError.set(null);
 
     try {
-      const result = await this.apiService.discoverNpmComponents(pkg).toPromise();
+      const result = await firstValueFrom(this.apiService.discoverNpmComponents(pkg));
 
       if (result && result.success) {
         const newComponents: StorybookComponent[] = result.components.map((c: StorybookComponent) => ({
@@ -417,7 +418,7 @@ export class KitBuilderComponent {
     this.discoveryError.set(null);
 
     try {
-      const result = await this.apiService.discoverStorybookComponents(url).toPromise();
+      const result = await firstValueFrom(this.apiService.discoverStorybookComponents(url));
       if (result && result.success) {
         const newComponents: StorybookComponent[] = result.components;
         const previousComponents = this.discoveredComponents();
@@ -547,11 +548,11 @@ export class KitBuilderComponent {
     this.validationResult.set(null);
 
     try {
-      const result = await this.apiService.validateKitComponents(
+      const result = await firstValueFrom(this.apiService.validateKitComponents(
         pkg,
         this.discoveredComponents(),
         suffix
-      ).toPromise();
+      ));
 
       if (result && result.success) {
         this.validationResult.set({
@@ -628,7 +629,7 @@ export class KitBuilderComponent {
         return name.endsWith('Component') || name.endsWith('Directive') ? name : `${name}${suffix}`;
       });
 
-      const result = await this.apiService.fetchBatchComponentMetadata(pkg, componentNames).toPromise();
+      const result = await firstValueFrom(this.apiService.fetchBatchComponentMetadata(pkg, componentNames));
 
       if (result && result.success) {
         this.populateProgress.set(`Found metadata for ${result.found}/${result.total} components`);
@@ -816,9 +817,9 @@ export class KitBuilderComponent {
 
       let result;
       if (this.kit) {
-        result = await this.apiService.updateKit(this.kit.id, kitData).toPromise();
+        result = await firstValueFrom(this.apiService.updateKit(this.kit.id, kitData));
       } else {
-        result = await this.apiService.createKit(kitData).toPromise();
+        result = await firstValueFrom(this.apiService.createKit(kitData));
       }
 
       if (result && result.kit) {

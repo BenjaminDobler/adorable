@@ -1,12 +1,12 @@
 import { Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { JsonPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DevtoolsService } from '../../../core/services/devtools.service';
 
 @Component({
   selector: 'app-tools-tester-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [JsonPipe, FormsModule],
   templateUrl: './tools-tester-panel.component.html',
   styleUrl: './tools-tester-panel.component.scss',
 })

@@ -1,5 +1,5 @@
 import { Component, inject, signal, effect, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { ProjectService } from '../../../core/services/project';
 import { ContainerEngine } from '../../../core/services/container-engine';
@@ -19,7 +19,7 @@ interface TranslationFile {
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   selector: 'app-translations-panel',
   templateUrl: './translations-panel.component.html',
   styleUrl: './translations-panel.component.scss',

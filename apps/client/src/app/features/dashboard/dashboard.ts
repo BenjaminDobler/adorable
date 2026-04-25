@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { ApiService } from '../../core/services/api';
@@ -19,7 +19,7 @@ import { TeamService } from '../teams/services/team.service';
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, SkillDialogComponent, GitHubSkillDialogComponent],
+  imports: [DatePipe, FormsModule, RouterModule, SkillDialogComponent, GitHubSkillDialogComponent],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss',
 })

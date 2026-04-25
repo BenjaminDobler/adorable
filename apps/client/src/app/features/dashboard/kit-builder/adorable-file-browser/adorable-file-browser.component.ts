@@ -1,6 +1,5 @@
 import { Component, signal, computed, inject, input, OnChanges, SimpleChanges, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../../core/services/api';
 import { ToastService } from '../../../../core/services/toast';
@@ -25,7 +24,7 @@ interface TreeEntry {
 @Component({
   selector: 'app-adorable-file-browser',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   templateUrl: './adorable-file-browser.component.html',
   styleUrl: './adorable-file-browser.component.scss'
 })

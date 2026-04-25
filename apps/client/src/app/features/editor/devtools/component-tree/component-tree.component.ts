@@ -1,5 +1,5 @@
 import { Component, inject, signal, output } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   DevtoolsService,
@@ -11,7 +11,7 @@ import { IconComponent } from '../../../../shared/ui/icon/icon.component';
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent],
+  imports: [NgTemplateOutlet, FormsModule, IconComponent],
   selector: 'app-component-tree',
   templateUrl: './component-tree.component.html',
   styleUrl: './component-tree.component.scss',

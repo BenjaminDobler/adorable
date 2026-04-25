@@ -1,6 +1,5 @@
 import { Component, inject, signal, computed, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../../services/auth';
@@ -38,7 +37,7 @@ interface ContainerInfo {
 @Component({
   selector: 'app-navbar',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, CloudConnectComponent, PopoverComponent, ProvidersTabComponent, AccountTabComponent, IntegrationsTabComponent, McpTabComponent, AboutTabComponent],
+  imports: [RouterModule, FormsModule, CloudConnectComponent, PopoverComponent, ProvidersTabComponent, AccountTabComponent, IntegrationsTabComponent, McpTabComponent, AboutTabComponent],
   templateUrl: './navbar.html',
   styleUrl: './navbar.scss',
 })

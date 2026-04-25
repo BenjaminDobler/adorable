@@ -11,7 +11,7 @@ import {
   DestroyRef,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+import { firstValueFrom } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api';
 import { ContainerEngine } from '../../../core/services/container-engine';
@@ -54,7 +54,6 @@ import { FigmaBridgeService } from '../../../core/services/figma-bridge.service'
 @Component({
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     SafeUrlPipe,
     FileExplorerComponent,
@@ -659,7 +658,7 @@ export class WorkspaceComponent implements AfterViewChecked {
     let figmaNode = this.figmaCompareCache.get(figmaNodeId);
     if (!figmaNode) {
       try {
-        figmaNode = await this.figmaBridge.getNodeForComparison(figmaNodeId).toPromise();
+        figmaNode = await firstValueFrom(this.figmaBridge.getNodeForComparison(figmaNodeId));
         this.figmaCompareCache.set(figmaNodeId, figmaNode);
       } catch (e) {
         console.warn('[Workspace] Failed to fetch Figma node for comparison:', e);

@@ -1,12 +1,12 @@
 import { Component, signal, inject, input } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../../core/services/api';
 
 @Component({
   selector: 'app-tool-tester',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   templateUrl: './tool-tester.component.html',
   styleUrl: './tool-tester.component.scss'
 })
@@ -38,7 +38,7 @@ export class ToolTesterComponent {
         args = { name: this.testComponentName() || 'Button' };
       }
 
-      const result = await this.apiService.previewKitTool(id, tool, args).toPromise();
+      const result = await firstValueFrom(this.apiService.previewKitTool(id, tool, args));
 
       if (result) {
         this.toolTestResult.set(result.output);

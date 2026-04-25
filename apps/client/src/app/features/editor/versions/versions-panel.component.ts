@@ -1,11 +1,10 @@
 import { Component, inject, signal, effect, OnDestroy, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
 import { ApiService } from '../../../core/services/api';
 import { ProjectService } from '../../../core/services/project';
 import { ConfirmService } from '../../../core/services/confirm';
 import { ToastService } from '../../../core/services/toast';
-import { Subscription } from 'rxjs';
+import { Subscription, firstValueFrom } from 'rxjs';
 
 interface Commit {
   sha: string;
@@ -15,7 +14,7 @@ interface Commit {
 
 @Component({
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   selector: 'app-versions-panel',
   templateUrl: './versions-panel.component.html',
   styleUrl: './versions-panel.component.scss'
@@ -92,7 +91,7 @@ export class VersionsPanelComponent implements OnDestroy {
 
     this.restoring.set(true);
     try {
-      const result = await this.apiService.restoreVersion(projectId, sha).toPromise();
+      const result = await firstValueFrom(this.apiService.restoreVersion(projectId, sha));
       if (result?.files) {
         await this.projectService.reloadPreview(result.files);
         this.projectService.addSystemMessage('Restored project to previous version.');

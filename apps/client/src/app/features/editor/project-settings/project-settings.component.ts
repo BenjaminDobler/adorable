@@ -1,6 +1,5 @@
 import { Component, computed, inject, signal, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ContainerEngine } from '../../../core/services/container-engine';
 import { NativeContainerEngine } from '../../../core/services/native-container.engine';
@@ -11,7 +10,7 @@ import { ApiService } from '../../../core/services/api';
 @Component({
   selector: 'app-project-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   template: `
     <div class="settings-panel">
       <div class="settings-body">

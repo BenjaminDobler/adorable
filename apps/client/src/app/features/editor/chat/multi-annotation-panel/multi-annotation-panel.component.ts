@@ -1,5 +1,4 @@
 import { Component, input, output, signal, effect, ElementRef, ViewChildren, QueryList } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 export interface MultiAnnotationItem {
@@ -16,7 +15,7 @@ export interface MultiAnnotationItem {
 @Component({
   selector: 'app-multi-annotation-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   templateUrl: './multi-annotation-panel.html',
   styleUrls: ['./multi-annotation-panel.scss']
 })

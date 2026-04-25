@@ -1,5 +1,4 @@
 import { Component, Input, Output, EventEmitter, signal, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatMessage, Question } from '../../../../core/services/project';
 import { ToastService } from '../../../../core/services/toast';
@@ -7,7 +6,7 @@ import { ToastService } from '../../../../core/services/toast';
 @Component({
   selector: 'app-question-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   templateUrl: './question-panel.html',
   styleUrls: ['./question-panel.scss']
 })

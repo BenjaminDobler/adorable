@@ -1,6 +1,6 @@
 import { Component, DestroyRef, inject, signal, effect, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { ApiService } from '../../core/services/api';
@@ -25,7 +25,7 @@ interface PricingRow {
 @Component({
   selector: 'app-analytics',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [DecimalPipe, FormsModule, RouterModule],
   templateUrl: './analytics.html',
   styleUrls: ['./analytics.scss']
 })
