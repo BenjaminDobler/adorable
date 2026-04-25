@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, computed, Signal } from '@angular/core';
-import { Subject } from 'rxjs';
+import { Subject, firstValueFrom } from 'rxjs';
 import { ApiService } from './api';
 import { ContainerEngine } from './container-engine';
 import { ToastService } from './toast';
@@ -168,7 +168,7 @@ export class ProjectService {
       // Start API fetch (and server stop if needed) IN PARALLEL
       const [_, project] = await Promise.all([
         stopPromise,
-        this.apiService.loadProject(id).toPromise(),
+        firstValueFrom(this.apiService.loadProject(id)),
       ]);
 
       // Another loadProject was called while we were waiting — abort
@@ -722,7 +722,7 @@ export class ProjectService {
    */
   async loadKitTemplate(kitId: string): Promise<KitFileTree | null> {
     try {
-      const result = await this.apiService.getKit(kitId).toPromise();
+      const result = await firstValueFrom(this.apiService.getKit(kitId));
       if (result?.kit) {
         this.currentKit.set(result.kit);
         if (result.kit.template?.files) {

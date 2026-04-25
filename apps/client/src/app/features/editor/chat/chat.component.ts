@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, viewChild, output, input, effect, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subscription } from 'rxjs';
+import { Subscription, firstValueFrom } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { ProjectService, ChatMessage, Question } from '../../../core/services/project';
 import { ContainerEngine } from '../../../core/services/container-engine';
@@ -496,7 +496,7 @@ export class ChatComponent {
         return;
       }
       try {
-        const result = await this.apiService.restoreVersion(projectId, filesOrSha).toPromise();
+        const result = await firstValueFrom(this.apiService.restoreVersion(projectId, filesOrSha));
         if (result?.files) {
           await this.projectService.reloadPreview(result.files);
           this.projectService.addSystemMessage('Restored project to previous version.');

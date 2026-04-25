@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { ContainerEngine, ProcessOutput, DEV_SERVER_PRESETS } from './container-engine';
 import { FileTree } from '@adorable/shared-types';
 import { KitCommands } from './kit-types';
-import { Observable, of, shareReplay } from 'rxjs';
+import { Observable, of, shareReplay, firstValueFrom } from 'rxjs';
 import { getServerUrl } from './server-url';
 
 @Injectable({
@@ -33,7 +33,7 @@ export class LocalContainerEngine extends ContainerEngine {
 
   override async checkStatus(): Promise<{ running: boolean; projectId?: string; devServerReady?: boolean }> {
     try {
-      const result = await this.http.get<any>(`${this.apiUrl}/status`).toPromise();
+      const result = await firstValueFrom(this.http.get<any>(`${this.apiUrl}/status`));
       return result || { running: false };
     } catch {
       return { running: false };
@@ -43,7 +43,7 @@ export class LocalContainerEngine extends ContainerEngine {
   async boot(_clean?: boolean, _externalPath?: string): Promise<void> {
     this.status.set('Booting Local Container...');
     try {
-      await this.http.post(`${this.apiUrl}/start`, { projectId: this.currentProjectId }).toPromise();
+      await firstValueFrom(this.http.post(`${this.apiUrl}/start`, { projectId: this.currentProjectId }));
       this.lastBootedProjectId = this.currentProjectId;
       this.status.set('Container Ready');
     } catch (e: any) {
@@ -64,7 +64,7 @@ export class LocalContainerEngine extends ContainerEngine {
 
   async teardown(): Promise<void> {
     this.stopFileWatcher();
-    await this.http.post(`${this.apiUrl}/stop`, {}).toPromise();
+    await firstValueFrom(this.http.post(`${this.apiUrl}/stop`, {}));
     this.status.set('Stopped');
   }
 
@@ -79,7 +79,7 @@ export class LocalContainerEngine extends ContainerEngine {
     }
 
     this.status.set('Mounting files...');
-    await this.http.post(`${this.apiUrl}/mount`, { files }).toPromise();
+    await firstValueFrom(this.http.post(`${this.apiUrl}/mount`, { files }));
   }
 
   override async mountProject(projectId: string, kitId: string | null): Promise<void> {
@@ -91,7 +91,7 @@ export class LocalContainerEngine extends ContainerEngine {
     }
 
     this.status.set('Mounting files...');
-    await this.http.post(`${this.apiUrl}/mount-project`, { projectId, kitId, baseHref: '/api/proxy/' }).toPromise();
+    await firstValueFrom(this.http.post(`${this.apiUrl}/mount-project`, { projectId, kitId, baseHref: '/api/proxy/' }));
   }
 
   async exec(cmd: string, args: string[], options?: any): Promise<ProcessOutput> {
@@ -101,8 +101,8 @@ export class LocalContainerEngine extends ContainerEngine {
         }
     
         const req = this.http.post<{ output: string, exitCode: number }>(`${this.apiUrl}/exec`, { cmd, args, env: options?.env, ...options });
-        const result = await req.toPromise();
-        
+        const result = await firstValueFrom(req);
+
         return {
           stream: of(result!.output),
           exit: Promise.resolve(result!.exitCode)
@@ -121,7 +121,7 @@ export class LocalContainerEngine extends ContainerEngine {
                 return this.streamExec(cmd, args);
             }
             const req = this.http.post<{ output: string, exitCode: number }>(`${this.apiUrl}/exec`, { cmd, args, ...options });
-            const result = await req.toPromise();
+            const result = await firstValueFrom(req);
             return {
                 stream: of(result!.output),
                 exit: Promise.resolve(result!.exitCode)

@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { ContainerEngine, ProcessOutput, DEV_SERVER_PRESETS } from './container-engine';
 import { FileTree } from '@adorable/shared-types';
 import { KitCommands } from './kit-types';
-import { Observable, of, shareReplay } from 'rxjs';
+import { Observable, of, shareReplay, firstValueFrom } from 'rxjs';
 import { getServerUrl } from './server-url';
 
 @Injectable({
@@ -77,7 +77,7 @@ export class NativeContainerEngine extends ContainerEngine {
   stopFileWatcher(): void {}
 
   async teardown(): Promise<void> {
-    await this.http.post(`${this.apiUrl}/stop`, {}).toPromise();
+    await firstValueFrom(this.http.post(`${this.apiUrl}/stop`, {}));
     this.status.set('Stopped');
   }
 
@@ -140,7 +140,7 @@ export class NativeContainerEngine extends ContainerEngine {
       }
 
       const req = this.http.post<{ output: string, exitCode: number }>(`${this.apiUrl}/exec`, { cmd, args, env: options?.env, ...options });
-      const result = await req.toPromise();
+      const result = await firstValueFrom(req);
 
       return {
         stream: of(result!.output),
@@ -155,7 +155,7 @@ export class NativeContainerEngine extends ContainerEngine {
           return this.streamExec(cmd, args);
         }
         const req = this.http.post<{ output: string, exitCode: number }>(`${this.apiUrl}/exec`, { cmd, args, ...options });
-        const result = await req.toPromise();
+        const result = await firstValueFrom(req);
         return {
           stream: of(result!.output),
           exit: Promise.resolve(result!.exitCode)
