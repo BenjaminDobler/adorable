@@ -57,6 +57,10 @@ export class SmartContainerEngine extends ContainerEngine {
 
   constructor() {
     super();
+    // Forward PTY chunks from whichever engine is active to the proxy Subject
+    // that the terminal UI subscribes to.
+    this.localEngine.shellData$.subscribe((d) => this.shellData$.next(d));
+    this.nativeEngine.shellData$.subscribe((d) => this.shellData$.next(d));
   }
 
   addConsoleLog(log: any) { this.activeEngine().addConsoleLog(log); }
@@ -83,6 +87,7 @@ export class SmartContainerEngine extends ContainerEngine {
     return await this.activeEngine().exec(cmd, args, options);
   }
   async writeToShell(data: string) { await this.activeEngine().writeToShell(data); }
+  override async resizeShell(cols: number, rows: number) { await this.activeEngine().resizeShell(cols, rows); }
   async runBuild(args?: string[], command?: { cmd: string; args: string[] }) { return await this.activeEngine().runBuild(args, command); }
   async runInstall(command?: { cmd: string; args: string[] }) { return await this.activeEngine().runInstall(command); }
   async startDevServer(commands?: KitCommands) { await this.activeEngine().startDevServer(commands); }

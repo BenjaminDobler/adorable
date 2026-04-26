@@ -1,22 +1,22 @@
 <div class="terminal-view">
   <div class="terminal-tabs">
-    <button (click)="terminalTab.set('server')" 
+    <button (click)="terminalTab.set('server')"
             [class.active]="terminalTab() === 'server'"
             class="tab-btn">
       Server Logs
     </button>
-    <button (click)="terminalTab.set('shell')" 
+    <button (click)="terminalTab.set('shell')"
             [class.active]="terminalTab() === 'shell'"
             class="tab-btn">
       Interactive Shell
     </button>
-    <button (click)="terminalTab.set('console')" 
+    <button (click)="terminalTab.set('console')"
             [class.active]="terminalTab() === 'console'"
             class="tab-btn">
       Preview Console
     </button>
   </div>
-  
+
   @if (terminalTab() === 'server') {
     <div class="terminal-header">
       <button class="btn-clear" (click)="containerEngine.clearServerOutput()">Clear</button>
@@ -44,32 +44,23 @@
     </div>
   }
 
-  @if (terminalTab() === 'shell') {
+  <!-- Shell tab uses [hidden] (not @if) so xterm's state survives tab switches -->
+  <div class="shell-pane" [hidden]="terminalTab() !== 'shell'">
     <div class="terminal-header">
-      <button class="btn-clear" (click)="containerEngine.clearShellOutput()">Clear</button>
+      <button class="btn-clear" (click)="clearShell()">Clear</button>
     </div>
-    <div class="terminal-window">
-      <code [innerHTML]="containerEngine.shellOutput() | terminalFormat"></code>
-    </div>
-    <div class="terminal-input-area">
-      <span class="prompt">$</span>
-      <input 
-        [(ngModel)]="terminalInput" 
-        (keydown.enter)="sendTerminalCommand()"
-        placeholder="Run command..."
-      />
-    </div>
-  }
-  
+    <div #xtermHost class="xterm-host"></div>
+  </div>
+
   @if (terminalTab() === 'console') {
     <div class="terminal-header">
       <button (click)="toggleDebug.emit()" class="btn-clear" style="margin-right: 8px; display: inline-flex; align-items: center; gap: 4px;"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Debug</button>
       <button class="btn-clear" (click)="containerEngine.clearPreviewLogs()">Clear</button>
     </div>
-    
+
     <div class="terminal-window">
       @for (log of containerEngine.previewConsoleLogs(); track $index) {
-        <div [style.color]="log.level === 'error' ? 'var(--error-color)' : log.level === 'warn' ? '#eab308' : '#e5e7eb'" 
+        <div [style.color]="log.level === 'error' ? 'var(--error-color)' : log.level === 'warn' ? '#eab308' : '#e5e7eb'"
              style="font-family: 'JetBrains Mono', monospace; font-size: 12px; margin-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 4px;">
           <span style="opacity: 0.4; margin-right: 8px;">{{ log.timestamp | date:'HH:mm:ss' }}</span>
           <span style="white-space: pre-wrap;">{{ log.message }}</span>

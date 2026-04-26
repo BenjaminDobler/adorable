@@ -15,6 +15,7 @@
     "bcryptjs": "^3.0.3",
     "electron-updater": "^6.3.9",
     "@richapps/ong": "^0.1.41",
+    "node-pty": "^1.1.0",
     "vite": ">=8.0.0-beta.10"
   }
 }

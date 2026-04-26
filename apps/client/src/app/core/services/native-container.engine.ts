@@ -402,8 +402,64 @@ export class NativeContainerEngine extends ContainerEngine {
   async mkdir(path: string): Promise<void> {
     await this.exec('mkdir', ['-p', path]);
   }
-  async startShell(): Promise<void> {}
-  async writeToShell(data: string): Promise<void> {}
+  private shellAbort: AbortController | null = null;
+
+  async startShell(): Promise<void> {
+    if (this.shellAbort) return; // already streaming
+    this.shellAbort = new AbortController();
+    void this.consumeShellStream(this.shellAbort.signal);
+  }
+
+  private async consumeShellStream(signal: AbortSignal): Promise<void> {
+    try {
+      const res = await fetch(`${this.apiUrl}/shell/stream`, { signal });
+      if (!res.body) return;
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let sep: number;
+        while ((sep = buffer.indexOf('\n\n')) !== -1) {
+          const frame = buffer.slice(0, sep);
+          buffer = buffer.slice(sep + 2);
+          if (!frame.startsWith('data: ')) continue;
+          try {
+            const evt = JSON.parse(frame.slice(6));
+            if (typeof evt.output === 'string') {
+              this.shellOutput.update((o) => o + evt.output);
+              this.shellData$.next(evt.output);
+            }
+          } catch { /* malformed frame — skip */ }
+        }
+      }
+    } catch (e) {
+      if ((e as Error)?.name !== 'AbortError') {
+        console.warn('[Native] shell stream ended:', e);
+      }
+    } finally {
+      this.shellAbort = null;
+    }
+  }
+
+  async writeToShell(data: string): Promise<void> {
+    if (!this.shellAbort) await this.startShell();
+    await fetch(`${this.apiUrl}/shell/write`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data }),
+    });
+  }
+
+  override async resizeShell(cols: number, rows: number): Promise<void> {
+    await fetch(`${this.apiUrl}/shell/resize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cols, rows }),
+    }).catch(() => { /* ignore — best effort */ });
+  }
 
   async runBuild(args?: string[], command?: { cmd: string; args: string[] }): Promise<number> {
     const { cmd, args: baseArgs } = command ?? { cmd: 'npm', args: ['run', 'build'] };

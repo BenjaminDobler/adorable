@@ -12,6 +12,7 @@ import { EventEmitter } from 'events';
 import { watch, type FSWatcher } from 'chokidar';
 import * as os from 'os';
 import * as http from 'http';
+import * as pty from 'node-pty';
 
 // --- NativeManager (self-contained) ---
 
@@ -29,6 +30,9 @@ class NativeManager {
   public trackedPorts: Set<number> = new Set();
   /** The currently selected app within an Nx/multi-app workspace (e.g. "apps/client"). */
   public selectedApp: string | null = null;
+  /** Long-lived interactive shell for the terminal panel. Lazily spawned. */
+  private shellPty: pty.IPty | null = null;
+  private shellListeners = new Set<(data: string) => void>();
 
   private get baseDir(): string {
     return process.env['ADORABLE_PROJECTS_DIR'] || path.join(os.homedir(), 'adorable-projects');
@@ -55,6 +59,7 @@ class NativeManager {
     killPortsSync(this.trackedPorts);
     this.trackedPorts.clear();
     this.stopWatcher();
+    this.killShell();
 
     this.isExternalProject = false;
     this.selectedApp = null;
@@ -351,6 +356,7 @@ class NativeManager {
 
   async stop(): Promise<void> {
     this.stopWatcher();
+    this.killShell();
 
     // Kill all tracked child processes via their process groups.
     // Use SIGTERM first to allow graceful shutdown, then SIGKILL.
@@ -382,6 +388,60 @@ class NativeManager {
 
     // Don't null projectPath here — createProject() will override it.
     // This prevents "Project not initialized" errors from racing exec calls.
+  }
+
+  // ─── Interactive shell (PTY) ────────────────────────────────────────────
+
+  private ensureShell(): pty.IPty {
+    if (this.shellPty) return this.shellPty;
+    if (!this.projectPath) throw new Error('No project active — cannot start shell');
+
+    const isWindows = os.platform() === 'win32';
+    const shell = process.env['SHELL'] || (isWindows ? 'powershell.exe' : 'bash');
+
+    const ptyProc = pty.spawn(shell, [], {
+      name: 'xterm-color',
+      cols: 80,
+      rows: 24,
+      cwd: this.projectPath,
+      env: { ...process.env, TERM: 'xterm-256color' } as { [key: string]: string },
+    });
+
+    ptyProc.onData((data) => {
+      for (const listener of this.shellListeners) {
+        try { listener(data); } catch { /* listener error — ignore */ }
+      }
+    });
+
+    ptyProc.onExit(() => {
+      if (this.shellPty === ptyProc) this.shellPty = null;
+    });
+
+    this.shellPty = ptyProc;
+    return ptyProc;
+  }
+
+  /** Subscribe to shell output. Spawns the PTY on first subscription. Returns an unsubscribe fn. */
+  addShellListener(listener: (data: string) => void): () => void {
+    this.ensureShell();
+    this.shellListeners.add(listener);
+    return () => this.shellListeners.delete(listener);
+  }
+
+  writeToShell(data: string): void {
+    this.ensureShell().write(data);
+  }
+
+  resizeShell(cols: number, rows: number): void {
+    this.shellPty?.resize(cols, rows);
+  }
+
+  killShell(): void {
+    if (this.shellPty) {
+      try { this.shellPty.kill(); } catch { /* already dead */ }
+      this.shellPty = null;
+    }
+    this.shellListeners.clear();
   }
 }
 
@@ -590,6 +650,58 @@ app.get('/api/native/exec-stream', async (req, res) => {
     }
     console.log('[Agent] exec-stream error:', cmd, e.message);
   }
+});
+
+// ─── Interactive shell (PTY) ──────────────────────────────────────────────
+
+app.get('/api/native/shell/stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  let unsubscribe: (() => void) | null = null;
+  try {
+    unsubscribe = manager.addShellListener((chunk) => {
+      if (!res.writableEnded) {
+        res.write(`data: ${JSON.stringify({ output: chunk })}\n\n`);
+      }
+    });
+  } catch (e: any) {
+    res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
+    res.end();
+    return;
+  }
+
+  req.on('close', () => {
+    unsubscribe?.();
+    if (!res.writableEnded) res.end();
+  });
+});
+
+app.post('/api/native/shell/write', (req, res) => {
+  try {
+    manager.writeToShell(typeof req.body?.data === 'string' ? req.body.data : '');
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/native/shell/resize', (req, res) => {
+  try {
+    const cols = Number(req.body?.cols) || 80;
+    const rows = Number(req.body?.rows) || 24;
+    manager.resizeShell(cols, rows);
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/native/shell/kill', (_req, res) => {
+  manager.killShell();
+  res.json({ success: true });
 });
 
 app.post('/api/native/readdir', async (req, res) => {

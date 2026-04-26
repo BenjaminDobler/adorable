@@ -1,5 +1,5 @@
 import { Signal, WritableSignal, signal } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { FileTree } from '@adorable/shared-types';
 import { DevServerPreset, KitCommands } from './kit-types';
 
@@ -49,6 +49,8 @@ export abstract class ContainerEngine {
   abstract previewConsoleLogs: Signal<Array<{ level: 'log'|'warn'|'error', message: string, timestamp: Date }>>;
   abstract serverOutput: Signal<string>;
   abstract shellOutput: Signal<string>;
+  /** Raw chunks from the interactive PTY shell, suitable for an xterm.js consumer. */
+  readonly shellData$: Subject<string> = new Subject<string>();
   
   abstract addConsoleLog(log: { level: 'log'|'warn'|'error', message: string }): void;
   abstract clearServerOutput(): void;
@@ -72,6 +74,7 @@ export abstract class ContainerEngine {
   abstract mkdir(path: string): Promise<void>;
   abstract clean(full?: boolean): Promise<void>; // Clean workspace (full=true also removes node_modules/lockfiles)
   abstract startShell(): Promise<void>;
+  resizeShell(_cols: number, _rows: number): Promise<void> { return Promise.resolve(); }
   abstract readdir(path: string, options?: { withFileTypes: boolean }): Promise<any>;
 
   // Execution
