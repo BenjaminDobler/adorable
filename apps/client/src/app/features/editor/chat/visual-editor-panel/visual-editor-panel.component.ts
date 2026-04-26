@@ -33,8 +33,14 @@ export class VisualEditorPanelComponent {
   editColor = '#000000';
   editBgColor = 'transparent';
   editFontSize = '16px';
+  editFontSizePx = 16;
   editFontWeight = '400';
   editTextAlign = 'left';
+  editLineHeight = 1.5;
+  editLetterSpacing = 0;
+  editTextTransform = 'none';
+  editFontStyle = 'normal';
+  editUnderline = false;
   editMarginTop = 0;
   editMarginRight = 0;
   editMarginBottom = 0;
@@ -100,8 +106,14 @@ export class VisualEditorPanelComponent {
         this.editColor = this.rgbToHex(data.styles?.color) || '#000000';
         this.editBgColor = this.rgbToHex(data.styles?.backgroundColor) || 'transparent';
         this.editFontSize = data.styles?.fontSize || '16px';
+        this.editFontSizePx = this.parsePixelValue(data.styles?.fontSize) || 16;
         this.editFontWeight = data.styles?.fontWeight || '400';
         this.editTextAlign = data.styles?.textAlign || 'left';
+        this.editLineHeight = this.parseLineHeight(data.styles?.lineHeight, this.editFontSizePx);
+        this.editLetterSpacing = this.parseLetterSpacing(data.styles?.letterSpacing);
+        this.editTextTransform = data.styles?.textTransform || 'none';
+        this.editFontStyle = data.styles?.fontStyle || 'normal';
+        this.editUnderline = (data.styles?.textDecorationLine || '').includes('underline');
         this.editMarginTop = this.parsePixelValue(data.styles?.marginTop);
         this.editMarginRight = this.parsePixelValue(data.styles?.marginRight);
         this.editMarginBottom = this.parsePixelValue(data.styles?.marginBottom);
@@ -240,6 +252,42 @@ export class VisualEditorPanelComponent {
     this.applyVisualEdit('style', align, 'text-align');
   }
 
+  setCustomFontSize(px: number) {
+    if (!Number.isFinite(px) || px <= 0) return;
+    this.editFontSizePx = px;
+    const value = `${px}px`;
+    this.editFontSize = value;
+    this.applyVisualEdit('style', value, 'font-size');
+  }
+
+  setLineHeight(value: number) {
+    this.editLineHeight = value;
+    this.applyVisualEdit('style', String(value), 'line-height');
+  }
+
+  setLetterSpacing(value: number) {
+    this.editLetterSpacing = value;
+    const cssValue = value === 0 ? 'normal' : `${value}px`;
+    this.applyVisualEdit('style', cssValue, 'letter-spacing');
+  }
+
+  setTextTransform(value: string) {
+    this.editTextTransform = value;
+    this.applyVisualEdit('style', value, 'text-transform');
+  }
+
+  toggleItalic() {
+    const next = this.editFontStyle === 'italic' ? 'normal' : 'italic';
+    this.editFontStyle = next;
+    this.applyVisualEdit('style', next, 'font-style');
+  }
+
+  toggleUnderline() {
+    const next = !this.editUnderline;
+    this.editUnderline = next;
+    this.applyVisualEdit('style', next ? 'underline' : 'none', 'text-decoration');
+  }
+
   applySpacing(property: string, value: number) {
     this.applyVisualEdit('style', value + 'px', property);
   }
@@ -348,6 +396,23 @@ export class VisualEditorPanelComponent {
     if (!value) return 0;
     const match = value.match(/^(-?\d+(?:\.\d+)?)/);
     return match ? parseFloat(match[1]) : 0;
+  }
+
+  private parseLineHeight(value: string | undefined, fontSizePx: number): number {
+    if (!value || value === 'normal') return 1.5;
+    const num = parseFloat(value);
+    if (!Number.isFinite(num)) return 1.5;
+    // computed line-height comes back in px; convert to unitless multiplier
+    if (value.endsWith('px') && fontSizePx > 0) {
+      return Math.round((num / fontSizePx) * 100) / 100;
+    }
+    return num;
+  }
+
+  private parseLetterSpacing(value: string | undefined): number {
+    if (!value || value === 'normal') return 0;
+    const num = parseFloat(value);
+    return Number.isFinite(num) ? num : 0;
   }
 
   private rgbToHex(rgb: string | undefined): string {

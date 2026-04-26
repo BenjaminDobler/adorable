@@ -123,24 +123,35 @@
       <span class="section-icon"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 14h-5"/><path d="M16 16v-3.5a2.5 2.5 0 0 1 5 0V16"/><path d="M4.5 13h6"/><path d="m3 16 4.5-9 4.5 9"/></svg></span>
       <span class="section-title">Typography</span>
     </div>
-    <div class="button-group-row">
+    <div class="select-row">
       <label>Size</label>
-      <div class="button-group">
-        <button [class.active]="editFontSize === '12px'" (click)="setFontSize('12px')">xs</button>
-        <button [class.active]="editFontSize === '14px'" (click)="setFontSize('14px')">sm</button>
-        <button [class.active]="editFontSize === '16px'" (click)="setFontSize('16px')">base</button>
-        <button [class.active]="editFontSize === '18px'" (click)="setFontSize('18px')">lg</button>
-        <button [class.active]="editFontSize === '24px'" (click)="setFontSize('24px')">xl</button>
-      </div>
+      <select [ngModel]="editFontSize" (ngModelChange)="setFontSize($event)">
+        <option value="12px">xs · 12</option>
+        <option value="14px">sm · 14</option>
+        <option value="16px">base · 16</option>
+        <option value="18px">lg · 18</option>
+        <option value="20px">xl · 20</option>
+        <option value="24px">2xl · 24</option>
+        <option value="30px">3xl · 30</option>
+        <option value="36px">4xl · 36</option>
+        <option value="48px">5xl · 48</option>
+      </select>
+      <input type="number" class="num-input" min="1" max="200" step="1" [(ngModel)]="editFontSizePx" (change)="setCustomFontSize(editFontSizePx)" />
+      <span class="unit-label">px</span>
     </div>
-    <div class="button-group-row">
+    <div class="select-row">
       <label>Weight</label>
-      <div class="button-group">
-        <button [class.active]="editFontWeight === '300'" (click)="setFontWeight('300')">Light</button>
-        <button [class.active]="editFontWeight === '400'" (click)="setFontWeight('400')">Normal</button>
-        <button [class.active]="editFontWeight === '600'" (click)="setFontWeight('600')">Semi</button>
-        <button [class.active]="editFontWeight === '700'" (click)="setFontWeight('700')">Bold</button>
-      </div>
+      <select [ngModel]="editFontWeight" (ngModelChange)="setFontWeight($event)">
+        <option value="100">Thin · 100</option>
+        <option value="200">Extralight · 200</option>
+        <option value="300">Light · 300</option>
+        <option value="400">Normal · 400</option>
+        <option value="500">Medium · 500</option>
+        <option value="600">Semibold · 600</option>
+        <option value="700">Bold · 700</option>
+        <option value="800">Extrabold · 800</option>
+        <option value="900">Black · 900</option>
+      </select>
     </div>
     <div class="button-group-row">
       <label>Align</label>
@@ -154,7 +165,41 @@
         <button [class.active]="editTextAlign === 'right'" (click)="setTextAlign('right')" title="Right">
           <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><line x1="21" y1="10" x2="7" y2="10"></line><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="14" x2="3" y2="14"></line><line x1="21" y1="18" x2="7" y2="18"></line></svg>
         </button>
+        <button [class.active]="editTextAlign === 'justify'" (click)="setTextAlign('justify')" title="Justify">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="10" x2="3" y2="10"></line><line x1="21" y1="14" x2="3" y2="14"></line><line x1="21" y1="18" x2="3" y2="18"></line></svg>
+        </button>
       </div>
+    </div>
+    <div class="button-group-row">
+      <label>Style</label>
+      <div class="button-group">
+        <button [class.active]="editFontStyle === 'italic'" (click)="toggleItalic()" title="Italic">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="4" x2="10" y2="4"></line><line x1="14" y1="20" x2="5" y2="20"></line><line x1="15" y1="4" x2="9" y2="20"></line></svg>
+        </button>
+        <button [class.active]="editUnderline" (click)="toggleUnderline()" title="Underline">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"></path><line x1="4" y1="21" x2="20" y2="21"></line></svg>
+        </button>
+      </div>
+    </div>
+    <div class="select-row">
+      <label>Transform</label>
+      <select [ngModel]="editTextTransform" (ngModelChange)="setTextTransform($event)">
+        <option value="none">None</option>
+        <option value="uppercase">UPPERCASE</option>
+        <option value="lowercase">lowercase</option>
+        <option value="capitalize">Capitalize</option>
+      </select>
+    </div>
+    <div class="slider-row">
+      <label>Line</label>
+      <input type="range" min="0.8" max="3" step="0.05" [(ngModel)]="editLineHeight" (input)="setLineHeight(editLineHeight)" />
+      <input type="number" class="slider-num" min="0" max="10" step="0.05" [(ngModel)]="editLineHeight" (change)="setLineHeight(editLineHeight)" />
+    </div>
+    <div class="slider-row">
+      <label>Letter</label>
+      <input type="range" min="-2" max="10" step="0.1" [(ngModel)]="editLetterSpacing" (input)="setLetterSpacing(editLetterSpacing)" />
+      <input type="number" class="slider-num" min="-10" max="50" step="0.1" [(ngModel)]="editLetterSpacing" (change)="setLetterSpacing(editLetterSpacing)" />
+      <span class="unit-label">px</span>
     </div>
   </div>
 
