@@ -18,6 +18,33 @@
     return measureMode || optionHeld;
   }
 
+  // Inline-formatting tags whose text contributes to a parent's editable content.
+  // Block-level descendants (p, div, h1–6, li, …) are excluded — those should be
+  // selected and edited individually.
+  const INLINE_TEXT_TAGS = new Set([
+    'span', 'strong', 'em', 'a', 'b', 'i', 'u', 'code', 'small',
+    'mark', 'sub', 'sup', 'kbd', 'q', 'cite', 'abbr', 'time', 'var', 's', 'del', 'ins'
+  ]);
+
+  /**
+   * Collect an element's editable text: direct text-node children plus text from
+   * inline-formatting descendants. Block-level descendants are skipped.
+   */
+  function collectEditableText(el: Element): string {
+    let out = '';
+    el.childNodes.forEach((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        out += node.textContent || '';
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const child = node as Element;
+        if (INLINE_TEXT_TAGS.has(child.tagName.toLowerCase())) {
+          out += collectEditableText(child);
+        }
+      }
+    });
+    return out;
+  }
+
   // ─── Measurement Overlay Helpers ───
   let measureContainer: HTMLDivElement | null = null;
 
@@ -862,7 +889,7 @@
              type: 'ELEMENT_SELECTED',
              payload: {
                 tagName: target.tagName.toLowerCase(),
-                text: target.innerText ? target.innerText.substring(0, 100).trim() : '',
+                text: collectEditableText(target).substring(0, 100).trim(),
                 componentName: componentName,
                 hostTag: hostTag,
                 elementId: __getElementId(target),
@@ -1103,7 +1130,7 @@
       type: 'ELEMENT_SELECTED',
       payload: {
         tagName: target.tagName.toLowerCase(),
-        text: target.innerText ? target.innerText.substring(0, 100).trim() : '',
+        text: collectEditableText(target).substring(0, 100).trim(),
         componentName: componentName,
         hostTag: hostTag,
         elementId: elementId,

@@ -122,6 +122,43 @@ export const RUNTIME_SCRIPTS = `
       function isMeasuring() {
         return measureMode || optionHeld;
       }
+      const INLINE_TEXT_TAGS = /* @__PURE__ */ new Set([
+        "span",
+        "strong",
+        "em",
+        "a",
+        "b",
+        "i",
+        "u",
+        "code",
+        "small",
+        "mark",
+        "sub",
+        "sup",
+        "kbd",
+        "q",
+        "cite",
+        "abbr",
+        "time",
+        "var",
+        "s",
+        "del",
+        "ins"
+      ]);
+      function collectEditableText(el) {
+        let out = "";
+        el.childNodes.forEach((node) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            out += node.textContent || "";
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+            const child = node;
+            if (INLINE_TEXT_TAGS.has(child.tagName.toLowerCase())) {
+              out += collectEditableText(child);
+            }
+          }
+        });
+        return out;
+      }
       let measureContainer = null;
       function ensureMeasureContainer() {
         const existing = document.getElementById("__measure-overlay");
@@ -862,7 +899,7 @@ export const RUNTIME_SCRIPTS = `
               type: "ELEMENT_SELECTED",
               payload: {
                 tagName: target.tagName.toLowerCase(),
-                text: target.innerText ? target.innerText.substring(0, 100).trim() : "",
+                text: collectEditableText(target).substring(0, 100).trim(),
                 componentName,
                 hostTag,
                 elementId: __getElementId(target),
@@ -1057,7 +1094,7 @@ export const RUNTIME_SCRIPTS = `
           type: "ELEMENT_SELECTED",
           payload: {
             tagName: target.tagName.toLowerCase(),
-            text: target.innerText ? target.innerText.substring(0, 100).trim() : "",
+            text: collectEditableText(target).substring(0, 100).trim(),
             componentName,
             hostTag,
             elementId,
