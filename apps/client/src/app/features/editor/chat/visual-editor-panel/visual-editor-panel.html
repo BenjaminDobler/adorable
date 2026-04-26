@@ -242,9 +242,105 @@
       <span class="section-title">Border</span>
     </div>
     <div class="slider-row">
+      <label>Width</label>
+      <input type="range" min="0" max="20" step="1" [(ngModel)]="editBorderWidth" (input)="setBorderWidth(editBorderWidth)" />
+      <input type="number" class="slider-num" min="0" max="100" step="1" [(ngModel)]="editBorderWidth" (change)="setBorderWidth(editBorderWidth)" />
+      <span class="unit-label">px</span>
+    </div>
+    <div class="select-row">
+      <label>Style</label>
+      <select [ngModel]="editBorderStyle" (ngModelChange)="setBorderStyle($event)">
+        <option value="none">None</option>
+        <option value="solid">Solid</option>
+        <option value="dashed">Dashed</option>
+        <option value="dotted">Dotted</option>
+        <option value="double">Double</option>
+        <option value="groove">Groove</option>
+        <option value="ridge">Ridge</option>
+        <option value="inset">Inset</option>
+        <option value="outset">Outset</option>
+      </select>
+    </div>
+    <div class="color-row">
+      <label>Color</label>
+      <div class="color-input-group">
+        <div class="color-swatch">
+          <input type="color" [(ngModel)]="editBorderColor" (change)="setBorderColor(editBorderColor)" />
+        </div>
+        <input [(ngModel)]="editBorderColor" (keydown.enter)="setBorderColor(editBorderColor)" placeholder="#000000" class="color-value" />
+      </div>
+    </div>
+    <div class="slider-row">
       <label>Radius</label>
-      <input type="range" min="0" max="32" [(ngModel)]="editBorderRadius" (input)="applyVisualEdit('style', editBorderRadius + 'px', 'border-radius')" />
-      <span class="slider-value">{{ editBorderRadius }}px</span>
+      <input type="range" min="0" max="64" [(ngModel)]="editBorderRadius" (input)="setBorderRadius(editBorderRadius)" [disabled]="editIndividualCorners" />
+      <input type="number" class="slider-num" min="0" max="500" step="1" [(ngModel)]="editBorderRadius" (change)="setBorderRadius(editBorderRadius)" [disabled]="editIndividualCorners" />
+      <span class="unit-label">px</span>
+    </div>
+    <div class="corner-toggle-row">
+      <button type="button" class="link-toggle" [class.active]="editIndividualCorners" (click)="editIndividualCorners = !editIndividualCorners" [title]="editIndividualCorners ? 'Link corners' : 'Edit corners individually'">
+        <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        <span>{{ editIndividualCorners ? 'Individual corners' : 'Linked corners' }}</span>
+      </button>
+    </div>
+    @if (editIndividualCorners) {
+      <div class="corner-grid">
+        <div class="corner-cell">
+          <span class="corner-label">TL</span>
+          <input type="number" min="0" max="500" step="1" [(ngModel)]="editBorderRadiusTL" (change)="setBorderRadiusCorner('top-left', editBorderRadiusTL)" />
+        </div>
+        <div class="corner-cell">
+          <span class="corner-label">TR</span>
+          <input type="number" min="0" max="500" step="1" [(ngModel)]="editBorderRadiusTR" (change)="setBorderRadiusCorner('top-right', editBorderRadiusTR)" />
+        </div>
+        <div class="corner-cell">
+          <span class="corner-label">BL</span>
+          <input type="number" min="0" max="500" step="1" [(ngModel)]="editBorderRadiusBL" (change)="setBorderRadiusCorner('bottom-left', editBorderRadiusBL)" />
+        </div>
+        <div class="corner-cell">
+          <span class="corner-label">BR</span>
+          <input type="number" min="0" max="500" step="1" [(ngModel)]="editBorderRadiusBR" (change)="setBorderRadiusCorner('bottom-right', editBorderRadiusBR)" />
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- Outline Section -->
+  <div class="property-section">
+    <div class="section-header">
+      <span class="section-icon"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="5" y="5" rx="1" stroke-dasharray="3 2"/></svg></span>
+      <span class="section-title">Outline</span>
+    </div>
+    <div class="slider-row">
+      <label>Width</label>
+      <input type="range" min="0" max="20" step="1" [(ngModel)]="editOutlineWidth" (input)="setOutlineWidth(editOutlineWidth)" />
+      <input type="number" class="slider-num" min="0" max="100" step="1" [(ngModel)]="editOutlineWidth" (change)="setOutlineWidth(editOutlineWidth)" />
+      <span class="unit-label">px</span>
+    </div>
+    <div class="select-row">
+      <label>Style</label>
+      <select [ngModel]="editOutlineStyle" (ngModelChange)="setOutlineStyle($event)">
+        <option value="none">None</option>
+        <option value="solid">Solid</option>
+        <option value="dashed">Dashed</option>
+        <option value="dotted">Dotted</option>
+        <option value="double">Double</option>
+        <option value="auto">Auto</option>
+      </select>
+    </div>
+    <div class="color-row">
+      <label>Color</label>
+      <div class="color-input-group">
+        <div class="color-swatch">
+          <input type="color" [(ngModel)]="editOutlineColor" (change)="setOutlineColor(editOutlineColor)" />
+        </div>
+        <input [(ngModel)]="editOutlineColor" (keydown.enter)="setOutlineColor(editOutlineColor)" placeholder="#000000" class="color-value" />
+      </div>
+    </div>
+    <div class="slider-row">
+      <label>Offset</label>
+      <input type="range" min="-10" max="20" step="1" [(ngModel)]="editOutlineOffset" (input)="setOutlineOffset(editOutlineOffset)" />
+      <input type="number" class="slider-num" min="-50" max="100" step="1" [(ngModel)]="editOutlineOffset" (change)="setOutlineOffset(editOutlineOffset)" />
+      <span class="unit-label">px</span>
     </div>
   </div>
 

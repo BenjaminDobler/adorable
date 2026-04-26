@@ -50,6 +50,18 @@ export class VisualEditorPanelComponent {
   editPaddingBottom = 0;
   editPaddingLeft = 0;
   editBorderRadius = 0;
+  editBorderRadiusTL = 0;
+  editBorderRadiusTR = 0;
+  editBorderRadiusBR = 0;
+  editBorderRadiusBL = 0;
+  editIndividualCorners = false;
+  editBorderWidth = 0;
+  editBorderStyle = 'none';
+  editBorderColor = '#000000';
+  editOutlineWidth = 0;
+  editOutlineStyle = 'none';
+  editOutlineColor = '#000000';
+  editOutlineOffset = 0;
   editDisplay = 'block';
   editFlexDirection = 'row';
   editFlexWrap = 'nowrap';
@@ -123,6 +135,17 @@ export class VisualEditorPanelComponent {
         this.editPaddingBottom = this.parsePixelValue(data.styles?.paddingBottom);
         this.editPaddingLeft = this.parsePixelValue(data.styles?.paddingLeft);
         this.editBorderRadius = this.parsePixelValue(data.styles?.borderRadius);
+        this.editBorderRadiusTL = this.parsePixelValue(data.styles?.borderTopLeftRadius);
+        this.editBorderRadiusTR = this.parsePixelValue(data.styles?.borderTopRightRadius);
+        this.editBorderRadiusBR = this.parsePixelValue(data.styles?.borderBottomRightRadius);
+        this.editBorderRadiusBL = this.parsePixelValue(data.styles?.borderBottomLeftRadius);
+        this.editBorderWidth = this.parsePixelValue(data.styles?.borderWidth);
+        this.editBorderStyle = data.styles?.borderStyle || 'none';
+        this.editBorderColor = this.rgbToHex(data.styles?.borderColor) || '#000000';
+        this.editOutlineWidth = this.parsePixelValue(data.styles?.outlineWidth);
+        this.editOutlineStyle = data.styles?.outlineStyle || 'none';
+        this.editOutlineColor = this.rgbToHex(data.styles?.outlineColor) || '#000000';
+        this.editOutlineOffset = this.parsePixelValue(data.styles?.outlineOffset);
         this.editDisplay = data.styles?.display || 'block';
         this.editFlexDirection = data.styles?.flexDirection || 'row';
         this.editFlexWrap = data.styles?.flexWrap || 'nowrap';
@@ -290,6 +313,58 @@ export class VisualEditorPanelComponent {
 
   applySpacing(property: string, value: number) {
     this.applyVisualEdit('style', value + 'px', property);
+  }
+
+  setBorderRadius(value: number) {
+    this.editBorderRadius = value;
+    this.editBorderRadiusTL = value;
+    this.editBorderRadiusTR = value;
+    this.editBorderRadiusBR = value;
+    this.editBorderRadiusBL = value;
+    this.applyVisualEdit('style', value + 'px', 'border-radius');
+  }
+
+  setBorderRadiusCorner(corner: 'top-left' | 'top-right' | 'bottom-right' | 'bottom-left', value: number) {
+    if (corner === 'top-left') this.editBorderRadiusTL = value;
+    if (corner === 'top-right') this.editBorderRadiusTR = value;
+    if (corner === 'bottom-right') this.editBorderRadiusBR = value;
+    if (corner === 'bottom-left') this.editBorderRadiusBL = value;
+    this.applyVisualEdit('style', value + 'px', `border-${corner}-radius`);
+  }
+
+  setBorderWidth(value: number) {
+    this.editBorderWidth = value;
+    this.applyVisualEdit('style', value + 'px', 'border-width');
+  }
+
+  setBorderStyle(value: string) {
+    this.editBorderStyle = value;
+    this.applyVisualEdit('style', value, 'border-style');
+  }
+
+  setBorderColor(value: string) {
+    this.editBorderColor = value;
+    this.applyVisualEdit('style', value, 'border-color');
+  }
+
+  setOutlineWidth(value: number) {
+    this.editOutlineWidth = value;
+    this.applyVisualEdit('style', value + 'px', 'outline-width');
+  }
+
+  setOutlineStyle(value: string) {
+    this.editOutlineStyle = value;
+    this.applyVisualEdit('style', value, 'outline-style');
+  }
+
+  setOutlineColor(value: string) {
+    this.editOutlineColor = value;
+    this.applyVisualEdit('style', value, 'outline-color');
+  }
+
+  setOutlineOffset(value: number) {
+    this.editOutlineOffset = value;
+    this.applyVisualEdit('style', value + 'px', 'outline-offset');
   }
 
   setDisplay(display: string) {

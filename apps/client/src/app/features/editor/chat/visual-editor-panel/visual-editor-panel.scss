@@ -547,6 +547,87 @@
       }
     }
 
+    .corner-toggle-row {
+      display: flex;
+      justify-content: flex-end;
+      margin: 4px 0 8px;
+    }
+
+    .link-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: transparent;
+      border: 1px solid var(--panel-border);
+      color: var(--text-muted);
+      font-size: 0.6rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.15s;
+
+      &:hover {
+        color: var(--text-primary);
+        border-color: var(--text-muted);
+      }
+
+      &.active {
+        color: var(--accent-color);
+        border-color: var(--accent-color);
+        background: color-mix(in srgb, var(--accent-color) 10%, transparent);
+      }
+    }
+
+    .corner-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 6px;
+      background: var(--bg-surface-1);
+      border: 1px dashed var(--panel-border);
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+    }
+
+    .corner-cell {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+
+      .corner-label {
+        font-size: 0.6rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        font-family: 'JetBrains Mono', monospace;
+        min-width: 18px;
+      }
+
+      input[type="number"] {
+        flex: 1;
+        min-width: 0;
+        background: var(--bg-surface-2);
+        border: 1px solid var(--panel-border);
+        border-radius: var(--radius-sm);
+        color: var(--text-primary);
+        padding: 4px 6px;
+        font-size: 0.7rem;
+        font-family: 'JetBrains Mono', monospace;
+        text-align: right;
+
+        &:focus {
+          border-color: var(--accent-color);
+          outline: none;
+        }
+
+        &::-webkit-inner-spin-button,
+        &::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+      }
+    }
+
     .grid-template-row {
       display: flex;
       flex-direction: column;
