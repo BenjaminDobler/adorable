@@ -613,28 +613,33 @@ export const RUNTIME_SCRIPTS = `
           const classes = classStr ? "." + classStr.split(" ").slice(0, 2).join(".") : "";
           label.textContent = "<" + tagName + ">" + classes;
         }
-        startObserving(element);
+        startTrackingLoop();
       }
-      let resizeObserver = null;
       let selectedElementId = null;
-      let domObserver = null;
+      let rafHandle = null;
       function hideSelectionOverlay() {
         const sel = document.getElementById("inspector-selection");
         if (sel) sel.style.display = "none";
-        stopObserving();
+        stopTrackingLoop();
         selectedElement = null;
         selectedElementId = null;
       }
-      function updateSelectionPosition() {
-        if (!selectedElement) return;
+      function trackSelectionLoop() {
+        if (!selectedElement) {
+          rafHandle = null;
+          return;
+        }
         const sel = document.getElementById("inspector-selection");
-        if (!sel || sel.style.display === "none") return;
+        if (!sel || sel.style.display === "none") {
+          rafHandle = null;
+          return;
+        }
         if (!document.body.contains(selectedElement) && selectedElementId) {
-          const newElement = __findElementById(selectedElementId);
-          if (newElement) {
-            selectedElement = newElement;
-            startObserving(newElement);
+          const found = __findElementById(selectedElementId);
+          if (found) {
+            selectedElement = found;
           } else {
+            rafHandle = requestAnimationFrame(trackSelectionLoop);
             return;
           }
         }
@@ -643,39 +648,18 @@ export const RUNTIME_SCRIPTS = `
         sel.style.left = rect.left + "px";
         sel.style.width = rect.width + "px";
         sel.style.height = rect.height + "px";
+        rafHandle = requestAnimationFrame(trackSelectionLoop);
       }
-      function startObserving(element) {
-        if (resizeObserver) {
-          resizeObserver.disconnect();
-        }
-        resizeObserver = new ResizeObserver(() => {
-          updateSelectionPosition();
-        });
-        resizeObserver.observe(element);
-        if (!domObserver) {
-          domObserver = new MutationObserver(() => {
-            requestAnimationFrame(updateSelectionPosition);
-          });
-          domObserver.observe(document.body, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ["style", "class"]
-          });
+      function startTrackingLoop() {
+        if (rafHandle !== null) return;
+        rafHandle = requestAnimationFrame(trackSelectionLoop);
+      }
+      function stopTrackingLoop() {
+        if (rafHandle !== null) {
+          cancelAnimationFrame(rafHandle);
+          rafHandle = null;
         }
       }
-      function stopObserving() {
-        if (resizeObserver) {
-          resizeObserver.disconnect();
-          resizeObserver = null;
-        }
-        if (domObserver) {
-          domObserver.disconnect();
-          domObserver = null;
-        }
-      }
-      window.addEventListener("scroll", updateSelectionPosition, true);
-      window.addEventListener("resize", updateSelectionPosition);
       window.addEventListener("message", (event) => {
         if (event.data.type === "TOGGLE_INSPECTOR") {
           active = event.data.enabled;

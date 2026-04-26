@@ -574,36 +574,37 @@
       label.textContent = '<' + tagName + '>' + classes;
     }
 
-    // Start observing element for size/content changes
-    startObserving(element);
+    // Start RAF tracking loop
+    startTrackingLoop();
   }
 
-  let resizeObserver: ResizeObserver | null = null;
   let selectedElementId: string | null = null;
-  let domObserver: MutationObserver | null = null;
+  let rafHandle: number | null = null;
 
   function hideSelectionOverlay(): void {
     const sel = document.getElementById('inspector-selection');
     if (sel) sel.style.display = 'none';
-    stopObserving();
+    stopTrackingLoop();
     selectedElement = null;
     selectedElementId = null;
   }
 
-  // Update selection position on scroll/resize/element changes
-  function updateSelectionPosition(): void {
-    if (!selectedElement) return;
+  // Continuously track the selected element position every frame.
+  // Handles all cases: scroll (including nested containers), resize,
+  // CSS transitions, animations, layout shifts, and property changes.
+  function trackSelectionLoop(): void {
+    if (!selectedElement) { rafHandle = null; return; }
     const sel = document.getElementById('inspector-selection');
-    if (!sel || sel.style.display === 'none') return;
+    if (!sel || sel.style.display === 'none') { rafHandle = null; return; }
 
-    // Check if element is still in DOM, if not try to re-find by ID
+    // Re-find element if it was removed and re-added to DOM
     if (!document.body.contains(selectedElement) && selectedElementId) {
-      const newElement = __findElementById(selectedElementId) as HTMLElement | null;
-      if (newElement) {
-        selectedElement = newElement;
-        startObserving(newElement);
+      const found = __findElementById(selectedElementId) as HTMLElement | null;
+      if (found) {
+        selectedElement = found;
       } else {
-        return; // Element gone, wait for it to reappear
+        rafHandle = requestAnimationFrame(trackSelectionLoop);
+        return;
       }
     }
 
@@ -612,48 +613,21 @@
     sel.style.left = rect.left + 'px';
     sel.style.width = rect.width + 'px';
     sel.style.height = rect.height + 'px';
+
+    rafHandle = requestAnimationFrame(trackSelectionLoop);
   }
 
-  function startObserving(element: HTMLElement): void {
-    // Stop previous element observer
-    if (resizeObserver) {
-      resizeObserver.disconnect();
-    }
-
-    // Watch for size changes on the element
-    resizeObserver = new ResizeObserver(() => {
-      updateSelectionPosition();
-    });
-    resizeObserver.observe(element);
-
-    // Start DOM observer if not already running
-    if (!domObserver) {
-      domObserver = new MutationObserver(() => {
-        // Debounce updates
-        requestAnimationFrame(updateSelectionPosition);
-      });
-      domObserver.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['style', 'class']
-      });
-    }
+  function startTrackingLoop(): void {
+    if (rafHandle !== null) return;
+    rafHandle = requestAnimationFrame(trackSelectionLoop);
   }
 
-  function stopObserving(): void {
-    if (resizeObserver) {
-      resizeObserver.disconnect();
-      resizeObserver = null;
-    }
-    if (domObserver) {
-      domObserver.disconnect();
-      domObserver = null;
+  function stopTrackingLoop(): void {
+    if (rafHandle !== null) {
+      cancelAnimationFrame(rafHandle);
+      rafHandle = null;
     }
   }
-
-  window.addEventListener('scroll', updateSelectionPosition, true);
-  window.addEventListener('resize', updateSelectionPosition);
 
   window.addEventListener('message', (event: MessageEvent) => {
     if (event.data.type === 'TOGGLE_INSPECTOR') {
