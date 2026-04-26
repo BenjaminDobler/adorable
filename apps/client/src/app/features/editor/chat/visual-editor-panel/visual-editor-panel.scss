@@ -433,6 +433,73 @@
         text-align: right;
       }
     }
+
+    .button-group.compact button {
+      font-size: 0.55rem;
+      padding: 4px 5px;
+    }
+
+    .grid-template-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 8px;
+
+      label {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        font-weight: 600;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 2px;
+
+        button {
+          flex: 1;
+          font-size: 0.6rem;
+          padding: 4px 2px;
+          background: var(--bg-surface-3);
+          border: 1px solid var(--panel-border);
+          color: var(--text-secondary);
+          border-radius: var(--radius-sm);
+          cursor: pointer;
+          transition: all 0.15s;
+          white-space: nowrap;
+
+          &:hover {
+            color: var(--text-primary);
+            border-color: var(--text-muted);
+          }
+
+          &.active {
+            background: var(--accent-color);
+            color: #fff;
+            border-color: var(--accent-color);
+          }
+        }
+      }
+
+      .grid-template-input {
+        width: 100%;
+        padding: 4px 8px;
+        font-size: 0.7rem;
+        font-family: 'JetBrains Mono', monospace;
+        background: var(--bg-surface-3);
+        border: 1px solid var(--panel-border);
+        border-radius: var(--radius-sm);
+        color: var(--text-primary);
+        outline: none;
+
+        &:focus {
+          border-color: var(--accent-color);
+        }
+
+        &::placeholder {
+          color: var(--text-muted);
+        }
+      }
+    }
   }
 
   .spacing-box-container {

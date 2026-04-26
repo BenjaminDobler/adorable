@@ -890,9 +890,15 @@ export const RUNTIME_SCRIPTS = `
                   borderRadius: computedStyle.borderRadius,
                   display: computedStyle.display,
                   flexDirection: computedStyle.flexDirection,
+                  flexWrap: computedStyle.flexWrap,
                   justifyContent: computedStyle.justifyContent,
                   alignItems: computedStyle.alignItems,
-                  gap: computedStyle.gap
+                  alignContent: computedStyle.alignContent,
+                  gap: computedStyle.gap,
+                  gridTemplateColumns: computedStyle.gridTemplateColumns,
+                  gridTemplateRows: computedStyle.gridTemplateRows,
+                  gridAutoFlow: computedStyle.gridAutoFlow,
+                  justifyItems: computedStyle.justifyItems
                 }
               }
             }, "*");
@@ -1076,10 +1082,15 @@ export const RUNTIME_SCRIPTS = `
               // Layout (for containers)
               display: computedStyle.display,
               flexDirection: computedStyle.flexDirection,
+              flexWrap: computedStyle.flexWrap,
               justifyContent: computedStyle.justifyContent,
               alignItems: computedStyle.alignItems,
+              alignContent: computedStyle.alignContent,
               gap: computedStyle.gap,
-              flexWrap: computedStyle.flexWrap
+              gridTemplateColumns: computedStyle.gridTemplateColumns,
+              gridTemplateRows: computedStyle.gridTemplateRows,
+              gridAutoFlow: computedStyle.gridAutoFlow,
+              justifyItems: computedStyle.justifyItems
             }
           }
         }, "*");

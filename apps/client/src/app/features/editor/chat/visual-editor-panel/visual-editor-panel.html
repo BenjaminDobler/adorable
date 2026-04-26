@@ -218,6 +218,7 @@
           <button [class.active]="editDisplay === 'grid'" (click)="setDisplay('grid')">Grid</button>
         </div>
       </div>
+      <!-- Flex-specific controls -->
       @if (editDisplay === 'flex') {
         <div class="button-group-row">
           <label>Direction</label>
@@ -229,20 +230,86 @@
           </div>
         </div>
         <div class="button-group-row">
+          <label>Wrap</label>
+          <div class="button-group">
+            <button [class.active]="editFlexWrap === 'nowrap'" (click)="setFlexWrap('nowrap')" title="No Wrap">No Wrap</button>
+            <button [class.active]="editFlexWrap === 'wrap'" (click)="setFlexWrap('wrap')" title="Wrap">Wrap</button>
+            <button [class.active]="editFlexWrap === 'wrap-reverse'" (click)="setFlexWrap('wrap-reverse')" title="Wrap Reverse">Reverse</button>
+          </div>
+        </div>
+        @if (editFlexWrap !== 'nowrap') {
+          <div class="button-group-row">
+            <label>Content</label>
+            <div class="button-group compact">
+              <button [class.active]="editAlignContent === 'flex-start'" (click)="setAlignContent('flex-start')" title="Start">Start</button>
+              <button [class.active]="editAlignContent === 'center'" (click)="setAlignContent('center')" title="Center">Center</button>
+              <button [class.active]="editAlignContent === 'flex-end'" (click)="setAlignContent('flex-end')" title="End">End</button>
+              <button [class.active]="editAlignContent === 'space-between'" (click)="setAlignContent('space-between')" title="Between">Between</button>
+              <button [class.active]="editAlignContent === 'space-around'" (click)="setAlignContent('space-around')" title="Around">Around</button>
+              <button [class.active]="editAlignContent === 'stretch'" (click)="setAlignContent('stretch')" title="Stretch">Stretch</button>
+            </div>
+          </div>
+        }
+      }
+
+      <!-- Grid-specific controls -->
+      @if (editDisplay === 'grid') {
+        <div class="grid-template-row">
+          <label>Columns</label>
+          <div class="button-group">
+            <button [class.active]="editGridTemplateColumns === '1fr'" (click)="setGridTemplateColumns('1fr')" title="1 column">1</button>
+            <button [class.active]="editGridTemplateColumns === '1fr 1fr'" (click)="setGridTemplateColumns('1fr 1fr')" title="2 equal columns">2</button>
+            <button [class.active]="editGridTemplateColumns === 'repeat(3, 1fr)'" (click)="setGridTemplateColumns('repeat(3, 1fr)')" title="3 equal columns">3</button>
+            <button [class.active]="editGridTemplateColumns === 'repeat(4, 1fr)'" (click)="setGridTemplateColumns('repeat(4, 1fr)')" title="4 equal columns">4</button>
+            <button [class.active]="editGridTemplateColumns === 'auto 1fr'" (click)="setGridTemplateColumns('auto 1fr')" title="Sidebar + Content">Auto+1fr</button>
+          </div>
+          <input class="grid-template-input" type="text" [value]="editGridTemplateColumns" placeholder="e.g. 1fr 2fr 1fr" (keydown.enter)="setGridTemplateColumns($any($event.target).value)" />
+        </div>
+        <div class="grid-template-row">
+          <label>Rows</label>
+          <div class="button-group">
+            <button [class.active]="editGridTemplateRows === 'auto'" (click)="setGridTemplateRows('auto')" title="Auto rows">Auto</button>
+            <button [class.active]="editGridTemplateRows === '1fr 1fr'" (click)="setGridTemplateRows('1fr 1fr')" title="2 equal rows">2</button>
+            <button [class.active]="editGridTemplateRows === 'repeat(3, 1fr)'" (click)="setGridTemplateRows('repeat(3, 1fr)')" title="3 equal rows">3</button>
+          </div>
+          <input class="grid-template-input" type="text" [value]="editGridTemplateRows" placeholder="e.g. auto 1fr auto" (keydown.enter)="setGridTemplateRows($any($event.target).value)" />
+        </div>
+        <div class="button-group-row">
+          <label>Flow</label>
+          <div class="button-group">
+            <button [class.active]="editGridAutoFlow === 'row'" (click)="setGridAutoFlow('row')" title="Row">Row</button>
+            <button [class.active]="editGridAutoFlow === 'column'" (click)="setGridAutoFlow('column')" title="Column">Column</button>
+            <button [class.active]="editGridAutoFlow === 'dense'" (click)="setGridAutoFlow('dense')" title="Dense">Dense</button>
+          </div>
+        </div>
+        <div class="button-group-row">
+          <label>Place Items</label>
+          <div class="button-group">
+            <button [class.active]="editJustifyItems === 'start'" (click)="setJustifyItems('start')" title="Start">Start</button>
+            <button [class.active]="editJustifyItems === 'center'" (click)="setJustifyItems('center')" title="Center">Center</button>
+            <button [class.active]="editJustifyItems === 'end'" (click)="setJustifyItems('end')" title="End">End</button>
+            <button [class.active]="editJustifyItems === 'stretch'" (click)="setJustifyItems('stretch')" title="Stretch">Stretch</button>
+          </div>
+        </div>
+      }
+
+      <!-- Shared flex/grid controls -->
+      @if (editDisplay === 'flex' || editDisplay === 'grid') {
+        <div class="button-group-row">
           <label>Justify</label>
           <div class="button-group">
-            <button [class.active]="editJustifyContent === 'flex-start'" (click)="setJustifyContent('flex-start')" title="Start">⬛⬜⬜</button>
+            <button [class.active]="editJustifyContent === 'flex-start' || editJustifyContent === 'start'" (click)="setJustifyContent(editDisplay === 'grid' ? 'start' : 'flex-start')" title="Start">⬛⬜⬜</button>
             <button [class.active]="editJustifyContent === 'center'" (click)="setJustifyContent('center')" title="Center">⬜⬛⬜</button>
-            <button [class.active]="editJustifyContent === 'flex-end'" (click)="setJustifyContent('flex-end')" title="End">⬜⬜⬛</button>
+            <button [class.active]="editJustifyContent === 'flex-end' || editJustifyContent === 'end'" (click)="setJustifyContent(editDisplay === 'grid' ? 'end' : 'flex-end')" title="End">⬜⬜⬛</button>
             <button [class.active]="editJustifyContent === 'space-between'" (click)="setJustifyContent('space-between')" title="Between">⬛⬜⬛</button>
           </div>
         </div>
         <div class="button-group-row">
           <label>Align</label>
           <div class="button-group">
-            <button [class.active]="editAlignItems === 'flex-start'" (click)="setAlignItems('flex-start')" title="Start">⬛</button>
+            <button [class.active]="editAlignItems === 'flex-start' || editAlignItems === 'start'" (click)="setAlignItems(editDisplay === 'grid' ? 'start' : 'flex-start')" title="Start">⬛</button>
             <button [class.active]="editAlignItems === 'center'" (click)="setAlignItems('center')" title="Center">◆</button>
-            <button [class.active]="editAlignItems === 'flex-end'" (click)="setAlignItems('flex-end')" title="End">⬜</button>
+            <button [class.active]="editAlignItems === 'flex-end' || editAlignItems === 'end'" (click)="setAlignItems(editDisplay === 'grid' ? 'end' : 'flex-end')" title="End">⬜</button>
             <button [class.active]="editAlignItems === 'stretch'" (click)="setAlignItems('stretch')" title="Stretch">▮</button>
           </div>
         </div>

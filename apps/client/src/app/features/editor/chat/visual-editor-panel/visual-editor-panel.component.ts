@@ -46,9 +46,15 @@ export class VisualEditorPanelComponent {
   editBorderRadius = 0;
   editDisplay = 'block';
   editFlexDirection = 'row';
+  editFlexWrap = 'nowrap';
   editJustifyContent = 'flex-start';
   editAlignItems = 'stretch';
+  editAlignContent = 'stretch';
   editGap = 0;
+  editGridTemplateColumns = '';
+  editGridTemplateRows = '';
+  editGridAutoFlow = 'row';
+  editJustifyItems = 'stretch';
 
   visualPrompt = '';
 
@@ -107,9 +113,15 @@ export class VisualEditorPanelComponent {
         this.editBorderRadius = this.parsePixelValue(data.styles?.borderRadius);
         this.editDisplay = data.styles?.display || 'block';
         this.editFlexDirection = data.styles?.flexDirection || 'row';
+        this.editFlexWrap = data.styles?.flexWrap || 'nowrap';
         this.editJustifyContent = data.styles?.justifyContent || 'flex-start';
         this.editAlignItems = data.styles?.alignItems || 'stretch';
+        this.editAlignContent = data.styles?.alignContent || 'stretch';
         this.editGap = this.parsePixelValue(data.styles?.gap);
+        this.editGridTemplateColumns = data.styles?.gridTemplateColumns || '';
+        this.editGridTemplateRows = data.styles?.gridTemplateRows || '';
+        this.editGridAutoFlow = data.styles?.gridAutoFlow || 'row';
+        this.editJustifyItems = data.styles?.justifyItems || 'stretch';
       }
     });
   }
@@ -250,6 +262,36 @@ export class VisualEditorPanelComponent {
   setAlignItems(align: string) {
     this.editAlignItems = align;
     this.applyVisualEdit('style', align, 'align-items');
+  }
+
+  setFlexWrap(wrap: string) {
+    this.editFlexWrap = wrap;
+    this.applyVisualEdit('style', wrap, 'flex-wrap');
+  }
+
+  setAlignContent(align: string) {
+    this.editAlignContent = align;
+    this.applyVisualEdit('style', align, 'align-content');
+  }
+
+  setGridTemplateColumns(value: string) {
+    this.editGridTemplateColumns = value;
+    this.applyVisualEdit('style', value, 'grid-template-columns');
+  }
+
+  setGridTemplateRows(value: string) {
+    this.editGridTemplateRows = value;
+    this.applyVisualEdit('style', value, 'grid-template-rows');
+  }
+
+  setGridAutoFlow(flow: string) {
+    this.editGridAutoFlow = flow;
+    this.applyVisualEdit('style', flow, 'grid-auto-flow');
+  }
+
+  setJustifyItems(justify: string) {
+    this.editJustifyItems = justify;
+    this.applyVisualEdit('style', justify, 'justify-items');
   }
 
   isContainerElement(): boolean {
