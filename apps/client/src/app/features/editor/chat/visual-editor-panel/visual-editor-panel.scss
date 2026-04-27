@@ -27,6 +27,34 @@
       margin: 0;
     }
 
+    .panel-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .history-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: var(--radius-sm);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+
+      &:hover:not(:disabled) {
+        background: var(--bg-surface-3);
+        color: var(--text-primary);
+      }
+
+      &:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+    }
+
     .close-btn {
       background: transparent;
       border: none;

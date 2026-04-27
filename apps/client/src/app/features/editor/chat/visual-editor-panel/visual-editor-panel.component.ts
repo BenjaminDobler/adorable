@@ -5,6 +5,7 @@ import { ProjectService } from '../../../../core/services/project';
 import { ContainerEngine } from '../../../../core/services/container-engine';
 import { ToastService } from '../../../../core/services/toast';
 import { HMRTriggerService } from '../../../../core/services/hmr-trigger.service';
+import { VisualEditHistoryService } from '../../services/visual-edit-history.service';
 import { getConflictPrefix, getPrefixedCategories, stripPrefix } from './tailwind-presets';
 
 @Component({
@@ -20,6 +21,7 @@ export class VisualEditorPanelComponent {
   private containerEngine = inject(ContainerEngine);
   private toastService = inject(ToastService);
   private hmrTriggerService = inject(HMRTriggerService);
+  protected history = inject(VisualEditHistoryService);
 
   @Input({ required: true }) visualEditorData!: ReturnType<typeof signal<any>>;
 
@@ -182,6 +184,15 @@ export class VisualEditorPanelComponent {
     console.log('[VisualEditor] result:', { success: result.success, path: result.path, error: result.error, contentLength: result.content?.length });
 
     if (result.success) {
+      const beforeContent = this.projectService.fileStore.getFileContent(result.path) ?? '';
+      const elementKey = `${data.componentName ?? ''}|${data.elementId ?? ''}|${data.childIndex ?? ''}`;
+      this.history.push({
+        path: result.path,
+        before: beforeContent,
+        after: result.content,
+        coalesceKey: `${result.path}|${elementKey}|${type}|${property ?? ''}`,
+        label: this.describeEdit(type, property, value),
+      });
       this.projectService.fileStore.updateFile(result.path, result.content);
       await this.containerEngine.writeFile(result.path, result.content);
       const isTranslation = result.path.endsWith('.json') || result.path.endsWith('.jsonc');
@@ -465,6 +476,13 @@ export class VisualEditorPanelComponent {
 
   toggleCategory(index: number) {
     this.activeTailwindCategory.set(this.activeTailwindCategory() === index ? -1 : index);
+  }
+
+  private describeEdit(type: 'text' | 'style' | 'class', property: string | undefined, value: string): string {
+    if (type === 'text') return 'text edit';
+    if (type === 'class') return 'class change';
+    if (property) return property;
+    return value ? `style → ${value}` : 'style change';
   }
 
   private parsePixelValue(value: string | undefined): number {

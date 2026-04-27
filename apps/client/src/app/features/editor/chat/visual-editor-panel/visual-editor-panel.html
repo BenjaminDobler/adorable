@@ -1,7 +1,15 @@
 <div class="visual-editor-panel">
   <div class="panel-header">
     <h3>Properties</h3>
-    <button (click)="closeEditor.emit()" class="tool-btn close-btn">✕</button>
+    <div class="panel-header-actions">
+      <button class="tool-btn history-btn" [disabled]="!history.canUndo()" (click)="history.undo()" [title]="history.nextUndoLabel() ? 'Undo ' + history.nextUndoLabel() : 'Undo'">
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+      </button>
+      <button class="tool-btn history-btn" [disabled]="!history.canRedo()" (click)="history.redo()" [title]="history.nextRedoLabel() ? 'Redo ' + history.nextRedoLabel() : 'Redo'">
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
+      </button>
+      <button (click)="closeEditor.emit()" class="tool-btn close-btn">✕</button>
+    </div>
   </div>
 
   <!-- Breadcrumb Navigation -->
