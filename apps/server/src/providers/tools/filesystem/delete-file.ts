@@ -1,5 +1,4 @@
 import { Tool } from '../types';
-import { validateToolArgs } from '../utils';
 
 export const deleteFile: Tool = {
   definition: {
@@ -15,9 +14,6 @@ export const deleteFile: Tool = {
   },
 
   async execute(args, ctx) {
-    const error = validateToolArgs('delete_file', args, ['path']);
-    if (error) return { content: error, isError: true };
-
     const protectedFiles = ['package.json', 'angular.json', 'tsconfig.json', 'tsconfig.app.json'];
     const fileName = args.path.split('/').pop();
     if (protectedFiles.includes(fileName)) {

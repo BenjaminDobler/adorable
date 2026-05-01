@@ -1,7 +1,7 @@
 import { FileSystemInterface, GenerateOptions, HistoryMessage, PreflightDecision, AgentLoopContext } from './types';
 import { jsonrepair } from 'jsonrepair';
 import { PARALLELIZABLE_TOOLS } from './system-prompts';
-import { executeToolByName, executeMCPTool, PARALLELIZABLE_TOOL_NAMES, validateToolArgs, sanitizeFileContent, getToolActivityDescription } from './tools/index';
+import { executeToolByName, executeMCPTool, PARALLELIZABLE_TOOL_NAMES, sanitizeFileContent, getToolActivityDescription } from './tools/index';
 import { prepareAgentContext as prepareAgentContextStandalone, addSkillTools as addSkillToolsStandalone, generateTreeSummary as generateTreeSummaryStandalone, flattenFiles as flattenFilesStandalone } from './context-builder';
 import { runPreflight as runPreflightStandalone, runResearchPhase as runResearchPhaseStandalone } from './preflight';
 import { SkillRegistry } from './skills/skill-registry';
@@ -509,13 +509,6 @@ export abstract class BaseLLMProvider {
    */
   protected sanitizeFileContent(content: string, filePath: string): string {
     return sanitizeFileContent(content, filePath);
-  }
-
-  /**
-   * Validate tool args — delegates to standalone function.
-   */
-  protected validateToolArgs(toolName: string, toolArgs: any, required: string[]): string | null {
-    return validateToolArgs(toolName, toolArgs, required);
   }
 
   /**

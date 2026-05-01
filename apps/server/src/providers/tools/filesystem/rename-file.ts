@@ -1,5 +1,4 @@
 import { Tool } from '../types';
-import { validateToolArgs } from '../utils';
 
 export const renameFile: Tool = {
   definition: {
@@ -16,9 +15,6 @@ export const renameFile: Tool = {
   },
 
   async execute(args, ctx) {
-    const error = validateToolArgs('rename_file', args, ['old_path', 'new_path']);
-    if (error) return { content: error, isError: true };
-
     const fileContent = await ctx.fs.readFile(args.old_path);
     await ctx.fs.writeFile(args.new_path, fileContent);
     ctx.callbacks.onFileWritten?.(args.new_path, fileContent);

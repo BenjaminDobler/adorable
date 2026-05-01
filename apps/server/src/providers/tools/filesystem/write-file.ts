@@ -1,5 +1,5 @@
 import { Tool } from '../types';
-import { validateToolArgs, sanitizeFileContent, contentHash } from '../utils';
+import { sanitizeFileContent, contentHash } from '../utils';
 import { discoverRelevantDocs } from './skill-discovery';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -19,9 +19,6 @@ export const writeFile: Tool = {
   },
 
   async execute(args, ctx) {
-    const error = validateToolArgs('write_file', args, ['path', 'content']);
-    if (error) return { content: error, isError: true };
-
     args.content = sanitizeFileContent(args.content, args.path);
 
     // --- Staleness warning (non-blocking) ---

@@ -1,5 +1,4 @@
 import { Tool } from '../types';
-import { validateToolArgs } from '../utils';
 
 export const copyFile: Tool = {
   definition: {
@@ -16,9 +15,6 @@ export const copyFile: Tool = {
   },
 
   async execute(args, ctx) {
-    const error = validateToolArgs('copy_file', args, ['source_path', 'destination_path']);
-    if (error) return { content: error, isError: true };
-
     const fileContent = await ctx.fs.readFile(args.source_path);
     await ctx.fs.writeFile(args.destination_path, fileContent);
     ctx.callbacks.onFileWritten?.(args.destination_path, fileContent);

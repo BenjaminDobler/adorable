@@ -1,5 +1,4 @@
 import { Tool } from '../types';
-import { validateToolArgs } from '../utils';
 import { kitLessonService } from '../../../services/kit-lesson.service';
 
 export const saveLesson: Tool = {
@@ -21,9 +20,6 @@ export const saveLesson: Tool = {
   },
 
   async execute(args, ctx) {
-    const error = validateToolArgs('save_lesson', args, ['title', 'problem', 'solution']);
-    if (error) return { content: error, isError: true };
-
     if (!ctx.activeKitId || !ctx.userId) {
       return { content: 'Error: save_lesson requires an active kit and authenticated user.', isError: true };
     }

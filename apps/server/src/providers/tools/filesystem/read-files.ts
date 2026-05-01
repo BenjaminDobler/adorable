@@ -1,5 +1,5 @@
 import { Tool } from '../types';
-import { validateToolArgs, tryParseJsonArray, contentHash } from '../utils';
+import { tryParseJsonArray, contentHash } from '../utils';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -21,9 +21,10 @@ export const readFiles: Tool = {
     const parsed = tryParseJsonArray(args.paths);
     if (parsed) args.paths = parsed;
 
-    const error = validateToolArgs('read_files', args, ['paths']);
-    if (error || !Array.isArray(args.paths)) {
-      return { content: error || "Error: Tool 'read_files' requires 'paths' to be an array. Your response may have been truncated.", isError: true };
+    // Required-field validation runs centrally in executeToolByName; we only
+    // need the type check here since `paths` must be an array specifically.
+    if (!Array.isArray(args.paths)) {
+      return { content: "Error: Tool 'read_files' requires 'paths' to be an array. Your response may have been truncated.", isError: true };
     }
 
     const results: string[] = [];

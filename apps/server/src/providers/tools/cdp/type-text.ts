@@ -1,5 +1,5 @@
 import { Tool } from '../types';
-import { getCdpAgentUrl, isDesktopMode, validateToolArgs } from '../utils';
+import { getCdpAgentUrl, isDesktopMode } from '../utils';
 
 export const typeText: Tool = {
   definition: {

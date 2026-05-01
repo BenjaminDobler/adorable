@@ -1,5 +1,4 @@
 import { Tool } from '../types';
-import { validateToolArgs } from '../utils';
 import { questionManager } from '../../question-manager';
 
 export const askUser: Tool = {
@@ -96,9 +95,6 @@ export const askUser: Tool = {
     if (!callbacks.onQuestionRequest) {
       return { content: 'Question requests are not available in this environment.', isError: true };
     }
-
-    const error = validateToolArgs('ask_user', args, ['questions']);
-    if (error) return { content: error, isError: true };
 
     try {
       const answers = await questionManager.requestAnswers(

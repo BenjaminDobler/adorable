@@ -225,4 +225,4 @@ export async function executeMCPTool(
 
 // Re-export types
 export { Tool, ToolDefinition, ToolResult } from './types';
-export { validateToolArgs, sanitizeFileContent } from './utils';
+export { sanitizeFileContent } from './utils';

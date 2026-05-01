@@ -1,5 +1,4 @@
 import { Tool } from '../types';
-import { validateToolArgs } from '../utils';
 
 export const activateSkill: Tool = {
   definition: {
@@ -18,9 +17,6 @@ export const activateSkill: Tool = {
   },
 
   async execute(args, ctx) {
-    const error = validateToolArgs('activate_skill', args, ['name']);
-    if (error) return { content: error, isError: true };
-
     const { skillRegistry } = ctx;
     const skill = skillRegistry.getSkill(args.name);
     if (skill) {
@@ -58,9 +54,6 @@ export const readSkillReference: Tool = {
   },
 
   async execute(args, ctx) {
-    const error = validateToolArgs('read_skill_reference', args, ['skill_name', 'filename']);
-    if (error) return { content: error, isError: true };
-
     const { skillRegistry } = ctx;
     const skill = skillRegistry.getSkill(args.skill_name);
     if (!skill) {

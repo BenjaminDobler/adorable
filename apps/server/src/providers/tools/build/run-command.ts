@@ -1,5 +1,4 @@
 import { Tool } from '../types';
-import { validateToolArgs } from '../utils';
 import { sanitizeCommandOutput } from '../../sanitize-output';
 
 const SEARCH_COMMANDS = new Set(['find', 'grep', 'rg', 'ag', 'ack', 'locate', 'which', 'whereis']);
@@ -29,9 +28,6 @@ export const runCommand: Tool = {
 
   async execute(args, ctx) {
     if (!ctx.fs.exec) throw new Error('run_command is not supported in this environment.');
-
-    const error = validateToolArgs('run_command', args, ['command']);
-    if (error) return { content: error, isError: true };
 
     const res = await ctx.fs.exec(args.command);
     let content = sanitizeCommandOutput(args.command, res.stdout, res.stderr, res.exitCode);

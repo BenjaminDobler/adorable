@@ -1,5 +1,5 @@
 import { Tool } from '../types';
-import { validateToolArgs, contentHash, normalizeQuotes } from '../utils';
+import { contentHash, normalizeQuotes } from '../utils';
 import { discoverRelevantDocs } from './skill-discovery';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -20,9 +20,6 @@ export const editFile: Tool = {
   },
 
   async execute(args, ctx) {
-    const error = validateToolArgs('edit_file', args, ['path', 'old_str', 'new_str']);
-    if (error) return { content: error, isError: true };
-
     // --- Read prerequisite check ---
     if (!ctx.readFileState.has(args.path)) {
       return {

@@ -1,5 +1,5 @@
 import { Tool } from '../types';
-import { validateToolArgs, contentHash } from '../utils';
+import { contentHash } from '../utils';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -17,9 +17,6 @@ export const undoEdit: Tool = {
   },
 
   async execute(args, ctx) {
-    const error = validateToolArgs('undo_edit', args, ['path']);
-    if (error) return { content: error, isError: true };
-
     const history = ctx.fileHistory.get(args.path);
     if (!history) {
       return { content: `No edit history for "${args.path}". The file was not modified in this session.`, isError: true };
