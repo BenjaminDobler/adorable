@@ -8,7 +8,6 @@ import { RUNTIME_SCRIPTS } from '../models/runtime-scripts';
 import { FileSystemStore } from './file-system.store';
 import {
   FileTree,
-  FigmaImportPayload,
   PublishVisibility,
   mergeFiles as sharedMergeFiles,
 } from '@adorable/shared-types';
@@ -18,6 +17,7 @@ import { HMRTriggerService } from './hmr-trigger.service';
 import { getServerUrl } from './server-url';
 import { ChatHistoryStore, ChatMessage, Question, QuestionOption, PendingQuestion } from './chat-history.store';
 import { KitManagementStore } from './kit-management.store';
+import { FigmaImportsStore } from './figma-imports.store';
 import { ProjectExportService } from './project-export.service';
 import { dataURIToUint8Array as binaryDataURIToUint8Array } from './binary-file.utils';
 
@@ -42,6 +42,8 @@ export class ProjectService {
   public chatHistory = inject(ChatHistoryStore);
   // Kit-related state — same delegation pattern.
   public kits = inject(KitManagementStore);
+  // Figma frame payloads attached to the current project.
+  public figmaImportsStore = inject(FigmaImportsStore);
   // Build / publish / download flows — see project-export.service.ts.
   private exportService = inject(ProjectExportService);
 
@@ -81,7 +83,11 @@ export class ProjectService {
   loading = signal(false);
   cloudEditorBlocked = signal<'capacity' | 'access_denied' | null>(null);
   buildError = signal<string | null>(null);
-  figmaImports = signal<FigmaImportPayload[]>([]);
+
+  // Figma imports delegated to FigmaImportsStore — getter exposes the same
+  // writable signal so existing call sites (template binding, FigmaPanel
+  // writes) keep working unchanged.
+  get figmaImports() { return this.figmaImportsStore.imports; }
 
   // Bumped after each successful save (so version history can auto-refresh)
   saveVersion = signal(0);
@@ -156,9 +162,9 @@ export class ProjectService {
 
       // Load Figma imports
       if (project.figmaImports) {
-        this.figmaImports.set(project.figmaImports);
+        this.figmaImportsStore.setImports(project.figmaImports);
       } else {
-        this.figmaImports.set([]);
+        this.figmaImportsStore.clear();
       }
 
       // skipStop=true if we already stopped above; false if same project (let reloadPreview fast-path handle it)
