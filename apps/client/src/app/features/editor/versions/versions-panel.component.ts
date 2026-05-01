@@ -1,10 +1,10 @@
-import { Component, inject, signal, effect, OnDestroy, DestroyRef } from '@angular/core';
+import { Component, inject, signal, effect, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ApiService } from '../../../core/services/api';
 import { ProjectService } from '../../../core/services/project';
 import { ConfirmService } from '../../../core/services/confirm';
 import { ToastService } from '../../../core/services/toast';
-import { Subscription, firstValueFrom } from 'rxjs';
+import { Subject, firstValueFrom, takeUntil } from 'rxjs';
 
 interface Commit {
   sha: string;
@@ -19,7 +19,7 @@ interface Commit {
   templateUrl: './versions-panel.component.html',
   styleUrl: './versions-panel.component.scss'
 })
-export class VersionsPanelComponent implements OnDestroy {
+export class VersionsPanelComponent {
   private destroyRef = inject(DestroyRef);
   private apiService = inject(ApiService);
   private projectService = inject(ProjectService);
@@ -31,7 +31,10 @@ export class VersionsPanelComponent implements OnDestroy {
   restoring = signal(false);
   error = signal<string | null>(null);
 
-  private sub: Subscription | null = null;
+  // Emit on this Subject to cancel any in-flight history load — prevents a
+  // stale response from overwriting a newer one when the project switches
+  // or saveVersion fires before the previous request settles.
+  private cancelLoad$ = new Subject<void>();
 
   constructor() {
     // Load history when project changes
@@ -53,19 +56,18 @@ export class VersionsPanelComponent implements OnDestroy {
     });
   }
 
-  ngOnDestroy() {
-    this.sub?.unsubscribe();
-  }
-
   loadHistory() {
     const projectId = this.projectService.projectId();
     if (!projectId) return;
 
     this.loading.set(true);
     this.error.set(null);
-    this.sub?.unsubscribe();
+    this.cancelLoad$.next();
 
-    this.sub = this.apiService.getProjectHistory(projectId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+    this.apiService.getProjectHistory(projectId).pipe(
+      takeUntil(this.cancelLoad$),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe({
       next: (result) => {
         this.commits.set(result.commits);
         this.loading.set(false);

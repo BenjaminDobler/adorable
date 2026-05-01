@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, viewChild, output, input, effect, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subscription, firstValueFrom } from 'rxjs';
+import { Subject, firstValueFrom, takeUntil } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { ProjectService, ChatMessage, Question } from '../../../core/services/project';
 import { ContainerEngine } from '../../../core/services/container-engine';
@@ -42,7 +42,10 @@ import { ContextPreviewModalComponent, ContextPreviewData } from './context-prev
   styleUrls: ['./chat.scss']
 })
 export class ChatComponent {
-  private activeSubscription: Subscription | null = null;
+  // Emit on this Subject to cancel any in-flight generateStream subscription.
+  // Combined with takeUntilDestroyed below it covers both user-initiated cancel
+  // (cancelGeneration / project switch) and component teardown.
+  private cancelGeneration$ = new Subject<void>();
   private destroyRef = inject(DestroyRef);
   private apiService = inject(ApiService);
   public containerEngine = inject(ContainerEngine);
@@ -166,10 +169,9 @@ export class ChatComponent {
     this.projectService.projectSwitching$.pipe(
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(() => {
-      if (this.activeSubscription) {
+      if (this.loading()) {
         console.log('[ChatComponent] Cancelling active generation due to project switch');
-        this.activeSubscription.unsubscribe();
-        this.activeSubscription = null;
+        this.cancelGeneration$.next();
         this.loading.set(false);
         this.progressiveStore.markAllComplete();
       }
@@ -929,7 +931,7 @@ Analyze the attached design images carefully and create matching Angular compone
       hasContextSummary: !!summaryToSend
     });
 
-    this.activeSubscription = this.apiService.generateStream(currentPrompt, previousFiles, {
+    this.apiService.generateStream(currentPrompt, previousFiles, {
       provider,
       apiKey,
       model,
@@ -946,7 +948,7 @@ Analyze the attached design images carefully and create matching Angular compone
       history: historyToSend?.length ? historyToSend : undefined,
       contextSummary: summaryToSend,
       figmaNodeAnnotations: this.figmaBridge.nodeAnnotations() || undefined
-    }).subscribe({
+    }).pipe(takeUntil(this.cancelGeneration$), takeUntilDestroyed(this.destroyRef)).subscribe({
       next: async (event) => {
         if (event.type !== 'tool_delta' && event.type !== 'text') {
            this.projectService.debugLogs.update(logs => [...logs, { ...event, timestamp: new Date() }]);
@@ -1139,7 +1141,6 @@ Analyze the attached design images carefully and create matching Angular compone
             return newMsgs;
         });
         this.progressiveStore.markAllComplete();
-        this.activeSubscription = null;
       }
     });
   }
@@ -1247,10 +1248,7 @@ Analyze the attached design images carefully and create matching Angular compone
   }
 
   cancelGeneration() {
-    if (this.activeSubscription) {
-      this.activeSubscription.unsubscribe();
-      this.activeSubscription = null;
-    }
+    this.cancelGeneration$.next();
     this.loading.set(false);
     this.messages.update(msgs => {
       const newMsgs = [...msgs];
