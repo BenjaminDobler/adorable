@@ -5,8 +5,6 @@ import { ContainerEngine } from './container-engine';
 import { ToastService } from './toast';
 import { Router } from '@angular/router';
 import { RUNTIME_SCRIPTS } from '../models/runtime-scripts';
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
 import { FileSystemStore } from './file-system.store';
 import {
   FileTree,
@@ -20,6 +18,8 @@ import { HMRTriggerService } from './hmr-trigger.service';
 import { getServerUrl } from './server-url';
 import { ChatHistoryStore, ChatMessage, Question, QuestionOption, PendingQuestion } from './chat-history.store';
 import { KitManagementStore } from './kit-management.store';
+import { ProjectExportService } from './project-export.service';
+import { dataURIToUint8Array as binaryDataURIToUint8Array } from './binary-file.utils';
 
 // Re-export chat types so existing consumers keep working without an import update.
 export type { ChatMessage, Question, QuestionOption, PendingQuestion };
@@ -42,6 +42,8 @@ export class ProjectService {
   public chatHistory = inject(ChatHistoryStore);
   // Kit-related state — same delegation pattern.
   public kits = inject(KitManagementStore);
+  // Build / publish / download flows — see project-export.service.ts.
+  private exportService = inject(ProjectExportService);
 
   // Guard against concurrent loadProject/reloadPreview calls (fast project switching)
   private _loadEpoch = 0;
@@ -295,119 +297,19 @@ export class ProjectService {
       this.toastService.show('Please save the project first', 'info');
       return;
     }
-
     this.loading.set(true);
-    this.addSystemMessage('Building and publishing your app...');
-
     try {
-      const exitCode = await this.containerEngine.runBuild([
-        '--base-href',
-        './',
-      ], this.currentKit()?.commands?.build);
-      if (exitCode !== 0) throw new Error('Build failed');
-
-      let distPath = 'dist';
-      try {
-        const foundPath = await this.findWebRoot('dist');
-        if (foundPath) distPath = foundPath;
-        else distPath = 'dist/app/browser';
-      } catch (e) {
-        distPath = 'dist/app/browser';
-      }
-
-      const files = await this.getFilesRecursively(distPath);
-
-      this.apiService.publish(id, files, visibility).subscribe({
-        next: async (res) => {
-          this.addAssistantMessage(
-            `Success! Your app is published at: ${res.url}`,
-          );
-
-          // For private sites, exchange token so the cookie is set before opening
-          if (res.visibility === 'private') {
-            try {
-              const token = localStorage.getItem('adorable_token');
-              await fetch(`${getServerUrl()}/api/sites/auth/token-exchange`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`,
-                },
-                credentials: 'include',
-              });
-            } catch (e) {
-              console.warn('[Publish] Token exchange failed:', e);
-            }
-          }
-
-          // Open the published URL
-          const electronAPI = (window as any).electronAPI;
-          if (electronAPI?.openExternal) {
-            electronAPI.openExternal(res.url);
-          } else {
-            window.open(res.url, '_blank');
-          }
-
-          this.toastService.show('Site published successfully!', 'success');
-          this.loading.set(false);
-        },
-        error: (err) => {
-          throw err;
-        },
-      });
-    } catch (err: any) {
-      console.error(err);
-      this.addSystemMessage(`Publishing error: ${err.message}`);
-      this.toastService.show('Publishing failed', 'error');
+      await this.exportService.publish(id, visibility);
+    } finally {
       this.loading.set(false);
     }
   }
 
   async downloadZip() {
-    const files = this.files();
     if (this.fileStore.isEmpty()) return;
-
     this.loading.set(true);
     try {
-      const zip = new JSZip();
-      // Files are already merged/current in the store
-      const fullProject = files;
-
-      const addFilesToZip = (fs: FileTree, currentPath: string) => {
-        for (const key in fs) {
-          const node = fs[key];
-          if (node.file) {
-            const contents = node.file.contents;
-            if (
-              typeof contents === 'string' &&
-              contents.trim().startsWith('data:')
-            ) {
-              // Data URI → decode to binary for correct zip entry
-              const binary = this.dataURIToUint8Array(contents);
-              zip.file(`${currentPath}${key}`, binary);
-            } else if (node.file.encoding === 'base64') {
-              // Raw base64 → decode to binary
-              const byteStr = atob(contents);
-              const ab = new ArrayBuffer(byteStr.length);
-              const ia = new Uint8Array(ab);
-              for (let i = 0; i < byteStr.length; i++) ia[i] = byteStr.charCodeAt(i);
-              zip.file(`${currentPath}${key}`, ia);
-            } else {
-              zip.file(`${currentPath}${key}`, contents);
-            }
-          } else if (node.directory) {
-            addFilesToZip(node.directory, `${currentPath}${key}/`);
-          }
-        }
-      };
-
-      addFilesToZip(fullProject, '');
-      const content = await zip.generateAsync({ type: 'blob' });
-      saveAs(content, `${this.projectName() || 'adorable-app'}.zip`);
-      this.toastService.show('Project exported', 'success');
-    } catch (err) {
-      console.error('Export failed:', err);
-      this.toastService.show('Failed to export project', 'error');
+      await this.exportService.downloadZip(this.projectName() || 'adorable-app', this.files());
     } finally {
       this.loading.set(false);
     }
@@ -795,79 +697,12 @@ export class ProjectService {
     return tree;
   }
 
+  /**
+   * Decode a data URI's base64 payload into a Uint8Array.
+   * Thin wrapper around the binary-file utility — kept on this class because
+   * workspace.component.ts still calls it via the projectService instance.
+   */
   dataURIToUint8Array(dataURI: string): Uint8Array {
-    const byteString = atob(dataURI.split(',')[1]);
-    const ab = new ArrayBuffer(byteString.length);
-    const ia = new Uint8Array(ab);
-    for (let i = 0; i < byteString.length; i++) {
-      ia[i] = byteString.charCodeAt(i);
-    }
-    return ia;
-  }
-
-  private async findWebRoot(currentPath: string): Promise<string | null> {
-    try {
-      const entries = (await this.containerEngine.readdir(currentPath, {
-        withFileTypes: true,
-      })) as any[];
-      if (entries.some((e) => e.name === 'index.html')) return currentPath;
-
-      const dirs = entries.filter((e) => e.isDirectory());
-      for (const dir of dirs) {
-        const result = await this.findWebRoot(`${currentPath}/${dir.name}`);
-        if (result) return result;
-      }
-    } catch (e) {} // Ignore errors, likely directory not found
-    return null;
-  }
-
-  private async getFilesRecursively(dirPath: string): Promise<any> {
-    const result = await this.containerEngine.readdir(dirPath, {
-      withFileTypes: true,
-    });
-    const entries = result as unknown as {
-      name: string;
-      isDirectory: () => boolean;
-    }[];
-    const files: any = {};
-
-    for (const entry of entries) {
-      const fullPath = `${dirPath}/${entry.name}`;
-      if (entry.isDirectory()) {
-        files[entry.name] = {
-          directory: await this.getFilesRecursively(fullPath),
-        };
-      } else {
-        const isBinary =
-          /\.(png|jpg|jpeg|gif|webp|ico|pdf|eot|ttf|woff|woff2)$/i.test(
-            entry.name,
-          );
-        if (isBinary) {
-          const binary =
-            await this.containerEngine.readBinaryFile(fullPath);
-          files[entry.name] = {
-            file: {
-              contents: this.uint8ArrayToBase64(binary),
-              encoding: 'base64',
-            },
-          };
-        } else {
-          const contents = await this.containerEngine.readFile(fullPath);
-          files[entry.name] = {
-            file: { contents },
-          };
-        }
-      }
-    }
-    return files;
-  }
-
-  private uint8ArrayToBase64(bytes: Uint8Array): string {
-    let binary = '';
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
+    return binaryDataURIToUint8Array(dataURI);
   }
 }
