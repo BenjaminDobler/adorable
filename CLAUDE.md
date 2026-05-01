@@ -96,10 +96,12 @@ Prisma with SQLite. Key models: `User` (with role/isActive/emailVerified/cloudEd
 
 Schema is at `prisma/schema.prisma`. After modifying, run `npx prisma migrate dev` then `npx prisma generate`.
 
-**IMPORTANT — Desktop DB sync:** The desktop app uses its own SQLite schema in `apps/desktop/db-init.ts` (not Prisma migrations). Whenever you modify `prisma/schema.prisma`, you **must** also update `db-init.ts`:
-1. Update `createFreshSchema()` with the new columns/tables
-2. Add a new migration entry to the `migrations` array with the next version number
-3. Bump `LATEST_VERSION` to match
+**IMPORTANT — Desktop DB sync:** The desktop app initializes SQLite directly via `apps/desktop/db-init.ts` (not Prisma migrations). Whenever you modify `prisma/schema.prisma`, you **must**:
+1. Run `npm run db:generate-fresh-schema` to regenerate `apps/desktop/db-fresh-schema.generated.ts` (covers fresh installs)
+2. Add a new migration entry to the `migrations` array in `db-init.ts` with the next version number — these are still hand-written because each one needs a developer-chosen default for the new column
+3. Bump `LATEST_VERSION` in `db-init.ts` to match
+
+`npm run db:check-fresh-schema` (suitable as a CI gate) verifies the generated file is up to date and exits 1 if it isn't.
 
 ### Streaming Protocol
 

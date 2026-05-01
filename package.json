@@ -9,7 +9,9 @@
     "package:desktop": "npm run build:desktop && npx electron-builder --config apps/desktop/electron-builder.json",
     "package:desktop:mac": "npm run build:desktop && npx electron-builder --config apps/desktop/electron-builder.json --mac",
     "package:desktop:win": "npm run build:desktop && npx electron-builder --config apps/desktop/electron-builder.json --win",
-    "package:desktop:linux": "npm run build:desktop && npx electron-builder --config apps/desktop/electron-builder.json --linux"
+    "package:desktop:linux": "npm run build:desktop && npx electron-builder --config apps/desktop/electron-builder.json --linux",
+    "db:generate-fresh-schema": "npx tsx apps/desktop/scripts/generate-fresh-schema.ts",
+    "db:check-fresh-schema": "npx tsx apps/desktop/scripts/generate-fresh-schema.ts --check"
   },
   "private": true,
   "devDependencies": {
