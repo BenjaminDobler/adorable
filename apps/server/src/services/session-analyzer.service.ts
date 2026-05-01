@@ -464,7 +464,7 @@ class SessionAnalyzerService {
       text = response.text || '';
     } else {
       const Anthropic = (await import('@anthropic-ai/sdk')).default;
-      const modelToUse = model || 'claude-haiku-4-5-20251001';
+      const modelToUse = model || 'claude-haiku-4-5';
 
       let anthropicOptions: ConstructorParameters<typeof Anthropic>[0];
       if (sapAiCore) {

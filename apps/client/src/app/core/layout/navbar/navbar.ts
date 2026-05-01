@@ -554,7 +554,7 @@ export class NavbarComponent {
 
   private defaultSettings: AppSettings = {
     profiles: [
-      { id: 'anthropic', name: 'Anthropic (Claude)', provider: 'anthropic', apiKey: '', model: 'claude-sonnet-4-5-20250929' },
+      { id: 'anthropic', name: 'Anthropic (Claude)', provider: 'anthropic', apiKey: '', model: 'claude-sonnet-4-6' },
       { id: 'gemini', name: 'Google (Gemini)', provider: 'gemini', apiKey: '', model: 'gemini-2.5-flash' },
       { id: 'figma', name: 'Figma', provider: 'figma', apiKey: '', model: '' },
       { id: 'claude-code', name: 'Claude Code (Local)', provider: 'claude-code', apiKey: '', model: 'sonnet' }

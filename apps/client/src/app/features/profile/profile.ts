@@ -61,7 +61,7 @@ export class ProfileComponent implements OnInit {
         name: 'Anthropic (Claude)',
         provider: 'anthropic',
         apiKey: '',
-        model: 'claude-sonnet-4-5-20250929'
+        model: 'claude-sonnet-4-6'
       },
       {
         id: 'gemini',

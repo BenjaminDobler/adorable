@@ -539,7 +539,7 @@ export class ClaudeCodeProvider implements LLMProvider {
 
     if (model && model !== 'claude-code') {
       // Claude Code --model accepts short names (opus, sonnet, haiku)
-      // and full model IDs (claude-opus-4-6, claude-sonnet-4-5-20250929, etc.)
+      // and full model IDs (claude-opus-4-7, claude-sonnet-4-6, claude-haiku-4-5, etc.)
       // Pass through directly — no mapping needed.
       args.push('--model', model);
     }

@@ -22,14 +22,20 @@ export interface CostBreakdown {
 //   Google:    https://ai.google.dev/gemini-api/docs/pricing
 export const PRICING_TABLE: Record<string, ModelPricing> = {
   // --- Anthropic Claude ---
-  // Opus 4.5 / 4.6 ($5 in, $25 out)
-  'claude-opus-4-5': {
+  // Opus 4.5 / 4.6 / 4.7 ($5 in, $25 out)
+  'claude-opus-4-7': {
     inputCostPer1M: 5,
     outputCostPer1M: 25,
     cacheCreationCostPer1M: 6.25,
     cacheReadCostPer1M: 0.50,
   },
   'claude-opus-4-6': {
+    inputCostPer1M: 5,
+    outputCostPer1M: 25,
+    cacheCreationCostPer1M: 6.25,
+    cacheReadCostPer1M: 0.50,
+  },
+  'claude-opus-4-5': {
     inputCostPer1M: 5,
     outputCostPer1M: 25,
     cacheCreationCostPer1M: 6.25,
@@ -49,6 +55,12 @@ export const PRICING_TABLE: Record<string, ModelPricing> = {
     cacheReadCostPer1M: 1.50,
   },
   // Sonnet 4 / 4.5 / 4.6 ($3 in, $15 out)
+  'claude-sonnet-4-6': {
+    inputCostPer1M: 3,
+    outputCostPer1M: 15,
+    cacheCreationCostPer1M: 3.75,
+    cacheReadCostPer1M: 0.30,
+  },
   'claude-sonnet-4': {
     inputCostPer1M: 3,
     outputCostPer1M: 15,
@@ -155,9 +167,12 @@ export const PRICING_TABLE: Record<string, ModelPricing> = {
 // Checked in order — first match wins. Maps to the closest pricing tier.
 const FAMILY_FALLBACKS: [RegExp, string][] = [
   // Claude — match specific tiers first, then broad families
-  [/claude.*opus.*4\.[5-9]/i, 'claude-opus-4-5'],
+  [/claude.*opus.*4\.7/i, 'claude-opus-4-7'],
+  [/claude.*opus.*4\.6/i, 'claude-opus-4-6'],
+  [/claude.*opus.*4\.5/i, 'claude-opus-4-5'],
   [/claude.*opus.*4/i, 'claude-opus-4'],
   [/claude.*opus/i, 'claude-3-opus'],
+  [/claude.*sonnet.*4\.6/i, 'claude-sonnet-4-6'],
   [/claude.*sonnet/i, 'claude-sonnet-4'],
   [/claude.*haiku.*4/i, 'claude-haiku-4-5'],
   [/claude.*haiku.*3\.5/i, 'claude-3-5-haiku'],

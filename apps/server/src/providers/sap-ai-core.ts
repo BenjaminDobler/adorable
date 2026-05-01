@@ -1,9 +1,14 @@
 import { SapAiCoreConfig } from './types';
 
 // SDK model name → SAP AI Core model name
+// Note: SAP currently exposes Claude up to 4.6. Opus 4.7 is mapped to the SAP 4.6 endpoint
+// until SAP publishes a 4.7 deployment; remove the alias once SAP exposes anthropic--claude-4.7-opus.
 const MODEL_MAP: Record<string, string> = {
-  'claude-sonnet-4-5-20250929': 'anthropic--claude-4.6-sonnet',
+  'claude-opus-4-7': 'anthropic--claude-4.6-opus',
+  'claude-sonnet-4-6': 'anthropic--claude-4.6-sonnet',
   'claude-opus-4-6': 'anthropic--claude-4.6-opus',
+  'claude-haiku-4-5': 'anthropic--claude-4.5-haiku',
+  'claude-sonnet-4-5-20250929': 'anthropic--claude-4.6-sonnet',
   'claude-haiku-4-5-20251001': 'anthropic--claude-4.5-haiku',
   'claude-opus-4-20250514': 'anthropic--claude-4-opus',
   'claude-sonnet-4-20250514': 'anthropic--claude-4-sonnet',
@@ -249,7 +254,9 @@ function stripCacheControl(body: any): void {
  */
 function stripWebSearchTool(body: any): void {
   if (Array.isArray(body.tools)) {
-    body.tools = body.tools.filter((t: any) => t.type !== 'web_search_20250305');
+    body.tools = body.tools.filter((t: any) =>
+      t.type !== 'web_search_20250305' && t.type !== 'web_search_20260209'
+    );
   }
 }
 
