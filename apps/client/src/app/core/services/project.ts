@@ -18,70 +18,10 @@ import { ScreenshotService } from './screenshot';
 import { Kit, FileTree as KitFileTree, KitCommands } from './kit-types';
 import { HMRTriggerService } from './hmr-trigger.service';
 import { getServerUrl } from './server-url';
+import { ChatHistoryStore, ChatMessage, Question, QuestionOption, PendingQuestion } from './chat-history.store';
 
-export interface QuestionOption {
-  value: string;
-  label: string;
-  recommended?: boolean;
-  preview?: string; // For image type: URL or path to preview
-}
-
-export interface Question {
-  id: string;
-  text: string;
-  type: 'radio' | 'checkbox' | 'text' | 'color' | 'range' | 'image' | 'code';
-  options?: QuestionOption[];
-  placeholder?: string;
-  required?: boolean;
-  default?: string | string[] | number; // For radio/text/color/code: string, checkbox: string[], range: number
-  // Range type properties
-  min?: number;
-  max?: number;
-  step?: number;
-  unit?: string;
-  // Code type properties
-  language?: string;
-  // Image type properties
-  allowUpload?: boolean;
-}
-
-export interface PendingQuestion {
-  requestId: string;
-  questions: Question[];
-  context?: string;
-  answers: Record<string, any>;
-}
-
-export interface ChatMessage {
-  role: 'user' | 'assistant' | 'system';
-  text: string;
-  timestamp: Date;
-  files?: any;
-  commitSha?: string; // Git commit SHA for version restore
-  usage?: {
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-    cacheCreationInputTokens?: number;
-    cacheReadInputTokens?: number;
-    cost?: {
-      inputCost: number;
-      outputCost: number;
-      cacheCreationCost: number;
-      cacheReadCost: number;
-      totalCost: number;
-      subscription?: boolean;
-    };
-  };
-  status?: string;
-  model?: string;
-  updatedFiles?: string[];
-  toolResults?: { tool: string; result: string; isError?: boolean }[];
-  duration?: number; // milliseconds
-  isExpanded?: boolean; // For files
-  areToolsExpanded?: boolean; // For tool results
-  pendingQuestion?: PendingQuestion; // For ask_user tool
-}
+// Re-export chat types so existing consumers keep working without an import update.
+export type { ChatMessage, Question, QuestionOption, PendingQuestion };
 
 @Injectable({
   providedIn: 'root',
@@ -94,6 +34,11 @@ export class ProjectService {
   private screenshotService = inject(ScreenshotService);
   private hmrTrigger = inject(HMRTriggerService);
   public fileStore = inject(FileSystemStore);
+  // Chat-related state moved to a dedicated store. ProjectService re-exposes
+  // it via getters/wrappers below so existing consumers keep working; new
+  // chat-only consumers (chat.component, versions panel, etc.) can inject
+  // ChatHistoryStore directly.
+  public chatHistory = inject(ChatHistoryStore);
 
   // Guard against concurrent loadProject/reloadPreview calls (fast project switching)
   private _loadEpoch = 0;
@@ -121,17 +66,14 @@ export class ProjectService {
   // Use store for files
   files: Signal<FileTree> = this.fileStore.files;
 
-  messages = signal<ChatMessage[]>([
-    {
-      role: 'assistant',
-      text: 'Hi! I can help you build an Angular app. Describe what you want to create.',
-      timestamp: new Date(),
-    },
-  ]);
+  // Delegated to ChatHistoryStore — kept as getters so callers can still do
+  // `projectService.messages()` and `projectService.debugLogs()`.
+  get messages() { return this.chatHistory.messages; }
+  get debugLogs() { return this.chatHistory.debugLogs; }
+
   loading = signal(false);
   cloudEditorBlocked = signal<'capacity' | 'access_denied' | null>(null);
   buildError = signal<string | null>(null);
-  debugLogs = signal<any[]>([]);
   figmaImports = signal<FigmaImportPayload[]>([]);
 
   // Bumped after each successful save (so version history can auto-refresh)
@@ -195,14 +137,14 @@ export class ProjectService {
       }
 
       if (project.messages) {
-        this.messages.set(
+        this.chatHistory.setMessages(
           project.messages.map((m: any) => ({
             ...m,
             timestamp: new Date(m.timestamp),
           })),
         );
       } else {
-        this.messages.set([]);
+        this.chatHistory.clear();
       }
 
       // Load Figma imports
@@ -776,28 +718,10 @@ export class ProjectService {
     return this.readFileIntoStore(filePath);
   }
 
-  // Helpers
-  addSystemMessage(text: string) {
-    this.messages.update((msgs) => [
-      ...msgs,
-      {
-        role: 'system',
-        text,
-        timestamp: new Date(),
-      },
-    ]);
-  }
-
-  addAssistantMessage(text: string) {
-    this.messages.update((msgs) => [
-      ...msgs,
-      {
-        role: 'assistant',
-        text,
-        timestamp: new Date(),
-      },
-    ]);
-  }
+  // Chat helpers — delegate to ChatHistoryStore (kept here for back-compat
+  // with existing consumers; new consumers should call chatHistory directly).
+  addSystemMessage(text: string) { this.chatHistory.addSystemMessage(text); }
+  addAssistantMessage(text: string) { this.chatHistory.addAssistantMessage(text); }
 
   // NOTE: This is likely no longer needed if we use Store,
   // but keeping it for now if external utilities use it or just removing it.
