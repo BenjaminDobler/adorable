@@ -13,6 +13,7 @@
 
 import { AgentLoopContext } from '../types';
 import { Tool, ToolDefinition, ToolResult } from './types';
+import { validateToolArgs as validateRequiredFields } from './utils';
 
 // --- Filesystem tools ---
 import { readFile, readFiles, writeFile, writeFiles, editFile, patchFiles, deleteFile, renameFile, copyFile, listDir, glob, grep, undoEdit } from './filesystem';
@@ -91,6 +92,13 @@ for (const tool of ALL_TOOLS) {
 
 /**
  * Execute a tool by name. Replaces the old switch statement in tool-executor.ts.
+ *
+ * Validates required fields against the tool's own input_schema before
+ * dispatching, so a malformed tool call from the model fails fast with a
+ * clear error rather than crashing inside the tool implementation. Most
+ * tools also re-check internally (defence in depth, plus per-tool type
+ * checks like `Array.isArray(args.paths)`); the per-tool calls are
+ * redundant for required-field checks and can be cleaned up later.
  */
 export async function executeToolByName(
   toolName: string,
@@ -101,11 +109,27 @@ export async function executeToolByName(
   if (!tool) {
     return { content: `Error: Unknown tool ${toolName}`, isError: true };
   }
+
+  const required = getRequiredFields(tool.definition);
+  if (required.length > 0) {
+    const error = validateRequiredFields(toolName, toolArgs ?? {}, required);
+    if (error) {
+      return { content: error, isError: true };
+    }
+  }
+
   try {
     return await tool.execute(toolArgs, ctx);
   } catch (err: any) {
     return { content: `Error: ${err.message}`, isError: true };
   }
+}
+
+/** Extract `required: string[]` from a tool's JSON Schema, defensively. */
+function getRequiredFields(def: ToolDefinition): string[] {
+  const required = (def.input_schema as { required?: unknown }).required;
+  if (!Array.isArray(required)) return [];
+  return required.filter((x): x is string => typeof x === 'string');
 }
 
 /**
