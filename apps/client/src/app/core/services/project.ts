@@ -19,6 +19,7 @@ import { Kit, FileTree as KitFileTree, KitCommands } from './kit-types';
 import { HMRTriggerService } from './hmr-trigger.service';
 import { getServerUrl } from './server-url';
 import { ChatHistoryStore, ChatMessage, Question, QuestionOption, PendingQuestion } from './chat-history.store';
+import { KitManagementStore } from './kit-management.store';
 
 // Re-export chat types so existing consumers keep working without an import update.
 export type { ChatMessage, Question, QuestionOption, PendingQuestion };
@@ -39,6 +40,8 @@ export class ProjectService {
   // chat-only consumers (chat.component, versions panel, etc.) can inject
   // ChatHistoryStore directly.
   public chatHistory = inject(ChatHistoryStore);
+  // Kit-related state — same delegation pattern.
+  public kits = inject(KitManagementStore);
 
   // Guard against concurrent loadProject/reloadPreview calls (fast project switching)
   private _loadEpoch = 0;
@@ -51,17 +54,19 @@ export class ProjectService {
   projectName = signal<string>('');
   /** Whether this project has been persisted to the database at least once. */
   isSaved = signal(false);
-  selectedKitId = signal<string | null>(null);
   /** Absolute path to an external project directory (desktop "Open Folder" feature). */
   externalPath = signal<string | null>(null);
   /** Auto-detected config for external projects (commands, preset, etc.). */
   detectedConfig = signal<any>(null);
-  /** User-provided Tailwind prefix override (from project settings). */
-  tailwindPrefixOverride = signal<string>('');
   /** Active locale selected in the Translations panel — used by visual editor to target the right file. */
   activeTranslationLocale = signal<string>('');
-  currentKit = signal<Kit | null>(null);
-  currentKitTemplate = signal<KitFileTree | null>(null);
+
+  // Kit state delegated to KitManagementStore — exposed as getters so callers
+  // can still do `projectService.selectedKitId.set(...)` etc. without changes.
+  get selectedKitId() { return this.kits.selectedKitId; }
+  get currentKit() { return this.kits.currentKit; }
+  get currentKitTemplate() { return this.kits.currentKitTemplate; }
+  get tailwindPrefixOverride() { return this.kits.tailwindPrefixOverride; }
 
   // Use store for files
   files: Signal<FileTree> = this.fileStore.files;
@@ -660,34 +665,21 @@ export class ProjectService {
   }
 
   /**
-   * Load kit template files for a given kit
+   * Load kit template files for a given kit. Delegates to KitManagementStore;
+   * kept on ProjectService for back-compat with existing callers.
    */
   async loadKitTemplate(kitId: string): Promise<KitFileTree | null> {
-    try {
-      const result = await firstValueFrom(this.apiService.getKit(kitId));
-      if (result?.kit) {
-        this.currentKit.set(result.kit);
-        if (result.kit.template?.files) {
-          return result.kit.template.files;
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load kit template:', err);
-    }
-    return null;
+    return this.kits.loadKitTemplate(kitId);
   }
 
   /**
-   * Set the kit for the current project and optionally reload preview
+   * Set the kit for the current project and optionally reload preview.
+   * Orchestrates KitManagementStore.setKit (state) with reloadPreview.
    */
   async setKit(kitId: string, reloadPreviewNow = true) {
-    this.selectedKitId.set(kitId);
-    const template = await this.loadKitTemplate(kitId);
-    if (template) {
-      this.currentKitTemplate.set(template);
-      if (reloadPreviewNow) {
-        await this.reloadPreview(this.files(), template);
-      }
+    const template = await this.kits.setKit(kitId);
+    if (template && reloadPreviewNow) {
+      await this.reloadPreview(this.files(), template);
     }
   }
 
