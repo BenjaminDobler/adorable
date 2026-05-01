@@ -33,20 +33,12 @@ const DEVICE_PRESETS: DevicePreset[] = [
 })
 export class PreviewToolbarComponent {
   previewDevice = input<'desktop' | 'tablet' | 'phone'>('desktop');
-  isInspectionActive = input(false);
-  isMeasureActive = input(false);
-  isAnnotating = input(false);
-  isMultiAnnotating = input(false);
   isFullscreen = input(false);
   isUndocked = input(false);
   isDesktop = input(false);
 
   previewDeviceChange = output<'desktop' | 'tablet' | 'phone'>();
   dimensionsChange = output<PreviewDimensions>();
-  inspectionToggled = output<void>();
-  measureToggled = output<void>();
-  annotationToggled = output<void>();
-  multiAnnotationToggled = output<void>();
   screenshotRequested = output<void>();
   fullscreenToggled = output<void>();
   reload = output<void>();

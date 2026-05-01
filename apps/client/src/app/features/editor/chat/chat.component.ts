@@ -76,7 +76,12 @@ export class ChatComponent {
   messages = this.projectService.messages;
   loading = this.projectService.loading;
 
-  prompt = signal('');
+  // Backed by ProjectService.chatDraft so the in-progress message survives
+  // mode switches that unmount this component.
+  prompt = signal(this.projectService.chatDraft());
+  private _chatDraftSync = effect(() => {
+    this.projectService.chatDraft.set(this.prompt());
+  });
 
   // UI State
   compactMode = signal(true);

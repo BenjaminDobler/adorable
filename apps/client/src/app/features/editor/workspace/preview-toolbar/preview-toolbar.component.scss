@@ -1,12 +1,12 @@
 .preview-toolbar {
   background: var(--bg-surface-2);
   border-bottom: 1px solid var(--panel-border);
-  padding: 6px 12px;
+  padding: 2px 8px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   flex-wrap: nowrap;
-  min-height: 36px;
+  min-height: 26px;
 
   .toolbar-spacer {
     flex: 1;
@@ -15,30 +15,31 @@
 
   .toolbar-separator {
     width: 1px;
-    height: 20px;
+    height: 16px;
     background: var(--panel-border);
-    margin: 0 4px;
+    margin: 0 2px;
   }
 
   button {
-    background: var(--bg-surface-3);
-    border: 1px solid var(--panel-border);
+    background: transparent;
+    border: none;
     border-radius: var(--radius-sm);
-    padding: 4px 8px;
+    padding: 4px;
     color: var(--text-secondary);
-    transition: all 0.2s;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 
     &:hover {
-      background: var(--bg-surface-3);
       color: var(--text-primary);
-      border-color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.06);
     }
 
     &.active {
-      background: var(--accent-glow) !important;
-      border-color: var(--accent-color) !important;
-      color: var(--accent-color) !important;
+      color: var(--accent-color);
     }
   }
 }
@@ -57,7 +58,7 @@
     color: var(--text-primary);
     font-size: 11px;
     padding: 3px 6px;
-    height: 26px;
+    height: 22px;
     cursor: pointer;
     max-width: 130px;
 
@@ -85,7 +86,7 @@
       font-size: 11px;
       font-family: monospace;
       padding: 3px 6px;
-      height: 26px;
+      height: 22px;
       text-align: center;
       -moz-appearance: textfield;
 
@@ -132,7 +133,7 @@
       color: var(--text-secondary);
       font-size: 11px;
       padding: 3px 6px;
-      height: 26px;
+      height: 22px;
       cursor: pointer;
 
       &:hover {

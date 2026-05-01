@@ -51,6 +51,22 @@ import { DevtoolsService } from '../../../core/services/devtools.service';
 import { ToolsTesterPanelComponent } from '../tools-tester/tools-tester-panel.component';
 import { FigmaBridgeService } from '../../../core/services/figma-bridge.service';
 
+const VALID_TABS = [
+  'chat',
+  'design',
+  'annotations',
+  'terminal',
+  'files',
+  'figma',
+  'versions',
+  'insights',
+  'translations',
+  'devtools',
+  'tools',
+  'settings',
+] as const;
+type TabName = (typeof VALID_TABS)[number];
+
 @Component({
   standalone: true,
   imports: [
@@ -125,9 +141,7 @@ export class WorkspaceComponent implements AfterViewChecked {
   @ViewChild(FigmaPanelComponent) figmaPanel?: FigmaPanelComponent;
   @ViewChild(MultiAnnotationPanelComponent) multiAnnotationPanel?: MultiAnnotationPanelComponent;
 
-  activeTab = signal<'chat' | 'terminal' | 'files' | 'figma' | 'versions' | 'insights' | 'translations' | 'devtools' | 'tools' | 'settings'>(
-    'chat',
-  );
+  activeTab = signal<TabName>('chat');
 
   // Pending Figma import (passed to chat component when it renders)
   pendingFigmaImport = signal<FigmaImportPayload | null>(null);
@@ -156,6 +170,7 @@ export class WorkspaceComponent implements AfterViewChecked {
   isMultiAnnotating = signal(false);
   visualEditorData = signal<any>(null);
   multiAnnotationItems = signal<MultiAnnotationItem[]>([]);
+  annotationSubTab = signal<'multi' | 'draw'>('multi');
 
   // Responsive preview
   previewDevice = signal<'desktop' | 'tablet' | 'phone'>('desktop');
@@ -207,6 +222,56 @@ export class WorkspaceComponent implements AfterViewChecked {
     // Track devtools panel visibility for DOM observer
     effect(() => {
       this.devtoolsService.setPanelVisible(this.activeTab() === 'devtools');
+    });
+
+    // Auto-engage Inspect when entering Design mode; turn it off when leaving.
+    effect(() => {
+      const inDesign = this.activeTab() === 'design';
+      if (inDesign && !this.isInspectionActive()) {
+        this.toggleInspection();
+      } else if (!inDesign && this.isInspectionActive()) {
+        this.toggleInspection();
+      }
+    });
+
+    // Auto-engage Multi-pick when in Annotations → Multi sub-tab; deactivate elsewhere.
+    // Also force the freehand canvas off whenever leaving Annotations.
+    effect(() => {
+      const inAnnotations = this.activeTab() === 'annotations';
+      const inMulti = inAnnotations && this.annotationSubTab() === 'multi';
+
+      if (inMulti && !this.isMultiAnnotating()) {
+        this.isMultiAnnotating.set(true);
+        this.sendToPreview({ type: 'TOGGLE_MULTI_ANNOTATOR', enabled: true });
+      } else if (!inMulti && this.isMultiAnnotating()) {
+        this.deactivateMultiAnnotation();
+      }
+
+      if (!inAnnotations && this.isAnnotating()) {
+        this.isAnnotating.set(false);
+      }
+    });
+
+    // URL ↔ active tab sync. ?mode=design makes modes bookmarkable and survives reload.
+    // Chat is the default and stays unparameterized (clean URL).
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe(params => {
+      const mode = params.get('mode') ?? 'chat';
+      if (VALID_TABS.includes(mode as TabName) && this.activeTab() !== mode) {
+        this.activeTab.set(mode as TabName);
+      }
+    });
+    effect(() => {
+      const tab = this.activeTab();
+      const current = this.route.snapshot.queryParamMap.get('mode');
+      const target = tab === 'chat' ? null : tab;
+      if (current !== target) {
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { mode: target },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        });
+      }
     });
 
     // Reload preview (webview/undocked) on demand from HMRTriggerService
@@ -329,7 +394,7 @@ export class WorkspaceComponent implements AfterViewChecked {
             if (ongId) {
               this.devtoolsService.selectByOngId(ongId);
             }
-          } else {
+          } else if (this.activeTab() === 'design') {
             this.visualEditorData.set(event.payload);
           }
         }
@@ -479,7 +544,7 @@ export class WorkspaceComponent implements AfterViewChecked {
         if (ongId) {
           this.devtoolsService.selectByOngId(ongId);
         }
-      } else {
+      } else if (this.activeTab() === 'design') {
         this.visualEditorData.set(data.payload);
       }
     }
@@ -899,7 +964,7 @@ export class WorkspaceComponent implements AfterViewChecked {
     event.preventDefault();
   }
 
-  toggleTab(tab: 'chat' | 'terminal' | 'files' | 'figma' | 'versions' | 'insights' | 'translations' | 'devtools' | 'tools' | 'settings') {
+  toggleTab(tab: TabName) {
     if (this.activeTab() === tab && !this.sidebarCollapsed()) {
       // Clicking the active tab — collapse
       this.lastSidebarWidth = this.sidebarWidth();

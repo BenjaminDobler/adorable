@@ -84,6 +84,10 @@ export class ProjectService {
   cloudEditorBlocked = signal<'capacity' | 'access_denied' | null>(null);
   buildError = signal<string | null>(null);
 
+  // Chat draft survives ChatComponent unmount/remount (e.g., switching modes
+  // in the left nav destroys the @if-gated chat panel). Reset per project.
+  chatDraft = signal('');
+
   // Figma imports delegated to FigmaImportsStore — getter exposes the same
   // writable signal so existing call sites (template binding, FigmaPanel
   // writes) keep working unchanged.
@@ -109,6 +113,7 @@ export class ProjectService {
       this.projectSwitching$.next();
       // Pause HMR to prevent buffered file updates from bleeding across projects
       this.hmrTrigger.pause();
+      this.chatDraft.set('');
     }
 
     this.loading.set(true);
