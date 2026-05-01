@@ -172,8 +172,8 @@ export class ClaudeCodeProvider implements LLMProvider {
     }, 15 * 60 * 1000);
     child.on('close', () => clearTimeout(processTimeout));
 
-    // Store kill function so the route can call it on disconnect
-    (resultPromise as any).__killChild = killChild;
+    // Register kill function so the route can terminate this process on disconnect
+    callbacks.onKillRegister?.(killChild);
 
     return resultPromise;
   }

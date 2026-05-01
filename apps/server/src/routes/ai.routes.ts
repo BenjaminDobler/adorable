@@ -434,13 +434,11 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
           },
           onPreflightDecision: (decision) => {
               res.write(`data: ${JSON.stringify({ type: 'preflight_decision', decision })}\n\n`);
-          }
+          },
+          onKillRegister: (kill) => {
+              killFns.push(kill);
+          },
       });
-
-      // Capture kill function for cancellation
-      if ((generationPromise as any).__killChild) {
-        killFns.push((generationPromise as any).__killChild);
-      }
 
       const result = await generationPromise;
 

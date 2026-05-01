@@ -89,6 +89,13 @@ export interface StreamCallbacks {
   onQuestionRequest?: (requestId: string, questions: Question[], context?: string) => void;
   // Preflight decision callback - notifies client of routing decisions (topic shift, context suggestions)
   onPreflightDecision?: (decision: PreflightDecision) => void;
+  /**
+   * Provider may register a cancellation function (e.g. kill a child process,
+   * abort an in-flight stream). The route bookkeeps these and invokes them
+   * when the client disconnects. Optional — providers that can't be killed
+   * mid-flight simply don't call this.
+   */
+  onKillRegister?: (kill: () => void) => void;
 }
 
 /**
