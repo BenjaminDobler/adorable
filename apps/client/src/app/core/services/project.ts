@@ -329,13 +329,12 @@ export class ProjectService {
 
     this.loading.set(true);
 
-    // Ensure container engine knows which project we're working with.
+    // Ensure the container engine knows which project we're working with.
     // For new unsaved projects (no ID yet), generate a temporary unique ID so the
     // native agent creates a fresh directory instead of reusing the shared 'desktop'
     // fallback — which causes cross-project contamination.
     if (!this.projectId()) {
-      const tempId = 'new-' + crypto.randomUUID();
-      this.containerEngine.currentProjectId = tempId;
+      this.containerEngine.currentProjectId = 'new-' + crypto.randomUUID();
     } else {
       this.containerEngine.currentProjectId = this.projectId();
     }
@@ -344,67 +343,16 @@ export class ProjectService {
     await new Promise((resolve) => setTimeout(resolve, 0));
     if (isStale()) return;
 
-    // Fast reconnect: if container already has our project with dev server running, skip everything
+    // Fast paths: skip the full stop/install/start cycle when we can.
     if (!kitTemplate && this.projectId() && this.containerEngine.checkStatus) {
-      try {
-        const status = await this.containerEngine.checkStatus();
-        if (status.running && status.projectId === this.projectId() && status.devServerReady) {
-          // Container already has the right project with dev server running — just reconnect
-          const userId = JSON.parse(localStorage.getItem('adorable_user') || '{}').id;
-          const serverBase = getServerUrl();
-          (this.containerEngine.url as any).set(`${serverBase}/api/proxy/?user=${userId}`);
-          (this.containerEngine.status as any).set('Ready');
-          this.containerEngine.lastBootedProjectId = this.projectId();
-          this.loading.set(false);
-          return;
-        }
-      } catch { /* status check failed, continue with normal flow */ }
+      if (await this.tryFastReconnect()) return;
     }
-
-    // Fast path: skip stop/clean/install/start when deps haven't changed
-    // and the dev server is already running (e.g. version restore with same package.json)
     if (!kitTemplate && this.containerEngine.url()) {
-      const currentPkg = this.fileStore.getFileContent('package.json');
-      const incomingPkg = files?.['package.json']?.file?.contents ?? null;
-      // If incoming files don't include package.json, or it matches the current one, fast path
-      const depsUnchanged = incomingPkg === null || incomingPkg === currentPkg;
-
-      if (depsUnchanged) {
-        try {
-          const baseFiles = this.currentKitTemplate() || {};
-          const mergedFiles = this.mergeFiles(baseFiles, files || {});
-          if (isStale()) return;
-
-          this.fileStore.setFiles(mergedFiles);
-
-          await new Promise((resolve) => setTimeout(resolve, 0));
-          if (isStale()) return;
-
-          // External projects: files already live on disk, skip mount to avoid
-          // overwriting real files with lazy-loaded empty stubs
-          if (!this.externalPath()) {
-            const tree = this.prepareFilesForMount(mergedFiles);
-            await this.containerEngine.mount(tree);
-            if (isStale()) return;
-          }
-
-          return; // Angular HMR picks up the file changes
-        } catch (err) {
-          if (isStale()) return;
-          console.error(
-            'Fast-path reload failed, falling back to full reload',
-            err,
-          );
-          // Fall through to full reload below
-        } finally {
-          this.loading.set(false);
-        }
-      }
+      if (await this.tryFastRemount(files, isStale)) return;
     }
 
     try {
       if (!skipStop) {
-        // Stop with timeout to prevent hanging
         await Promise.race([
           this.containerEngine.stopDevServer(),
           new Promise((resolve) => setTimeout(resolve, 5000)),
@@ -412,147 +360,10 @@ export class ProjectService {
       }
       if (isStale()) return;
 
-      const extPath = this.externalPath();
-
-      // External project: skip mount/clean — files already live on disk
-      if (extPath) {
-        // Set files in the store for the editor UI
-        if (files && Object.keys(files).length > 0) {
-          this.fileStore.setFiles(files);
-        }
-        if (isStale()) return;
-
-        // Boot NativeManager pointing at the external path
-        await this.containerEngine.boot(false, extPath);
-        if (isStale()) return;
-
-        // Enable injecting proxy so runtime scripts (inspector, console relay)
-        // are injected into HTML responses without modifying project files
-        const nativeEngine = (this.containerEngine as any).nativeEngine || this.containerEngine;
-        if (nativeEngine.isExternalProject !== undefined) {
-          nativeEngine.isExternalProject = true;
-        }
-
-        // Tell the native agent which app is selected so per-app storage settings work
-        if (nativeEngine.setSelectedApp) {
-          const selectedApp = this.detectedConfig()?.selectedApp || null;
-          nativeEngine.setSelectedApp(selectedApp).catch(() => {});
-        }
-
-        // Load tailwind prefix override from project settings (if any)
-        if (nativeEngine.getStorageSettings) {
-          try {
-            const selectedApp = this.detectedConfig()?.selectedApp || undefined;
-            const settings = await nativeEngine.getStorageSettings(selectedApp);
-            if (settings.tailwindPrefix) {
-              this.tailwindPrefixOverride.set(settings.tailwindPrefix);
-            }
-            if (settings.fixedPort !== undefined) {
-              nativeEngine.fixedPort.set(settings.fixedPort);
-            }
-          } catch { /* ignore */ }
-        }
-
-        // Use detected config commands for external projects, fall back to kit commands
-        const detected = this.detectedConfig();
-        const kitCommands = this.currentKit()?.commands;
-        const installCmd = detected?.commands?.install || kitCommands?.install;
-        const devCmd = detected?.commands?.dev || kitCommands?.dev;
-        const devServerPreset = detected?.devServerPreset || kitCommands?.devServerPreset;
-        const externalCommands = devCmd || devServerPreset
-          ? { ...kitCommands, dev: devCmd, devServerPreset, install: installCmd } as KitCommands
-          : kitCommands;
-
-        // Skip install if node_modules already exists (external projects manage their own deps).
-        // When install is needed (first open or after dependency changes), use `ci` for speed.
-        let skipInstall = false;
-        try {
-          const entries = await this.containerEngine.readdir('node_modules');
-          if (entries && entries.length > 0) {
-            skipInstall = true;
-          }
-        } catch {
-          // node_modules doesn't exist or readdir failed — need to install
-        }
-
-        if (!skipInstall) {
-          // Prefer `ci` over `install` for faster, deterministic installs
-          const ciCmd = installCmd
-            ? { cmd: installCmd.cmd, args: installCmd.args.map((a: string) => a === 'install' ? 'ci' : a) }
-            : undefined;
-          const exitCode = await this.containerEngine.runInstall(ciCmd);
-          if (isStale()) return;
-          if (exitCode !== 0) return;
-        }
-
-        this.containerEngine.startDevServer(externalCommands);
+      if (this.externalPath()) {
+        await this.bootExternalProject(files, isStale);
       } else {
-        // Standard project flow — disable injecting proxy
-        const nativeEngineStd = (this.containerEngine as any).nativeEngine || this.containerEngine;
-        if (nativeEngineStd.isExternalProject !== undefined) {
-          nativeEngineStd.isExternalProject = false;
-        }
-
-        // Full clean when switching kit templates to clear stale node_modules/lockfiles
-        await this.containerEngine.clean(!!kitTemplate);
-        if (isStale()) return;
-
-        // Yield before heavy sync operations
-        await new Promise((resolve) => setTimeout(resolve, 0));
-
-        // Use kit template if provided, otherwise use current kit template
-        const baseFiles = kitTemplate || this.currentKitTemplate() || {};
-        if (kitTemplate) {
-          this.currentKitTemplate.set(kitTemplate);
-        }
-
-        const mergedFiles = this.mergeFiles(baseFiles, files || {});
-
-        // Yield before updating store (triggers change detection)
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        if (isStale()) return;
-
-        this.fileStore.setFiles(mergedFiles);
-
-        // Use server-side mount when project has been saved (has a projectId on disk)
-        const pid = this.projectId();
-        if (pid && this.isSaved() && this.containerEngine.mountProject) {
-          await this.containerEngine.mountProject(
-            pid,
-            this.selectedKitId() || null,
-          );
-        } else {
-          // Fallback for new unsaved projects: send files over HTTP
-          await new Promise((resolve) => setTimeout(resolve, 0));
-
-          const tree = this.prepareFilesForMount(mergedFiles);
-
-          await this.containerEngine.mount(tree);
-          if (isStale()) return;
-        }
-        if (isStale()) return;
-
-        const kitCommands = this.currentKit()?.commands;
-
-        // Skip install if node_modules already exists — saves significant time on repeat opens.
-        let skipInstallLocal = false;
-        try {
-          const entries = await this.containerEngine.readdir('node_modules');
-          if (entries && entries.length > 0) {
-            skipInstallLocal = true;
-            console.log('[reloadPreview] node_modules exists, skipping install');
-          }
-        } catch { /* node_modules absent — need to install */ }
-
-        let exitCode = 0;
-        if (!skipInstallLocal) {
-          exitCode = await this.containerEngine.runInstall(kitCommands?.install);
-          if (isStale()) return;
-        }
-
-        if (exitCode === 0) {
-          this.containerEngine.startDevServer(kitCommands);
-        }
+        await this.bootStandardProject(files, kitTemplate, isStale);
       }
     } catch (err: any) {
       console.error(err);
@@ -563,6 +374,211 @@ export class ProjectService {
       }
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  /**
+   * Fast path 1 — the container is already running our project with the dev
+   * server ready. Skip everything and just point the URL/status signals at it.
+   * Returns true on hit (caller should return), false on miss (caller continues).
+   */
+  private async tryFastReconnect(): Promise<boolean> {
+    try {
+      const status = await this.containerEngine.checkStatus!();
+      if (status.running && status.projectId === this.projectId() && status.devServerReady) {
+        const userId = JSON.parse(localStorage.getItem('adorable_user') || '{}').id;
+        const serverBase = getServerUrl();
+        (this.containerEngine.url as any).set(`${serverBase}/api/proxy/?user=${userId}`);
+        (this.containerEngine.status as any).set('Ready');
+        this.containerEngine.lastBootedProjectId = this.projectId();
+        this.loading.set(false);
+        return true;
+      }
+    } catch {
+      // Status check failed — fall through to next fast path or full reload.
+    }
+    return false;
+  }
+
+  /**
+   * Fast path 2 — deps haven't changed (same package.json) and the dev server
+   * is already running. Just remount the file tree and let HMR pick up changes.
+   * Returns true on hit, false on miss.
+   */
+  private async tryFastRemount(files: any, isStale: () => boolean): Promise<boolean> {
+    const currentPkg = this.fileStore.getFileContent('package.json');
+    const incomingPkg = files?.['package.json']?.file?.contents ?? null;
+    // If incoming files don't include package.json, or it matches the current one, take fast path
+    const depsUnchanged = incomingPkg === null || incomingPkg === currentPkg;
+    if (!depsUnchanged) return false;
+
+    try {
+      const baseFiles = this.currentKitTemplate() || {};
+      const mergedFiles = this.mergeFiles(baseFiles, files || {});
+      if (isStale()) return true;
+
+      this.fileStore.setFiles(mergedFiles);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (isStale()) return true;
+
+      // External projects: files already live on disk, skip mount to avoid
+      // overwriting real files with lazy-loaded empty stubs.
+      if (!this.externalPath()) {
+        const tree = this.prepareFilesForMount(mergedFiles);
+        await this.containerEngine.mount(tree);
+        if (isStale()) return true;
+      }
+      return true;
+    } catch (err) {
+      if (isStale()) return true;
+      console.error('Fast-path reload failed, falling back to full reload', err);
+      return false;
+    } finally {
+      // Mirrors the original behaviour: loading is cleared regardless of
+      // whether we hit the fast path or fall through.
+      this.loading.set(false);
+    }
+  }
+
+  /**
+   * Boot path for desktop "Open Folder" projects: files already live on disk,
+   * NativeManager is pointed at the external path, install runs only if
+   * node_modules is missing, then the user's dev command starts.
+   */
+  private async bootExternalProject(files: any, isStale: () => boolean): Promise<void> {
+    if (files && Object.keys(files).length > 0) {
+      this.fileStore.setFiles(files);
+    }
+    if (isStale()) return;
+
+    await this.containerEngine.boot(false, this.externalPath()!);
+    if (isStale()) return;
+
+    // Enable injecting proxy so runtime scripts (inspector, console relay)
+    // are injected into HTML responses without modifying project files.
+    const nativeEngine = (this.containerEngine as any).nativeEngine || this.containerEngine;
+    if (nativeEngine.isExternalProject !== undefined) {
+      nativeEngine.isExternalProject = true;
+    }
+
+    // Tell the native agent which app is selected so per-app storage settings work.
+    if (nativeEngine.setSelectedApp) {
+      const selectedApp = this.detectedConfig()?.selectedApp || null;
+      nativeEngine.setSelectedApp(selectedApp).catch(() => {});
+    }
+
+    // Load Tailwind prefix override + fixed port from project settings (if any).
+    if (nativeEngine.getStorageSettings) {
+      try {
+        const selectedApp = this.detectedConfig()?.selectedApp || undefined;
+        const settings = await nativeEngine.getStorageSettings(selectedApp);
+        if (settings.tailwindPrefix) {
+          this.tailwindPrefixOverride.set(settings.tailwindPrefix);
+        }
+        if (settings.fixedPort !== undefined) {
+          nativeEngine.fixedPort.set(settings.fixedPort);
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Detected config commands take precedence; fall back to the kit's commands.
+    const detected = this.detectedConfig();
+    const kitCommands = this.currentKit()?.commands;
+    const installCmd = detected?.commands?.install || kitCommands?.install;
+    const devCmd = detected?.commands?.dev || kitCommands?.dev;
+    const devServerPreset = detected?.devServerPreset || kitCommands?.devServerPreset;
+    const externalCommands = devCmd || devServerPreset
+      ? { ...kitCommands, dev: devCmd, devServerPreset, install: installCmd } as KitCommands
+      : kitCommands;
+
+    // Skip install when node_modules is present (external projects manage their own deps).
+    // First open or after dependency changes uses `ci` for faster, deterministic installs.
+    let skipInstall = false;
+    try {
+      const entries = await this.containerEngine.readdir('node_modules');
+      if (entries && entries.length > 0) skipInstall = true;
+    } catch {
+      // node_modules doesn't exist or readdir failed — need to install.
+    }
+
+    if (!skipInstall) {
+      const ciCmd = installCmd
+        ? { cmd: installCmd.cmd, args: installCmd.args.map((a: string) => a === 'install' ? 'ci' : a) }
+        : undefined;
+      const exitCode = await this.containerEngine.runInstall(ciCmd);
+      if (isStale()) return;
+      if (exitCode !== 0) return;
+    }
+
+    this.containerEngine.startDevServer(externalCommands);
+  }
+
+  /**
+   * Boot path for managed projects: clean container, merge kit template into
+   * incoming files, mount via projectId (saved) or HTTP (unsaved), install
+   * if needed, then start the kit's dev command.
+   */
+  private async bootStandardProject(
+    files: any,
+    kitTemplate: KitFileTree | undefined,
+    isStale: () => boolean,
+  ): Promise<void> {
+    // Disable injecting proxy for managed projects.
+    const nativeEngine = (this.containerEngine as any).nativeEngine || this.containerEngine;
+    if (nativeEngine.isExternalProject !== undefined) {
+      nativeEngine.isExternalProject = false;
+    }
+
+    // Full clean when switching kit templates to clear stale node_modules / lockfiles.
+    await this.containerEngine.clean(!!kitTemplate);
+    if (isStale()) return;
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Use kit template if provided, otherwise use the currently loaded one.
+    const baseFiles = kitTemplate || this.currentKitTemplate() || {};
+    if (kitTemplate) this.currentKitTemplate.set(kitTemplate);
+
+    const mergedFiles = this.mergeFiles(baseFiles, files || {});
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (isStale()) return;
+
+    this.fileStore.setFiles(mergedFiles);
+
+    // Use server-side mount when the project has been saved (has a projectId on disk).
+    const pid = this.projectId();
+    if (pid && this.isSaved() && this.containerEngine.mountProject) {
+      await this.containerEngine.mountProject(pid, this.selectedKitId() || null);
+    } else {
+      // Fallback for new unsaved projects: send files over HTTP.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const tree = this.prepareFilesForMount(mergedFiles);
+      await this.containerEngine.mount(tree);
+      if (isStale()) return;
+    }
+    if (isStale()) return;
+
+    const kitCommands = this.currentKit()?.commands;
+
+    // Skip install when node_modules already exists — saves significant time on repeat opens.
+    let skipInstall = false;
+    try {
+      const entries = await this.containerEngine.readdir('node_modules');
+      if (entries && entries.length > 0) {
+        skipInstall = true;
+        console.log('[reloadPreview] node_modules exists, skipping install');
+      }
+    } catch { /* node_modules absent — need to install */ }
+
+    let exitCode = 0;
+    if (!skipInstall) {
+      exitCode = await this.containerEngine.runInstall(kitCommands?.install);
+      if (isStale()) return;
+    }
+
+    if (exitCode === 0) {
+      this.containerEngine.startDevServer(kitCommands);
     }
   }
 
