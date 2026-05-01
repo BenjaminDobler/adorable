@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
-import { LLMProvider, GenerateOptions, StreamCallbacks } from './types';
+import { LLMProvider, GenerateOptions, GenerationResult, StreamCallbacks } from './types';
 import { ClaudeCodeStreamParser } from './claude-code-stream-parser';
 import { prisma } from '../db/prisma';
 import { projectFsService } from '../services/project-fs.service';
@@ -24,7 +24,7 @@ import { figmaBridge } from '../services/figma-bridge.service';
  * 5. Detects file writes from stream events → fires onFileWritten
  */
 export class ClaudeCodeProvider implements LLMProvider {
-  async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any> {
+  async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<GenerationResult> {
     // ── 1. Guard: desktop mode only ────────────────────────────────
     if (process.env['ADORABLE_DESKTOP_MODE'] !== 'true') {
       throw new Error('Claude Code provider is only available in desktop mode');
@@ -96,7 +96,7 @@ export class ClaudeCodeProvider implements LLMProvider {
     logStream.write(`[args] ${args.join(' ')}\n\n`);
     console.log(`[ClaudeCode] Debug log: ${logPath}`);
 
-    const resultPromise = new Promise<any>((resolve, reject) => {
+    const resultPromise = new Promise<GenerationResult>((resolve, reject) => {
       child.stdout.on('data', (chunk: Buffer) => {
         const text = chunk.toString();
         logStream.write(`[stdout] ${text}\n`);

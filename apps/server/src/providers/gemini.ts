@@ -1,4 +1,4 @@
-import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
+import { GenerateOptions, GenerationResult, LLMProvider, StreamCallbacks } from './types';
 import { GoogleGenAI, createPartFromFunctionResponse } from '@google/genai';
 import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, REVIEW_SYSTEM_PROMPT, RESEARCH_SYSTEM_PROMPT, AgentLoopContext } from './base';
 import { sanitizeCommandOutput } from './sanitize-output';
@@ -21,7 +21,7 @@ function extractText(chunk: any): string | undefined {
 }
 
 export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
-  async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any> {
+  async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<GenerationResult> {
     const { apiKey, model } = options;
     if (!apiKey) throw new Error('Gemini API Key is required');
 

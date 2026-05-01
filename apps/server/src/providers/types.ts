@@ -91,8 +91,27 @@ export interface StreamCallbacks {
   onPreflightDecision?: (decision: PreflightDecision) => void;
 }
 
+/**
+ * Final payload returned by `LLMProvider.streamGenerate` after the agent
+ * loop completes. The same shape is forwarded to the client as the SSE
+ * `result` event in routes/ai.routes.ts.
+ */
+export interface GenerationResult {
+  /** Full assistant explanation accumulated across the stream. */
+  explanation: string;
+  /** Files written/accumulated during generation, keyed by relative path. */
+  files: Record<string, string>;
+  /** Model ID actually used (after fallback resolution). */
+  model: string;
+  /**
+   * Optional list of file paths the provider modified. Currently only set
+   * by the claude-code provider; other providers track via callbacks.
+   */
+  modifiedFiles?: string[];
+}
+
 export interface LLMProvider {
-  streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any>;
+  streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<GenerationResult>;
 }
 
 export interface FileSystemInterface {

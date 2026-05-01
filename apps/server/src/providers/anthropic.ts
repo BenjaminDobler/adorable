@@ -1,11 +1,11 @@
-import { GenerateOptions, LLMProvider, StreamCallbacks } from './types';
+import { GenerateOptions, GenerationResult, LLMProvider, StreamCallbacks } from './types';
 import Anthropic from '@anthropic-ai/sdk';
 import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, REVIEW_SYSTEM_PROMPT, RESEARCH_SYSTEM_PROMPT, AgentLoopContext } from './base';
 import { sanitizeCommandOutput } from './sanitize-output';
 import { createSapFetch } from './sap-ai-core';
 
 export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
-  async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<any> {
+  async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<GenerationResult> {
     const { apiKey, model, baseUrl } = options;
     if (!apiKey) throw new Error('Anthropic API Key is required');
 
