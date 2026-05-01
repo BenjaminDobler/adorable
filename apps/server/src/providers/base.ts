@@ -172,16 +172,16 @@ export abstract class BaseLLMProvider {
     pushToolResults?: (results: { tool_use_id: string; content: string; is_error: boolean }[]) => void,
     runReviewAgent?: (reviewPrompt: string) => Promise<string>,
   ): Promise<void> {
-    const { fs, callbacks } = ctx;
+    const { fs, callbacks, logger } = ctx;
 
     // Auto-build check in the no-tools-called path
     if (fs.exec && ctx.hasWrittenFiles && !ctx.hasRunBuild && !ctx.buildNudgeSent) {
       ctx.buildNudgeSent = true;
       const buildCmd = ctx.buildCommand;
-      console.log(`[AutoBuild] Running ${buildCmd}...`);
+      logger.info(`Running ${buildCmd}...`);
       callbacks.onText?.('\n\nVerifying build...\n');
       const buildResult = await fs.exec(buildCmd);
-      console.log(`[AutoBuild] Build result: exitCode=${buildResult.exitCode}`);
+      logger.info(`Build result: exitCode=${buildResult.exitCode}`);
 
       if (buildResult.exitCode !== 0) {
         callbacks.onText?.('Build failed. Fixing errors...\n');
@@ -191,7 +191,7 @@ export abstract class BaseLLMProvider {
         const FIX_TURNS = 5;
         let currentFixMessage = fixMessage;
         for (let fixTurn = 0; fixTurn < FIX_TURNS; fixTurn++) {
-          console.log(`[AutoBuild] Fix turn ${fixTurn}`);
+          logger.info(`Fix turn ${fixTurn}`);
           const result = await sendMessageAndGetToolCalls(currentFixMessage);
 
           if (result.toolCalls.length === 0) break;
@@ -204,7 +204,7 @@ export abstract class BaseLLMProvider {
             fixToolResults.push({ tool_use_id: call.id, content, is_error: isError });
 
             if ((call.name === 'verify_build' || (call.name === 'run_command' && call.args?.command?.includes('build'))) && !isError) {
-              console.log(`[AutoBuild] Fix build succeeded on fix turn ${fixTurn}`);
+              logger.info(`Fix build succeeded on fix turn ${fixTurn}`);
               ctx.hasRunBuild = true;
             }
           }
@@ -217,7 +217,7 @@ export abstract class BaseLLMProvider {
         }
       } else {
         callbacks.onText?.('Build successful.\n');
-        console.log(`[AutoBuild] Build succeeded`);
+        logger.info('Build succeeded');
         ctx.hasRunBuild = true;
       }
     }
@@ -225,7 +225,7 @@ export abstract class BaseLLMProvider {
     // CDP post-loop verification: if build succeeded but no browser verification happened yet
     if (ctx.cdpEnabled && ctx.hasRunBuild && !ctx.hasVerifiedWithBrowser) {
       ctx.hasVerifiedWithBrowser = true;
-      console.log('[BrowseVerify] Running post-loop browser verification...');
+      logger.info('Running post-loop browser verification...');
       callbacks.onText?.('\nVerifying with browser tools...\n');
 
       // Wait for dev server to reload after build
@@ -239,7 +239,7 @@ export abstract class BaseLLMProvider {
       const VERIFY_TURNS = 3;
       let currentVerifyMsg = verifyMsg;
       for (let verifyTurn = 0; verifyTurn < VERIFY_TURNS; verifyTurn++) {
-        console.log(`[BrowseVerify] Verification turn ${verifyTurn}`);
+        logger.info(`Verification turn ${verifyTurn}`);
         const result = await sendMessageAndGetToolCalls(currentVerifyMsg);
 
         if (result.toolCalls.length === 0) break;
@@ -261,7 +261,7 @@ export abstract class BaseLLMProvider {
 
     // Post-generation review: if build succeeded and files were modified, run a review agent
     if (ctx.hasRunBuild && ctx.modifiedFiles.length > 0 && runReviewAgent) {
-      console.log(`[Review] Running review agent on ${ctx.modifiedFiles.length} modified files...`);
+      logger.info(`Running review agent on ${ctx.modifiedFiles.length} modified files...`);
       callbacks.onText?.('\n\nReviewing generated code...\n');
 
       try {
@@ -288,7 +288,7 @@ export abstract class BaseLLMProvider {
           }
         }
       } catch (err: any) {
-        console.error('[Review] Review agent failed:', err.message);
+        logger.error('Review agent failed', { error: err.message });
         // Don't fail the whole generation if review fails
       }
     }
@@ -296,7 +296,7 @@ export abstract class BaseLLMProvider {
     // Nudge ng serve by modifying a file inside the container via exec (not putArchive)
     // putArchive may not trigger inotify reliably, so we use shell commands directly
     if (fs.exec && ctx.hasWrittenFiles) {
-      console.log('[AutoBuild] Nudging dev server via exec...');
+      logger.info('Nudging dev server via exec...');
       try {
         await fs.exec('cp src/main.ts src/main.ts.bak && echo "// nudge" >> src/main.ts && sleep 2 && mv src/main.ts.bak src/main.ts');
       } catch {
@@ -483,7 +483,7 @@ export abstract class BaseLLMProvider {
     return parts.join('\n');
   }
 
-  protected parseToolInput(input: string): any {
+  protected parseToolInput(input: string, logger?: import('./debug-logger').DebugLogger): any {
     // Handle empty input gracefully - expected for no-parameter tools (e.g. take_screenshot),
     // can also happen when streaming is interrupted
     if (!input || !input.trim()) {
@@ -495,11 +495,10 @@ export abstract class BaseLLMProvider {
     } catch {
       try {
         const repaired = jsonrepair(input);
-        console.log(`[ParseTool] JSON repaired (${input.length} chars)`);
+        logger?.info(`JSON repaired (${input.length} chars)`);
         return JSON.parse(repaired);
       } catch (e: any) {
-        console.error(`[ParseTool] JSON repair failed (${input.length} chars): ${e.message}`);
-        console.error(`[ParseTool] Input preview: ${input.slice(0, 200)}...`);
+        logger?.error(`JSON repair failed (${input.length} chars)`, { error: e.message, inputPreview: input.slice(0, 200) });
         return {};
       }
     }

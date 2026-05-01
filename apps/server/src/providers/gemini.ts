@@ -63,11 +63,11 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
     const geminiTools: any[] = [{ functionDeclarations: tools as any }];
     if (options.builtInTools?.webSearch) {
       geminiTools.push({ googleSearch: {} });
-      console.log('[Gemini] Google Search grounding enabled');
+      logger.info('Google Search grounding enabled');
     }
     if (options.builtInTools?.urlContext) {
       geminiTools.push({ urlContext: {} });
-      console.log('[Gemini] URL Context tool enabled');
+      logger.info('URL Context tool enabled');
     }
 
     // Preflight router: lightweight LLM call to decide how to handle this request
@@ -228,7 +228,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
         + '5. After writing all files, verify the build\n\n'
         + 'SCOPE DISCIPLINE: Only create files in your plan. Do NOT add features, components, or files not explicitly requested in the user\'s prompt.\n';
       if (initialParts[0]?.text) initialParts[0].text = enrichedUserMessage;
-      console.log('[Plan] Injected plan-before-execute instruction (preflight detected complex prompt)');
+      logger.info('Injected plan-before-execute instruction (preflight detected complex prompt)');
     }
 
     let turnCount = 0;
@@ -274,16 +274,16 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
         logger.logText('ASSISTANT_RESPONSE', turnText, { turn: turnCount });
       }
 
-      console.log(`[AutoBuild] Turn ${turnCount}: toolUses=${functionCalls.length} [${functionCalls.map(c => c.name).join(', ')}]`);
+      logger.info(`Turn ${turnCount}: toolUses=${functionCalls.length} [${functionCalls.map(c => c.name).join(', ')}]`);
 
       if (functionCalls.length === 0) {
         // Auto-build check
         if (fs.exec && ctx.hasWrittenFiles && !ctx.hasRunBuild && !ctx.buildNudgeSent && turnCount < maxTurns - 2) {
           ctx.buildNudgeSent = true;
-          console.log(`[AutoBuild] Running npm run build...`);
+          logger.info('Running npm run build...');
           callbacks.onText?.('\n\nVerifying build...\n');
           const buildResult = await fs.exec('npm run build');
-          console.log(`[AutoBuild] Build result: exitCode=${buildResult.exitCode}`);
+          logger.info(`Build result: exitCode=${buildResult.exitCode}`);
           if (buildResult.exitCode !== 0) {
             callbacks.onText?.('Build failed. Fixing errors...\n');
             const sanitizedBuildOutput = sanitizeCommandOutput('npm run build', buildResult.stdout || '', buildResult.stderr || '', buildResult.exitCode);
@@ -397,7 +397,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       return { toolCalls, text: '' };
     }, undefined, options.reviewAgentEnabled !== false ? async (reviewPrompt) => {
       // Review agent: separate Gemini call with review-focused system prompt
-      console.log('[Review] Calling Gemini review agent...');
+      logger.info('Calling review agent...');
       try {
         const reviewResponse = await ai.models.generateContent({
           model: modelName,
@@ -409,7 +409,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
         });
         return reviewResponse.text || '';
       } catch (err: any) {
-        console.error('[Review] Gemini review agent failed:', err.message);
+        logger.error('Review agent failed', { error: err.message });
         return '';
       }
     } : undefined);

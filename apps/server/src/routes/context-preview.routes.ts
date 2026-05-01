@@ -12,6 +12,7 @@ import { containerRegistry } from '../providers/container/container-registry';
 import { nativeRegistry } from '../providers/container/native-registry';
 import { kitService } from '../services/kit.service';
 import { projectFsService } from '../services/project-fs.service';
+import { parseUserSettings } from '../services/user-settings.service';
 import { prisma } from '../db/prisma';
 import * as fsSync from 'fs';
 
@@ -29,7 +30,7 @@ router.post('/', requireCloudEditorAccess, async (req: any, res) => {
   } = req.body;
   const user = req.user;
 
-  const userSettings = user.settings ? JSON.parse(user.settings) : {};
+  const userSettings = parseUserSettings(user.settings);
 
   const getApiKey = (p: string): string => {
     if (p === provider && apiKey && !apiKey.includes('...')) return apiKey;
@@ -98,7 +99,7 @@ router.post('/', requireCloudEditorAccess, async (req: any, res) => {
       contextSummary,
       fileSystem,
       apiKey: getApiKey(provider || 'anthropic'),
-      model: model || userSettings.model || 'claude-sonnet-4-5-20250929',
+      model: model || userSettings.model || 'claude-sonnet-4-6',
       userId: user.id,
       projectId,
       skipVisualEditingIds: userSettings.skipVisualEditingIds,

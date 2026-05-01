@@ -17,8 +17,10 @@ function getLogDir(): string {
 
 export class DebugLogger {
   private logPath: string;
+  private providerName: string;
 
   constructor(providerName: string, projectId?: string) {
+    this.providerName = providerName;
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = projectId
       ? `${providerName}_trace_${projectId}_${timestamp}.jsonl`
@@ -31,6 +33,10 @@ export class DebugLogger {
     this.log('INIT', { provider: providerName, timestamp: new Date().toISOString() });
   }
 
+  /**
+   * Append a structured event to the trace file. Used for machine-readable
+   * events (TURN_START, EXECUTING_TOOL, etc.). Does not echo to the console.
+   */
   log(type: string, data: any) {
     const entry = {
       timestamp: new Date().toISOString(),
@@ -46,7 +52,6 @@ export class DebugLogger {
 
   /**
    * Log large text content, truncating if necessary.
-   * Returns the truncated string for inline use.
    */
   logText(type: string, text: string, meta?: Record<string, any>) {
     const truncated = text.length > MAX_FIELD_LENGTH;
@@ -56,5 +61,25 @@ export class DebugLogger {
       length: text.length,
       truncated
     });
+  }
+
+  /**
+   * Human-readable progress message. Appended to the trace file as INFO
+   * AND echoed to the dev console with a `[provider]` prefix.
+   * Use these instead of bare console.log so traces capture them.
+   */
+  info(message: string, meta?: Record<string, any>) {
+    this.log('INFO', meta ? { message, ...meta } : { message });
+    console.log(`[${this.providerName}] ${message}`);
+  }
+
+  warn(message: string, meta?: Record<string, any>) {
+    this.log('WARN', meta ? { message, ...meta } : { message });
+    console.warn(`[${this.providerName}] ${message}`);
+  }
+
+  error(message: string, meta?: Record<string, any>) {
+    this.log('ERROR', meta ? { message, ...meta } : { message });
+    console.error(`[${this.providerName}] ${message}`);
   }
 }

@@ -2,6 +2,7 @@ import express from 'express';
 import { prisma } from '../db/prisma';
 import { decrypt, encrypt } from '../utils/crypto';
 import { authenticate } from '../middleware/auth';
+import { parseUserSettings } from '../services/user-settings.service';
 
 const router = express.Router();
 
@@ -23,36 +24,30 @@ router.get('/', async (req: any, res) => {
   const { password, ...userWithoutPassword } = req.user;
 
   if (userWithoutPassword.settings) {
-    try {
-      const settings = JSON.parse(userWithoutPassword.settings);
+    const settings = parseUserSettings(userWithoutPassword.settings);
 
-      // Mask profile API keys and SAP secrets
-      if (settings.profiles) {
-        settings.profiles = settings.profiles.map((p: any) => {
-          if (p.apiKey) {
-            p.apiKey = maskApiKey(p.apiKey);
-          }
-          if (p.sapAiCore?.clientSecret) {
-            p.sapAiCore = { ...p.sapAiCore, clientSecret: maskApiKey(p.sapAiCore.clientSecret) };
-          }
-          return p;
-        });
+    // Mask profile API keys and SAP secrets
+    settings.profiles = settings.profiles.map((p) => {
+      if (p.apiKey) {
+        p.apiKey = maskApiKey(p.apiKey);
       }
-
-      // Mask MCP server API keys
-      if (settings.mcpServers) {
-        settings.mcpServers = settings.mcpServers.map((server: any) => {
-          if (server.apiKey) {
-            server.apiKey = maskApiKey(server.apiKey);
-          }
-          return server;
-        });
+      if (p.sapAiCore?.clientSecret) {
+        p.sapAiCore = { ...p.sapAiCore, clientSecret: maskApiKey(p.sapAiCore.clientSecret) };
       }
+      return p;
+    });
 
-      userWithoutPassword.settings = JSON.stringify(settings);
-    } catch (e) {
-      console.error('Failed to parse settings for masking', e);
+    // Mask MCP server API keys
+    if (settings.mcpServers) {
+      settings.mcpServers = settings.mcpServers.map((server) => {
+        if (server.apiKey) {
+          server.apiKey = maskApiKey(server.apiKey);
+        }
+        return server;
+      });
     }
+
+    userWithoutPassword.settings = JSON.stringify(settings);
   }
 
   res.json(userWithoutPassword);
@@ -67,8 +62,8 @@ router.post('/', async (req: any, res) => {
 
     if (settings !== undefined) {
       const currentUser = await prisma.user.findUnique({ where: { id: user.id } });
-      const currentSettings = currentUser?.settings ? JSON.parse(currentUser.settings) : {};
-      const existingProfiles = currentSettings.profiles || [];
+      const currentSettings = parseUserSettings(currentUser?.settings);
+      const existingProfiles = currentSettings.profiles;
       const existingMcpServers = currentSettings.mcpServers || [];
 
       // Process AI profiles
@@ -136,22 +131,20 @@ router.post('/', async (req: any, res) => {
     });
 
     // Mask API keys in response
-    const userSettings = updatedUser.settings ? JSON.parse(updatedUser.settings) : {};
+    const userSettings = parseUserSettings(updatedUser.settings);
 
-    if (userSettings.profiles) {
-      userSettings.profiles = userSettings.profiles.map((p: any) => {
-        if (p.apiKey) {
-          p = { ...p, apiKey: maskApiKey(p.apiKey) };
-        }
-        if (p.sapAiCore?.clientSecret) {
-          p = { ...p, sapAiCore: { ...p.sapAiCore, clientSecret: maskApiKey(p.sapAiCore.clientSecret) } };
-        }
-        return p;
-      });
-    }
+    userSettings.profiles = userSettings.profiles.map((p) => {
+      if (p.apiKey) {
+        p = { ...p, apiKey: maskApiKey(p.apiKey) };
+      }
+      if (p.sapAiCore?.clientSecret) {
+        p = { ...p, sapAiCore: { ...p.sapAiCore, clientSecret: maskApiKey(p.sapAiCore.clientSecret) } };
+      }
+      return p;
+    });
 
     if (userSettings.mcpServers) {
-      userSettings.mcpServers = userSettings.mcpServers.map((server: any) => {
+      userSettings.mcpServers = userSettings.mcpServers.map((server) => {
         if (server.apiKey) {
           return { ...server, apiKey: maskApiKey(server.apiKey) };
         }

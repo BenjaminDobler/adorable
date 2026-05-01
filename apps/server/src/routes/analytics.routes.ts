@@ -2,6 +2,7 @@ import express from 'express';
 import { prisma } from '../db/prisma';
 import { authenticate } from '../middleware/auth';
 import { calculateCost, PRICING_TABLE, ModelPricing } from '../providers/pricing';
+import { parseUserSettings } from '../services/user-settings.service';
 
 const router = express.Router();
 
@@ -40,11 +41,10 @@ router.get('/usage', async (req: any, res) => {
 
     // Determine fallback model from user settings for old messages without stored model
     // Prefer the Anthropic profile model since most old generations used Anthropic
-    const userSettings = user.settings ? JSON.parse(user.settings) : {};
-    const profiles = userSettings.profiles || [];
-    const anthropicProfile = profiles.find((p: any) => p.provider === 'anthropic');
-    const activeProfile = profiles.find((p: any) => p.id === userSettings.activeProfileId);
-    const fallbackModel = anthropicProfile?.model || activeProfile?.model || 'claude-sonnet-4-5-20250929';
+    const userSettings = parseUserSettings(user.settings);
+    const anthropicProfile = userSettings.profiles.find((p) => p.provider === 'anthropic');
+    const activeProfile = userSettings.profiles.find((p) => p.id === userSettings.activeProfileId);
+    const fallbackModel = anthropicProfile?.model || activeProfile?.model || 'claude-sonnet-4-6';
 
     // Fetch messages with usage data
     const messages = await prisma.chatMessage.findMany({
@@ -158,7 +158,7 @@ router.get('/pricing', async (req: any, res) => {
   const user = req.user;
 
   try {
-    const userSettings = user.settings ? JSON.parse(user.settings) : {};
+    const userSettings = parseUserSettings(user.settings);
     const customPricing: Record<string, ModelPricing> = userSettings.customPricing || {};
 
     res.json({

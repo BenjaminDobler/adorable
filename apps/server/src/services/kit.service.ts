@@ -13,6 +13,7 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import { prisma } from '../db/prisma';
 import { Kit } from '../providers/kits/types';
+import { parseUserSettings } from './user-settings.service';
 import { kitFsService } from './kit-fs.service';
 
 type KitRow = {
@@ -256,16 +257,9 @@ class KitService {
     for (const user of users) {
       if (!user.settings) continue;
 
-      let settings: any;
-      try {
-        settings = typeof user.settings === 'string'
-          ? JSON.parse(user.settings)
-          : user.settings;
-      } catch {
-        continue;
-      }
+      const settings = parseUserSettings(user.settings);
 
-      if (!settings.kits || !Array.isArray(settings.kits) || settings.kits.length === 0) {
+      if (!Array.isArray(settings.kits) || settings.kits.length === 0) {
         continue;
       }
 

@@ -9,7 +9,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     const { apiKey, model, baseUrl } = options;
     if (!apiKey) throw new Error('Anthropic API Key is required');
 
-    const modelToUse = model || 'claude-sonnet-4-5-20250929';
+    const modelToUse = model || 'claude-sonnet-4-6';
 
     let anthropicOptions: ConstructorParameters<typeof Anthropic>[0];
     if (options.sapAiCore) {
@@ -33,10 +33,12 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     // Tools with no parameters (e.g. take_screenshot) legitimately receive empty input
     const noInputTools = new Set(availableTools.filter((t: any) => !t.input_schema?.required?.length && !Object.keys(t.input_schema?.properties || {}).length).map((t: any) => t.name));
 
-    // Inject Anthropic web_search built-in tool if enabled
+    // Inject Anthropic web_search built-in tool if enabled.
+    // The 20260209 version ships with dynamic filtering — Claude writes code that filters
+    // results before they hit the context, improving accuracy and cutting tokens.
     if (options.builtInTools?.webSearch) {
-      availableTools.push({ type: 'web_search_20250305', name: 'web_search' } as any);
-      console.log('[Anthropic] Web search tool enabled');
+      availableTools.push({ type: 'web_search_20260209', name: 'web_search' } as any);
+      logger.info('Web search tool enabled');
     }
 
     let enrichedUserMessage = userMessage;
@@ -111,7 +113,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
                 type: 'text',
                 text: `\n[Attached File Content (${mimeType})]:\n${textContent}\n`
               });
-            } catch (e) { console.error('Failed to decode text attachment', e); }
+            } catch (e) { logger.error('Failed to decode text attachment', { error: (e as Error).message }); }
           }
         }
       });
@@ -139,7 +141,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       fileHistory: new Map(),
     };
 
-    let effort = options.reasoningEffort || 'high';
+    let effort: 'low' | 'medium' | 'high' = options.reasoningEffort || 'high';
 
     // Preflight router: lightweight LLM call to decide how to handle this request
     // Re-use skill names from addSkillTools (called above), which already populated the registry
@@ -148,7 +150,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       options.prompt, history, contextSummary, availableSkills,
       async (systemPrompt, userMsg) => {
         // Use a fast, low-cost model for routing decisions
-        const routerModel = 'claude-haiku-4-5-20251001';
+        const routerModel = 'claude-haiku-4-5';
         const result = await anthropic.messages.create({
           model: routerModel,
           max_tokens: 256,
@@ -192,7 +194,9 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
             const researchStream = await anthropic.messages.create({
               model: modelToUse,
               max_tokens: 8192,
-              thinking: { type: 'enabled', budget_tokens: 1024 } as any,
+              // Research is a scoped, bounded task — low effort keeps it fast and cheap.
+              thinking: { type: 'adaptive' },
+              output_config: { effort: 'low' },
               system: [{ type: 'text', text: RESEARCH_SYSTEM_PROMPT }] as any,
               messages: researchMessages as any,
               tools: researchTools as any,
@@ -236,7 +240,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
             for (const block of researchContent) {
               if (block.type === 'tool_use') {
                 const t = researchToolUses.find(r => r.id === block.id);
-                if (t) block.input = this.parseToolInput(t.input);
+                if (t) block.input = this.parseToolInput(t.input, logger);
               }
             }
             researchMessages.push({ role: 'assistant', content: researchContent });
@@ -246,7 +250,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
             // Execute research tools
             const toolResultsArr: any[] = [];
             for (const t of researchToolUses) {
-              const args = this.parseToolInput(t.input);
+              const args = this.parseToolInput(t.input, logger);
               try {
                 const { content } = await this.executeTool(t.name, args, ctx);
                 toolResultsArr.push({ type: 'tool_result', tool_use_id: t.id, content, is_error: false });
@@ -294,7 +298,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       if (lastMsg?.role === 'user' && lastMsg.content?.[0]?.type === 'text') {
         lastMsg.content[0].text = enrichedUserMessage;
       }
-      console.log('[Plan] Injected plan-before-execute instruction (preflight detected complex prompt)');
+      logger.info('Injected plan-before-execute instruction (preflight detected complex prompt)');
     }
 
     let turnCount = 0;
@@ -305,7 +309,10 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       const stream = await anthropic.messages.create({
         model: modelToUse,
         max_tokens: 32768,
-        thinking: { type: 'enabled', budget_tokens: effort === 'low' ? 1024 : effort === 'medium' ? 8192 : 16384 } as any,
+        // Adaptive thinking — Claude decides when and how much to think.
+        // `effort` controls overall thinking depth and tool-call density on Sonnet 4.6 / Opus 4.6 / Opus 4.7.
+        thinking: { type: 'adaptive' },
+        output_config: { effort },
         system: [
           { type: 'text', text: ANGULAR_KNOWLEDGE_BASE, cache_control: { type: 'ephemeral' } },
           { type: 'text', text: effectiveSystemPrompt, cache_control: { type: 'ephemeral' } }
@@ -379,7 +386,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       // Skip warning for tools that take no parameters (e.g. take_screenshot)
       for (const tool of toolUses) {
         if ((!tool.input || !tool.input.trim()) && !noInputTools.has(tool.name)) {
-          console.warn(`[Anthropic] Tool '${tool.name}' (id: ${tool.id}) received empty input - possible truncation or streaming interruption`);
+          logger.warn(`Tool '${tool.name}' (id: ${tool.id}) received empty input - possible truncation or streaming interruption`);
         }
       }
 
@@ -388,7 +395,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         if (block.type === 'tool_use') {
           const tool = toolUses.find(t => t.id === block.id);
           if (tool) {
-            block.input = this.parseToolInput(tool.input);
+            block.input = this.parseToolInput(tool.input, logger);
           }
         }
       }
@@ -404,16 +411,16 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         logger.logText('ASSISTANT_RESPONSE', assistantText, { turn: turnCount });
       }
 
-      console.log(`[AutoBuild] Turn ${turnCount}: toolUses=${toolUses.length} [${toolUses.map(t => t.name).join(', ')}]`);
+      logger.info(`Turn ${turnCount}: toolUses=${toolUses.length} [${toolUses.map(t => t.name).join(', ')}]`);
 
       if (toolUses.length === 0) {
         // Auto-build check
         if (fs.exec && ctx.hasWrittenFiles && !ctx.hasRunBuild && !ctx.buildNudgeSent && turnCount < maxTurns - 2) {
           ctx.buildNudgeSent = true;
-          console.log(`[AutoBuild] Running npm run build...`);
+          logger.info('Running npm run build...');
           callbacks.onText?.('\n\nVerifying build...\n');
           const buildResult = await fs.exec('npm run build');
-          console.log(`[AutoBuild] Build result: exitCode=${buildResult.exitCode}`);
+          logger.info(`Build result: exitCode=${buildResult.exitCode}`);
           if (buildResult.exitCode !== 0) {
             callbacks.onText?.('Build failed. Fixing errors...\n');
             const sanitizedBuildOutput = sanitizeCommandOutput('npm run build', buildResult.stdout || '', buildResult.stderr || '', buildResult.exitCode);
@@ -450,7 +457,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       // Execute tools — parallel for read-only, sequential for mutations
       const parsedToolCalls = toolUses.map(t => ({
         name: t.name,
-        args: this.parseToolInput(t.input),
+        args: this.parseToolInput(t.input, logger),
         id: t.id,
       }));
 
@@ -544,7 +551,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       this.pruneMessages(messages);
       const stream = await anthropic.messages.create({
         model: modelToUse, max_tokens: 32768,
-        thinking: { type: 'enabled', budget_tokens: effort === 'low' ? 1024 : effort === 'medium' ? 8192 : 16384 } as any,
+        thinking: { type: 'adaptive' },
+        output_config: { effort },
         system: [
           { type: 'text', text: ANGULAR_KNOWLEDGE_BASE, cache_control: { type: 'ephemeral' } },
           { type: 'text', text: effectiveSystemPrompt, cache_control: { type: 'ephemeral' } }
@@ -600,20 +608,20 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       // Skip warning for tools that take no parameters (e.g. take_screenshot)
       for (const t of toolUsesRaw) {
         if ((!t.input || !t.input.trim()) && !noInputTools.has(t.name)) {
-          console.warn(`[Anthropic] Tool '${t.name}' (id: ${t.id}) received empty input in build-fix loop - possible truncation`);
+          logger.warn(`Tool '${t.name}' (id: ${t.id}) received empty input in build-fix loop - possible truncation`);
         }
       }
 
       for (const block of assistantContent) {
         if (block.type === 'tool_use') {
           const t = toolUsesRaw.find(r => r.id === block.id);
-          if (t) block.input = this.parseToolInput(t.input);
+          if (t) block.input = this.parseToolInput(t.input, logger);
         }
       }
       messages.push({ role: 'assistant', content: assistantContent });
 
       for (const t of toolUsesRaw) {
-        toolCalls.push({ name: t.name, args: this.parseToolInput(t.input), id: t.id });
+        toolCalls.push({ name: t.name, args: this.parseToolInput(t.input, logger), id: t.id });
       }
 
       return { toolCalls, text: '' };
@@ -638,12 +646,13 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       messages.push({ role: 'user', content: toolResultBlocks });
     }, options.reviewAgentEnabled !== false ? async (reviewPrompt) => {
       // Review agent: separate LLM call with a review-focused system prompt.
-      console.log('[Review] Calling review agent...');
+      logger.info('Calling review agent...');
       try {
         const reviewResponse = await anthropic.messages.create({
           model: modelToUse,
           max_tokens: 4096,
-          thinking: { type: 'enabled', budget_tokens: 1024 } as any,
+          thinking: { type: 'adaptive' },
+          output_config: { effort: 'low' },
           system: [
             { type: 'text', text: REVIEW_SYSTEM_PROMPT },
           ] as any,
@@ -660,7 +669,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
         }
         return reviewText;
       } catch (err: any) {
-        console.error('[Review] Review agent call failed:', err.message);
+        logger.error('Review agent call failed', { error: err.message });
         return '';
       }
     } : undefined);

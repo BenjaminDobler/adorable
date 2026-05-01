@@ -6,6 +6,7 @@ import { decrypt } from '../utils/crypto';
 import { prisma } from '../db/prisma';
 import { JWT_SECRET } from '../config';
 import { figmaBridge } from '../services/figma-bridge.service';
+import { parseUserSettings } from '../services/user-settings.service';
 
 const router = express.Router();
 const FIGMA_API_BASE = 'https://api.figma.com/v1';
@@ -160,16 +161,10 @@ router.use(async (req, res, next) => {
  */
 async function getFigmaToken(userId: string): Promise<string | null> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user?.settings) return null;
-
-  try {
-    const settings = JSON.parse(user.settings);
-    const figmaProfile = settings.profiles?.find((p: any) => p.provider === 'figma');
-    if (figmaProfile?.apiKey) {
-      return decrypt(figmaProfile.apiKey);
-    }
-  } catch (e) {
-    console.error('Failed to get Figma token:', e);
+  const settings = parseUserSettings(user?.settings);
+  const figmaProfile = settings.profiles.find((p) => p.provider === 'figma');
+  if (figmaProfile?.apiKey) {
+    return decrypt(figmaProfile.apiKey);
   }
   return null;
 }

@@ -14,6 +14,7 @@ import { SapAiCoreConfig } from '../providers/types';
 import { getAvailableModels as getSapModels } from '../providers/sap-ai-core';
 import { kitService } from '../services/kit.service';
 import { projectFsService } from '../services/project-fs.service';
+import { parseUserSettings } from '../services/user-settings.service';
 import { prisma } from '../db/prisma';
 import { calculateCost } from '../providers/pricing';
 import * as fsSync from 'fs';
@@ -81,24 +82,16 @@ router.get('/models/:provider', async (req: any, res) => {
 
   // Check for SAP AI Core config
   let sapConfig: SapAiCoreConfig | undefined;
-  if (user.settings) {
-    try {
-      const settings = JSON.parse(user.settings);
-      const profiles = settings.profiles || [];
-      const profile = profiles.find((p: any) => p.provider === provider || (provider === 'google' && p.provider === 'gemini'));
-
-      if (profile?.sapAiCore?.enabled && provider === 'anthropic') {
-        sapConfig = {
-          authUrl: profile.sapAiCore.authUrl,
-          clientId: profile.sapAiCore.clientId,
-          clientSecret: decrypt(profile.sapAiCore.clientSecret),
-          resourceGroup: profile.sapAiCore.resourceGroup || 'default',
-          baseUrl: profile.baseUrl,
-        };
-      }
-    } catch (e) {
-      console.error('Error reading SAP config for models', e);
-    }
+  const settings = parseUserSettings(user.settings);
+  const profile = settings.profiles.find((p) => p.provider === provider || (provider === 'google' && p.provider === 'gemini'));
+  if (profile?.sapAiCore?.enabled && provider === 'anthropic') {
+    sapConfig = {
+      authUrl: profile.sapAiCore.authUrl,
+      clientId: profile.sapAiCore.clientId,
+      clientSecret: decrypt(profile.sapAiCore.clientSecret),
+      resourceGroup: profile.sapAiCore.resourceGroup || 'default',
+      baseUrl: profile.baseUrl ?? '',
+    };
   }
 
   // If SAP mode, use SAP deployment listing instead of direct API
@@ -114,19 +107,10 @@ router.get('/models/:provider', async (req: any, res) => {
 
   // Security: If key is masked or missing, try to load from DB
   if (!apiKey || apiKey.includes('...')) {
-      if (user.settings) {
-          try {
-              const settings = JSON.parse(user.settings);
-              const profiles = settings.profiles || [];
-              const profile = profiles.find((p: any) => p.provider === provider || (provider === 'google' && p.provider === 'gemini'));
-
-              if (profile && profile.apiKey) {
-                  apiKey = decrypt(profile.apiKey);
-              }
-          } catch (e) {
-              console.error('Error reading user settings for models', e);
-          }
-      }
+    const dbProfile = settings.profiles.find((p) => p.provider === provider || (provider === 'google' && p.provider === 'gemini'));
+    if (dbProfile?.apiKey) {
+      apiKey = decrypt(dbProfile.apiKey);
+    }
   }
 
   if (!apiKey || apiKey.includes('...')) return res.status(400).json({ error: 'API Key required' });
@@ -179,20 +163,19 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
       console.log('[Generate] No images in request');
     }
 
-    const userSettings = user.settings ? JSON.parse(user.settings) : {};
-    
+    const userSettings = parseUserSettings(user.settings);
+
     const getApiKey = (p: string) => {
        if (p === provider && apiKey && !apiKey.includes('...')) return apiKey;
-       const profiles = userSettings.profiles || [];
-       const profile = profiles.find((pr: any) => pr.provider === p);
-       if (profile && profile.apiKey) {
+       const profile = userSettings.profiles.find((pr) => pr.provider === p);
+       if (profile?.apiKey) {
           return decrypt(profile.apiKey);
        }
        return undefined;
     };
 
     const getBaseUrl = (p: string) => {
-       const profiles = userSettings.profiles || [];
+       const profiles = userSettings.profiles;
        const profile = profiles.find((pr: any) => pr.provider === p);
        return profile?.baseUrl;
     };
@@ -337,7 +320,7 @@ router.post('/generate-stream', requireCloudEditorAccess, async (req: any, res) 
     try {
       const llm = ProviderFactory.getProvider(provider);
 
-      let finalModel = model || userSettings.model || 'claude-sonnet-4-5-20250929';
+      let finalModel = model || userSettings.model || 'claude-sonnet-4-6';
 
       // Load MCP configs
       const mcpConfigs = loadMCPConfigs(userSettings);
@@ -498,13 +481,12 @@ router.post('/summarize-context', async (req: any, res) => {
 
     if (!messages?.length) return res.json({ summary: '' });
 
-    const userSettings = user.settings ? JSON.parse(user.settings) : {};
+    const userSettings = parseUserSettings(user.settings);
 
     // Try to get an API key for summarization (prefer Anthropic, fall back to Google)
     const getApiKeyForSummary = (p: string) => {
-      const profiles = userSettings.profiles || [];
-      const profile = profiles.find((pr: any) => pr.provider === p);
-      if (profile && profile.apiKey) {
+      const profile = userSettings.profiles.find((pr) => pr.provider === p);
+      if (profile?.apiKey) {
         return decrypt(profile.apiKey);
       }
       return undefined;
@@ -519,7 +501,7 @@ router.post('/summarize-context', async (req: any, res) => {
       const Anthropic = (await import('@anthropic-ai/sdk')).default;
       const anthropic = new Anthropic({ apiKey: anthropicKey });
       const response = await anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-haiku-4-5',
         max_tokens: 500,
         messages: [{ role: 'user', content: `Summarize this AI coding conversation in 2-3 sentences. Focus on what was built, what changes were requested, and key decisions made:\n\n${text}` }]
       });
@@ -590,9 +572,8 @@ router.post('/test-provider', async (req: any, res) => {
     if (provider === 'anthropic') {
       // SAP AI Core mode: test OAuth + deployment listing
       if (sapAiCore?.enabled) {
-        const userSettings = user.settings ? JSON.parse(user.settings) : {};
-        const profiles = userSettings.profiles || [];
-        const profile = profiles.find((p: any) => p.provider === 'anthropic');
+        const userSettings = parseUserSettings(user.settings);
+        const profile = userSettings.profiles.find((p) => p.provider === 'anthropic');
 
         // Resolve client secret: if masked, decrypt from DB; otherwise use as-is
         let clientSecret = sapAiCore.clientSecret;
@@ -618,9 +599,8 @@ router.post('/test-provider', async (req: any, res) => {
       // Direct mode: resolve API key if masked
       let effectiveKey = apiKey;
       if (!effectiveKey || effectiveKey.includes('...')) {
-        const userSettings = user.settings ? JSON.parse(user.settings) : {};
-        const profiles = userSettings.profiles || [];
-        const profile = profiles.find((p: any) => p.provider === 'anthropic');
+        const userSettings = parseUserSettings(user.settings);
+        const profile = userSettings.profiles.find((p) => p.provider === 'anthropic');
         if (profile?.apiKey) effectiveKey = decrypt(profile.apiKey);
       }
 
@@ -645,9 +625,8 @@ router.post('/test-provider', async (req: any, res) => {
     } else if (provider === 'gemini' || provider === 'google') {
       let effectiveKey = apiKey;
       if (!effectiveKey || effectiveKey.includes('...')) {
-        const userSettings = user.settings ? JSON.parse(user.settings) : {};
-        const profiles = userSettings.profiles || [];
-        const profile = profiles.find((p: any) => p.provider === 'gemini');
+        const userSettings = parseUserSettings(user.settings);
+        const profile = userSettings.profiles.find((p) => p.provider === 'gemini');
         if (profile?.apiKey) effectiveKey = decrypt(profile.apiKey);
       }
 

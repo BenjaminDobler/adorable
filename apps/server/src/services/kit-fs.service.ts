@@ -5,6 +5,7 @@ import { prisma } from '../db/prisma';
 import { parseKitsFromSettings, updateKitsInSettings } from '../providers/kits/kit-registry';
 import { generateComponentDocFiles } from '../providers/kits/doc-generator';
 import { Kit, FileTree, FileNode, DirectoryNode } from '../providers/kits/types';
+import { parseUserSettings } from './user-settings.service';
 
 export interface KitFileEntry {
   path: string;
@@ -430,15 +431,7 @@ export class KitFsService {
     let templateMigratedCount = 0;
 
     for (const user of users) {
-      let settings: any;
-      try {
-        settings = typeof user.settings === 'string'
-          ? JSON.parse(user.settings || '{}')
-          : (user.settings || {});
-      } catch {
-        continue;
-      }
-
+      const settings = parseUserSettings(user.settings);
       const kits = parseKitsFromSettings(settings);
       let settingsChanged = false;
 

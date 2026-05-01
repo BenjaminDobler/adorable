@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/auth';
 import { decrypt } from '../utils/crypto';
 import { sessionAnalyzerService } from '../services/session-analyzer.service';
 import { kitFsService } from '../services/kit-fs.service';
+import { parseUserSettings } from '../services/user-settings.service';
 import { SessionSuggestion } from '@adorable/shared-types';
 import { SapAiCoreConfig } from '../providers/types';
 
@@ -39,11 +40,10 @@ router.post('/analyze', async (req: any, res) => {
   }
 
   // Resolve API key and provider config
-  const userSettings = user.settings ? JSON.parse(user.settings) : {};
-  const profiles = userSettings.profiles || [];
+  const userSettings = parseUserSettings(user.settings);
 
   const getApiKey = (providerName: string) => {
-    const profile = profiles.find((p: any) => p.provider === providerName);
+    const profile = userSettings.profiles.find((p) => p.provider === providerName);
     if (profile?.apiKey) {
       return decrypt(profile.apiKey);
     }
@@ -51,19 +51,19 @@ router.post('/analyze', async (req: any, res) => {
   };
 
   const getBaseUrl = (providerName: string): string | undefined => {
-    const profile = profiles.find((p: any) => p.provider === providerName);
+    const profile = userSettings.profiles.find((p) => p.provider === providerName);
     return profile?.baseUrl || undefined;
   };
 
   const getSapConfig = (): SapAiCoreConfig | undefined => {
-    const profile = profiles.find((p: any) => p.provider === 'anthropic');
+    const profile = userSettings.profiles.find((p) => p.provider === 'anthropic');
     if (!profile?.sapAiCore?.enabled) return undefined;
     return {
       authUrl: profile.sapAiCore.authUrl,
       clientId: profile.sapAiCore.clientId,
       clientSecret: decrypt(profile.sapAiCore.clientSecret),
       resourceGroup: profile.sapAiCore.resourceGroup || 'default',
-      baseUrl: profile.baseUrl,
+      baseUrl: profile.baseUrl ?? '',
     };
   };
 

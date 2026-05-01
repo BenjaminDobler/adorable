@@ -5,6 +5,7 @@ import { MCPStdioClient } from '../mcp/mcp-stdio-client';
 import { MCPManager } from '../mcp/mcp-manager';
 import { MCPServerConfig, MCPTransport } from '../mcp/types';
 import { decrypt } from '../utils/crypto';
+import { parseUserSettings } from '../services/user-settings.service';
 
 const router = express.Router();
 
@@ -164,23 +165,15 @@ router.post('/tools', async (req: any, res) => {
  */
 router.get('/available-tools', async (req: any, res) => {
   const user = req.user;
+  const settings = parseUserSettings(user.settings);
+  const mcpServers: MCPServerConfig[] = settings.mcpServers || [];
+  const enabledServers = mcpServers.filter(s => s.enabled);
 
-  if (!user.settings) {
+  if (enabledServers.length === 0) {
     return res.json({ servers: [], tools: [] });
   }
 
   try {
-    const settings = typeof user.settings === 'string'
-      ? JSON.parse(user.settings)
-      : user.settings;
-
-    const mcpServers: MCPServerConfig[] = settings.mcpServers || [];
-    const enabledServers = mcpServers.filter(s => s.enabled);
-
-    if (enabledServers.length === 0) {
-      return res.json({ servers: [], tools: [] });
-    }
-
     // Decrypt API keys
     const decryptedServers = enabledServers.map(server => {
       if (server.apiKey && server.apiKey.includes(':')) {
