@@ -9,6 +9,7 @@ import {
   CDP_POST_BUILD_VERIFICATION_MESSAGE,
   sessionFileTrackerMessage,
   turnBudgetWarning,
+  buildHistoryTurns,
 } from './agent-loop-messages';
 
 export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
@@ -55,32 +56,19 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
     logger.logText('KNOWLEDGE_BASE', ANGULAR_KNOWLEDGE_BASE);
     logger.logText('USER_MESSAGE', enrichedUserMessage);
 
-    // Build initial messages with conversation history
+    // Build initial messages with conversation history. The shared helper
+    // produces normalized turns; we map each into Anthropic's content-block
+    // shape and place a cache_control breakpoint on the last assistant turn.
     const messages: any[] = [];
-
-    // 1. Context summary (compacted older turns)
-    if (contextSummary) {
-      messages.push({ role: 'user', content: [{ type: 'text', text: `[Earlier conversation summary: ${contextSummary}]` }] });
-      messages.push({ role: 'assistant', content: [{ type: 'text', text: 'Understood, I have context from our earlier conversation.' }] });
-    }
-
-    // 2. Recent history messages
-    if (history?.length) {
-      for (let i = 0; i < history.length; i++) {
-        const msg = history[i];
-        const isLast = i === history.length - 1;
-        messages.push({
-          role: msg.role,
-          content: [{
-            type: 'text', text: msg.text,
-            ...(isLast && msg.role === 'assistant' ? { cache_control: { type: 'ephemeral' } } : {})
-          }]
-        });
-      }
-      // Ensure alternating roles: drop trailing user message since we're about to add one
-      if (messages.length > 0 && messages[messages.length - 1].role === 'user') {
-        messages.pop();
-      }
+    for (const turn of buildHistoryTurns(contextSummary, history)) {
+      messages.push({
+        role: turn.role,
+        content: [{
+          type: 'text',
+          text: turn.text,
+          ...(turn.isLastAssistant ? { cache_control: { type: 'ephemeral' } } : {})
+        }]
+      });
     }
 
     const historyCount = messages.length;

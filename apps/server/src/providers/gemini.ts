@@ -8,6 +8,7 @@ import {
   CDP_POST_BUILD_VERIFICATION_MESSAGE,
   sessionFileTrackerMessage,
   turnBudgetWarning,
+  buildHistoryTurns,
 } from './agent-loop-messages';
 
 /** Extract text from a Gemini response chunk without triggering the SDK's
@@ -107,23 +108,14 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
     const geminiEffort = options.reasoningEffort || preflightDecision.reasoningEffort || 'high';
     const thinkingBudget = geminiEffort === 'low' ? 1024 : geminiEffort === 'medium' ? 8192 : -1;
 
-    // Build Gemini conversation history from prior turns
+    // Build Gemini conversation history from prior turns. Shared helper produces
+    // normalized turns; map each into Gemini's parts shape (assistant → 'model').
     const geminiHistory: any[] = [];
-    if (contextSummary) {
-      geminiHistory.push({ role: 'user', parts: [{ text: `[Earlier conversation summary: ${contextSummary}]` }] });
-      geminiHistory.push({ role: 'model', parts: [{ text: 'Understood, I have context from our earlier conversation.' }] });
-    }
-    if (history?.length) {
-      for (const msg of history) {
-        geminiHistory.push({
-          role: msg.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: msg.text }]
-        });
-      }
-      // Gemini requires history to end with 'model' role
-      if (geminiHistory.length > 0 && geminiHistory[geminiHistory.length - 1].role === 'user') {
-        geminiHistory.pop();
-      }
+    for (const turn of buildHistoryTurns(contextSummary, history)) {
+      geminiHistory.push({
+        role: turn.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: turn.text }],
+      });
     }
 
     if (geminiHistory.length > 0) {

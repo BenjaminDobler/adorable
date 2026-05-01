@@ -1,3 +1,5 @@
+import type { HistoryMessage } from './types';
+
 /**
  * Shared text strings and steering helpers used by every LLM provider's
  * agent loop. Kept here as pure functions so a tweak (e.g. wording changes,
@@ -8,6 +10,62 @@
  * into its API-specific message format (Anthropic content blocks vs Gemini
  * parts) — only the content is shared.
  */
+
+/**
+ * Normalized prior-turn shape that providers map into their API-specific
+ * message format. Decoupled from both Anthropic content blocks and Gemini
+ * parts so a new provider can reuse the build logic.
+ */
+export interface NormalizedTurn {
+  role: 'user' | 'assistant';
+  text: string;
+  /**
+   * True for the most recent assistant turn (if any). Providers that
+   * support prompt caching may use this to place a cache breakpoint
+   * on the last cacheable block.
+   */
+  isLastAssistant: boolean;
+}
+
+/**
+ * Build the conversation prelude (everything before the current user
+ * message) from the optional compaction summary and recent turn history.
+ *
+ *   - If contextSummary is present, prepend a synthetic user/assistant
+ *     pair carrying it (so the next turn is grounded but the summary
+ *     doesn't masquerade as a real exchange).
+ *   - Then append the recent turn history.
+ *   - Finally drop a trailing user turn — the caller is about to add the
+ *     current user message, and most APIs require alternating roles.
+ */
+export function buildHistoryTurns(
+  contextSummary: string | undefined,
+  history: HistoryMessage[] | undefined,
+): NormalizedTurn[] {
+  const turns: { role: 'user' | 'assistant'; text: string }[] = [];
+
+  if (contextSummary) {
+    turns.push({ role: 'user', text: `[Earlier conversation summary: ${contextSummary}]` });
+    turns.push({ role: 'assistant', text: 'Understood, I have context from our earlier conversation.' });
+  }
+
+  if (history?.length) {
+    for (const msg of history) {
+      turns.push({ role: msg.role, text: msg.text });
+    }
+    if (turns.length > 0 && turns[turns.length - 1].role === 'user') {
+      turns.pop();
+    }
+  }
+
+  // Tag the most recent assistant turn so providers with prompt caching
+  // can place a breakpoint there without recomputing the index.
+  let lastAssistantIdx = -1;
+  for (let i = turns.length - 1; i >= 0; i--) {
+    if (turns[i].role === 'assistant') { lastAssistantIdx = i; break; }
+  }
+  return turns.map((t, i) => ({ ...t, isLastAssistant: i === lastAssistantIdx }));
+}
 
 /**
  * Plan-before-execute steering text. Appended to the current user message
