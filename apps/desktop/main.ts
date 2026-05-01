@@ -7,7 +7,7 @@ import * as http from 'http';
 import * as jwt from 'jsonwebtoken';
 import { ensureNode } from './node-bootstrap';
 import { startLocalAgent, stopLocalAgent, setPreviewManager, setOpenExternalHandler, setPreviewEventCallback } from './local-agent';
-import { getOrCreateJwtSecret } from './jwt-secret';
+import { getOrCreateJwtSecret, getOrCreateEncryptionKey } from './jwt-secret';
 import { initializeDatabase } from './db-init';
 import { PreviewWindowManager } from './preview-window';
 
@@ -59,8 +59,11 @@ async function startEmbeddedServer(): Promise<number> {
     : path.join(__dirname, '..', 'server');
   const serverPath = path.join(serverDir, 'main.js');
 
-  // Get or create persistent JWT secret
+  // Get or create persistent JWT and encryption secrets. Both are stored
+  // owner-only in userData and persist across restarts. Rotating either by
+  // hand will sign out users / corrupt every encrypted credential.
   const jwtSecret = await getOrCreateJwtSecret(userDataPath);
+  const encryptionKey = await getOrCreateEncryptionKey(userDataPath);
 
   // Set up data directories in userData
   const sitesDir = path.join(userDataPath, 'published-sites');
@@ -77,6 +80,7 @@ async function startEmbeddedServer(): Promise<number> {
       PORT: String(SERVER_PORT),
       DATABASE_URL: process.env['DATABASE_URL'], // Set by initializeDatabase
       JWT_SECRET: jwtSecret,
+      ENCRYPTION_KEY: encryptionKey,
       SITES_DIR: sitesDir,
       STORAGE_DIR: storageDir,
       ADORABLE_DESKTOP_MODE: 'true',

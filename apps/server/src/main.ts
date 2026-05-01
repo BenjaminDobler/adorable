@@ -8,6 +8,7 @@ import cookieParser from 'cookie-parser';
 import { WebSocketServer } from 'ws';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET, PORT, SITES_DIR } from './config';
+import { validateConfigOrExit } from './config/validate';
 import { containerProxy, getUserId } from './middleware/proxy';
 import { containerRegistry } from './providers/container/container-registry';
 import { logger } from './logger';
@@ -40,6 +41,10 @@ import { bridgeRouter } from './routes/bridge.routes';
 import { mcpAdorableRouter } from './mcp/adorable-mcp-http';
 // Native routes are handled by the desktop local agent, not the cloud server
 // import { nativeRouter } from './routes/native.routes';
+
+// Fail-fast on insecure / missing security-critical env vars in production;
+// log warnings in dev and desktop. Runs before any HTTP listener is bound.
+validateConfigOrExit();
 
 const app = express();
 
