@@ -16,6 +16,7 @@ import { getServerUrl } from '../../../core/services/server-url';
 import { SafeUrlPipe } from '../../../shared/pipes/safe-url.pipe';
 import { FigmaImportPayload } from '@adorable/shared-types';
 import { FigmaBridgeService } from '../../../core/services/figma-bridge.service';
+import { scopeFilesToSelectedApp, extractImageAssets, simplifyFigmaContext } from './chat-tree-helpers';
 
 // Sub-components
 
@@ -622,77 +623,12 @@ export class ChatComponent {
 
   // ===== Project Image Assets =====
 
+  /** Template-bound: shown as attachable thumbnails in the chat UI. */
   getProjectImageAssets(): { path: string; name: string }[] {
-    const files = this.projectService.files();
-    if (!files) return [];
-
-    const assets: { path: string; name: string }[] = [];
-    const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico'];
-
-    const traverse = (node: any, currentPath: string) => {
-      if (node.file) {
-        const ext = currentPath.substring(currentPath.lastIndexOf('.')).toLowerCase();
-        if (imageExtensions.includes(ext)) {
-          const name = currentPath.split('/').pop() || currentPath;
-          assets.push({ path: currentPath, name });
-        }
-      } else if (node.directory) {
-        for (const key in node.directory) {
-          traverse(node.directory[key], `${currentPath}${key}/`.replace('//', '/'));
-        }
-      }
-    };
-
-    if (files['public']?.directory?.['assets']?.directory) {
-      traverse({ directory: files['public'].directory['assets'].directory }, 'assets/');
-    }
-
-    return assets;
+    return extractImageAssets(this.projectService.files());
   }
 
   // ===== Figma =====
-
-  private simplifyFigmaContext(context: Record<string, any>): string {
-    const summaries: string[] = [];
-
-    for (const nodeId of Object.keys(context)) {
-      const node = context[nodeId]?.document;
-      if (!node) continue;
-
-      const summary = this.summarizeNode(node, 0);
-      summaries.push(summary);
-    }
-
-    return summaries.join('\n\n');
-  }
-
-  private summarizeNode(node: any, depth: number): string {
-    if (depth > 3) return '';
-
-    const indent = '  '.repeat(depth);
-    const dims = node.absoluteBoundingBox
-      ? ` (${Math.round(node.absoluteBoundingBox.width)}×${Math.round(node.absoluteBoundingBox.height)})`
-      : '';
-
-    let line = `${indent}- ${node.name} [${node.type}]${dims}`;
-
-    if (node.children && node.children.length > 0 && depth < 3) {
-      const childSummaries = node.children
-        .slice(0, 10)
-        .map((child: any) => this.summarizeNode(child, depth + 1))
-        .filter((s: string) => s);
-
-      if (childSummaries.length > 0) {
-        line += '\n' + childSummaries.join('\n');
-      }
-
-      if (node.children.length > 10) {
-        line += `\n${indent}  ... and ${node.children.length - 10} more children`;
-      }
-    }
-
-    return line;
-  }
 
   handleFigmaImport(payload: FigmaImportPayload) {
     console.log('[Figma Import] Received payload:', {
@@ -759,27 +695,10 @@ Please analyze the design images and structure, then create the corresponding An
    * tools (read_file, write_file, etc.) operate on.
    */
   getScopedFiles(): any {
-    const files = this.projectService.files() || {};
-    const selectedApp = this.projectService.detectedConfig()?.selectedApp;
-    if (!selectedApp || selectedApp === '.') return files;
-
-    // Navigate into the selectedApp subtree to verify it exists
-    const parts = selectedApp.split('/');
-    let node: any = files;
-    for (const part of parts) {
-      if (node[part]?.directory) {
-        node = node[part].directory;
-      } else {
-        return files; // path not found — fall back to full tree
-      }
-    }
-
-    // Rebuild the nested structure so paths stay correct (e.g. apps/my-app/src/...)
-    let scoped: any = node;
-    for (let i = parts.length - 1; i >= 0; i--) {
-      scoped = { [parts[i]]: { directory: scoped } };
-    }
-    return scoped;
+    return scopeFilesToSelectedApp(
+      this.projectService.files(),
+      this.projectService.detectedConfig()?.selectedApp,
+    );
   }
 
   // ===== Generation =====
@@ -816,7 +735,7 @@ Please analyze the design images and structure, then create the corresponding An
     }
 
     if (this.figmaContext()) {
-      const simplifiedContext = this.simplifyFigmaContext(this.figmaContext());
+      const simplifiedContext = simplifyFigmaContext(this.figmaContext());
       currentPrompt += `
 
 --- Figma Design Context ---
