@@ -105,6 +105,9 @@ model Project {
   publishSlug         String?   @unique
   publishVisibility   String    @default("public")  // "public" | "private" | "unlisted"
   publishedAt         DateTime?
+
+  @@index([userId])
+  @@index([teamId])
 }
 
 model GitHubWebhook {
@@ -127,6 +130,8 @@ model ChatMessage {
   usage     String?  // JSON stringified usage data
   model     String?  // AI model used for this message
   timestamp DateTime @default(now())
+
+  @@index([projectId])
 }
 
 model Team {
@@ -151,6 +156,9 @@ model TeamMember {
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, userId])
+  // teamId is the leading column of the composite @@unique above, so it gets a usable index for free.
+  // userId is not, so add an explicit index for "list teams a user belongs to".
+  @@index([userId])
 }
 
 model TeamInvite {
@@ -165,6 +173,8 @@ model TeamInvite {
   usedAt    DateTime?
   expiresAt DateTime?
   createdAt DateTime  @default(now())
+
+  @@index([teamId])
 }
 
 model Kit {
@@ -186,6 +196,9 @@ model Kit {
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([teamId])
 }
 
 model KitLesson {
@@ -204,4 +217,7 @@ model KitLesson {
   projectId   String?          // which project triggered it
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([kitId])
+  @@index([userId])
 }

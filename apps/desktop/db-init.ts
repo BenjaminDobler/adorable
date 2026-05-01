@@ -19,7 +19,7 @@ export interface DatabaseInitResult {
 // Bump LATEST_VERSION and add a new entry to `migrations` whenever the
 // Prisma schema changes.  Each migration is idempotent (uses addColumn /
 // tryExec helpers) so it's safe to re-run on any database state.
-const LATEST_VERSION = 12;
+const LATEST_VERSION = 13;
 
 type MigrationFn = (db: Database.Database) => void;
 
@@ -166,6 +166,17 @@ const migrations: Migration[] = [
     name: 'Claude Code session tracking',
     up(db) {
       addColumn(db, 'Project', 'claudeCodeSessionId', 'TEXT');
+    },
+  },
+  {
+    version: 13,
+    name: 'FK indexes for query performance',
+    up(db) {
+      tryExec(db, 'CREATE INDEX IF NOT EXISTS "Project_teamId_idx" ON "Project"("teamId")');
+      tryExec(db, 'CREATE INDEX IF NOT EXISTS "TeamMember_userId_idx" ON "TeamMember"("userId")');
+      tryExec(db, 'CREATE INDEX IF NOT EXISTS "TeamInvite_teamId_idx" ON "TeamInvite"("teamId")');
+      tryExec(db, 'CREATE INDEX IF NOT EXISTS "Kit_userId_idx" ON "Kit"("userId")');
+      tryExec(db, 'CREATE INDEX IF NOT EXISTS "Kit_teamId_idx" ON "Kit"("teamId")');
     },
   },
 ];
@@ -402,13 +413,18 @@ function createFreshSchema(db: Database.Database): void {
 
     -- Indexes
     CREATE INDEX IF NOT EXISTS "Project_userId_idx" ON "Project"("userId");
+    CREATE INDEX IF NOT EXISTS "Project_teamId_idx" ON "Project"("teamId");
     CREATE INDEX IF NOT EXISTS "ChatMessage_projectId_idx" ON "ChatMessage"("projectId");
     CREATE UNIQUE INDEX IF NOT EXISTS "User_githubId_key" ON "User"("githubId");
     CREATE UNIQUE INDEX IF NOT EXISTS "User_googleId_key" ON "User"("googleId");
     CREATE UNIQUE INDEX IF NOT EXISTS "GitHubWebhook_projectId_key" ON "GitHubWebhook"("projectId");
     CREATE UNIQUE INDEX IF NOT EXISTS "Team_slug_key" ON "Team"("slug");
     CREATE UNIQUE INDEX IF NOT EXISTS "TeamMember_teamId_userId_key" ON "TeamMember"("teamId", "userId");
+    CREATE INDEX IF NOT EXISTS "TeamMember_userId_idx" ON "TeamMember"("userId");
     CREATE UNIQUE INDEX IF NOT EXISTS "TeamInvite_code_key" ON "TeamInvite"("code");
+    CREATE INDEX IF NOT EXISTS "TeamInvite_teamId_idx" ON "TeamInvite"("teamId");
+    CREATE INDEX IF NOT EXISTS "Kit_userId_idx" ON "Kit"("userId");
+    CREATE INDEX IF NOT EXISTS "Kit_teamId_idx" ON "Kit"("teamId");
     CREATE INDEX IF NOT EXISTS "KitLesson_kitId_idx" ON "KitLesson"("kitId");
     CREATE INDEX IF NOT EXISTS "KitLesson_userId_idx" ON "KitLesson"("userId");
   `);
