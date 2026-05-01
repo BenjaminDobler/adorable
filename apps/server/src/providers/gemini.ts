@@ -2,6 +2,13 @@ import { GenerateOptions, GenerationResult, LLMProvider, StreamCallbacks } from 
 import { GoogleGenAI, createPartFromFunctionResponse } from '@google/genai';
 import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, REVIEW_SYSTEM_PROMPT, RESEARCH_SYSTEM_PROMPT, AgentLoopContext } from './base';
 import { sanitizeCommandOutput } from './sanitize-output';
+import {
+  PLAN_BEFORE_EXECUTE_INSTRUCTION,
+  buildFailureMessage,
+  CDP_POST_BUILD_VERIFICATION_MESSAGE,
+  sessionFileTrackerMessage,
+  turnBudgetWarning,
+} from './agent-loop-messages';
 
 /** Extract text from a Gemini response chunk without triggering the SDK's
  *  "non-text parts" console.warn that fires when accessing `.text` on a
@@ -217,16 +224,9 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
       }
     }
 
-    // Improvement 4: Plan-before-execute — for complex prompts
+    // Plan-before-execute — for complex prompts
     if (preflightDecision.requiresPlan) {
-      enrichedUserMessage += '\n\n**IMPORTANT — Plan before coding:**\n'
-        + 'This is a complex task. Before writing ANY code:\n'
-        + '1. Output a brief plan listing every file you will create (path + one-line purpose)\n'
-        + '2. List the components/services and what each does\n'
-        + '3. Note the order you will write them (dependencies first)\n'
-        + '4. Then proceed to implement the plan — write each file ONCE, do NOT rewrite files from scratch\n'
-        + '5. After writing all files, verify the build\n\n'
-        + 'SCOPE DISCIPLINE: Only create files in your plan. Do NOT add features, components, or files not explicitly requested in the user\'s prompt.\n';
+      enrichedUserMessage += PLAN_BEFORE_EXECUTE_INSTRUCTION;
       if (initialParts[0]?.text) initialParts[0].text = enrichedUserMessage;
       logger.info('Injected plan-before-execute instruction (preflight detected complex prompt)');
     }
@@ -287,7 +287,7 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
           if (buildResult.exitCode !== 0) {
             callbacks.onText?.('Build failed. Fixing errors...\n');
             const sanitizedBuildOutput = sanitizeCommandOutput('npm run build', buildResult.stdout || '', buildResult.stderr || '', buildResult.exitCode);
-            const buildFailMsg = `The build failed with the following errors. You MUST fix ALL errors and then run \`npm run build\` again to verify.\n\n\`\`\`\n${sanitizedBuildOutput}\n\`\`\``;
+            const buildFailMsg = buildFailureMessage(sanitizedBuildOutput);
             logger.logText('INJECTED_USER_MESSAGE', buildFailMsg, { reason: 'auto_build_failure' });
             currentMessage = [{ text: buildFailMsg }];
             ctx.hasRunBuild = false;
@@ -301,14 +301,8 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
             if (ctx.cdpEnabled && !ctx.hasVerifiedWithBrowser && turnCount < maxTurns - 3) {
               ctx.hasVerifiedWithBrowser = true;
               callbacks.onText?.('Verifying with browser tools...\n');
-              const verifyMsg = 'Build succeeded. Now verify the application works correctly:\n'
-                + '1. Wait a moment for the dev server to reload, then use `browse_console` to check for runtime errors\n'
-                + '2. Use `browse_screenshot` to capture the current state of the application\n'
-                + '3. Analyze the screenshot — does the UI match what was requested?\n'
-                + '4. If there are issues (errors, broken layout, missing elements), fix them and rebuild\n'
-                + '5. If everything looks correct, you are done.';
-              logger.logText('INJECTED_USER_MESSAGE', verifyMsg, { reason: 'cdp_post_build_verification' });
-              currentMessage = [{ text: verifyMsg }];
+              logger.logText('INJECTED_USER_MESSAGE', CDP_POST_BUILD_VERIFICATION_MESSAGE, { reason: 'cdp_post_build_verification' });
+              currentMessage = [{ text: CDP_POST_BUILD_VERIFICATION_MESSAGE }];
               turnCount++;
               continue;
             }
@@ -340,34 +334,14 @@ export class GeminiProvider extends BaseLLMProvider implements LLMProvider {
         createPartFromFunctionResponse(r.id, r.name, { result: r.content })
       );
 
-      // ─── Session file tracker + turn budget (improvements 1 & 3) ───
+      // Session file tracker + turn-budget nudges, appended to the function-response
+      // parts so the model sees them alongside the tool results.
       const filesWrittenThisTurn = ctx.modifiedFiles.length - ctx.modifiedFilesAtTurnStart;
+      const sessionMsg = sessionFileTrackerMessage(ctx.modifiedFiles, filesWrittenThisTurn);
+      if (sessionMsg) toolResponseParts.push({ text: sessionMsg });
 
-      // Improvement 1: Session file tracker — inject after turns that wrote files
-      if (filesWrittenThisTurn > 0 && ctx.modifiedFiles.length > 0) {
-        const fileList = ctx.modifiedFiles.map((f: string) => `  - ${f}`).join('\n');
-        toolResponseParts.push({ text:
-          `[Session: ${ctx.modifiedFiles.length} files created/modified this session:\n${fileList}\n` +
-          `Use edit_file for changes to existing files. Do NOT re-read files you just wrote unless checking specific content.]`
-        });
-      }
-
-      // Improvement 3: Turn budget warnings
-      const turnsUsed = turnCount + 1;
-      if (turnsUsed === 25 && maxTurns > 30) {
-        toolResponseParts.push({ text:
-          `[Progress: ${turnsUsed} turns used, ${ctx.modifiedFiles.length} files written. ` +
-          `Focus on completing the task. Use edit_file for modifications, not full rewrites.]`
-        });
-      } else if (turnsUsed === 35 && maxTurns > 40) {
-        toolResponseParts.push({ text:
-          `[Progress: ${turnsUsed} turns used. Finalize your work — verify build and respond. Do NOT rewrite files from scratch.]`
-        });
-      } else if (maxTurns - turnsUsed <= 5 && maxTurns - turnsUsed > 0 && maxTurns > 10) {
-        toolResponseParts.push({ text:
-          `[WARNING: Only ${maxTurns - turnsUsed} turns remaining. Complete now — verify build, take a screenshot if needed, and respond.]`
-        });
-      }
+      const budgetMsg = turnBudgetWarning(turnCount + 1, maxTurns, ctx.modifiedFiles.length);
+      if (budgetMsg) toolResponseParts.push({ text: budgetMsg });
 
       currentMessage = toolResponseParts;
       turnCount++;

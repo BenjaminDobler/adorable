@@ -3,6 +3,13 @@ import Anthropic from '@anthropic-ai/sdk';
 import { BaseLLMProvider, ANGULAR_KNOWLEDGE_BASE, REVIEW_SYSTEM_PROMPT, RESEARCH_SYSTEM_PROMPT, AgentLoopContext } from './base';
 import { sanitizeCommandOutput } from './sanitize-output';
 import { createSapFetch } from './sap-ai-core';
+import {
+  PLAN_BEFORE_EXECUTE_INSTRUCTION,
+  buildFailureMessage,
+  CDP_POST_BUILD_VERIFICATION_MESSAGE,
+  sessionFileTrackerMessage,
+  turnBudgetWarning,
+} from './agent-loop-messages';
 
 export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
   async streamGenerate(options: GenerateOptions, callbacks: StreamCallbacks): Promise<GenerationResult> {
@@ -282,18 +289,10 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
       }
     }
 
-    // Improvement 4: Plan-before-execute — for complex prompts, inject a plan instruction
-    // so the AI outputs a file plan before writing code. This prevents scope creep and
-    // rewrite cycles by giving the session a structure the AI can follow.
+    // Plan-before-execute — for complex prompts, inject a plan instruction so the
+    // AI outputs a file plan before writing code. Prevents scope creep + rewrite cycles.
     if (preflightDecision.requiresPlan) {
-      enrichedUserMessage += '\n\n**IMPORTANT — Plan before coding:**\n'
-        + 'This is a complex task. Before writing ANY code:\n'
-        + '1. Output a brief plan listing every file you will create (path + one-line purpose)\n'
-        + '2. List the components/services and what each does\n'
-        + '3. Note the order you will write them (dependencies first)\n'
-        + '4. Then proceed to implement the plan — write each file ONCE, do NOT rewrite files from scratch\n'
-        + '5. After writing all files, verify the build\n\n'
-        + 'SCOPE DISCIPLINE: Only create files in your plan. Do NOT add features, components, or files not explicitly requested in the user\'s prompt.\n';
+      enrichedUserMessage += PLAN_BEFORE_EXECUTE_INSTRUCTION;
       const lastMsg = messages[messages.length - 1];
       if (lastMsg?.role === 'user' && lastMsg.content?.[0]?.type === 'text') {
         lastMsg.content[0].text = enrichedUserMessage;
@@ -424,7 +423,7 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
           if (buildResult.exitCode !== 0) {
             callbacks.onText?.('Build failed. Fixing errors...\n');
             const sanitizedBuildOutput = sanitizeCommandOutput('npm run build', buildResult.stdout || '', buildResult.stderr || '', buildResult.exitCode);
-            const buildFailMsg = `The build failed with the following errors. You MUST fix ALL errors and then run \`npm run build\` again to verify.\n\n\`\`\`\n${sanitizedBuildOutput}\n\`\`\``;
+            const buildFailMsg = buildFailureMessage(sanitizedBuildOutput);
             logger.logText('INJECTED_USER_MESSAGE', buildFailMsg, { reason: 'auto_build_failure' });
             messages.push({ role: 'user', content: [{ type: 'text', text: buildFailMsg }] });
             ctx.hasRunBuild = false;
@@ -438,14 +437,8 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
             if (ctx.cdpEnabled && !ctx.hasVerifiedWithBrowser && turnCount < maxTurns - 3) {
               ctx.hasVerifiedWithBrowser = true;
               callbacks.onText?.('Verifying with browser tools...\n');
-              const verifyMsg = 'Build succeeded. Now verify the application works correctly:\n'
-                + '1. Wait a moment for the dev server to reload, then use `browse_console` to check for runtime errors\n'
-                + '2. Use `browse_screenshot` to capture the current state of the application\n'
-                + '3. Analyze the screenshot — does the UI match what was requested?\n'
-                + '4. If there are issues (errors, broken layout, missing elements), fix them and rebuild\n'
-                + '5. If everything looks correct, you are done.';
-              logger.logText('INJECTED_USER_MESSAGE', verifyMsg, { reason: 'cdp_post_build_verification' });
-              messages.push({ role: 'user', content: [{ type: 'text', text: verifyMsg }] });
+              logger.logText('INJECTED_USER_MESSAGE', CDP_POST_BUILD_VERIFICATION_MESSAGE, { reason: 'cdp_post_build_verification' });
+              messages.push({ role: 'user', content: [{ type: 'text', text: CDP_POST_BUILD_VERIFICATION_MESSAGE }] });
               turnCount++;
               continue;
             }
@@ -510,36 +503,18 @@ export class AnthropicProvider extends BaseLLMProvider implements LLMProvider {
 
       messages.push({ role: 'user', content: toolResults });
 
-      // ─── Session file tracker + turn budget (improvements 1 & 3) ───
+      // Session file tracker + turn-budget nudges — append onto the last user
+      // message (the tool_result block we just pushed) so the model sees them
+      // alongside the tool results.
       const lastMsg = messages[messages.length - 1];
       const lastContent = Array.isArray(lastMsg.content) ? lastMsg.content : [];
 
-      // Improvement 1: Session file tracker — inject after turns that wrote files
       const filesWrittenThisTurn = ctx.modifiedFiles.length - ctx.modifiedFilesAtTurnStart;
-      if (filesWrittenThisTurn > 0 && ctx.modifiedFiles.length > 0) {
-        const fileList = ctx.modifiedFiles.map((f: string) => `  - ${f}`).join('\n');
-        lastContent.push({ type: 'text', text:
-          `[Session: ${ctx.modifiedFiles.length} files created/modified this session:\n${fileList}\n` +
-          `Use edit_file for changes to existing files. Do NOT re-read files you just wrote unless checking specific content.]`
-        });
-      }
+      const sessionMsg = sessionFileTrackerMessage(ctx.modifiedFiles, filesWrittenThisTurn);
+      if (sessionMsg) lastContent.push({ type: 'text', text: sessionMsg });
 
-      // Improvement 3: Turn budget warnings
-      const turnsUsed = turnCount + 1;
-      if (turnsUsed === 25 && maxTurns > 30) {
-        lastContent.push({ type: 'text', text:
-          `[Progress: ${turnsUsed} turns used, ${ctx.modifiedFiles.length} files written. ` +
-          `Focus on completing the task. Use edit_file for modifications, not full rewrites.]`
-        });
-      } else if (turnsUsed === 35 && maxTurns > 40) {
-        lastContent.push({ type: 'text', text:
-          `[Progress: ${turnsUsed} turns used. Finalize your work — verify build and respond. Do NOT rewrite files from scratch.]`
-        });
-      } else if (maxTurns - turnsUsed <= 5 && maxTurns - turnsUsed > 0 && maxTurns > 10) {
-        lastContent.push({ type: 'text', text:
-          `[WARNING: Only ${maxTurns - turnsUsed} turns remaining. Complete now — verify build, take a screenshot if needed, and respond.]`
-        });
-      }
+      const budgetMsg = turnBudgetWarning(turnCount + 1, maxTurns, ctx.modifiedFiles.length);
+      if (budgetMsg) lastContent.push({ type: 'text', text: budgetMsg });
 
       turnCount++;
       ctx.modifiedFilesAtTurnStart = ctx.modifiedFiles.length;
